@@ -13,7 +13,7 @@
 
 位置失敗為 denied／timeout／unavailable／unsupported；取消可拋共用 `SafeWalkCancelledException`，由 M1 邊界忽略過期結果，或轉 unavailable＋明確取消訊息，不新增 wire status。未知精度／時間遵守 required nullable，不能補假座標。
 
-`TownPassPlatformAdapter` 已包裝官方 `GeoLocatorService.position()`，但未在官方 App 註冊或自動呼叫。只有 live 且明確使用者操作才可能讀位置；mock 只消費注入 fixture，沒有時回不可用。缺少實測精度或來自 native mock provider 的位置不會假標為真實 GPS。M2 消費這一份位置；M1 之後注入 M4 repo／據點 lookup，求助先停止 M5 並取消路線。不等待定位成功才提供求助，也不自行宣稱警方受理或派遣。
+`TownPassPlatformAdapter` 已包裝官方 `GeoLocatorService.position()`，但未在官方 App 註冊或自動呼叫。只有 live 且明確使用者操作才可能讀位置；mock 只消費注入 fixture，沒有時回不可用。缺少實測精度或來自 native mock provider 的位置不會假標為真實 GPS；live 結果亦套用共用 `positionProblems()`，拒絕超過 60 秒的定位及超前 30 秒以上的時間。M2 消費這一份位置；M1 之後注入 M4 repo／據點 lookup，求助先停止 M5 並取消路線。不等待定位成功才提供求助，也不自行宣稱警方受理或派遣。
 
 ## 第一輪交付
 

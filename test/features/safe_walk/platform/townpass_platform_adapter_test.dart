@@ -20,21 +20,24 @@ class _Cancellation implements SafeWalkCancellation {
   }
 }
 
-geo.Position _native({bool accuracyKnown = true, bool mocked = false}) =>
-    geo.Position(
-      longitude: 121.5654,
-      latitude: 25.0330,
-      timestamp: DateTime.now().toUtc(),
-      accuracy: accuracyKnown ? 12 : 0,
-      altitude: 0,
-      altitudeAccuracy: 0,
-      heading: 0,
-      headingAccuracy: 0,
-      speed: 0,
-      speedAccuracy: 0,
-      hasAccuracy: accuracyKnown,
-      isMocked: mocked,
-    );
+geo.Position _native({
+  bool accuracyKnown = true,
+  bool mocked = false,
+  DateTime? timestamp,
+}) => geo.Position(
+  longitude: 121.5654,
+  latitude: 25.0330,
+  timestamp: timestamp ?? DateTime.now().toUtc(),
+  accuracy: accuracyKnown ? 12 : 0,
+  altitude: 0,
+  altitudeAccuracy: 0,
+  heading: 0,
+  headingAccuracy: 0,
+  speed: 0,
+  speedAccuracy: 0,
+  hasAccuracy: accuracyKnown,
+  isMocked: mocked,
+);
 
 void main() {
   sw.Position mockPosition() => sw.Position.fromJson(
@@ -117,6 +120,48 @@ void main() {
     );
     expect(result.toJson()['status'], 'unavailable');
   });
+  test(
+    'stale native GPS is unavailable rather than a successful origin',
+    () async {
+      final adapter = TownPassPlatformAdapter(
+        readPosition: () async => _native(
+          timestamp: DateTime.now().toUtc().subtract(
+            const Duration(minutes: 10),
+          ),
+        ),
+      );
+      final result = await adapter.getCurrentPosition(
+        mode: sw.DataMode.live,
+        userInitiated: true,
+      );
+      expect(result, isA<sw.LocationFailure>());
+      expect(
+        (result as sw.LocationFailure).status,
+        sw.LocationFailureStatus.unavailable,
+      );
+      expect(result.message, contains('定位時間'));
+    },
+  );
+  test(
+    'future native GPS is unavailable rather than a successful origin',
+    () async {
+      final adapter = TownPassPlatformAdapter(
+        readPosition: () async => _native(
+          timestamp: DateTime.now().toUtc().add(const Duration(minutes: 10)),
+        ),
+      );
+      final result = await adapter.getCurrentPosition(
+        mode: sw.DataMode.live,
+        userInitiated: true,
+      );
+      expect(result, isA<sw.LocationFailure>());
+      expect(
+        (result as sw.LocationFailure).status,
+        sw.LocationFailureStatus.unavailable,
+      );
+      expect(result.message, contains('定位時間'));
+    },
+  );
   test('host-simulated position is not relabelled as live GPS', () async {
     final adapter = TownPassPlatformAdapter(
       readPosition: () async => _native(mocked: true),

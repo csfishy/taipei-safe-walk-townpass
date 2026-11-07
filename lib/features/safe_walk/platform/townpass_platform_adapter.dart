@@ -4,6 +4,7 @@ import 'package:geolocator/geolocator.dart' as geo;
 import 'package:get/get.dart';
 import 'package:town_pass/features/safe_walk/platform/platform_service.dart';
 import 'package:town_pass/features/safe_walk/shared/contracts/cancellation.dart';
+import 'package:town_pass/features/safe_walk/shared/contracts/semantics.dart';
 import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart'
     as sw;
 import 'package:town_pass/service/geo_locator_service.dart';
@@ -68,16 +69,17 @@ class TownPassPlatformAdapter implements PlatformService {
               : 'TownPass 尚未提供定位精度；不將缺值當成零公尺誤差。',
         );
       }
-      return sw.LocationResult.fromJson({
-        'status': 'ok',
-        'position': {
-          'schemaVersion': '1.0.0',
-          'coordinates': {'lat': position.latitude, 'lng': position.longitude},
-          'source': 'gps',
-          'accuracyMeters': position.accuracy,
-          'observedAt': position.timestamp.toUtc().toIso8601String(),
-        },
+      final convertedPosition = sw.Position.fromJson({
+        'schemaVersion': '1.0.0',
+        'coordinates': {'lat': position.latitude, 'lng': position.longitude},
+        'source': 'gps',
+        'accuracyMeters': position.accuracy,
+        'observedAt': position.timestamp.toUtc().toIso8601String(),
       });
+      if (positionProblems(convertedPosition).isNotEmpty) {
+        return _failure('unavailable', 'TownPass 定位時間已過期或超前；請重新取得起點。');
+      }
+      return sw.LocationSuccess(position: convertedPosition);
     } on SafeWalkCancelledException {
       rethrow;
     } on TimeoutException {

@@ -23,7 +23,7 @@
 |---|---|
 | 架構／協作 | AGENTS、Architecture、Schema、Modules、Color、Initialization、CI、競賽授權待確認文件與五份模組 README |
 | 共用契約 | 原 JSON Schema 1.0.0、16 個 typed Dart models、4 組 sealed unions、enum wire mapping、受限 validator、6 組語意檢查、取消協定、generator／一致性檢查 |
-| M1 | 明確使用者操作／模式閘門、lazy TownPass 位置 Adapter、逾時／取消／錯誤映射；求助介面保留未配置，不撥號、不分享、不通報 |
+| M1 | 明確使用者操作／模式閘門、lazy TownPass 位置 Adapter、逾時／取消／錯誤映射及過期／未來定位拒絕；求助介面保留未配置，不撥號、不分享、不通報 |
 | M2 | RouteService 抽象接點；沿用共用 request/result，不建立真實路線 provider 或地圖 |
 | M3 | presentation 只有 README，沒有 Dart／Widget；所有正式新增 UI/UX 留給莅紋 |
 | M4 | Parser＋Schema／語意驗證、注入式唯讀 Mock Repository，空資料與 live 未配置明確區分 |
@@ -42,7 +42,7 @@ M1～M5 的實際路徑均為 `lib/features/safe_walk/` 下的 platform、naviga
 | Safe Walk generator／`--check` | PASS | Schema、runtime bundle、Dart models 一致；原樣來源 43 檔 SHA-256 一致 |
 | `flutter analyze --no-pub lib/features/safe_walk tool test/features/safe_walk` | PASS | 新增範圍 No issues found，包含 lint；沒有以 ignore 掩蓋新增診斷 |
 | 完整 `flutter analyze --no-pub` | **未通過，exit 1** | 25 個診斷：7 warnings、18 info、0 errors，全在未修改的官方 lib/page、lib/util；未為清 lint 重做上游程式或改 analysis_options |
-| 完整 `flutter test --no-pub --reporter expanded` | **PASS：117/117** | 無 skip；涵蓋契約 58、M4 21、M1 11、M5 純狀態 22、色彩 3、官方路由 2 |
+| 完整 `flutter test --no-pub --reporter expanded` | **PASS：119/119** | 無 skip；涵蓋契約 58、M4 21、M1 13、M5 純狀態 22、色彩 3、官方路由 2 |
 | 官方來源／UI guard | PASS | 完整官方歷史為 HEAD 祖先；官方 main/pages/util/service/assets/fonts/iOS/Android/LICENSE／pubspec／版本檔均無 diff；本輪沒有新 Widget |
 | 顏色配對 | PASS（指定配對） | 官方 primary500 白字 2.39:1 不適用；深字配 primary500 7.24:1；primary700 白字 5.89:1、red600 白字 5.51:1；不是整體 WCAG 認證 |
 | Android Debug Build | **已嘗試，環境阻塞** | `flutter build apk --debug --no-pub` exit 1：No Android SDK found；本機也未找到 Java／adb，不宣稱 APK 成功 |

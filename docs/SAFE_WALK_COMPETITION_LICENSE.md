@@ -69,4 +69,4 @@
 - [官方 TownPass 程式庫](https://github.com/taipei-doit/TownPass)、[固定基底 LICENSE](https://github.com/taipei-doit/TownPass/blob/c8e5d4d3f8f699f3d9d6cd68e129ed4da12037b3/LICENSE)及上述官方技術文件：架構與上游授權證據，不是本隊參賽核准。
 - GNU 官方 [GPLv3](https://www.gnu.org/licenses/gpl-3.0.txt)、[AGPLv3](https://www.gnu.org/licenses/agpl-3.0.txt)及 [FAQ](https://www.gnu.org/licenses/gpl-faq.en.html#AGPLGPL)：已讀兩份第 13 條原文；本文件摘要與工程建議不替代完整條款。
 
-本次只新增本文件，未替換上游 LICENSE，未改官方 README／CI，未發送對外訊息，未對競賽資格、最終交付或授權相容性作出已通過宣告。
+本文件僅記錄規則、授權證據與待確認事項；上游 LICENSE 未替換。初始化另在 README 前置團隊文件入口並新增團隊 CI，保留原 README 內容，未修改官方 UI。沒有向主辦發送詢問，也未對競賽資格、最終交付或授權相容性作出已通過宣告。
