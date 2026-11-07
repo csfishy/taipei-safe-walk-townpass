@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_flow.dart';
-import 'package:town_pass/features/safe_walk/presentation/assets/safe_walk_card_assets.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_speaker.dart';
 
 final _skip = Platform.environment['M3_SCREENSHOTS'] == null;
@@ -41,19 +40,17 @@ Future<void> _app(WidgetTester t, {SafeWalkSpeaker speaker = const UnavailableSp
   t.view.physicalSize = const Size(390 * 2, 844 * 2);
   t.view.devicePixelRatio = 2;
   addTearDown(t.view.reset);
-  await t.pumpWidget(MaterialApp(
-    debugShowCheckedModeBanner: false,
-    theme: ThemeData(fontFamily: 'PingFangTC'),
-    home: SafeWalkFlow(speaker: speaker, onExit: () {}),
-  ));
-  // Memory images decode outside the fake test clock; finish before capturing.
-  await t.runAsync(() async {
-    final context = t.element(find.byType(SafeWalkFlow));
-    await Future.wait([
-      precacheImage(MemoryImage(swCardSkyline), context),
-      precacheImage(MemoryImage(swCardStars), context),
-    ]);
-  });
+  await t.pumpWidget(
+    MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(fontFamily: 'PingFangTC'),
+      home: SafeWalkFlow(speaker: speaker, onExit: () {}),
+    ),
+  );
+  // 首頁卡片的 SVG（含內嵌 101 圖片）在測試時脈之外解碼；截圖前先等它載完。
+  await t.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 800)));
+  await t.pump();
+  await t.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 400)));
   await t.pumpAndSettle();
 }
 
@@ -76,6 +73,16 @@ void main() {
   testWidgets('01 首頁', (t) async {
     await _app(t);
     await _shot(t, '01-home');
+  }, skip: _skip);
+
+  testWidgets('01b 安心行卡片按下', (t) async {
+    await _app(t);
+    final g = await t.startGesture(t.getCenter(find.text('點擊開始')));
+    await t.pump(const Duration(milliseconds: 300));
+    await t.pump(const Duration(milliseconds: 200));
+    await expectLater(find.byType(MaterialApp), matchesGoldenFile('screenshots/01b-home-card-pressed.png'));
+    await g.cancel();
+    await t.pumpAndSettle();
   }, skip: _skip);
 
   testWidgets('02 地圖：回家路線', (t) async {
@@ -107,7 +114,13 @@ void main() {
     t.view.physicalSize = const Size(390 * 2, 844 * 2);
     t.view.devicePixelRatio = 2;
     addTearDown(t.view.reset);
-    await t.pumpWidget(MaterialApp(debugShowCheckedModeBanner: false, theme: ThemeData(fontFamily: 'PingFangTC'), home: SafeWalkFlow(pointsError: '網路連線中斷，請稍後再試。', onRetryPoints: () {})));
+    await t.pumpWidget(
+      MaterialApp(
+        debugShowCheckedModeBanner: false,
+        theme: ThemeData(fontFamily: 'PingFangTC'),
+        home: SafeWalkFlow(pointsError: '網路連線中斷，請稍後再試。', onRetryPoints: () {}),
+      ),
+    );
     await t.pumpAndSettle();
     await _tap(t, '附近求助地點');
     await _shot(t, '10-points-error');

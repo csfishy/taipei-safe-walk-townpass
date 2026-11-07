@@ -108,56 +108,89 @@ class _ContextCard extends StatelessWidget {
 }
 
 /// Figma 主卡：左下透明文字動作、右下原始天際線插圖。
-class _GoHomeCard extends StatelessWidget {
+class _GoHomeCard extends StatefulWidget {
   const _GoHomeCard({required this.destination, required this.minutes, required this.avoided, required this.onTap});
   final String destination;
   final int minutes, avoided;
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => DecoratedBox(
-    decoration: BoxDecoration(
-      borderRadius: BorderRadius.circular(12),
-      gradient: const LinearGradient(begin: Alignment.centerLeft, end: Alignment.centerRight, colors: [TPColors.primary700, TPColors.primary600, TPColors.primary500], stops: [0, .45, 1]),
-      boxShadow: SwShadow.float,
-    ),
-    child: SwPressable(
-      onTap: onTap,
-      pressedColor: TPColors.primary800.withValues(alpha: .25),
-      radius: 12,
-      semanticsLabel: '安心行，前往$destination，已繞開 $avoided 個異常回報，點擊開始',
-      child: ExcludeSemantics(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: 211),
-          child: Stack(
-            children: [
-              Positioned(right: 0, bottom: 0, width: 210, height: 155, child: Image.memory(swCardSkyline, fit: BoxFit.contain, excludeFromSemantics: true)),
-              Positioned(right: 19, top: 12, width: 210, height: 44, child: Image.memory(swCardStars, fit: BoxFit.contain, excludeFromSemantics: true)),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('安心行', style: SwText.display.copyWith(color: TPColors.white)),
-                    Text('Safe Walk', style: SwText.heading.copyWith(color: TPColors.white)),
-                    const SizedBox(height: 48),
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(minHeight: 56),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
+  State<_GoHomeCard> createState() => _GoHomeCardState();
+}
+
+/// 依 Figma「安心行」卡片 State=Default／Pressed：深青→主色漸層、透明底白色插圖、白字；
+/// 按下時整張卡（含文字）蓋一層 25% primary800，不縮放。
+class _GoHomeCardState extends State<_GoHomeCard> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    button: true,
+    label: '安心行，前往${widget.destination}，已繞開 ${widget.avoided} 個異常回報，點擊開始',
+    child: DecoratedBox(
+      decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), boxShadow: SwShadow.float),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Material(
+          type: MaterialType.transparency,
+          child: InkWell(
+            onTap: widget.onTap,
+            onHighlightChanged: (v) => setState(() => _pressed = v),
+            splashColor: Colors.transparent,
+            highlightColor: Colors.transparent,
+            hoverColor: TPColors.primary800.withValues(alpha: .08),
+            child: ExcludeSemantics(
+              child: Stack(
+                children: [
+                  const Positioned.fill(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(colors: [TPColors.primary700, TPColors.primary600, TPColors.primary500], stops: [0, .45, 1]),
+                      ),
+                    ),
+                  ),
+                  Positioned.fill(
+                    child: SvgPicture.string(swCardArtSvg, fit: BoxFit.cover, alignment: Alignment.bottomRight),
+                  ),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(minHeight: 211, minWidth: double.infinity),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          SvgPicture.string(swCardNavigationSvg, width: 26, height: 26),
-                          const SizedBox(width: 10),
-                          Flexible(
-                            child: Text('點擊開始', style: SwText.title.copyWith(color: TPColors.white)),
+                          Text('安心行', style: SwText.display.copyWith(color: TPColors.white)),
+                          Text('Safe Walk', style: SwText.heading.copyWith(color: TPColors.white)),
+                          const SizedBox(height: 48),
+                          ConstrainedBox(
+                            constraints: const BoxConstraints(minHeight: 56),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                SvgPicture.string(swCardNavigationSvg, width: 26, height: 26),
+                                const SizedBox(width: 10),
+                                Flexible(
+                                  child: Text('點擊開始', style: SwText.title.copyWith(color: TPColors.white)),
+                                ),
+                              ],
+                            ),
                           ),
                         ],
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: AnimatedOpacity(
+                        opacity: _pressed ? 1 : 0,
+                        duration: SwMotion.of(context, 100),
+                        child: ColoredBox(color: TPColors.primary800.withValues(alpha: .25)),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),
