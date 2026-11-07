@@ -514,7 +514,7 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> with WidgetsBindingO
     final note = _waiting || _scriptDone
         ? Padding(
             padding: const EdgeInsets.only(bottom: 8),
-            child: Text(_waiting ? '對方回應中…' : '對方說完了，可以結束通話，或用「完整句子」繼續聊', style: SwText.small),
+            child: Text(_waiting ? '對方回應中…' : '已到劇本最後一句；如仍有危險，請立即求助', style: SwText.small),
           )
         : const SizedBox.shrink();
     switch (_mode) {
