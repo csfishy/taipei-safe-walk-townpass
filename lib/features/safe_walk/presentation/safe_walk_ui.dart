@@ -189,17 +189,71 @@ class SwPrimaryButton extends StatelessWidget {
     color: onTap == null ? TPColors.grayscale100 : SwColors.brand,
     pressedColor: TPColors.primary600, // 同官方 TPButton.primary
     radius: 8,
-    padding: const EdgeInsets.symmetric(horizontal: 20),
-    child: SizedBox(
-      height: swTouch,
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+    // 至少 48 高；空間不夠（例如兩顆並排或字放大）時換行，不截字。
+    child: ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: swTouch - 8),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           if (icon != null) ...[Icon(icon, size: 20, color: onTap == null ? SwColors.textSecondary : SwColors.onBrand), const SizedBox(width: 8)],
-          Text(label, style: SwText.bodyStrong.copyWith(color: onTap == null ? SwColors.textSecondary : SwColors.onBrand)),
+          Flexible(
+            child: Text(label, textAlign: TextAlign.center, style: SwText.bodyStrong.copyWith(color: onTap == null ? SwColors.textSecondary : SwColors.onBrand)),
+          ),
         ],
       ),
+    ),
+  );
+}
+
+/// 外框按鈕：白底主色框（同官方 TPButton.secondary），與 [SwPrimaryButton] 同高同圓角。
+class SwOutlineButton extends StatelessWidget {
+  const SwOutlineButton({super.key, required this.label, this.icon, required this.onTap});
+  final String label;
+  final IconData? icon;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final fg = onTap == null ? SwColors.textSecondary : SwColors.brandText;
+    return SwPressable(
+      onTap: onTap,
+      color: SwColors.surface,
+      pressedColor: TPColors.primary50, // 同官方 TPButton.secondary
+      border: BorderSide(color: onTap == null ? SwColors.border : SwColors.brand),
+      radius: 8,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: swTouch - 8),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (icon != null) ...[Icon(icon, size: 20, color: fg), const SizedBox(width: 6)],
+            Flexible(
+              child: Text(label, textAlign: TextAlign.center, style: SwText.bodyStrong.copyWith(color: fg)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 二選一：兩顆等寬按鈕，左邊主要、右邊次要（參考 2024 得獎作品 ParkFlow 的底部卡片）。
+class SwButtonPair extends StatelessWidget {
+  const SwButtonPair({super.key, required this.first, required this.second});
+  final Widget first, second;
+  @override
+  Widget build(BuildContext context) => IntrinsicHeight(
+    // 一顆換行時另一顆一起變高，兩顆維持一樣大。
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(child: first),
+        const SizedBox(width: 12),
+        Expanded(child: second),
+      ],
     ),
   );
 }

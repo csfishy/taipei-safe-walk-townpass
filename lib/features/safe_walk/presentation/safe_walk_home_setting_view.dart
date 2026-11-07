@@ -196,31 +196,32 @@ class _SafeWalkHomeSettingViewState extends State<SafeWalkHomeSettingView> {
                     ),
                   ],
                   const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      if (editing && widget.onClear != null) ...[
-                        SwSecondaryAction(
+                  Builder(
+                    builder: (context) {
+                      final save = SwPrimaryButton(
+                        label: _busy ? '儲存中…' : '儲存',
+                        icon: Icons.check_rounded,
+                        onTap: pin == null || _busy
+                            ? null
+                            : () => _run(
+                                () => widget.onSave(pin),
+                                '儲存失敗，請再試一次。',
+                              ),
+                      );
+                      if (!editing || widget.onClear == null) {
+                        return SizedBox(width: double.infinity, child: save);
+                      }
+                      return SwButtonPair(
+                        first: save,
+                        second: SwOutlineButton(
                           icon: Icons.delete_outline_rounded,
                           label: '移除',
-                          onTap: () {
-                            if (!_busy) _run(widget.onClear!, '移除失敗，請再試一次。');
-                          },
-                        ),
-                        const SizedBox(width: 12),
-                      ],
-                      Expanded(
-                        child: SwPrimaryButton(
-                          label: _busy ? '儲存中…' : '儲存',
-                          icon: Icons.check_rounded,
-                          onTap: pin == null || _busy
+                          onTap: _busy
                               ? null
-                              : () => _run(
-                                  () => widget.onSave(pin),
-                                  '儲存失敗，請再試一次。',
-                                ),
+                              : () => _run(widget.onClear!, '移除失敗，請再試一次。'),
                         ),
-                      ),
-                    ],
+                      );
+                    },
                   ),
                 ],
               ),
