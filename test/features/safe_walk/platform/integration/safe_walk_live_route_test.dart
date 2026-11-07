@@ -126,7 +126,7 @@ void main() {
       await t.pumpAndSettle();
       expect(listening, isFalse, reason: 'leaving the map stops GPS');
       expect(cancelCount, 1);
-      await positions.close();
+      await t.runAsync(() => positions.close());
     },
   );
 
