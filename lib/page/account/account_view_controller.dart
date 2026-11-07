@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'package:flutter/foundation.dart';
 
 import 'package:town_pass/bean/account.dart';
 import 'package:town_pass/service/account_service.dart';
@@ -52,20 +52,20 @@ class AccountViewController extends GetxController {
   }
 
   String _model() {
-    if (Platform.isAndroid) {
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
       return '${deviceService.androidDeviceInfo?.brand ?? ''} ${deviceService.androidDeviceInfo?.model ?? ''}';
     }
-    if (Platform.isIOS) {
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
       return deviceService.iosDeviceInfo?.model ?? '';
     }
     return '';
   }
 
   String _osVersion() {
-    if (Platform.isAndroid) {
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
       return 'Android ${deviceService.androidDeviceInfo?.version.release ?? ''}';
     }
-    if (Platform.isIOS) {
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
       return deviceService.iosDeviceInfo?.systemVersion ?? '';
     }
     return '';

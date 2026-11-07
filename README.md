@@ -8,6 +8,8 @@ Open source is a key driver of technological progress and social development. Th
 
 # Getting Started
 
+For CI checks, preview APK / unsigned IPA / Flutter Web builds, and GitHub Pages owner setup, see [Builds and deployment](docs/BUILDS.md). Previews use a separate app identity and are not official municipal-service releases.
+
 We highly recommend to read through our [document](https://townpass.taipei/en/docs/) for more detail.
 
 Here are some quick setup guide.

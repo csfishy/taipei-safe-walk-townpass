@@ -89,3 +89,10 @@ app.*.map.json
 
 # FVM Version Cache
 .fvm/
+artifacts/
+*.ipa
+*.apk
+*.jks
+*.keystore
+assets/build-info.json
+coverage/
