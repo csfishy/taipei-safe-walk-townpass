@@ -9,20 +9,21 @@
 | 畫面 | 檔案 | 重點 |
 |---|---|---|
 | 入口 | `safe_walk_flow.dart` | `SafeWalkFlow`：切換以下畫面；對外動作全部經 callback 交給 M1 |
-| 首頁 | `safe_walk_home_view.dart` | 上方臺北通 `TPAppBar` 主色長條＋右上 `CloseButton`（與 WebView 服務相同）；示範模式標示；時間情境卡；「安心行」主卡（點擊開始）；其他功能一項一行；最下方緊急求助 |
+| 首頁 | `safe_walk_home_view.dart` | 上方臺北通 `TPAppBar` 主色長條＋右上 `CloseButton`（與 WebView 服務相同）；主卡讀屏標示示範、其他功能之後有低調的示範資料說明（不放 Mock 標籤）；時間情境卡；「安心行」主卡（點擊開始）；其他功能一項一行；最下方緊急求助 |
 | 地圖 | `safe_walk_map_view.dart`、`demo_map.dart` | 預設回家路線（繞開異常回報，較短但經過異常的路線以虛線對照）、「已繞開 N 個異常回報」標籤、回家／**最近求助地點**切換（中性，不指定任何品牌）、文字路線（方向箭頭逐步）、在地圖上回報狀況與更新既有回報、**可收合的底部資訊框**（點把手或上下滑）、可開關的圖例、最底列左模擬來電右緊急求助 |
 | 附近求助地點 | 同上（`MapStartView.points`） | 據點卡片由近到遠，點開看地址、電話、營業、合作認可、資料來源、更新時間，「帶我去這裡」；**載入中（骨架）、載入失敗（可重試）、沒有資料**三種狀態 |
-| 模擬來電 | `safe_walk_call_view.dart` | 只朗讀對方台詞（點泡泡重播／停止）；自己的回應只顯示文字；「自己輸入」是輸入**對方要說的話**；先出現**響鈴畫面**（光圈、手機震動、拒絕／接聽；沒有鈴聲）；通話中上方固定「**下一步**」導航條（小地圖＋下一步方向＋剩餘分鐘，點一下回地圖），對話在下方捲動不被遮擋；語音未配置時以**無聲示範**呈現播放樣式並註明；不要求麥克風 |
+| 模擬來電 | `safe_walk_call_view.dart` | 先出現**響鈴畫面**（光圈、手機震動約 18 秒後停止、拒絕／接聽；沒有鈴聲）；接聽前可選 M5 的六個劇本。接聽後為 **M5 劇本一問一答**：對方一句、自己回一句，對方才接下一句；沒有上方地圖條，回覆區（快速回覆／完整句子／自己輸入）可收合。只朗讀對方台詞（點泡泡重播／停止），自己的回應只顯示文字；「自己輸入」是輸入**對方要說的話**。劇本 `mock/companion_scenarios.dart` 由 M5 JSON 產生，`safe_walk_companion_sync_test.dart` 檢查同步。語音未配置時以**無聲示範**呈現並註明；不要求麥克風。 |
 | 緊急求助 | `safe_walk_emergency_view.dart` | 單獨一頁：110／119 紅色大按鈕（圖示＋使用時機）、**簡訊報警區塊**（選情況→預覽含時間／GPS／情況／附近據點的內容→勾選附上位置→傳送；示範模式只模擬「已送出」畫面，不會真的傳送）、告訴對方你在哪裡（取得位置中的載入狀態、失敗可重試）、安全提醒、「我現在安全，關閉」 |
 | 共用樣式 | `safe_walk_ui.dart` | 全部引用 TPColors／TPTextStyles；陰影沿用官方 TPCard 的柔和投影；按下縮小＋換色、滑鼠移入變色；載入骨架、空值／錯誤訊息元件；系統關閉動畫時所有動畫為 0 |
 | 示範資料 | `mock/safe_walk_demo_data.dart` | 虛構街區、示範據點（共用 `AssistancePoint`）；異常回報、來電劇本、簡訊範本為**提案型別**，待 M1 納入 Schema |
 | 語音介面 | `safe_walk_speaker.dart` | `SafeWalkSpeaker`；`available == false` 時來電畫面寫「語音尚未配置，播放為無聲示範」，不呼叫 M1／M5 的喇叭 |
 | 路線狀態 | `safe_walk_map_view.dart` 的 `RouteState` | 尚未配置（示範路線＋示範起點，不與真實位置混用）、計算中、失敗（原因＋再試一次＋改去最近求助地點）、成功（用 M2 的距離／時間／說明，標示「僅供參考」） |
 
-### 色彩（依 SAFE_WALK_COLOR_SPEC）
+### 色彩（11/7 使用者決定；相對顏色規範的例外）
 
-- 白字只放在 `primary700`（5.89:1）與 `red600`（5.51:1）上；官方 `TPButton.primary`（白字配 `primary500`，2.39:1）與 `TPButton.alarm`（`red500`）不符合規範，所以沒有直接使用。
-- `primary500` 只當品牌點綴、邊框、選取框；異常回報用 `secondary500`／`secondary800`；紅色只用在緊急求助。
+- 主色使用臺北通 `TPColors.primary500`，上面放白字與白色圖示，與臺北通長條、服務卡及 `TPButton.primary` 一致。這是使用者 11/7 的決定。
+- 白／`primary500` 對比約 **2.39:1**，低於 `SAFE_WALK_COLOR_SPEC.md` 與 WCAG 的對比要求；這項配色不能宣稱符合 WCAG。
+- 主色系「文字」放在白底上時仍使用 `primary700`（`SwColors.brandText`）。緊急求助使用 `red600` 搭白字；異常回報使用 `secondary500`／`secondary800`，紅色只用在緊急求助。
 - 沒有新增任何色碼。
 
 ### 互動與動畫（只在使用者操作時發生）
@@ -46,7 +47,7 @@ SafeWalkFlow(
   pointsLoading: <載入中>, pointsError: <錯誤訊息>, onRetryPoints: <重試>,
   route: <RouteService.planRoute 的 RouteResult>,  // null 且 routeLoading=false → 示範路線
   routeLoading: <計算中>,
-  onPlanRoute: (destination) => <用目前位置與 destination 呼叫 planRoute，結果傳回 route>,  // 進入、換目的地、按「再試一次」時呼叫
+  onPlanRoute: (destination) => <用目前位置與 destination 呼叫 planRoute，結果傳回 route>,  // 使用者開地圖、換目的地、按「再試一次」時呼叫
   speaker: <TTS 或 M5 音訊 Adapter 實作 SafeWalkSpeaker>,
   onLocate: () => platform.getCurrentPosition(mode: ..., userInitiated: true),
   onEmergency: (channel) => platform.requestEmergency(mode: ..., channel: channel, userInitiated: true, allowRealCalls: ...),

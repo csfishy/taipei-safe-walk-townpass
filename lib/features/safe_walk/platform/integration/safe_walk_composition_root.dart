@@ -6,7 +6,8 @@ import 'package:town_pass/features/safe_walk/navigation/default_route_service.da
 import 'package:town_pass/features/safe_walk/navigation/json_transport.dart';
 import 'package:town_pass/features/safe_walk/navigation/osrm_walking_route_provider.dart';
 import 'package:town_pass/features/safe_walk/navigation/route_service.dart';
-import 'package:town_pass/features/safe_walk/platform/integration/companion_speaker_adapter.dart';
+import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_route_speaker.dart';
+import 'package:town_pass/features/safe_walk/platform/integration/tts_safe_walk_speaker.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_navigation_controller.dart';
 import 'package:town_pass/features/safe_walk/platform/platform_service.dart';
 import 'package:town_pass/features/safe_walk/platform/townpass_platform_adapter.dart';
@@ -42,8 +43,9 @@ class SafeWalkCompositionRoot extends StatefulWidget {
   /// Optional transport for provider verification without public requests.
   final JsonTransport? routeTransport;
 
-  /// Ownership transfers to this route, which disposes the adapter once.
-  final CompanionSpeakerAdapter? speaker;
+  /// Ownership transfers to this route, which disposes the speaker once.
+  /// Defaults to on-device TTS; it stays text-only until a voice is confirmed.
+  final SafeWalkRouteSpeaker? speaker;
   final VoidCallback? onExit;
 
   @override
@@ -57,7 +59,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
   _RouteCancellation? _pointsRequest;
   late final PlatformService _platform;
   late final SafetyDataRepository _safetyData;
-  late final CompanionSpeakerAdapter _speaker;
+  late final SafeWalkRouteSpeaker _speaker;
   late final SafeWalkNavigationController _navigation;
   int _routeSequence = 0;
   bool _navigationActive = false;
@@ -86,7 +88,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
           assistancePoints: demoAssistancePoints(),
           areaStatistics: const [],
         );
-    _speaker = widget.speaker ?? CompanionSpeakerAdapter.unavailable();
+    _speaker = widget.speaker ?? _deviceSpeaker();
     _navigation = SafeWalkNavigationController(
       routeService:
           widget.routeService ??
@@ -140,7 +142,23 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state != AppLifecycleState.resumed) _closeNavigation();
+    final active = state == AppLifecycleState.resumed;
+    _speaker.setLifecycleActive(active);
+    if (!active) {
+      _closeNavigation();
+    }
+    if (mounted) setState(() {});
+  }
+
+  SafeWalkRouteSpeaker _deviceSpeaker() {
+    final speaker = TtsSafeWalkSpeaker.device();
+    // Rebuild once the device answers, so the view's voice notice is accurate.
+    unawaited(
+      speaker.prepare().then((_) {
+        if (mounted) setState(() {});
+      }),
+    );
+    return speaker;
   }
 
   sw.RouteRequest _createRouteRequest({
@@ -246,7 +264,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
   ) async {
     _closeNavigation();
     // Issue the stop before platform work; a broken audio adapter cannot leave
-    // the emergency page waiting indefinitely. No real audio is configured.
+    // the emergency page waiting indefinitely.
     try {
       await _speaker.stopForEmergency().timeout(const Duration(seconds: 1));
     } catch (_) {

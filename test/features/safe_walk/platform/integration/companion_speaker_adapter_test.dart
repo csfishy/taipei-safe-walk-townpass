@@ -1,8 +1,10 @@
 import 'dart:async';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:town_pass/features/safe_walk/companion/companion_service.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/companion_speaker_adapter.dart';
+import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_composition_root.dart';
 import 'package:town_pass/features/safe_walk/shared/contracts/cancellation.dart';
 import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart'
     as sw;
@@ -184,6 +186,93 @@ void main() {
     expect(controller.pauses, 1);
     expect(done, 0);
     await speaker.dispose();
+  });
+
+  test('background prevents a late start even after resume', () async {
+    final controller = _Controller()..stopGate = Completer<void>();
+    final speaker = CompanionSpeakerAdapter(controller: controller);
+    var oldDone = 0, blockedDone = 0, resumedDone = 0;
+    speaker.speak('還在等待停止的舊台詞', onDone: () => oldDone++);
+    speaker.setLifecycleActive(false);
+    speaker.speak('背景的新台詞', onDone: () => blockedDone++);
+    speaker.setLifecycleActive(true);
+    controller.stopGate!.complete();
+    await pumpEventQueue();
+
+    expect(controller.scenarios, isEmpty);
+    expect(oldDone, 0);
+    expect(blockedDone, 1);
+    expect(speaker.available, isFalse, reason: 'resume cannot configure audio');
+    speaker.speak('回前景後的明確新要求', onDone: () => resumedDone++);
+    await pumpEventQueue();
+    expect(controller.scenarios.single.steps.single.text, '回前景後的明確新要求');
+    expect(resumedDone, 1);
+    await speaker.dispose();
+  });
+
+  test(
+    'background cancels a pending start and ignores its late error',
+    () async {
+      final controller = _Controller()..holdStarts = true;
+      final speaker = CompanionSpeakerAdapter(controller: controller);
+      var oldDone = 0;
+      speaker.speak('已開始但仍在等待的預覽', onDone: () => oldDone++);
+      await pumpEventQueue();
+
+      speaker.setLifecycleActive(false);
+      expect(controller.cancellations.single!.isCancelled, isTrue);
+      speaker.setLifecycleActive(true);
+      controller.pendingStarts.single.completeError(StateError('late start'));
+      await pumpEventQueue();
+
+      expect(controller.scenarios, hasLength(1));
+      expect(oldDone, 0);
+      expect(speaker.lastError, isNull);
+      expect(speaker.available, isFalse);
+      await speaker.dispose();
+    },
+  );
+
+  test('resuming a background bridge cannot clear emergency stop', () async {
+    final controller = _Controller();
+    final speaker = CompanionSpeakerAdapter(controller: controller);
+    speaker.setLifecycleActive(false);
+    await speaker.stopForEmergency();
+    speaker.setLifecycleActive(true);
+    var done = 0;
+    speaker.speak('SOS 之後不重啟', onDone: () => done++);
+    await pumpEventQueue();
+
+    expect(controller.stops, contains(sw.CompanionStopReason.emergency));
+    expect(controller.scenarios, isEmpty);
+    expect(done, 1);
+    expect(speaker.available, isFalse);
+    await speaker.dispose();
+  });
+
+  testWidgets('composition lifecycle gates the non-TTS bridge', (tester) async {
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    final controller = _Controller();
+    final speaker = CompanionSpeakerAdapter(controller: controller);
+    await tester.pumpWidget(
+      MaterialApp(home: SafeWalkCompositionRoot(speaker: speaker)),
+    );
+    await tester.pumpAndSettle();
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    speaker.speak('背景不交給 M5');
+    await tester.pump();
+    expect(controller.scenarios, isEmpty);
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
+    expect(controller.scenarios, isEmpty, reason: 'no replay on resume');
+    speaker.speak('回前景後的新要求');
+    await tester.pump();
+    expect(controller.scenarios, hasLength(1));
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+    expect(controller.disposals, 1);
   });
 
   test(

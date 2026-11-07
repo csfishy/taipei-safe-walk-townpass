@@ -2,8 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:town_pass/features/safe_walk/presentation/demo_map.dart';
-import 'package:town_pass/features/safe_walk/presentation/mock/safe_walk_demo_data.dart';
+import 'package:town_pass/features/safe_walk/presentation/mock/companion_dialogues.dart';
+import 'package:town_pass/features/safe_walk/presentation/mock/companion_scenarios.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_speaker.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_ui.dart';
 import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart' as sw;
@@ -18,54 +18,41 @@ class _Entry {
 
 enum _Mode { quick, template, input }
 
-/// 一通模擬來電的進度，由 Flow 保管：從地圖回到通話時接續（不再響鈴、對話與計時不重來）。結束通話或離開安心行時丟棄。
+/// 一通模擬來電的進度，由 Flow 保管。結束通話、緊急求助或回首頁時丟棄。
 class SafeWalkCallSession {
   bool answered = false;
+
+  /// M5 陪伴劇本 id；null 時用第一個劇本。接聽前可在響鈴畫面切換。
+  String? scenarioId;
   int line = 0, seq = 0, seconds = 0;
+
+  /// 劇本最後一句已經回過了。
+  bool finished = false;
   final List<_Entry> _log = [];
 }
 
-/// 模擬來電：只有對方台詞會朗讀（點泡泡重播／再點停止）；自己的回應只顯示文字；「自己輸入」是輸入對方要說的話。
+/// 模擬來電：M5 劇本一問一答——對方說一句，你回一句，對方才說下一句。只朗讀對方台詞；「自己輸入」是輸入對方要說的話。
 class SafeWalkCallView extends StatefulWidget {
-  const SafeWalkCallView({
-    super.key,
-    required this.position,
-    required this.points,
-    required this.anomalies,
-    required this.speaker,
-    required this.onMap,
-    required this.onEnd,
-    required this.onEmergency,
-    this.session,
-    this.routePath = DemoGeo.homeRoute,
-    this.routeMinutes,
-    this.destination = '家',
-    this.routeStatus,
-  });
+  const SafeWalkCallView({super.key, required this.speaker, required this.onEnd, required this.onEmergency, this.session});
 
-  /// 目前目的地的路線（null＝計算中或失敗，顯示 [routeStatus]）。預設為示範回家路線。
   /// 通話進度；null 時每次都是新的一通。
   final SafeWalkCallSession? session;
-  final List<LatLng>? routePath;
-  final int? routeMinutes;
-  final String destination;
-  final String? routeStatus;
-  final sw.Position? position;
-  final List<sw.AssistancePoint> points;
-  final List<Anomaly> anomalies;
   final SafeWalkSpeaker speaker;
-  final VoidCallback onMap, onEnd, onEmergency;
+  final VoidCallback onEnd, onEmergency;
 
   @override
   State<SafeWalkCallView> createState() => SafeWalkCallViewState();
 }
 
-class SafeWalkCallViewState extends State<SafeWalkCallView> {
+class SafeWalkCallViewState extends State<SafeWalkCallView> with WidgetsBindingObserver {
   late final SafeWalkCallSession _s = widget.session ?? SafeWalkCallSession();
   List<_Entry> get _log => _s._log;
   String? _speaking;
   bool _waiting = false;
   _Mode _mode = _Mode.quick;
+
+  /// 回覆區（快速回覆／完整句子／自己輸入）可收合，讓對話多露出一點。
+  bool _panelOpen = true;
   final _draft = TextEditingController();
   final _scroll = ScrollController();
   Timer? _clock, _reply, _buzz;
@@ -74,24 +61,42 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
   late bool _ringing = !_s.answered;
 
   /// 臺北通尚未配置語音時，用無聲示範（依字數計時）呈現播放樣式；不呼叫 M1／M5 的喇叭。
-  late final SafeWalkSpeaker _voice = widget.speaker.available ? widget.speaker : PreviewSpeaker();
+  final SafeWalkSpeaker _preview = PreviewSpeaker();
+  late SafeWalkSpeaker _voice;
+  bool _foreground = true;
 
   /// 已離開（或正在離開）此畫面；之後的計時器、朗讀與 onDone 一律忽略。
   bool _left = false;
 
-  /// 每次離開遞增，讓離開前排進來的朗讀完成回呼失效。
+  /// 每次朗讀或中斷遞增，讓上一輪排進來的完成回呼失效。
   int _gen = 0;
+
+  bool get _active => !_left && _foreground;
+
+  void _stopTurn() {
+    _gen++;
+    _reply?.cancel();
+    _reply = null;
+    _voice.stop();
+    if (!identical(_voice, widget.speaker)) widget.speaker.stop();
+    _speaking = null;
+    _waiting = false;
+  }
+
+  void _refreshVoice() {
+    final next = widget.speaker.available ? widget.speaker : _preview;
+    if (identical(next, _voice)) return;
+    _stopTurn();
+    _voice = next;
+  }
 
   /// 離開意圖發生時呼叫（含 SOS）：同步取消回覆計時器與時鐘、停止朗讀。換頁動畫期間舊頁仍 mounted，也不會再朗讀。
   void leave() {
     if (_left) return;
     _left = true;
-    _gen++;
-    _reply?.cancel();
+    _stopTurn();
     _clock?.cancel();
     _buzz?.cancel();
-    _voice.stop();
-    if (!identical(_voice, widget.speaker)) widget.speaker.stop();
   }
 
   void _leaveThen(VoidCallback go) {
@@ -102,6 +107,10 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
   @override
   void initState() {
     super.initState();
+    _voice = widget.speaker.available ? widget.speaker : _preview;
+    _foreground = WidgetsBinding.instance.lifecycleState == null || WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
+    WidgetsBinding.instance.addObserver(this);
+    if (!_foreground) return;
     if (!_ringing) {
       _startClock();
       // 離開前已回覆、對方還沒回：接續回覆。
@@ -111,24 +120,117 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
     }
     // 響鈴時手機震動（網頁沒有震動）；鈴聲音檔需另外核准，先不播放。
     HapticFeedback.vibrate();
-    _buzz = Timer.periodic(const Duration(milliseconds: 1500), (_) => HapticFeedback.vibrate());
+    // 跟光圈一樣響約 18 秒就停（12 次 × 1.5 秒），不會一直震。
+    _buzz = Timer.periodic(const Duration(milliseconds: 1500), (t) {
+      HapticFeedback.vibrate();
+      if (t.tick >= 11) t.cancel();
+    });
   }
 
-  void _startClock() => _clock = Timer.periodic(const Duration(seconds: 1), (_) {
-    if (mounted && !_left) setState(() => _s.seconds++);
-  });
+  @override
+  void didUpdateWidget(covariant SafeWalkCallView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _refreshVoice();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (_left) return;
+    if (state == AppLifecycleState.resumed) {
+      if (_foreground) return;
+      _foreground = true;
+      _refreshVoice();
+      if (!_ringing) _startClock();
+    } else {
+      _foreground = false;
+      _stopTurn();
+      _clock?.cancel();
+      _buzz?.cancel();
+    }
+    if (mounted) setState(() {});
+  }
+
+  sw.CompanionScenario get _scenario => m5CompanionScenarios.firstWhere((c) => c.id == _s.scenarioId, orElse: () => m5CompanionScenarios.first);
+
+  /// 對方說完最後一句、你也回了之後，劇本結束。
+  bool get _scriptDone => _s.finished;
+
+  List<String> get _replies => companionReplies[_scenario.id]?.elementAtOrNull(_s.line) ?? const ['好。'];
+
+  Future<void> _pickScenario() async {
+    final current = _scenario.id;
+    final options = [for (final c in m5CompanionScenarios) (c.id, c.label, '一問一答，${c.steps.length} 句')];
+    final picked = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: SwColors.surface,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (sheet) => SafeArea(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(sheet).height * .8),
+          child: ListView(
+            shrinkWrap: true,
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+            children: [
+              Semantics(header: true, child: Text('選擇通話情境', style: SwText.heading)),
+              const SizedBox(height: 4),
+              Text('選一個跟你現在情況相近的劇本。模擬通話，未聯絡任何人。', style: SwText.small),
+              const SizedBox(height: 12),
+              for (final (id, label, desc) in options)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: SwPressable(
+                    onTap: () => Navigator.of(sheet).pop(id),
+                    selected: id == current,
+                    color: id == current ? SwColors.brandSoft : SwColors.bg,
+                    border: BorderSide(color: id == current ? SwColors.brand : SwColors.border),
+                    radius: 10,
+                    semanticsLabel: '$label，$desc${id == current ? '，目前選擇' : ''}',
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(label, style: SwText.bodyStrong),
+                              Text(desc, style: SwText.small),
+                            ],
+                          ),
+                        ),
+                        if (id == current) const Icon(Icons.check_rounded, color: SwColors.brand),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (picked != null && mounted && !_left) setState(() => _s.scenarioId = picked);
+  }
+
+  void _startClock() {
+    _clock?.cancel();
+    _clock = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted && _active) setState(() => _s.seconds++);
+    });
+  }
 
   void _answer() {
-    if (_left || !_ringing) return;
+    if (!_active || !_ringing) return;
     _buzz?.cancel();
     _s.answered = true;
     setState(() => _ringing = false);
-    _say(FakeCallScript.lines[0].text);
+    _s.line = 0;
+    _say(_scenario.steps.first.text);
     _startClock();
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     leave();
     _clock?.cancel();
     _reply?.cancel();
@@ -138,59 +240,82 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
     super.dispose();
   }
 
-  void _speak(_Entry e) {
-    if (_left) return;
-    final gen = _gen;
+  void _speak(_Entry e, {VoidCallback? onDone}) {
+    if (!_active) return;
+    _refreshVoice();
+    final gen = ++_gen;
     setState(() => _speaking = e.key);
     _voice.speak(
       e.text,
       onDone: () {
-        if (!mounted || _left || gen != _gen) return;
+        if (!mounted || !_active || gen != _gen) return;
         if (_speaking == e.key) setState(() => _speaking = null);
+        onDone?.call();
       },
     );
   }
 
   void _toggle(_Entry e) {
-    if (_speaking == e.key) {
-      _gen++;
-      _voice.stop();
-      setState(() => _speaking = null);
-    } else {
-      _speak(e);
-    }
+    if (!_active) return;
+    final wasSpeaking = _speaking == e.key;
+    setState(_stopTurn);
+    if (!wasSpeaking) _speak(e);
   }
 
-  void _say(String text) {
-    if (_left) return;
+  void _say(String text, {VoidCallback? onDone}) {
+    if (!_active) return;
     final e = _Entry('c${_s.seq++}', true, text);
     setState(() => _log.add(e));
-    _speak(e);
+    _speak(e, onDone: onDone);
     _scrollDown();
   }
 
-  void _respond(String text) {
-    if (_waiting || _left) return;
-    _voice.stop();
+  void _respond(String text, {bool sentence = false}) {
+    if (_waiting || !_active) return;
+    _stopTurn();
     setState(() {
       _speaking = null;
       _log.add(_Entry('u${_s.seq++}', false, text));
-      _waiting = true;
     });
     _scrollDown();
-    _scheduleReply();
+    final ack = sentence ? callTemplateAcks[text] ?? '嗯嗯，好。' : null;
+    if (ack == null) {
+      _scheduleReply();
+      return;
+    }
+    // 完整句子不是針對這一句台詞寫的：對方先回應你說的話，再接劇本下一句。
+    setState(() => _waiting = true);
+    _reply = Timer(const Duration(milliseconds: 900), () {
+      if (!mounted || !_active) return;
+      _say(ack, onDone: () {
+        if (_s.finished) {
+          setState(() => _waiting = false);
+        } else {
+          _scheduleReply(delay: Duration.zero);
+        }
+      });
+    });
   }
 
-  void _scheduleReply() {
-    _waiting = true;
-    final next = FakeCallScript.lines[_s.line].next;
-    _reply = Timer(const Duration(milliseconds: 900), () {
-      if (!mounted || _left) return;
+  /// 你回完之後，對方隔一下接下一句；劇本說完就不再接話。
+  void _scheduleReply({Duration delay = const Duration(milliseconds: 900)}) {
+    if (!_active) return;
+    final steps = _scenario.steps;
+    if (_s.line + 1 >= steps.length) {
       setState(() {
-        _s.line = next;
+        _s.finished = true;
         _waiting = false;
       });
-      _say(FakeCallScript.lines[next].text);
+      return;
+    }
+    _waiting = true;
+    _reply = Timer(delay, () {
+      if (!mounted || !_active) return;
+      setState(() {
+        _s.line++;
+        _waiting = false;
+      });
+      _say(steps[_s.line].text);
     });
   }
 
@@ -203,10 +328,9 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
   @override
   Widget build(BuildContext context) {
     if (_ringing) {
-      return _Incoming(onAnswer: _answer, onDecline: () => _leaveThen(widget.onEnd), onEmergency: () => _leaveThen(widget.onEmergency));
+      return _Incoming(scenarioLabel: _scenario.label, onPickScenario: _pickScenario, onAnswer: _answer, onDecline: () => _leaveThen(widget.onEnd), onEmergency: () => _leaveThen(widget.onEmergency));
     }
     final mm = (_s.seconds ~/ 60).toString().padLeft(2, '0'), ss = (_s.seconds % 60).toString().padLeft(2, '0');
-    final start = widget.position == null ? DemoGeo.start : LatLng(widget.position!.coordinates.lat, widget.position!.coordinates.lng);
     return Scaffold(
       backgroundColor: SwColors.bg,
       body: Column(
@@ -231,7 +355,7 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
                         alignment: Alignment.center,
                         margin: const EdgeInsets.symmetric(vertical: 4),
                         decoration: const BoxDecoration(shape: BoxShape.circle, color: SwColors.brand),
-                        child: Text('家', style: SwText.heading.copyWith(color: SwColors.onBrand)),
+                        child: Text('家', style: SwText.bodyStrong.copyWith(color: SwColors.onBrand)),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
@@ -241,8 +365,8 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
                           children: [
                             Semantics(
                               header: true,
-                              label: '${FakeCallScript.caller}，模擬來電',
-                              child: ExcludeSemantics(child: Text(FakeCallScript.caller, style: SwText.heading)),
+                              label: '$callerName，模擬來電',
+                              child: ExcludeSemantics(child: Text(callerName, style: SwText.bodyStrong)),
                             ),
                             Text('模擬來電・$mm:$ss', style: SwText.secondary.copyWith(fontFeatures: const [FontFeature.tabularFigures()])),
                           ],
@@ -263,22 +387,11 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
               runSpacing: 4,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                const SwMockBadge(text: FakeCallScript.disclosure),
+                SwMockBadge(text: _scenario.disclosure),
+                Text('情境：${_scenario.label}', style: SwText.smallStrong),
                 Text(widget.speaker.available ? '台詞由手機語音朗讀' : '語音尚未配置，播放為無聲示範', style: SwText.small),
               ],
             ),
-          ),
-          const Divider(height: 1, color: SwColors.border),
-          // 邊聊邊看路：上方固定一條「下一步」導航（小地圖＋下一步怎麼走），對話在下面捲動，互不遮擋。
-          _NextStep(
-            start: widget.routePath?.firstOrNull ?? start,
-            path: widget.routePath,
-            minutes: widget.routeMinutes,
-            destination: widget.destination,
-            status: widget.routeStatus,
-            points: widget.points,
-            anomalies: widget.anomalies,
-            onTap: () => _leaveThen(widget.onMap),
           ),
           const Divider(height: 1, color: SwColors.border),
           Expanded(
@@ -302,26 +415,49 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
                     for (final (m, label) in [(_Mode.quick, '快速回覆'), (_Mode.template, '完整句子'), (_Mode.input, '自己輸入')])
                       Expanded(
                         child: Semantics(
-                          selected: _mode == m,
+                          selected: _panelOpen && _mode == m,
                           button: true,
                           child: InkWell(
-                            onTap: () => setState(() => _mode = m),
+                            onTap: () => setState(() {
+                              _mode = m;
+                              _panelOpen = true;
+                            }),
                             child: Container(
                               height: swTouch,
                               alignment: Alignment.center,
                               decoration: BoxDecoration(
                                 border: Border(
-                                  bottom: BorderSide(color: _mode == m ? SwColors.brand : SwColors.border, width: _mode == m ? 3 : 1),
+                                  bottom: BorderSide(color: _panelOpen && _mode == m ? SwColors.brand : SwColors.border, width: _panelOpen && _mode == m ? 3 : 1),
                                 ),
                               ),
-                              child: Text(label, style: SwText.bodyStrong.copyWith(color: _mode == m ? SwColors.brandText : SwColors.textSecondary)),
+                              child: Text(label, style: SwText.bodyStrong.copyWith(color: _panelOpen && _mode == m ? SwColors.brandText : SwColors.textSecondary)),
                             ),
                           ),
                         ),
                       ),
+                    Tooltip(
+                      message: _panelOpen ? '收合回覆區' : '展開回覆區',
+                      child: InkWell(
+                        onTap: () => setState(() => _panelOpen = !_panelOpen),
+                        child: Container(
+                          width: swTouch,
+                          height: swTouch,
+                          alignment: Alignment.center,
+                          decoration: const BoxDecoration(
+                            border: Border(bottom: BorderSide(color: SwColors.border)),
+                          ),
+                          child: Icon(_panelOpen ? Icons.expand_more_rounded : Icons.expand_less_rounded, color: SwColors.textSecondary),
+                        ),
+                      ),
+                    ),
                   ],
                 ),
-                Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 12), child: _replyPanel()),
+                AnimatedSize(
+                  duration: SwMotion.of(context, 200),
+                  curve: SwMotion.curve,
+                  alignment: Alignment.topCenter,
+                  child: _panelOpen ? Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 12), child: _replyPanel()) : const SizedBox(width: double.infinity),
+                ),
               ],
             ),
           ),
@@ -338,7 +474,7 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
     Widget option(String text) => Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: SwPressable(
-        onTap: _waiting ? null : () => _respond(text),
+        onTap: _waiting ? null : () => _respond(text, sentence: _mode == _Mode.template),
         color: SwColors.surface,
         pressedColor: SwColors.brandSoft,
         border: BorderSide(color: _waiting ? SwColors.border : SwColors.brand),
@@ -350,19 +486,25 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
         ),
       ),
     );
-    final wait = _waiting
+    final note = _waiting || _scriptDone
         ? Padding(
             padding: const EdgeInsets.only(bottom: 8),
-            child: Text('對方回應中，請稍候', style: SwText.secondary),
+            child: Text(_waiting ? '對方回應中，請稍候' : '對方說完了，可以結束通話，或用「完整句子」繼續聊', style: SwText.secondary),
           )
         : const SizedBox.shrink();
     switch (_mode) {
       case _Mode.quick:
-        return Column(children: [wait, for (final r in FakeCallScript.lines[_s.line].replies) option(r)]);
+        return Column(
+          children: [
+            note,
+            if (!_scriptDone)
+              for (final r in _replies) option(r),
+          ],
+        );
       case _Mode.template:
         return ConstrainedBox(
           constraints: const BoxConstraints(maxHeight: 220),
-          child: ListView(shrinkWrap: true, children: [wait, for (final t in FakeCallScript.templates) option(t)]),
+          child: ListView(shrinkWrap: true, children: [note, for (final t in callTemplates) option(t)]),
         );
       case _Mode.input:
         return Column(
@@ -386,6 +528,7 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
                   onTap: _draft.text.trim().isEmpty
                       ? null
                       : () {
+                          _stopTurn();
                           _say(_draft.text.trim());
                           _draft.clear();
                           setState(() {});
@@ -417,7 +560,7 @@ class _Bubble extends StatelessWidget {
       children: [
         Text(caller ? '對方' : '我', style: SwText.smallStrong.copyWith(color: caller ? SwColors.textSecondary : SwColors.onBrand)),
         const SizedBox(height: 2),
-        Text(entry.text, style: SwText.heading.copyWith(height: 1.5, color: caller ? SwColors.text : SwColors.onBrand)),
+        Text(entry.text, style: SwText.body.copyWith(color: caller ? SwColors.text : SwColors.onBrand)),
         if (caller) ...[
           const SizedBox(height: 4),
           Row(
@@ -465,115 +608,11 @@ class _Bubble extends StatelessWidget {
   }
 }
 
-/// 上方導航條：左邊小地圖（點了回到地圖），右邊寫下一步怎麼走與剩餘時間。示範路線，非即時導航。
-class _NextStep extends StatelessWidget {
-  const _NextStep({
-    required this.start,
-    required this.path,
-    required this.minutes,
-    required this.destination,
-    required this.status,
-    required this.points,
-    required this.anomalies,
-    required this.onTap,
-  });
-  final LatLng start;
-  final List<LatLng>? path;
-  final int? minutes;
-  final String destination;
-  final String? status;
-  final List<sw.AssistancePoint> points;
-  final List<Anomaly> anomalies;
-  final VoidCallback onTap;
-  static const _turn = {StepDir.north: 0.0, StepDir.east: .25, StepDir.south: .5, StepDir.west: .75};
-
-  @override
-  Widget build(BuildContext context) {
-    final route = path ?? const <LatLng>[];
-    final steps = route.length < 2 ? <RouteStep>[] : routeSteps(route);
-    final now = steps.firstOrNull;
-    final dest = destination == '家' ? '回家' : '到$destination';
-    final then = steps.length > 1 ? '接著往${stepDirLabel[steps[1].dir]}' : '接著抵達$destination';
-    final mins = minutes ?? walkMinutes(routeMeters(route));
-    final headline = now == null ? (status ?? '還沒有路線') : '往${stepDirLabel[now.dir]}走 ${now.meters} 公尺';
-    final sub = now == null ? '點一下打開地圖看詳情' : '$then・$dest約 $mins 分';
-    return Material(
-      color: SwColors.surface,
-      child: InkWell(
-        onTap: onTap,
-        child: Semantics(
-          button: true,
-          label: now == null ? '$headline，點一下打開地圖' : '下一步：$headline，$then。$dest約 $mins 分鐘。點一下打開地圖',
-          child: ExcludeSemantics(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 10, 16, 10),
-              child: Row(
-                children: [
-                  Container(
-                    width: 84,
-                    height: 84,
-                    clipBehavior: Clip.antiAlias,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: SwColors.border),
-                    ),
-                    child: Stack(
-                      children: [
-                        Positioned.fill(
-                          child: IgnorePointer(
-                            child: DemoMap(start: start, points: points, anomalies: anomalies, path: route, compact: true),
-                          ),
-                        ),
-                        Positioned(
-                          right: 4,
-                          bottom: 4,
-                          child: Container(
-                            width: 24,
-                            height: 24,
-                            decoration: BoxDecoration(color: SwColors.surface, shape: BoxShape.circle, boxShadow: SwShadow.card),
-                            child: const Icon(Icons.open_in_full_rounded, size: 14, color: SwColors.text),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: const BoxDecoration(color: SwColors.brand, shape: BoxShape.circle),
-                    child: now == null
-                        ? const Icon(Icons.route_outlined, color: SwColors.onBrand, size: 24)
-                        : RotationTransition(
-                            turns: AlwaysStoppedAnimation(_turn[now.dir]!),
-                            child: const Icon(Icons.arrow_upward_rounded, color: SwColors.onBrand, size: 26),
-                          ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(headline, style: SwText.heading),
-                        Text(sub, style: SwText.secondary),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 /// 響鈴畫面：臺北通主色底（primary500，配深色字）、頭像外一圈圈擴散的光圈，下方「拒絕」「接聽」。
 class _Incoming extends StatefulWidget {
-  const _Incoming({required this.onAnswer, required this.onDecline, required this.onEmergency});
-  final VoidCallback onAnswer, onDecline, onEmergency;
+  const _Incoming({required this.scenarioLabel, required this.onPickScenario, required this.onAnswer, required this.onDecline, required this.onEmergency});
+  final String scenarioLabel;
+  final VoidCallback onPickScenario, onAnswer, onDecline, onEmergency;
   @override
   State<_Incoming> createState() => _IncomingState();
 }
@@ -680,13 +719,13 @@ class _IncomingState extends State<_Incoming> with SingleTickerProviderStateMixi
                                             height: 104,
                                             alignment: Alignment.center,
                                             decoration: BoxDecoration(color: TPColors.white, shape: BoxShape.circle, boxShadow: SwShadow.float),
-                                            child: Text('家', style: SwText.display.copyWith(color: TPColors.primary700)),
+                                            child: Text('家', style: SwText.title.copyWith(color: TPColors.primary700)),
                                           ),
                                         ),
                                       ),
                                     ),
                                     const SizedBox(height: 16),
-                                    Text('家人', style: SwText.display.copyWith(color: SwColors.onBrand)),
+                                    Text('家人', style: SwText.title.copyWith(color: SwColors.onBrand)),
                                     const SizedBox(height: 4),
                                     Row(
                                       mainAxisSize: MainAxisSize.min,
@@ -700,7 +739,9 @@ class _IncomingState extends State<_Incoming> with SingleTickerProviderStateMixi
                                 ),
                               ),
                             ),
-                            const SizedBox(height: 40),
+                            const SizedBox(height: 20),
+                            SwChip(label: '情境：${widget.scenarioLabel}', icon: Icons.tune_rounded, onTap: widget.onPickScenario),
+                            const SizedBox(height: 28),
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                               crossAxisAlignment: CrossAxisAlignment.end,

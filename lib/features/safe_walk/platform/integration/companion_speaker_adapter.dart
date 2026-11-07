@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:town_pass/features/safe_walk/companion/companion_controller.dart';
 import 'package:town_pass/features/safe_walk/companion/companion_service.dart';
-import 'package:town_pass/features/safe_walk/presentation/safe_walk_speaker.dart';
+import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_route_speaker.dart';
 import 'package:town_pass/features/safe_walk/shared/contracts/cancellation.dart';
 import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart'
     as sw;
@@ -16,7 +16,7 @@ typedef CompanionTextPreviewMapper = sw.CompanionScenario? Function(
 /// No recordings/player are configured in this integration. Even an injected
 /// mapper cannot enable audio: non-null audio sources are rejected. A future
 /// audible implementation needs separate asset/player approval and integration.
-final class CompanionSpeakerAdapter implements SafeWalkSpeaker {
+final class CompanionSpeakerAdapter implements SafeWalkRouteSpeaker {
   factory CompanionSpeakerAdapter({
     required CompanionController controller,
     CompanionTextPreviewMapper? scenarioForText,
@@ -36,6 +36,7 @@ final class CompanionSpeakerAdapter implements SafeWalkSpeaker {
   _SpeechCancellation? _active;
   int _generation = 0;
   bool _emergencyStopped = false;
+  bool _lifecycleActive = true;
   bool _disposed = false;
   Future<void>? _disposeFuture;
   Object? _lastError;
@@ -53,7 +54,7 @@ final class CompanionSpeakerAdapter implements SafeWalkSpeaker {
   @override
   void speak(String text, {void Function()? onDone}) {
     if (_disposed) return;
-    if (_emergencyStopped) {
+    if (!_lifecycleActive || _emergencyStopped) {
       // Clear the view's text-preview indicator without restarting M5 work.
       onDone?.call();
       return;
@@ -104,6 +105,13 @@ final class CompanionSpeakerAdapter implements SafeWalkSpeaker {
     unawaited(_observe(() => _controller.stop(sw.CompanionStopReason.user)));
   }
 
+  @override
+  void setLifecycleActive(bool active) {
+    if (_disposed || _lifecycleActive == active) return;
+    _lifecycleActive = active;
+    if (!active) stop();
+  }
+
   Future<void> pause() {
     if (_disposed) return Future<void>.value();
     _invalidate();
@@ -112,6 +120,7 @@ final class CompanionSpeakerAdapter implements SafeWalkSpeaker {
 
   /// Latches the bridge off immediately, before awaiting M5 cleanup. Late view
   /// replies cannot restart a run. A new flow creates a new bridge instance.
+  @override
   Future<void> stopForEmergency() {
     if (_disposed) return Future<void>.value();
     _emergencyStopped = true;
@@ -121,6 +130,7 @@ final class CompanionSpeakerAdapter implements SafeWalkSpeaker {
   }
 
   /// This bridge owns the injected controller; disposal is idempotent.
+  @override
   Future<void> dispose() => _disposeFuture ??= _disposeOnce();
 
   Future<void> _disposeOnce() async {
@@ -148,7 +158,10 @@ final class CompanionSpeakerAdapter implements SafeWalkSpeaker {
   }
 
   bool _isCurrent(int generation) =>
-      !_disposed && !_emergencyStopped && _generation == generation;
+      !_disposed &&
+      _lifecycleActive &&
+      !_emergencyStopped &&
+      _generation == generation;
 }
 
 sw.CompanionScenario? _textPreview(String text) {

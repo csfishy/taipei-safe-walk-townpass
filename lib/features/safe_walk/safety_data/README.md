@@ -24,3 +24,7 @@ M1 注入 repo 並將結果交 M2／M3，本模組不 import 兩者實作。合�
 欄位對照、parser 正反案例、mock repo／取消／來源不可用測試；取得真實資料才交來源可追溯的小樣本，未取得時明列未配置。`test/features/safe_walk/safety_data/contract_safety_data_test.dart` 使用 `test/fixtures/safe_walk/` 驗證 unknown／null、strict 欄位、錯誤認可／統計、唯讀快照、mock/live 與取消；執行結果以整體初始化驗證紀錄為準，不將測試檔存在當作 PASS。真實資料與外部來源仍未接入。
 
 預定分支 `feat/m4-safety-data`：**pending**，待初始化 PR 審查並由使用者確認合併後，才從共同 Flutter base 建立。
+
+## 臺北市暴力犯罪月統計（`violent_crime/`）
+
+主計處「臺北市暴力犯罪案件按月別」的 live 讀取與轉換，見 [violent_crime/README.md](violent_crime/README.md)。來源只有全市層級，因此輸出模組內 `CityMonthlyCrimeStatistics`，不是共用 `AreaStatistics`，也尚未接入 `SafetyDataRepository` 或任何畫面；契約方案待 M1 決定。

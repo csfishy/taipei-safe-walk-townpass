@@ -42,7 +42,7 @@ class SafeWalkFlow extends StatefulWidget {
   final sw.RouteResult? route;
   final bool routeLoading;
 
-  /// M1：目的地改變（含第一次進入、按「再試一次」）時呼叫，請依此目的地呼叫 RouteService.planRoute，
+  /// M1：使用者打開地圖、換目的地、按「再試一次」時呼叫（不會在一進安心行時自動呼叫），請依此目的地呼叫 RouteService.planRoute，
   /// 再把結果傳回 [route]。null 時畫面一律用示範路線。
   final ValueChanged<sw.Coordinates>? onPlanRoute;
   final SafeWalkSpeaker speaker;
@@ -90,17 +90,6 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
 
   void _planRoute() => widget.onPlanRoute?.call(sw.Coordinates(lat: _place.at.lat, lng: _place.at.lng));
 
-  /// 目前目的地的路線：沒配置時用示範路線（示範起點）；計算中或失敗時為 null。
-  List<LatLng>? get _placePath => _routeState.configured ? _routeState.path : placeRoute(DemoGeo.start, _place);
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _planRoute();
-    });
-  }
-
   void _selectPlace(String id) {
     if (id == _placeId) return;
     setState(() => _placeId = id);
@@ -116,6 +105,8 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
 
   void _go(_Screen s) {
     if (_screen == _Screen.call && s != _Screen.call) _callKey.currentState?.leave();
+    // 使用者明確打開地圖（點「安心行」主卡）時才請 M1 規劃路線；一進安心行不自動送出。
+    if (s == _Screen.map && _screen != _Screen.map) _planRoute();
     if (s == _Screen.home) _call = null;
     setState(() {
       _forward = s != _Screen.home && s != _back;
@@ -196,7 +187,6 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
     );
     final child = switch (_screen) {
       _Screen.home => SafeWalkHomeView(
-        homeMinutes: _routeState.minutes ?? walkMinutes(routeMeters(_placePath ?? placeRoute(DemoGeo.start, _place))),
         destination: _place.label,
         avoided: avoidedCount(_anomalies),
         onBack: widget.onExit,
@@ -213,16 +203,8 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
       _Screen.report => map(start: MapStartView.report),
       _Screen.call => SafeWalkCallView(
         key: _callKey,
-        position: _position,
-        points: _pointsState.points,
-        anomalies: _anomalies,
         speaker: widget.speaker,
         session: _call ??= SafeWalkCallSession(),
-        routePath: _placePath,
-        routeMinutes: _routeState.minutes,
-        destination: _place.label,
-        routeStatus: _routeState.loading ? '路線計算中…' : (_routeState.failed ? _routeState.failTitle : null),
-        onMap: () => _go(_Screen.map),
         onEnd: () {
           _call = null;
           _go(_back);

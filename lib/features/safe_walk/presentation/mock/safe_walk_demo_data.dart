@@ -188,31 +188,6 @@ List<Anomaly> demoAnomalies() => [
   ),
 ];
 
-// ───────── 模擬來電劇本（提案型別，Reels 式預寫對話） ─────────
-
-class CallerLine {
-  const CallerLine(this.text, this.replies, this.next);
-  final String text;
-
-  /// 使用者的 3 個快速回覆。
-  final List<String> replies;
-
-  /// 任一回覆之後，對方接著說的那一句（索引）。
-  final int next;
-}
-
-abstract final class FakeCallScript {
-  static const disclosure = '這不是真人通話，也沒有報警';
-  static const caller = '家人';
-  static const lines = [
-    CallerLine('喂，你走到哪裡啦？晚餐吃了沒？', ['我正在回家路上，已經吃過了。', '我剛出發，等一下再吃晚餐。', '我走得比較慢，你陪我聊一下好嗎？'], 1),
-    CallerLine('好呀，我陪你聊。你想沿著大路走，還是先找地方休息？', ['我想沿著大路慢慢走。', '我想先到附近的便利商店休息。', '我先停在明亮的地方看看路線。'], 2),
-    CallerLine('先走到附近的便利商店或人多的地方，需要的話按緊急求助。', ['我覺得好像有人跟著我，我先去便利商店。', '我現在走到比較暗的地方，我先往人多的地方走。', '好，我會注意周圍。'], 3),
-    CallerLine('沒問題，慢慢來。到家之後再跟我聊聊今天的事，好嗎？', ['好，到家後我再跟你說。', '我還想再聊一會兒。', '謝謝你陪我，我先確認一下方向。'], 0),
-  ];
-  static const templates = ['我覺得好像有人跟著我', '我現在走到比較暗的地方', '你可以陪我聊一下嗎？', '我會沿著明亮的大路走。', '我想先到附近的便利商店休息。', '我說話比較慢，請等我一下。', '我到了之後再跟你說，謝謝你。'];
-}
-
 // ───────── 簡訊報警範本（提案；收件號碼由 M1 決定，不放 IP） ─────────
 
 abstract final class SmsDraftTemplate {

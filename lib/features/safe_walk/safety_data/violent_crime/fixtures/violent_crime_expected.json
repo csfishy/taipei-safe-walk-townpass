@@ -1,0 +1,266 @@
+[
+  {
+    "format": "m4.cityMonthlyCrimeStatistics/0.1",
+    "id": "tpe-violent-crime-month-2017-01",
+    "city": "臺北市",
+    "geographicLevel": "city",
+    "periodStart": "2017-01-01",
+    "periodEnd": "2017-01-31",
+    "aggregation": "month",
+    "category": "暴力犯罪",
+    "caseCount": 20,
+    "breakdown": [
+      {
+        "category": "強盜搶奪",
+        "caseCount": 5
+      },
+      {
+        "category": "強制性交",
+        "caseCount": 11
+      },
+      {
+        "category": "其他",
+        "caseCount": 4
+      }
+    ],
+    "sourceReportedRatePer100k": 0.74,
+    "populationDenominator": null,
+    "source": {
+      "datasetId": "data.taipei:33dc5028-78ef-4892-bec6-0b459f7cb193/0af7de97-943d-486c-99e8-4014eeebce6c",
+      "title": "臺北市暴力犯罪案件按月別（臺北市政府主計處）",
+      "dataMode": "live",
+      "sourceUrl": "https://data.taipei/dataset/detail?id=33dc5028-78ef-4892-bec6-0b459f7cb193",
+      "retrievedAt": "2026-11-07T16:20:00+08:00",
+      "dataUpdatedAt": "2026-10-20T14:03:05+08:00",
+      "license": "政府資料開放授權條款-第1版",
+      "coverage": "臺北市全市（不分行政區）；民國106年1月起按月彙總",
+      "limitations": [
+        "全市每月彙總，沒有行政區、路段、地點或時段，不能用來判斷某條路、某一區或某個時間是否安全。",
+        "件數是警察機關統計的已發生並受理案件；未報案的案件不在內。件數少或為零不代表安全。",
+        "「其他」由來源合併計算，本服務不拆分也不推測其組成。",
+        "發生率由來源提供（件／十萬人），來源未提供人口分母，本服務不自行換算。",
+        "來源為定期統計，數字可能在之後的發布中更新；以 dataUpdatedAt 為準。"
+      ]
+    }
+  },
+  {
+    "format": "m4.cityMonthlyCrimeStatistics/0.1",
+    "id": "tpe-violent-crime-month-2017-02",
+    "city": "臺北市",
+    "geographicLevel": "city",
+    "periodStart": "2017-02-01",
+    "periodEnd": "2017-02-28",
+    "aggregation": "month",
+    "category": "暴力犯罪",
+    "caseCount": 13,
+    "breakdown": [
+      {
+        "category": "強盜搶奪",
+        "caseCount": 3
+      },
+      {
+        "category": "強制性交",
+        "caseCount": 4
+      },
+      {
+        "category": "其他",
+        "caseCount": 6
+      }
+    ],
+    "sourceReportedRatePer100k": 0.48,
+    "populationDenominator": null,
+    "source": {
+      "datasetId": "data.taipei:33dc5028-78ef-4892-bec6-0b459f7cb193/0af7de97-943d-486c-99e8-4014eeebce6c",
+      "title": "臺北市暴力犯罪案件按月別（臺北市政府主計處）",
+      "dataMode": "live",
+      "sourceUrl": "https://data.taipei/dataset/detail?id=33dc5028-78ef-4892-bec6-0b459f7cb193",
+      "retrievedAt": "2026-11-07T16:20:00+08:00",
+      "dataUpdatedAt": "2026-10-20T14:03:05+08:00",
+      "license": "政府資料開放授權條款-第1版",
+      "coverage": "臺北市全市（不分行政區）；民國106年1月起按月彙總",
+      "limitations": [
+        "全市每月彙總，沒有行政區、路段、地點或時段，不能用來判斷某條路、某一區或某個時間是否安全。",
+        "件數是警察機關統計的已發生並受理案件；未報案的案件不在內。件數少或為零不代表安全。",
+        "「其他」由來源合併計算，本服務不拆分也不推測其組成。",
+        "發生率由來源提供（件／十萬人），來源未提供人口分母，本服務不自行換算。",
+        "來源為定期統計，數字可能在之後的發布中更新；以 dataUpdatedAt 為準。"
+      ]
+    }
+  },
+  {
+    "format": "m4.cityMonthlyCrimeStatistics/0.1",
+    "id": "tpe-violent-crime-month-2017-03",
+    "city": "臺北市",
+    "geographicLevel": "city",
+    "periodStart": "2017-03-01",
+    "periodEnd": "2017-03-31",
+    "aggregation": "month",
+    "category": "暴力犯罪",
+    "caseCount": 16,
+    "breakdown": [
+      {
+        "category": "強盜搶奪",
+        "caseCount": 3
+      },
+      {
+        "category": "強制性交",
+        "caseCount": 5
+      },
+      {
+        "category": "其他",
+        "caseCount": 8
+      }
+    ],
+    "sourceReportedRatePer100k": 0.59,
+    "populationDenominator": null,
+    "source": {
+      "datasetId": "data.taipei:33dc5028-78ef-4892-bec6-0b459f7cb193/0af7de97-943d-486c-99e8-4014eeebce6c",
+      "title": "臺北市暴力犯罪案件按月別（臺北市政府主計處）",
+      "dataMode": "live",
+      "sourceUrl": "https://data.taipei/dataset/detail?id=33dc5028-78ef-4892-bec6-0b459f7cb193",
+      "retrievedAt": "2026-11-07T16:20:00+08:00",
+      "dataUpdatedAt": "2026-10-20T14:03:05+08:00",
+      "license": "政府資料開放授權條款-第1版",
+      "coverage": "臺北市全市（不分行政區）；民國106年1月起按月彙總",
+      "limitations": [
+        "全市每月彙總，沒有行政區、路段、地點或時段，不能用來判斷某條路、某一區或某個時間是否安全。",
+        "件數是警察機關統計的已發生並受理案件；未報案的案件不在內。件數少或為零不代表安全。",
+        "「其他」由來源合併計算，本服務不拆分也不推測其組成。",
+        "發生率由來源提供（件／十萬人），來源未提供人口分母，本服務不自行換算。",
+        "來源為定期統計，數字可能在之後的發布中更新；以 dataUpdatedAt 為準。"
+      ]
+    }
+  },
+  {
+    "format": "m4.cityMonthlyCrimeStatistics/0.1",
+    "id": "tpe-violent-crime-month-2024-02",
+    "city": "臺北市",
+    "geographicLevel": "city",
+    "periodStart": "2024-02-01",
+    "periodEnd": "2024-02-29",
+    "aggregation": "month",
+    "category": "暴力犯罪",
+    "caseCount": 4,
+    "breakdown": [
+      {
+        "category": "強盜搶奪",
+        "caseCount": 3
+      },
+      {
+        "category": "強制性交",
+        "caseCount": 0
+      },
+      {
+        "category": "其他",
+        "caseCount": 1
+      }
+    ],
+    "sourceReportedRatePer100k": 0.16,
+    "populationDenominator": null,
+    "source": {
+      "datasetId": "data.taipei:33dc5028-78ef-4892-bec6-0b459f7cb193/0af7de97-943d-486c-99e8-4014eeebce6c",
+      "title": "臺北市暴力犯罪案件按月別（臺北市政府主計處）",
+      "dataMode": "live",
+      "sourceUrl": "https://data.taipei/dataset/detail?id=33dc5028-78ef-4892-bec6-0b459f7cb193",
+      "retrievedAt": "2026-11-07T16:20:00+08:00",
+      "dataUpdatedAt": "2026-10-20T14:03:05+08:00",
+      "license": "政府資料開放授權條款-第1版",
+      "coverage": "臺北市全市（不分行政區）；民國106年1月起按月彙總",
+      "limitations": [
+        "全市每月彙總，沒有行政區、路段、地點或時段，不能用來判斷某條路、某一區或某個時間是否安全。",
+        "件數是警察機關統計的已發生並受理案件；未報案的案件不在內。件數少或為零不代表安全。",
+        "「其他」由來源合併計算，本服務不拆分也不推測其組成。",
+        "發生率由來源提供（件／十萬人），來源未提供人口分母，本服務不自行換算。",
+        "來源為定期統計，數字可能在之後的發布中更新；以 dataUpdatedAt 為準。"
+      ]
+    }
+  },
+  {
+    "format": "m4.cityMonthlyCrimeStatistics/0.1",
+    "id": "tpe-violent-crime-month-2026-07",
+    "city": "臺北市",
+    "geographicLevel": "city",
+    "periodStart": "2026-07-01",
+    "periodEnd": "2026-07-31",
+    "aggregation": "month",
+    "category": "暴力犯罪",
+    "caseCount": 4,
+    "breakdown": [
+      {
+        "category": "強盜搶奪",
+        "caseCount": 2
+      },
+      {
+        "category": "強制性交",
+        "caseCount": 0
+      },
+      {
+        "category": "其他",
+        "caseCount": 2
+      }
+    ],
+    "sourceReportedRatePer100k": 0.16,
+    "populationDenominator": null,
+    "source": {
+      "datasetId": "data.taipei:33dc5028-78ef-4892-bec6-0b459f7cb193/0af7de97-943d-486c-99e8-4014eeebce6c",
+      "title": "臺北市暴力犯罪案件按月別（臺北市政府主計處）",
+      "dataMode": "live",
+      "sourceUrl": "https://data.taipei/dataset/detail?id=33dc5028-78ef-4892-bec6-0b459f7cb193",
+      "retrievedAt": "2026-11-07T16:20:00+08:00",
+      "dataUpdatedAt": "2026-10-20T14:03:05+08:00",
+      "license": "政府資料開放授權條款-第1版",
+      "coverage": "臺北市全市（不分行政區）；民國106年1月起按月彙總",
+      "limitations": [
+        "全市每月彙總，沒有行政區、路段、地點或時段，不能用來判斷某條路、某一區或某個時間是否安全。",
+        "件數是警察機關統計的已發生並受理案件；未報案的案件不在內。件數少或為零不代表安全。",
+        "「其他」由來源合併計算，本服務不拆分也不推測其組成。",
+        "發生率由來源提供（件／十萬人），來源未提供人口分母，本服務不自行換算。",
+        "來源為定期統計，數字可能在之後的發布中更新；以 dataUpdatedAt 為準。"
+      ]
+    }
+  },
+  {
+    "format": "m4.cityMonthlyCrimeStatistics/0.1",
+    "id": "tpe-violent-crime-month-2026-08",
+    "city": "臺北市",
+    "geographicLevel": "city",
+    "periodStart": "2026-08-01",
+    "periodEnd": "2026-08-31",
+    "aggregation": "month",
+    "category": "暴力犯罪",
+    "caseCount": 2,
+    "breakdown": [
+      {
+        "category": "強盜搶奪",
+        "caseCount": 0
+      },
+      {
+        "category": "強制性交",
+        "caseCount": 1
+      },
+      {
+        "category": "其他",
+        "caseCount": 1
+      }
+    ],
+    "sourceReportedRatePer100k": 0.08,
+    "populationDenominator": null,
+    "source": {
+      "datasetId": "data.taipei:33dc5028-78ef-4892-bec6-0b459f7cb193/0af7de97-943d-486c-99e8-4014eeebce6c",
+      "title": "臺北市暴力犯罪案件按月別（臺北市政府主計處）",
+      "dataMode": "live",
+      "sourceUrl": "https://data.taipei/dataset/detail?id=33dc5028-78ef-4892-bec6-0b459f7cb193",
+      "retrievedAt": "2026-11-07T16:20:00+08:00",
+      "dataUpdatedAt": "2026-10-20T14:03:05+08:00",
+      "license": "政府資料開放授權條款-第1版",
+      "coverage": "臺北市全市（不分行政區）；民國106年1月起按月彙總",
+      "limitations": [
+        "全市每月彙總，沒有行政區、路段、地點或時段，不能用來判斷某條路、某一區或某個時間是否安全。",
+        "件數是警察機關統計的已發生並受理案件；未報案的案件不在內。件數少或為零不代表安全。",
+        "「其他」由來源合併計算，本服務不拆分也不推測其組成。",
+        "發生率由來源提供（件／十萬人），來源未提供人口分母，本服務不自行換算。",
+        "來源為定期統計，數字可能在之後的發布中更新；以 dataUpdatedAt 為準。"
+      ]
+    }
+  }
+]

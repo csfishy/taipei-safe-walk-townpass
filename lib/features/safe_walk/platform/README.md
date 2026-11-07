@@ -1,5 +1,7 @@
 # M1｜小魚：平台、唯一定位入口、求助與整合
 
+Supabase 本機連線設定、唯讀檢查與附近通知 SQL 的部署前提見 [Supabase 設定](../../../../docs/SAFE_WALK_SUPABASE.md)。公開 client key 的配置不會開啟 Live 求助或自動上傳位置。
+
 先讀根目錄 AGENTS、官方初始化文件及 [五人模組契約](../../../../docs/SAFE_WALK_MODULES.md)。本目錄不包含正式頁面；官方 main／GetX route／theme 保留，不套 React UI。
 
 ## 所有權與接點

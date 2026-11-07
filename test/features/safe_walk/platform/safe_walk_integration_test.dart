@@ -433,7 +433,7 @@ void main() {
     await t.pump(const Duration(milliseconds: 300));
     await t.tap(find.text('接聽'));
     await t.pump(const Duration(milliseconds: 300));
-    await t.tap(find.text('我正在回家路上，已經吃過了。'));
+    await t.tap(find.text('我在大馬路上，快到了。'));
     await t.pump(const Duration(milliseconds: 800));
     final before = speaker.spoken.length;
     await t.tap(find.text('緊急求助').first);
