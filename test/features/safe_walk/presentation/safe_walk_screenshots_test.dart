@@ -37,7 +37,7 @@ Future<void> _app(WidgetTester t, {SafeWalkSpeaker speaker = const UnavailableSp
   await t.pumpWidget(MaterialApp(
     debugShowCheckedModeBanner: false,
     theme: ThemeData(fontFamily: 'PingFangTC'),
-    home: SafeWalkFlow(speaker: speaker),
+    home: SafeWalkFlow(speaker: speaker, onExit: () {}),
   ));
   await t.pumpAndSettle();
 }

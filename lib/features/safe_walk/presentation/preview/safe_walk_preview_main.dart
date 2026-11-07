@@ -10,6 +10,6 @@ void main() => runApp(
     debugShowCheckedModeBanner: false,
     title: '臺北安心行 M3 預覽',
     theme: ThemeData(fontFamily: 'PingFangTC', colorSchemeSeed: TPColors.primary500, scaffoldBackgroundColor: TPColors.grayscale50),
-    home: SafeWalkFlow(speaker: PreviewSpeaker()),
+    home: SafeWalkFlow(speaker: PreviewSpeaker(), onExit: () {}),
   ),
 );
