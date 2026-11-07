@@ -1,51 +1,53 @@
-# 臺北安心行 · TownPass 原生協作規則
+# 臺北安心行 · TownPass 持續開發規範
 
-任何模組工作前先讀 `docs/SAFE_WALK_ARCHITECTURE.md`、`docs/SAFE_WALK_INITIALIZATION.md`、`docs/SAFE_WALK_SCHEMA.md`、`docs/SAFE_WALK_MODULES.md`、`docs/SAFE_WALK_COLOR_SPEC.md` 及所屬模組 README。
+主要目標是 **Live MVP／Production Readiness**：交付真實、可驗證、可部署的功能。開工先讀 [Live MVP](docs/SAFE_WALK_LIVE_MVP.md)、[Readiness](docs/SAFE_WALK_LIVE_READINESS.md)、[架構](docs/SAFE_WALK_ARCHITECTURE.md)、[Schema](docs/SAFE_WALK_SCHEMA.md)、[模組契約](docs/SAFE_WALK_MODULES.md)、[顏色規範](docs/SAFE_WALK_COLOR_SPEC.md) 及所屬模組 README。初始化文件只供歷史查證，不作為拒絕後續 Live 開發的理由。
 
-## 目前階段：M1 TownPass 入口整合
+## 開發階段
 
-- 初始化及 M3 畫面、M5 控制器已透過各自 PR 進入共同 main；下節「初始化」限制記錄當時範圍，不撤銷使用者本輪明確授權。
-- 使用者已授權 M1 在 `integration/m1-townpass-entry` 新增 TownPass 城市服務入口、GetX route 與模組組合接線，交 PR 至 main；不得自行合併、發布新版或移動既有 `v0.0.12-pre.1` tag。
-- 跨模組實作依賴只集中在 M1 管理的 `lib/features/safe_walk/platform/integration/`；其他模組繼續只依賴自身與 shared。入口所需官方城市服務／route 檔案由 M1 最小修改，不能因此重做官方殼、登入、Theme 或品牌。
-- M3 仍是正式 UI/UX 設計負責人。M1 只接入已合併畫面與服務；必要的狀態／誠實文案調整須記錄理由，不代替 M3 重新設計版面。
-- 預設 mock、真實撥號關閉；M2 真導航、M4 live AED、M5 正式音檔／native audio 尚未接入時明示未配置，不將其他分支未合併成果當成已完成。
-- 本輪範圍、裝置測試與 PR artifact 交付見 `docs/SAFE_WALK_INTEGRATION.md`。舊初始化文件的 pending／無 UI 描述是歷史紀錄，當前狀態以本輪整合文件及實際 PR 為準。
+| 階段 | 交付標準 |
+|---|---|
+| Prototype | 清楚標示的 Mock／Fake 驗證操作與契約，不宣稱正式功能完成。 |
+| Integration | 依賴注入接入實際模組，驗證同意、模式、取消、錯誤及生命週期。 |
+| Live MVP | 真實 Provider 完成必要測試與 iPhone 驗收，能從正式流程使用，失敗明確揭露。 |
+| Production Readiness | 補足服務容量／條款、維運、監測、更新、簽署部署、隱私及安全證據。 |
 
-## 本次初始化的明確邊界
+目前 App 保留 Demo 與部分真實能力，逐能力推進 Integration → Live MVP；不宣稱全產品已可正式上線。本次規格 PR 不開啟未驗證功能。
 
-- 本專案以官方 TownPass Flutter 為主要 App；原 React Repository 是 Legacy 歷史與契約參考，不再是主要 App。
-- 不建立安心行首頁、地圖、SOS、陪伴畫面、預設 Layout、卡片、Widget Tree、底部分頁、Wireframe 或 CSS Design System。
-- 正式新增 UI/UX 由 M3 莅紋後續設計；不要以初始化的介面或版型預先限制她。
-- 保留官方 `main.dart`、Theme、`TPColors`、頁面、GetX 路由、登入、會員、WebView、品牌與原始 LICENSE；不得為了測試或新功能直接重做官方殼。
-- 只追加 `lib/features/safe_walk/` 的資料／服務／控制邏輯接點、測試、Schema 及文件。新增色彩只先提出理由；本輪只有顏色文件。
+**Mock 僅作為測試與未驗證功能的隔離模式。正式功能完成相應驗收後，必須能透過正式操作流程使用 Live Provider。** Development 可用 Mock；公開版本優先提供已驗證的 Live 能力，不用全域 Mock 永久封鎖全部產品。各能力分開驗收、啟用及撤回；未完成能力回清楚的 Unavailable，不暗中回 Mock 假成功。
 
-## 檔案所有權
+Mock／Live 是既有 wire DataMode；Unavailable 是能力／操作呈現語意，映射既有失敗契約，不新增 Schema enum。Readiness 狀態只用 IMPLEMENTED_NOT_WIRED、WIRED_NOT_VERIFIED、LIVE_VERIFIED、BLOCKED、NOT_IMPLEMENTED；Mock unit test 不能證明 LIVE_VERIFIED。
 
-- M1 小魚：platform、共用 contracts/models、pubspec/lock、路由、平台設定、CI、跨模組接線。
-- M2 Steven：navigation 的座標處理與 Route Service，不再註冊第二份 GPS 監聽，不做正式地圖 UI。
-- M3 莅紋：presentation；本輪僅保留 README，後續取得設計任務後再建立正式 UI。
-- M4 信義：safety_data 的來源、Parser、Repository 與測試資料。
-- M5 奶爸：companion 的無 UI 狀態控制、音訊 Adapter 與清理／中斷測試，不建通話頁。
-- 模組只依賴自身與 shared，不直接 import 其他模組實作。M1 組合及接線須先記錄跨模組契約影響。
-- canonical JSON Schema 是 payload 單一來源；生成的 Dart Model／Schema bundle 不手改，執行 generator 並檢查同步。
-- 不升級 Flutter、GetX 或全部依賴；依 `.fvmrc` 使用 Flutter 3.47.6。工具或環境限制要如實回報。
+## 五模組所有權
 
-## 誠實與資料邊界
+- **M1 小魚**：platform、shared contracts/models、pubspec/lock、官方入口／route、平台設定、CI 與跨模組接線。
+- **M2 Steven**：navigation、RouteService／OSRM、RouteFollower、目的地與據點路線邏輯；消費 M1 位置，不註冊第二份 GPS 監聽，不接管地圖 UI。
+- **M3 莅紋**：presentation，正式 UI/UX 唯一設計負責人；維護現有畫面、Live 底圖／投影與狀態呈現。
+- **M4 信義**：safety_data，合法來源、Parser、Repository、來源／更新／限制及測試資料。
+- **M5 奶爸**：companion，控制器、裝置 TTS／核准本機音訊、取消與中斷；通話頁由 M3 維護。
+- 業務模組只依賴自身與 shared；跨模組實作組合限 M1 的 lib/features/safe_walk/platform/integration/。跨模組變更由 M1 協調並記錄契約影響，UI 與 M3 協作。
+- canonical JSON Schema 是 payload 單一來源，不手改生成 Dart Model／Schema bundle。必要新欄位另提 Schema PR，同步 generator、validator、fixtures、語意與消費模組。
+- 沿用 TownPass Flutter、GetX、官方服務、Theme、TPColors、登入、品牌、原生平台及 LICENSE；入口與功能按任務最小修改，不重做官方殼、不套 Legacy React CSS。
+- 依 .fvmrc 使用 Flutter 3.47.6，不任意升級 Flutter、GetX 或全部依賴。
 
-- 預設 mock、真實撥號關閉；所有例子為人工資料，無真實使用者位置或危難個案。
-- 位置取得必須由明確使用者操作觸發；不得自動追蹤／外傳。模擬與真實資料不能暗中混用。
-- 無官方授權不得送警消案件、派遣救援者或回傳假的受理編號；officialReceipt 保持 null。
-- 行政區歷史犯罪統計不等於即時路段安全分數，不能宣稱安全保證。
-- 模擬陪伴不是真人通話或報案；停止／SOS／卸載必須取消音訊、計時器與遲到的非同步工作。
-- 不提交 secrets、憑證、定位紀錄、住家、聯絡人或 Token；不要求在對話貼 Token。
-- 不呼叫真實緊急號碼、不發真實通報做測試。不要執行官方 App 登入或授權流程作為初始化測試。
+## 安全與誠實要求
 
-## Git 與驗證
+- GPS 由使用者主動啟動導航／更新位置觸發，使用 TownPass 原生服務。定位權限與第三方查詢同意分開；不得自動追蹤、外傳或以示範座標補定位失敗。
+- 真實步行 Provider 顯示 geometry、距離、可取得的時間與限制。OSRM 路網不代表已驗證的安全路線。
+- Live 不顯示 DemoGeo、虛構避險件數、模擬 ETA／地標；查詢失敗、無資料與未配置可區分。
+- 保留來源、取得／更新日期及限制。AED／便利商店不能直接當政府認證救援據點；全市／行政區歷史統計不能冒充即時道路風險。
+- 附近協助者通知需可信身分、接收資格、ownership、RLS/RPC、限流／防濫用、位置保留／刪除、明確同意與後端／裝置驗證；未完成維持 BLOCKED，匿名 UUID 不得開放陌生人位置通知。
+- 無官方授權不得自動送警消案件、派遣或杜撰受理編號；officialReceipt 保持 null。這不阻擋導航、查詢、TTS 或使用者主動開啟 110／119 系統撥號器及官方通報入口。
+- 開啟撥號器不等於電話接通，開啟外部管道不等於受理。測試不撥真實緊急號碼、不發真實通報。
+- 模擬陪伴使用裝置 TTS／核准本機音訊，不要求麥克風；無引擎顯示文字預覽，不冒稱真人、警察接聽或已派遣。停止、離開、背景及 SOS 中斷音訊、計時器與遲到工作。
+- 不提交 secrets、憑證、Token、真實位置紀錄、住家或聯絡人，不要求在對話貼 Token。測試／截圖使用人工位置並說明證據限制。
 
-- `upstream` 僅供讀取官方來源；所有 push 必須明確指定團隊 `origin`，不得寫入 upstream。
-- 初始化使用 `migration/townpass-native-base` 與 PR，不自行合併 main。
-- 五個模組分支待初始化 PR 經確認合併後，才從同一個合併 Commit 建立；不能提前聲稱已建立。
-- 不 force push、不刪隊員分支、不擅自關 PR、不 reset／clean 他人工作，不丟棄 Legacy M2/M5 成果。
-- 不自動邀請協作者；新 Repo 權限需正確 username 與授權。
-- 實跑 pub get、build_runner、Schema generator/check、analyze、test；Build 依工具可用性執行。未執行或失敗不可寫 PASS；Windows 不宣稱本機 iOS 編譯。
-- `docs/SAFE_WALK_INITIALIZATION.md` 記錄實際驗證與上游既有問題。驗證不等於已符合競賽資格、法律授權或實機功能全部完成。
+## Git、審查與驗證
+
+- 從最新團隊 origin/main 建任務分支，先核對工作樹、未合併 PR 與 CI；不把未合併分支寫成 main 現況。
+- upstream 只讀；push 明確指定團隊 origin。不 force push、不刪／重設隊員分支、不 reset／clean 他人工作、不擅自關 PR、移動 tag、自動 merge 或發布。
+- 保留 Legacy Repo／歷史成果；五模組分支已建立，不再要求重跑初始化或等待「五分支建立」。
+- PR 附準確 SHA、理由、實際驗證及未驗事項。按變更跑 metadata、lock、build_runner、Schema --check、正常 module guard、analyze／test 及適用 build。文件 PR 至少驗連結、文件一致性、Schema 與模組契約，既有 CI 仍適用。
+- --initialization 禁止 UI guard 僅用於歷史 migration，不阻擋已授權 UI／Live 開發。M3 可持續設計，M2/M5 可實作具體 Provider／引擎。
+- 未執行、失敗、跳過分開回報，不寫 PASS；CI build／Mock 測試不等於真實 Provider／iPhone 驗收，Windows 不宣稱本機編譯 iOS。
+
+初始化時「不建立 UI」「只允許抽象介面」「五分支 pending」與當時測試結果保留於 [初始化歷史紀錄](docs/SAFE_WALK_INITIALIZATION.md)，不再是持續開發限制。
