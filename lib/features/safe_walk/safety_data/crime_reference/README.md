@@ -19,6 +19,10 @@ PR #44 已將北北基 2,542 筆來源紀錄匯入既有 Supabase 的私有 `cri
 - Parser 重驗資料庫不變式：粗精度不得帶座標、座標成對且與 `coordinateStatus` 一致、未知信心不得帶推算座標、紀錄必屬已列來源、日期不晚於快照、結果須符合查詢條件；任一不符整頁拒絕。
 - 傳輸由 M1 注入：`platform/supabase/supabase_rpc_client.dart`（dart:io，不跟隨 redirect，限制回應大小）＋ `platform/integration/crime_reference_wiring.dart`（讀 `SUPABASE_URL` 與 `SUPABASE_PUBLISHABLE_KEY`／`SUPABASE_ANON_KEY`；service_role JWT 會被拒）。Flutter web 不支援。
 
+## 路線比對（issue #48 P0-2）
+
+`crime_reference_route_geography.dart`：本查詢介面每筆最多回一個參考座標點，**沒有任何經核對的邊界**，因此 `reliableAreaCount` 恆為 0，紀錄只計數、不作為路線比對範圍（不以半徑或方框擴成範圍）。M1 `platform/integration/crime_route_alert_service.dart` 以路線外框查詢後顯示「沒有可靠地理範圍」狀態與來源／日期／限制。
+
 ## 限制
 
 參考座標不是精確案發點、不是避讓路段；歷史紀錄不是即時道路風險或安全保證；來源紀錄未跨來源去重。顯示時須保留來源、日期、精度與 `crimeReferenceLimitations`。
