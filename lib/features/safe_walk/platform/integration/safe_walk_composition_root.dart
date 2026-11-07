@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:town_pass/features/safe_walk/navigation/default_json_transport.dart';
 import 'package:town_pass/features/safe_walk/navigation/default_route_service.dart';
 import 'package:town_pass/features/safe_walk/navigation/json_transport.dart';
@@ -9,6 +10,8 @@ import 'package:town_pass/features/safe_walk/navigation/route_service.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_route_speaker.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/tts_safe_walk_speaker.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_navigation_controller.dart';
+import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_live_navigation_coordinator.dart';
+import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_route_transport.dart';
 import 'package:town_pass/features/safe_walk/platform/platform_service.dart';
 import 'package:town_pass/features/safe_walk/platform/townpass_platform_adapter.dart';
 import 'package:town_pass/features/safe_walk/presentation/mock/safe_walk_demo_data.dart';
@@ -17,12 +20,12 @@ import 'package:town_pass/features/safe_walk/safety_data/contract_safety_data.da
 import 'package:town_pass/features/safe_walk/safety_data/safety_data_service.dart';
 import 'package:town_pass/features/safe_walk/shared/contracts/cancellation.dart';
 import 'package:town_pass/features/safe_walk/shared/contracts/safe_walk_navigation_scope.dart';
+import 'package:town_pass/features/safe_walk/shared/contracts/semantics.dart';
 import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart'
     as sw;
 
-/// M1's single composition boundary. The first native demo is explicitly mock.
-/// Live location/data require M3's live-state presentation and approved providers
-/// before this route can expose them; no flag silently mixes live and demo data.
+/// The native route opens the controlled Live walking-preview flow. No GPS or
+/// route request starts on entry. Mock remains an explicit independent mode.
 class SafeWalkCompositionRoot extends StatefulWidget {
   const SafeWalkCompositionRoot({
     super.key,
@@ -32,12 +35,16 @@ class SafeWalkCompositionRoot extends StatefulWidget {
     this.routeService,
     this.routeTransport,
     this.onExit,
+    this.mode = sw.DataMode.live,
   });
+
+  /// Fixed for this route's lifetime. Use a new route/key to change modes.
+  final sw.DataMode mode;
 
   final PlatformService? platform;
   final SafetyDataRepository? safetyData;
 
-  /// Defaults to M2's service. Injection never changes the route's Mock mode.
+  /// Defaults to M2's existing service; never falls back from Live to Mock.
   final RouteService? routeService;
 
   /// Optional transport for provider verification without public requests.
@@ -61,6 +68,8 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
   late final SafetyDataRepository _safetyData;
   late final SafeWalkRouteSpeaker _speaker;
   late final SafeWalkNavigationController _navigation;
+  SafeWalkLiveNavigationCoordinator? _liveNavigation;
+  _RouteCancellation? _manualLocation;
   int _routeSequence = 0;
   bool _navigationActive = false;
   List<sw.AssistancePoint> _points = const [];
@@ -74,18 +83,25 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     _platform =
         widget.platform ??
         TownPassPlatformAdapter(
-          mockPosition: sw.Position.fromJson({
-            'schemaVersion': '1.0.0',
-            'coordinates': {'lat': DemoGeo.start.lat, 'lng': DemoGeo.start.lng},
-            'source': 'mock',
-            'accuracyMeters': null,
-            'observedAt': null,
-          }),
+          mockPosition: widget.mode == sw.DataMode.mock
+              ? sw.Position.fromJson({
+                  'schemaVersion': '1.0.0',
+                  'coordinates': {
+                    'lat': DemoGeo.start.lat,
+                    'lng': DemoGeo.start.lng,
+                  },
+                  'source': 'mock',
+                  'accuracyMeters': null,
+                  'observedAt': null,
+                })
+              : null,
         );
     _safetyData =
         widget.safetyData ??
         MockSafetyDataRepository(
-          assistancePoints: demoAssistancePoints(),
+          assistancePoints: widget.mode == sw.DataMode.mock
+              ? demoAssistancePoints()
+              : const [],
           areaStatistics: const [],
         );
     _speaker = widget.speaker ?? _deviceSpeaker();
@@ -95,23 +111,42 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
           DefaultRouteService(
             pointLookup: _lookupRoutePoints,
             liveProvider: OsrmWalkingRouteProvider(
-              transport: widget.routeTransport ?? createDefaultJsonTransport(),
-              hasConsent: () =>
-                  _navigation.hasRoutingConsent &&
-                  _navigation.liveNavigationAvailable &&
-                  !_lifetime.isCancelled,
+              transport:
+                  widget.routeTransport ??
+                  RateLimitedRouteTransport(
+                    inner: createDefaultJsonTransport(),
+                    hasConsent: _routingAllowed,
+                  ),
+              hasConsent: _routingAllowed,
               pointLookup: _lookupRoutePoints,
             ),
           ),
-      // M3 still draws demo geometry/ETA/PiP. M2 lifecycle fixes are included,
-      // but real-provider/native validation remains pending. This UI cannot
-      // enable either readiness gate.
-      mode: sw.DataMode.mock,
-      livePresentationReady: false,
-      liveProviderReady: false,
+      // These gates describe this PR's implemented preview seams, not physical
+      // device verification. Readiness remains WIRED_NOT_VERIFIED.
+      mode: widget.mode,
+      livePresentationReady: widget.mode == sw.DataMode.live,
+      liveProviderReady: widget.mode == sw.DataMode.live && !kIsWeb,
     );
+    if (widget.mode == sw.DataMode.live) {
+      _liveNavigation = SafeWalkLiveNavigationCoordinator(
+        controller: _navigation,
+        platform: _platform,
+      );
+      final state = WidgetsBinding.instance.lifecycleState;
+      _liveNavigation!.setForeground(
+        state == null || state == AppLifecycleState.resumed,
+      );
+    }
     unawaited(_loadPoints());
   }
+
+  bool _routingAllowed() =>
+      !_lifetime.isCancelled &&
+      _navigation.liveNavigationAvailable &&
+      _navigation.hasRoutingConsent &&
+      (_liveNavigation?.hasLocationConsent ?? false) &&
+      (_liveNavigation?.active ?? false) &&
+      (_liveNavigation?.foreground ?? false);
 
   Future<List<sw.AssistancePoint>> _lookupRoutePoints(
     List<String> ids, {
@@ -128,22 +163,70 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
 
   Future<void> _planRoute(sw.RouteRequest request) async {
     if (_lifetime.isCancelled || !_navigationActive) return;
+    if (_navigation.mode == sw.DataMode.live) {
+      throw StateError('Live planning must acquire its origin through M1.');
+    }
     await _navigation.planRoute(request);
   }
 
   void _openNavigation() {
-    if (!_lifetime.isCancelled) _navigationActive = true;
+    if (_lifetime.isCancelled) return;
+    _navigationActive = true;
+    _liveNavigation?.openNavigation();
   }
 
   void _closeNavigation() {
     _navigationActive = false;
-    _navigation.cancelRoute();
+    _manualLocation?.cancel();
+    if (_liveNavigation != null) {
+      _liveNavigation!.closeNavigation();
+    } else {
+      _navigation.cancelRoute();
+    }
+  }
+
+  void _cancelNavigation() {
+    if (_liveNavigation != null) {
+      _liveNavigation!.cancel();
+    } else {
+      _navigation.cancelRoute();
+    }
+  }
+
+  void _destinationChanged() {
+    if (_liveNavigation != null) {
+      _liveNavigation!.destinationChanged();
+    } else {
+      _navigation.cancelRoute();
+    }
+  }
+
+  void _setRoutingConsent(bool consent) {
+    if (_liveNavigation != null) {
+      _liveNavigation!.setRoutingConsent(consent);
+    } else {
+      _navigation.setRoutingConsent(consent);
+    }
+  }
+
+  void _emergencyOpened() {
+    _closeNavigation();
+    unawaited(_stopForEmergency());
+  }
+
+  Future<void> _stopForEmergency() async {
+    try {
+      await _speaker.stopForEmergency().timeout(const Duration(seconds: 1));
+    } catch (_) {
+      // SOS UI never waits for broken audio cleanup.
+    }
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     final active = state == AppLifecycleState.resumed;
     _speaker.setLifecycleActive(active);
+    _liveNavigation?.setForeground(active);
     if (!active) {
       _closeNavigation();
     }
@@ -198,18 +281,25 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
       _pointsLoading = true;
       _pointsError = null;
     });
+    if (_navigation.mode == sw.DataMode.live && widget.safetyData == null) {
+      setState(() {
+        _pointsLoading = false;
+        _pointsError = '真實求助據點尚未配置；不顯示示範據點。';
+      });
+      return;
+    }
     try {
       final points = await _safetyData.getAssistancePoints(
-        mode: sw.DataMode.mock,
+        mode: _navigation.mode,
         cancellation: request,
       );
       request.throwIfCancelled();
       const parser = ContractSafetyDataParser();
       final checked = points
           .map((point) {
-            if (point.source.dataMode != sw.DataMode.mock) {
+            if (point.source.dataMode != _navigation.mode) {
               throw const FormatException(
-                'Live points cannot enter the mock demo',
+                'Assistance point mode does not match the current session',
               );
             }
             return parser.parseAssistancePoint(point.toJson());
@@ -230,16 +320,35 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
   }
 
   Future<sw.LocationResult> _locate() async {
+    _manualLocation?.cancel();
+    final token = _manualLocation = _RouteCancellation();
     try {
-      final result = await _platform.getCurrentPosition(
-        mode: sw.DataMode.mock,
-        userInitiated: true,
-        cancellation: _lifetime,
-      );
+      final result = await Future.any<sw.LocationResult>([
+        Future.sync(
+          () => _platform.getCurrentPosition(
+            mode: _navigation.mode,
+            userInitiated: true,
+            cancellation: token,
+          ),
+        ),
+        token.whenCancelled.then<sw.LocationResult>(
+          (_) => throw const SafeWalkCancelledException(),
+        ),
+      ]);
       _lifetime.throwIfCancelled();
+      token.throwIfCancelled();
       if (result is sw.LocationSuccess &&
-          result.position.source != sw.PositionSource.mock) {
-        return _locationFailure('示範模式未取得示範位置，請重試。');
+          (_navigation.mode == sw.DataMode.mock
+              ? result.position.source != sw.PositionSource.mock
+              : result.position.source != sw.PositionSource.gps)) {
+        return _locationFailure('定位來源與目前模式不符，請重試。');
+      }
+      if (result is sw.LocationSuccess &&
+          _navigation.mode == sw.DataMode.live &&
+          (positionProblems(result.position).isNotEmpty ||
+              result.position.accuracyMeters == null ||
+              result.position.accuracyMeters! > 100)) {
+        return _locationFailure('定位資料無效或精度不足，請重新取得位置。');
       }
       return result;
     } on SafeWalkCancelledException {
@@ -251,6 +360,8 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
       );
     } catch (_) {
       return _locationFailure('暫時無法取得位置，請重試或說出附近地標。');
+    } finally {
+      if (identical(_manualLocation, token)) _manualLocation = null;
     }
   }
 
@@ -265,15 +376,11 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     _closeNavigation();
     // Issue the stop before platform work; a broken audio adapter cannot leave
     // the emergency page waiting indefinitely.
-    try {
-      await _speaker.stopForEmergency().timeout(const Duration(seconds: 1));
-    } catch (_) {
-      // The mock action remains available even if cleanup fails.
-    }
+    await _stopForEmergency();
     try {
       if (_lifetime.isCancelled) throw const SafeWalkCancelledException();
       return await _platform.requestEmergency(
-        mode: sw.DataMode.mock,
+        mode: _navigation.mode,
         channel: channel,
         userInitiated: true,
         allowRealCalls: false,
@@ -284,14 +391,14 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
         'channel': channel.wireValue,
         'action': 'failed',
         'officialReceipt': null,
-        'message': '示範求助暫時無法完成；未撥號、未傳送，也未通知任何人。',
+        'message': '求助管道尚未完成；未撥號、未傳送，也未通知任何人。',
       });
     }
   }
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: _navigation,
+    listenable: _liveNavigation ?? _navigation,
     builder: (context, child) => SafeWalkNavigationScope(
       mode: _navigation.mode,
       liveNavigationAvailable: _navigation.liveNavigationAvailable,
@@ -301,25 +408,32 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
       routeError: _navigation.routeError,
       createRouteRequest: _createRouteRequest,
       onPlanRoute: _planRoute,
-      onCancelRoute: _navigation.cancelRoute,
-      onRoutingConsentChanged: _navigation.setRoutingConsent,
-      onDestinationChanged: _navigation.cancelRoute,
+      onCancelRoute: _cancelNavigation,
+      onRoutingConsentChanged: _setRoutingConsent,
+      onDestinationChanged: _destinationChanged,
       onNavigationOpened: _openNavigation,
       onNavigationClosed: _closeNavigation,
-      onEmergencyOpened: _closeNavigation,
-      child: child!,
-    ),
-    child: SafeWalkFlow(
-      mode: sw.DataMode.mock,
-      allowRealCalls: false,
-      points: _points,
-      pointsLoading: _pointsLoading,
-      pointsError: _pointsError,
-      onRetryPoints: () => unawaited(_loadPoints()),
-      speaker: _speaker,
-      onLocate: _locate,
-      onEmergency: _emergency,
-      onExit: _exit,
+      onEmergencyOpened: _emergencyOpened,
+      position: _liveNavigation?.position,
+      locationLoading: _liveNavigation?.locationLoading ?? false,
+      locationError: _liveNavigation?.locationError,
+      hasLocationConsent: _liveNavigation?.hasLocationConsent ?? false,
+      onLocationConsentChanged: _liveNavigation?.setLocationConsent,
+      onPlanDestination: _liveNavigation?.planDestination,
+      child: SafeWalkFlow(
+        mode: _navigation.mode,
+        allowRealCalls: false,
+        points: _points,
+        pointsLoading: _pointsLoading,
+        pointsError: _pointsError,
+        onRetryPoints: () => unawaited(_loadPoints()),
+        route: _navigation.routeResult,
+        routeLoading: _navigation.routeLoading,
+        speaker: _speaker,
+        onLocate: _locate,
+        onEmergency: _emergency,
+        onExit: _exit,
+      ),
     ),
   );
 
@@ -327,7 +441,9 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _lifetime.cancel();
+    _manualLocation?.cancel();
     _pointsRequest?.cancel();
+    _liveNavigation?.dispose();
     _navigation.dispose();
     unawaited(_speaker.dispose());
     super.dispose();

@@ -1,5 +1,7 @@
 # TownPass Supabase 連線設定
 
+CI／專用 Demo 的初始化另見 [隔離資料庫重設](SAFE_WALK_DATABASE_RESET.md)。遠端白名單預設為空，不會把既有專案自動當成可清除的 Demo，也不執行舊匿名通知 RPC。
+
 現行規格以 [Live MVP](SAFE_WALK_LIVE_MVP.md) 與 [上線條件](SAFE_WALK_LIVE_READINESS.md) 為準。2026-11-07 核對 main `03f98f2b7b5254db73774c4d097eb4d610499c2c`：連線基礎已由 PR #25 合併；下文「本輪」及測試結果是當次設定的歷史事實，不表示目前仍待合併，也不代表附近通知已通過驗收。
 
 | 能力 | 狀態 | 現行結論 |

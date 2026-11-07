@@ -165,33 +165,21 @@ void main() {
   setUp(() => Get.testMode = true);
   tearDown(() => Get.reset());
 
-  testWidgets(
-    'real city service and registered route open the default M3 flow',
-    (t) async {
-      await cityApp(t, null);
-      await enter(t);
-      final flow = t.widget<SafeWalkFlow>(find.byType(SafeWalkFlow));
-      expect(flow.mode, sw.DataMode.mock);
-      expect(flow.allowRealCalls, isFalse);
-      expect(flow.speaker.available, isFalse);
-      expect(flow.points, hasLength(3));
-      expect(
-        flow.points!.every(
-          (point) => point.source.dataMode == sw.DataMode.mock,
-        ),
-        isTrue,
-      );
-      expect(
-        flow.points!.every(
-          (point) => point.availability == sw.OpeningStatus.unknown,
-        ),
-        isTrue,
-      );
-      await back(t);
-      expect(find.byType(CityServiceView), findsOneWidget);
-      expect(t.takeException(), isNull);
-    },
-  );
+  testWidgets('real city service opens the Live preview without demo points', (
+    t,
+  ) async {
+    await cityApp(t, null);
+    await enter(t);
+    final flow = t.widget<SafeWalkFlow>(find.byType(SafeWalkFlow));
+    expect(flow.mode, sw.DataMode.live);
+    expect(flow.allowRealCalls, isFalse);
+    expect(flow.speaker.available, isFalse);
+    expect(flow.points, isEmpty);
+    expect(flow.pointsError, contains('尚未配置'));
+    await back(t);
+    expect(find.byType(CityServiceView), findsOneWidget);
+    expect(t.takeException(), isNull);
+  });
 
   testWidgets(
     'A-G demo connects route, points, text companion, SOS and return',
@@ -203,6 +191,7 @@ void main() {
       await cityApp(
         t,
         () => SafeWalkCompositionRoot(
+          mode: sw.DataMode.mock,
           platform: platform,
           safetyData: data,
           speaker: CompanionSpeakerAdapter(controller: companion),
@@ -268,7 +257,10 @@ void main() {
         ..load = (n) => n == 0
             ? Future.error(StateError('synthetic source failure'))
             : retried.future;
-      await cityApp(t, () => SafeWalkCompositionRoot(safetyData: data));
+      await cityApp(
+        t,
+        () => SafeWalkCompositionRoot(mode: sw.DataMode.mock, safetyData: data),
+      );
       await enter(t);
       await t.tap(find.text('附近求助地點'));
       await t.pumpAndSettle();
@@ -291,7 +283,10 @@ void main() {
   ) async {
     final pending = Completer<List<sw.AssistancePoint>>();
     final data = _Data()..load = (_) => pending.future;
-    await cityApp(t, () => SafeWalkCompositionRoot(safetyData: data));
+    await cityApp(
+      t,
+      () => SafeWalkCompositionRoot(mode: sw.DataMode.mock, safetyData: data),
+    );
     await enter(t);
     await back(t);
     expect(data.cancellations.single!.isCancelled, isTrue);
@@ -305,7 +300,11 @@ void main() {
     'location is requested only on tap and denial/timeout are readable',
     (t) async {
       final platform = _Platform([]);
-      await cityApp(t, () => SafeWalkCompositionRoot(platform: platform));
+      await cityApp(
+        t,
+        () =>
+            SafeWalkCompositionRoot(mode: sw.DataMode.mock, platform: platform),
+      );
       await enter(t);
       expect(platform.locations, 0);
       await t.tap(find.text('緊急求助').first);
@@ -346,7 +345,10 @@ void main() {
       json['source'] = source;
       final data = _Data()
         ..load = (_) async => [sw.AssistancePoint.fromJson(json)];
-      await cityApp(t, () => SafeWalkCompositionRoot(safetyData: data));
+      await cityApp(
+        t,
+        () => SafeWalkCompositionRoot(mode: sw.DataMode.mock, safetyData: data),
+      );
       await enter(t);
       final flow = t.widget<SafeWalkFlow>(find.byType(SafeWalkFlow));
       expect(flow.points, isEmpty);
@@ -365,6 +367,7 @@ void main() {
       final companion = _Companion([]);
       instances.add(companion);
       return SafeWalkCompositionRoot(
+        mode: sw.DataMode.mock,
         safetyData: data,
         speaker: CompanionSpeakerAdapter(controller: companion),
       );

@@ -1,23 +1,23 @@
 # M1／M2／M3 導航接線契約
 
-2026-11-07（Asia/Taipei），稽核基線 `origin/main`：`03f98f2b7b5254db73774c4d097eb4d610499c2c`。現行目標為 [Live MVP](SAFE_WALK_LIVE_MVP.md)，啟用證據見 [Live Readiness](SAFE_WALK_LIVE_READINESS.md)。本次只改文件，不開啟 Live。正式 UI/UX、地圖與可讀性由 M3 莅紋維護；M1 負責組合及接線，M2 負責路線與跟隨計算。
+2026-11-07（Asia/Taipei）。本契約更新至從 main `c4410706292ab008774e7b559c98ac59be08708e` 開發的 P0 受控真實步行預覽；最終 SHA／PR／CI 待填入本輪 PR。狀態為 **WIRED_NOT_VERIFIED**，不是 LIVE_VERIFIED。現行目標為 [Live MVP](SAFE_WALK_LIVE_MVP.md)，操作與證據見 [P0 預覽](SAFE_WALK_P0_LIVE_PREVIEW.md)，逐能力缺口見 [Live Readiness](SAFE_WALK_LIVE_READINESS.md)。正式 UI/UX、地圖與可讀性由 M3 莅紋維護；M1 管理組合與位置入口，M2 提供路線與跟隨計算。
 
 依 [開放協作規範](SAFE_WALK_COLLABORATION.md) 採 Feature-First、Soft Ownership、Contract-Based Integration。本文 M1／M2／M3 是技術模組及主要聯絡人，不是獨占修改權；指定功能主責可一次完成 platform、navigation、presentation 與相應測試的完整流程，不必等小魚親自接線或先批准普通修改。一般 callback／導航／UI 接線屬 Level A；共用 Contracts／Models／Schema、套件、TownPass route／原生設定、CI 及正式 UI 大型改版屬 Level B，合併前由對應主要負責人確認；正式部署開關及真實外部影響依 Level C 取得隊長明確授權與安全／隱私驗收。
 
-## 已合併程式與缺口
+## 本輪接線與缺口
 
-| 範圍 | main 實況 | 尚缺交付 |
+| 範圍 | 本輪工作分支實況 | 尚缺交付 |
 |---|---|---|
 | TownPass 入口 | 城市服務／首頁已連到 `SafeWalkCompositionRoot` → `SafeWalkFlow`。 | 保留原生殼、GetX route、Theme 與品牌。 |
-| M2 路線 | `DefaultRouteService`、`OsrmWalkingRouteProvider`、座標驗證、取消及同意檢查已存在；組合根已建立 OSRM provider。 | 真實 provider 證據、GPS 與正式地圖操作接線；不是尚未實作 OSRM。 |
-| M1 控制 | `SafeWalkNavigationController`／`SafeWalkNavigationScope` 已提供結果、loading、同意、取消及 lifecycle callbacks；背景會取消並鎖 inactive。 | Flow 尚未消費 scope，組合根也未傳 `route`／`routeLoading`／`onPlanRoute`。scope tests 不等於 UI 操作端到端驗收。 |
-| M3 介面 | 已合併 `SafeWalkFlow(route: RouteResult?, routeLoading: bool, onPlanRoute: ValueChanged<Coordinates>?)`、`RouteState` loading／failure／success；`_go(map)` 在使用者進入地圖才呼叫 callback，目前沒有初始化 post-frame 規劃。 | 保留 API，由功能主責在 platform/integration 的 adapter 接線，補同意／撤回、取消及 lifecycle。舊「M3 尚未合併／無路線介面」已失效。 |
-| 地圖與模式 | #29 底圖增量保留 `DemoMap` 類名，renderer 已改用 flutter_map／OSM 圖磚與座標投影；Flow 的路線/點位仍 Mock，缺位置／據點仍可補 Demo。據點切換只改 `_pointIndex`、畫 `DemoGeo.lRoute`。 | 沿用已接 renderer，補正式 geometry／viewport／標記整合、Live 缺值分流及所有目的地事件接線；底圖與 iPhone 驗收待完成。 |
-| 距離／時間 | 已能讀 route 距離、秒數與第一則 explanation；duration null 仍以 `walkMinutes` 補值，據點卡也用直線距離換算分鐘。 | Live 未知時間保留未知、完整 warnings／provider、直線距離明確標示；不顯示虛構避讓件數與地標。 |
+| M2 路線 | 沿用 `DefaultRouteService`／`OsrmWalkingRouteProvider`；預設 routed-foot OSRM 真服務，M1 transport 控制派送間隔並在派送前重查同意／取消。 | Provider／App／iPhone 證據分開驗收，公共服務容量與維運待確認。 |
+| M1 控制 | `SafeWalkLiveNavigationCoordinator` 管理兩份同意、前景／active、位置與每意圖取消；取得有效單次 GPS 後交既有 `SafeWalkNavigationController`，scope 將狀態及 callbacks 交 M3。 | 真 iPhone 授權、位置、背景／返回／SOS 的端到端驗收。 |
+| M3 介面 | `SafeWalkFlow` 依模式分流；Live 的 `SafeWalkLiveMapView` 消費 scope，地圖點選／輸入座標選目的地，按開始／重試才 open + plan。舊 constructor API 保留供顯式 Mock。 | iPhone 操作、VoiceOver／大字體與斷網驗收；本輪最終 widget／CI 結果見 PR。 |
+| 地圖與模式 | 沿用 flutter_map／OSM renderer；Live 僅畫有效起點、所選目的地與 Provider geometry，不畫 Demo 家／公司、異常或據點；初始臺北視野不代表定位成功。 | 實機投影、視野、圖磚載入／失敗與裝置效能。 |
+| 距離／時間 | Live 讀 canonical distance／nullable duration、provider、explanations 及 warnings；未知時間顯示未知，不由 Demo 步速補值。 | 與真路線／實地位置比對；不表示即時路況或路段安全。 |
 | 跟隨 | `RouteFollower` 已有進度、偏離、抵達與 remainingSeconds 計算及測試。 | 尚未接 App；先支援使用者主動更新位置。若需連續定位，由功能主責在 platform 沿用 TownPass 服務定義啟停／同意，不在 navigation 另開 GPS。 |
 | 便利商店／外部導航 | `OsmConvenienceStoreSource`、`NearestStorePlanner`、`googleMapsWalkingUri` 已存在。 | 尚未接組合根或正式操作；便利商店不是政府認證救援據點。 |
 
-目前組合根固定 `DataMode.mock`、`livePresentationReady: false`、`liveProviderReady: false`，定位、據點讀取及 Flow 也各自固定 Mock。這是未驗收能力的暫時隔離；完成相應驗收後必須可由正式流程使用 Live，不能成為永久禁令。只改三個值不足以完成導航；解除條件、Owner 與證據依 Readiness 表逐項核對。
+本輪原生組合根預設 `DataMode.live`，顯式 Mock 可獨立注入；mode 在 route lifetime 固定。Live controller 的 presentation/provider gates 描述受控預覽的程式接線，不是裝置驗收章；Web 預設 provider gate 關閉。兩份同意、位置、取消、UI 模式仍逐項核對，不能以 gates true 或 CI 綠燈宣稱 LIVE_VERIFIED。舊文件列 `03f98f2`／`65ee6f7` 的固定 Mock 內容是歷史盤點。
 
 ## 模式與共用契約
 
@@ -29,33 +29,37 @@
 
 ## 輸入與操作邊界
 
-scope 名稱以 `shared/contracts/safe_walk_navigation_scope.dart` 為準。保留 Flow 已有的 `route`／`routeLoading`／座標 callback，由功能主責在 platform/integration adapter 映射；其餘為待 UI 接線需求，不表示畫面已提供。
+scope 名稱以 `shared/contracts/safe_walk_navigation_scope.dart` 為準。Live UI 只交目的地，起點與 canonical request 由 M1 取得／建立；舊 Flow constructor 與 request API 保留供顯式 Mock，不作 Live 捷徑。
 
 | 資料／操作 | 契約 |
 |---|---|
 | `mode` | 顯式 DataMode，頁面與子畫面同源，不從有沒有位置或結果推斷。 |
-| `liveNavigationAvailable` | 由 readiness 證據決定，false 提供原因及下一步，不用 debug flag 繞過。scope 目前無 reason 欄，後續可協調程序內呈現，不自造 wire payload。 |
-| `routeResult` → Flow `route` | canonical RouteResult；null 表示未規劃／清除／未配置，Live 不補示範路線。 |
+| `liveNavigationAvailable` | 表示目前組合具有受控預覽的 UI／provider 接點；不是 LIVE_VERIFIED。false 顯示未配置，不取 GPS 或改用 Mock；Web 預設 false。 |
+| `routeResult` | canonical RouteResult，由 controller 經 scope 交 Live UI；null 表示未規劃／清除／未配置，Live 不補示範路線。 |
 | `routeLoading`／`routeError` | 新請求先移除舊 geometry／ETA；載入可取消，錯誤不含原始 URL、精確座標或 exception。 |
-| `createRouteRequest` | 用同一份 M1 `onLocate` 成功的 Position 與使用者目的地建立 request，M1 補唯一 requestId、mode、departAt；本身不定位或外傳。 |
-| `onPlanRoute` | Flow 保留 ValueChanged<Coordinates>；M1 adapter 核對意圖後建立 canonical request，交 scope 的 Future<void> Function(RouteRequest)，不另建 payload 或 GPS watcher。 |
+| `position`／`locationLoading`／`locationError` | M1 單次定位的 canonical Position 與操作狀態；不是持續定位或假起點。中斷時清除；位置來源、精度及時間須有效。 |
+| `hasLocationConsent`／`onLocationConsentChanged` | 預設 false；只同意取得位置，不等於 OS 權限已授予或同意傳第三方。勾選不取 GPS，撤回即取消並清除當前導航。 |
+| `onPlanDestination(Coordinates)` | Live UI 在明確開始／重試時先 `onNavigationOpened`，再只交使用者選定的目的地。M1 每次取單次 GPS，回覆後重查意圖／前景／兩份同意才建 canonical request；不另建 GPS watcher。 |
+| `createRouteRequest`／`onPlanRoute` | 舊 request API 保留給顯式 Mock／既有測試；Live root 拒絕繞過 coordinator 直接傳入自造起點。 |
 | `hasRoutingConsent`／`onRoutingConsentChanged` | 預設 false，明確說明接收者、座標及用途；撤回先取消、清除 Live 結果及停止新外傳，再同意仍須新的規劃意圖。 |
 | `onCancelRoute`／`onDestinationChanged` | 取消／更換目的地當下同步取消，不等下一次規劃或動畫；遲到結果不得覆蓋新選擇。 |
-| `onNavigationOpened` | 僅使用者明確進入／重啟導航才解除 inactive，build、resumed、自動還原或定位完成不代替此操作。 |
+| `onNavigationOpened` | 本輪只由明確開始／重試按鈕解除 inactive；僅進地圖、build、resumed、自動還原或定位完成不代替此操作，也不單獨取 GPS。 |
 | `onNavigationClosed`／`onEmergencyOpened` | 返回首頁、離開導航、切至通話、開啟 SOS 當下取消並鎖 inactive，不等選 110／119。 |
 | `onExit`／dispose | 組合層先取消路線、位置與非同步工作再退出；涵蓋系統返回與手勢，退出後同一 lifetime 永久拒絕遲到工作。 |
 
-request factory 現有預設為 direct、繞行上限 500 m、assistancePointIds 空陣列。途經操作須明確選 viaAssistance，傳入已查證且同模式 snapshot 可核對的據點 ID；未知／未載入 ID 回錯誤，不補示範點。M1 已將同一 lookup 注入 DefaultRouteService 與 OSRM，目前 snapshot 只有 Mock。
+Live coordinator 建立 direct、繞行上限 500 m、assistancePointIds 空陣列的 request。本輪 Live 據點未接入，不發途經或 Overpass 查詢。未來途經操作須明確選 viaAssistance，傳入已查證且同模式 snapshot 可核對的據點 ID；未知／未載入 ID 回錯誤，不補示範點。
 
 ## 正式使用流程
 
 1. 進入安心行不自動定位／查詢。使用者開始導航或更新位置後，M1 呼叫 TownPass 原生位置服務；拒絕、服務關閉、逾時、取消或失敗提供下一步，不補示範座標。
-2. 更換目的地（含自訂地點、最近據點、下一據點及「帶我去這裡」）先取消舊意圖。Live 不用 demoPlaces 的家／公司；以據點 ID 作身分，不用排序 index。
+2. 本輪以地圖點選／緯經度輸入選目的地，更換先取消舊意圖，不自動重查。Live 不用 demoPlaces 的家／公司；最近／下一據點等未接入，未來接入時以據點 ID 作身分，不用排序 index。
 3. 外傳前另取得同意：OSRM 收到精確起訖與途經點；新增 Overpass 時另說明接收者、約略網格中心／查詢範圍。定位權限不等於外傳同意。
 4. 建立 request 並核對 mode、來源、readiness、同意及 active，通過才 loading。每次等待定位保留 generation；取消、換目的地、SOS、背景或模式切換即失效。Future 完成後重查 mounted、screen、目的地、mode 及 generation，舊定位不得重新 opened 或重試。
 5. 僅呈現目前 requestId／mode 結果；成功使用真實 geometry／距離／可取得的時間。失敗顯示原因、重試或使用者選擇外部導航；handoff 不代表 App 內路線成功。
-6. RouteFollower 僅消費 M1 更新的位置；顯示定位被拒、偏離、抵達。remainingSeconds 是依路線時間及剩餘距離比例估計，未知保留 null，不聲稱即時交通 ETA 或逐路口指示。
+6. 本輪是單次位置的路線預覽，尚未接入 RouteFollower 的進度／偏航／抵達。後續 follower 只消費 M1 更新的位置；remainingSeconds 是依路線時間及剩餘距離比例估計，未知保留 null，不聲稱即時交通 ETA 或逐路口指示。
 7. SOS、退出、背景及撤回同意立即取消導航與後續外傳；resumed 不自動續傳。求助入口不能被路線 Future 或音訊清理阻擋，SOS 優先中斷另依 M5 契約。
+
+非 resumed 的 lifecycle（含 inactive）一律使本次意圖中止。原生定位授權彈窗若觸發 inactive，回前景後需使用者重新開始；此為程式推論，彈窗／系統中斷在 iOS 上的實際事件順序仍須實機驗收，不能記為已測。
 
 ## Live 呈現驗收
 
