@@ -2,7 +2,9 @@
 
 2026-11-07，分支 `integration/m1-navigation-presentation`。本文件是交給 M3 莅紋的操作／資料接線規格；正式版面、地圖呈現與可讀性由 M3 實作及驗收。本輪不重建 TownPass 入口，也不修改 `presentation/`。
 
-已合併基線為 `origin/main` 的 `bf6265f`。提交前再次 fetch 發現尚未開 PR／未合併的 `origin/feat/m3-experience` 已到 `3470e01`（比 main 多 12 commits、差異 32 files），其中 `1f3bc1e` 已提供 `SafeWalkFlow(route: RouteResult?, routeLoading: bool, onPlanRoute: ValueChanged<Coordinates>?)` 與 `RouteState`。下文「已合併基線」的缺口不能解讀成 M3 最新分支尚未實作；最新 API 應優先保留，詳見下一節。本輪沒有拉入這 32 個版面、互動與素材檔案，也沒有宣稱未合併成果已存在本 PR。
+本輪從 `origin/main` 的 `bf6265f` 開始；交付前 main 已合併 PR #15 至 `7fa32880302ba8f2d1fc4fba1b3cedea46d81c3a`，本整合分支以 `44f2590` 納入該 main。M2 的 OSRM 每次外傳前重查同意／取消、平行途經請求錯誤觀察，以及 Overpass 請求清理與快取時效修正均已納入；合併後整體回歸的實際結果由本 PR 驗證紀錄記載。真實 OSRM／Overpass 與 iPhone 實機仍未驗，不能把 fake transport 測試當成實測。
+
+提交前 fetch 另發現尚未開 PR／未合併的 `origin/feat/m3-experience` 已到 `3470e01`（相對最初 `bf6265f` 多 12 commits、差異 32 files），其中 `1f3bc1e` 已提供 `SafeWalkFlow(route: RouteResult?, routeLoading: bool, onPlanRoute: ValueChanged<Coordinates>?)` 與 `RouteState`。下文「已合併基線」的缺口不能解讀成 M3 最新分支尚未實作；最新 API 應優先保留，詳見下一節。本輪沒有拉入這 32 個版面、互動與素材檔案，也沒有宣稱未合併成果已存在本 PR。
 
 ## 與未合併 M3 API 對接
 
@@ -67,7 +69,7 @@ request factory 預設 `preference: sw.RouteKind.direct`、`maxExtraDistanceMete
 
 M3 不需要接收 cancellation token、transport、provider、GPS subscription 或另一套 route model。M1 控制器的 notifier 可由組合根轉成上述 immutable inputs；presentation 維持只依賴自身及 shared。
 
-目前 M1 的控制器為 `SafeWalkNavigationController`，提供 `planRoute(RouteRequest)`、`setRoutingConsent(bool)`、`cancelRoute()` 及 `dispose()`，以及表中的模式、同意、可用性、結果／loading／error getters。scope 的 `onDestinationChanged` 已映射取消；`onNavigationClosed`、`onEmergencyOpened` 已映射取消及 inactive 閘門，`onNavigationOpened` 映射明確重新進入。組合根固定 Mock，`livePresentationReady`／`liveProviderReady` 目前均不能開啟 Live；也沒有接入 Overpass 查詢。本文件的 Overpass 操作要求是後續接入條件，不能列為本輪 App 已提供的功能。
+目前 M1 的控制器為 `SafeWalkNavigationController`，提供 `planRoute(RouteRequest)`、`setRoutingConsent(bool)`、`cancelRoute()` 及 `dispose()`，以及表中的模式、同意、可用性、結果／loading／error getters。scope 的 `onDestinationChanged` 已映射取消；`onNavigationClosed`、`onEmergencyOpened` 已映射取消及 inactive 閘門，`onNavigationOpened` 映射明確重新進入。組合根固定 Mock，`livePresentationReady`／`liveProviderReady` 仍為 false：M3 正式接線與實際 Live／native provider 驗證尚未完成，PR #15 已合併不等於可直接開啟 Live。App 也沒有接入 Overpass 查詢；本文件的 Overpass 操作要求是後續接入條件，不能列為本輪 App 已提供的功能。
 
 上述 callbacks 目前只有 M1 scope 映射，現有 M3 UI 尚未呼叫 `onDestinationChanged`、`onNavigationOpened`、`onNavigationClosed` 或 `onEmergencyOpened`。現有 `_emergency(channel)` 在使用者選 110／119 後才取消並鎖住導航，只是後備處理；不能宣稱按下 SOS 開頁或切換目的地的使用者操作已完成即時取消。透過 scope callbacks 的 wiring tests 只驗證 M1 邊界及資料流程，不等於 M3 使用者操作端到端接線或真實路線呈現已驗。
 
@@ -118,7 +120,7 @@ M3 若以「等待 `onLocate` → 建立 request → `onPlanRoute`」串接，�
 ## Live 入口開放前驗收
 
 - M3 能以 M1 提供的 RouteSuccess 畫出任意真實起訖座標範圍的 geometry，距離／nullable 時間正確；首頁與子母畫面不殘留 DemoGeo。
-- 使用者同意前零第三方請求；拒絕、撤回、途經查詢中撤回、目的地變更、開啟 SOS、系統返回與背景都能停止後續請求／遲到更新。另驗證舊定位 Future 不得在取消後重新提交 request，resumed 不自動解鎖，必須由明確使用者再次進入。M2 PR #15 的同意重查與請求清理修正尚未合併，須先完成審查、納入與回歸，不能依賴 README 的宣告視為已修好。
+- 使用者同意前零第三方請求；拒絕、撤回、途經查詢中撤回、目的地變更、開啟 SOS、系統返回與背景都能停止後續請求／遲到更新。另驗證舊定位 Future 不得在取消後重新提交 request，resumed 不自動解鎖，必須由明確使用者再次進入。M2 PR #15 的同意重查、平行錯誤處理、Overpass 取消及快取 TTL 修正已合併納入本分支；合併後整體測試結果見本 PR，仍須完成真正 Live／native 操作驗收。
 - 真實 GPS 的來源／時間／精度經 M1 驗證，不用示範座標補缺值；Live 途經據點來源與營業資料由 M1／M4 核對，尚未整合者維持未配置。
 - OSRM 無路線／逾時／離線與 Overpass 失敗各自可見；不回退 Demo。不宣稱路線通過治安、照明或無障礙安全驗證。
 - 跑共用 Schema check、scoped／完整 analyze、M1／M2 unit、TownPass 入口／SOS 整合與 M3 狀態測試；用真實服務的 smoke／iPhone 實機結果另列，不以 fake transport 的成功替代。
@@ -129,6 +131,6 @@ Live 開放是上述共同驗收後的 M1 接線工作。只完成 UI callback �
 
 可以為本輪 Mock 整合建立新的 PR CI unsigned IPA，前提是本 PR 的檢查與 iOS job 實際成功；包內仍應維持 Mock，不能標示已完成 Live 導航。Windows 本機無 Xcode，不宣稱本機已編譯或裝機。
 
-若下一版 IPA 要宣告 Live 路線預覽，還缺 M3 上述介面及真實地圖呈現、M1 正式接入 callbacks、PR #15 修正納入、明確第三方同意、provider／真實資料來源與實機網路／取消回歸。正式逐步步行導航還缺 M2／Schema 的指示契約及實作。
+若下一版 IPA 要宣告 Live 路線預覽，還缺 M3 上述介面及真實地圖呈現、M1 正式接入 callbacks、明確第三方同意、provider／真實資料來源與實機網路／取消回歸。PR #15 修正已納入，不再是待合併阻塞；真實 OSRM／Overpass 與 iPhone 未驗仍需如實記錄。正式逐步步行導航還缺 M2／Schema 的指示契約及實作。
 
 iPhone 安裝仍須團隊現有 macOS 簽署／provisioning 流程與測試裝置；unsigned IPA 不能直接安裝，也不等於 TestFlight。從相同 commit 實機確認 TownPass 入口／返回、拒絕定位、背景取消、SOS 可操作、VoiceOver／大字體與不混用示範資料，結果逐項記錄。既有簽署與 CI 說明見 [TownPass 整合紀錄](SAFE_WALK_INTEGRATION.md)。

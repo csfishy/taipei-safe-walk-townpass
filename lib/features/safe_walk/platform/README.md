@@ -27,4 +27,4 @@
 
 原生入口固定 Mock，現有 M3 Demo 操作保留。Live UI/provider 閘門維持關閉，OSRM 僅預備注入、不發請求；Overpass 未接入。M3 尚未消費 scope，目的地變更、SOS 開頁及離開導航的使用者事件仍需由 M3 接上；不能把 scope 測試當成真實路線 UI 已完成。詳見 [M1／M2／M3 接線規格與交接](../../../../docs/SAFE_WALK_NAVIGATION_PRESENTATION_CONTRACT.md)。
 
-本輪完整 Flutter suite：359 通過、12 跳過（10 截圖、2 opt-in live smoke）；Schema／module guard／scoped analyze 通過。完整預設 analyze exit 1，僅 17 項既有 info、無 error/warning；CI 的 `--no-fatal-infos` exit 0。測試包含 22 項 controller、11 項 scope 接線及既有 TownPass 入口／Mock SOS 整合，不包含 iPhone 實機或公共 OSRM／Overpass 驗證。
+納入 main 的 PR #15 後，完整 Flutter suite：370 通過、12 跳過（10 截圖、2 opt-in live smoke）；Schema／module guard／scoped analyze 通過。完整預設 analyze exit 1，僅 17 項既有 info、無 error/warning；CI 的 `--no-fatal-infos` exit 0。測試包含 22 項 controller、11 項 scope 接線及既有 TownPass 入口／Mock SOS 整合，不包含 iPhone 實機或公共 OSRM／Overpass 驗證。

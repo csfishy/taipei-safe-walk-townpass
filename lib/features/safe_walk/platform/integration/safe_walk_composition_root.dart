@@ -101,8 +101,9 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
               pointLookup: _lookupRoutePoints,
             ),
           ),
-      // M3 still draws demo geometry/ETA/PiP. PR #15's M2 lifecycle fixes
-      // also require separate review. Neither gate can be enabled by this UI.
+      // M3 still draws demo geometry/ETA/PiP. M2 lifecycle fixes are included,
+      // but real-provider/native validation remains pending. This UI cannot
+      // enable either readiness gate.
       mode: sw.DataMode.mock,
       livePresentationReady: false,
       liveProviderReady: false,
