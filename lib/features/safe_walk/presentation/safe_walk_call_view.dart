@@ -216,31 +216,38 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
             child: LayoutBuilder(
               builder: (context, box) {
                 final pipW = (box.maxWidth * .36).clamp(120.0, 180.0);
-                final pipH = pipW * 1.35;
-                return Stack(
+                final pipH = pipW * 1.1;
+                // 地圖小視窗獨立一列放在對話上方，對話捲動時不會被蓋住；左右滑可換邊。
+                final voice = widget.speaker.available;
+                return Column(
                   children: [
-                    Positioned.fill(
-                      child: ListView.separated(
-                        controller: _scroll,
-                        padding: EdgeInsets.fromLTRB(16, pipH + 28, 16, 16),
-                        itemCount: _log.length,
-                        separatorBuilder: (_, _) => const SizedBox(height: 12),
-                        itemBuilder: (_, i) => _Bubble(entry: _log[i], speaking: _speaking == _log[i].key, onTap: _log[i].caller ? () => _toggle(_log[i]) : null),
-                      ),
-                    ),
-                    AnimatedPositioned(
+                    AnimatedAlign(
                       duration: SwMotion.of(context, 260),
                       curve: SwMotion.curve,
-                      top: 12,
-                      left: _pipLeft ? 12 : box.maxWidth - pipW - 12,
-                      width: pipW,
-                      height: pipH,
-                      child: GestureDetector(
-                        onHorizontalDragEnd: (d) {
-                          final v = d.primaryVelocity ?? 0;
-                          if (v.abs() > 100) setState(() => _pipLeft = v < 0);
-                        },
-                        child: _Pip(start: start, points: widget.points, anomalies: widget.anomalies, onTap: () => _leaveThen(widget.onMap)),
+                      alignment: _pipLeft ? Alignment.centerLeft : Alignment.centerRight,
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+                        child: SizedBox(
+                          width: pipW,
+                          height: pipH,
+                          child: GestureDetector(
+                            onHorizontalDragEnd: (d) {
+                              final v = d.primaryVelocity ?? 0;
+                              if (v.abs() > 100) setState(() => _pipLeft = v < 0);
+                            },
+                            child: _Pip(start: start, points: widget.points, anomalies: widget.anomalies, onTap: () => _leaveThen(widget.onMap)),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const Divider(height: 1, color: SwColors.border),
+                    Expanded(
+                      child: ListView.separated(
+                        controller: _scroll,
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                        itemCount: _log.length,
+                        separatorBuilder: (_, _) => const SizedBox(height: 12),
+                        itemBuilder: (_, i) => _Bubble(entry: _log[i], speaking: _speaking == _log[i].key, replay: voice, onTap: _log[i].caller && voice ? () => _toggle(_log[i]) : null),
                       ),
                     ),
                   ],
@@ -358,9 +365,12 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
 }
 
 class _Bubble extends StatelessWidget {
-  const _Bubble({required this.entry, required this.speaking, required this.onTap});
+  const _Bubble({required this.entry, required this.speaking, required this.onTap, this.replay = true});
   final _Entry entry;
   final bool speaking;
+
+  /// 沒有語音（臺北通尚未配置）時不顯示「點一下重播」。
+  final bool replay;
   final VoidCallback? onTap;
 
   @override
@@ -379,7 +389,7 @@ class _Bubble extends StatelessWidget {
           entry.text,
           style: SwText.heading.copyWith(fontSize: 20, fontWeight: FontWeight.w500, height: 1.5, color: caller ? SwColors.text : SwColors.onDeep),
         ),
-        if (caller) ...[
+        if (caller && replay) ...[
           const SizedBox(height: 4),
           Row(
             mainAxisSize: MainAxisSize.min,

@@ -127,6 +127,19 @@ void main() {
     await _shot(t, '07-anomaly-detail');
   }, skip: _skip);
 
+  testWidgets('08b 模擬來電（臺北通內：語音未配置）', (t) async {
+    await _app(t);
+    await t.tap(find.text('模擬來電').first);
+    for (var i = 0; i < 5; i++) {
+      await t.pump(const Duration(milliseconds: 200));
+    }
+    await t.tap(find.text('我正在回家路上，已經吃過了。'));
+    for (var i = 0; i < 8; i++) {
+      await t.pump(const Duration(milliseconds: 200));
+    }
+    await expectLater(find.byType(MaterialApp), matchesGoldenFile('screenshots/08b-call-no-voice.png'));
+  }, skip: _skip);
+
   testWidgets('08 模擬來電（朗讀中）', (t) async {
     await _app(t, speaker: _Speaking());
     await t.tap(find.text('模擬來電').first);
