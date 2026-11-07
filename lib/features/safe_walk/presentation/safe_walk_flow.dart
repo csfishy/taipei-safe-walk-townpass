@@ -27,6 +27,7 @@ class SafeWalkFlow extends StatefulWidget {
     this.routeLoading = false,
     this.onPlanRoute,
     this.onReportsChanged,
+    this.onStartChanged,
     this.livePosition,
     this.onLeaveMap,
     this.speaker = const UnavailableSpeaker(),
@@ -55,6 +56,9 @@ class SafeWalkFlow extends StatefulWidget {
   /// 每次規劃路線前，送出目前尚未解除的回報點（真實路線會避開以它們為中心的圓）。
   final ValueChanged<List<ReportSpot>>? onReportsChanged;
 
+  /// 使用者指定起點（null＝改回 GPS）；之後的路線規劃從這裡出發。
+  final ValueChanged<sw.Coordinates?>? onStartChanged;
+
   /// 導航中持續更新的目前位置（只在地圖開著時由 M1 提供）。
   final sw.Position? livePosition;
 
@@ -81,6 +85,13 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
   _Screen _back = _Screen.home;
   bool _forward = true;
   sw.Position? _position;
+  LatLng? _manualStart;
+
+  void _setStart(LatLng? at) {
+    setState(() => _manualStart = at);
+    widget.onStartChanged?.call(at == null ? null : sw.Coordinates(lat: at.lat, lng: at.lng));
+    _planRoute();
+  }
   String? _emergencyMessage;
   bool _emergencyError = false, _locating = false;
   final _callKey = GlobalKey<SafeWalkCallViewState>();
@@ -189,6 +200,8 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
       position: widget.livePosition ?? _position,
       pointsState: _pointsState,
       routeState: _routeState,
+      manualStart: _manualStart,
+      onStartChanged: widget.onStartChanged == null ? null : _setStart,
       anomalies: _anomalies,
       startView: start,
       onAnomaliesChanged: () {

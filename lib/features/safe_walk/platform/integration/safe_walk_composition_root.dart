@@ -84,6 +84,9 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
 
   /// Unresolved reports to route around (50 m circles), sent by the map.
   List<AvoidArea> _areas = const [];
+
+  /// Start point the user picked on the map; null = device GPS.
+  sw.Coordinates? _manualOrigin;
   bool _askingConsent = false;
 
   // Route following: one follower per option; re-plan only when off all of them.
@@ -160,6 +163,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     if (identical(result, _followed)) return;
     _followed = result;
     if (!widget.liveRoutes ||
+        _manualOrigin != null ||
         !_navigationActive ||
         result is! sw.RouteSuccess ||
         result.mode != sw.DataMode.live) {
@@ -232,6 +236,21 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     }
     _destination = destination;
     _openNavigation();
+    final manual = _manualOrigin;
+    if (manual != null) {
+      await _planRoute(
+        _createRouteRequest(
+          origin: sw.Position(
+            coordinates: manual,
+            source: sw.PositionSource.manual,
+            accuracyMeters: null,
+            observedAt: DateTime.now().toUtc().toIso8601String(),
+          ),
+          destination: destination,
+        ),
+      );
+      return;
+    }
     final sw.LocationResult located;
     try {
       located = await _platform.getCurrentPosition(
@@ -464,6 +483,12 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
       route: widget.liveRoutes ? _navigation.routeResult : null,
       livePosition: _livePosition,
       onLeaveMap: _closeNavigation,
+      onStartChanged: widget.liveRoutes
+          ? (origin) {
+              _manualOrigin = origin;
+              if (origin != null) _stopFollowing();
+            }
+          : null,
       routeLoading: widget.liveRoutes && _navigation.routeLoading,
       onPlanRoute: widget.liveRoutes
           ? (destination) => unawaited(_planTo(destination))

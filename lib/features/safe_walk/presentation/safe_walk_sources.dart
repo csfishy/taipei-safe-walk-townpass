@@ -14,6 +14,13 @@ class SwDataSource {
 const swDataSources = <SwDataSource>[
   SwDataSource(title: '地圖底圖', provider: '© OpenStreetMap contributors', license: 'ODbL 1.0（開放資料庫授權）', url: 'https://www.openstreetmap.org/copyright'),
   SwDataSource(title: '步行路線', provider: 'OSRM 步行路線（routing.openstreetmap.de），使用 OpenStreetMap 資料', license: 'ODbL 1.0', note: '路線僅供參考，不代表沿途安全。'),
+  SwDataSource(
+    title: '避開回報點的步行路線',
+    provider: 'Valhalla 路線引擎（valhalla1.openstreetmap.de，FOSSGIS 提供），使用 OpenStreetMap 資料',
+    license: '軟體 MIT License；路網資料 ODbL 1.0',
+    note: '每個回報點以 50 公尺範圍避開；路線僅供參考，不代表沿途安全。',
+    url: 'https://github.com/valhalla/valhalla',
+  ),
   SwDataSource(title: '附近便利商店', provider: 'OpenStreetMap（Overpass API）', license: 'ODbL 1.0', note: '便利商店不等於政府認證的求助據點。'),
   SwDataSource(
     title: '暴力犯罪月統計',

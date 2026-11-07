@@ -92,7 +92,15 @@ class SafeWalkMapView extends StatefulWidget {
     this.onSms,
     this.startView = MapStartView.route,
     this.routeState = const RouteState(),
+    this.manualStart,
+    this.onStartChanged,
   });
+
+  /// 使用者在地圖上指定的起點；null＝用目前位置（GPS）。
+  final LatLng? manualStart;
+
+  /// 設定（或改回 GPS＝null）起點；null 時選單不顯示起點設定。
+  final ValueChanged<LatLng?>? onStartChanged;
 
   /// 前往目前目的地（回家／常用地點）的路線；求助地點的路線仍是示範。
   final RouteState routeState;
@@ -134,6 +142,9 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
 
   /// 正在新增的地點名稱；不為 null 時，點地圖是選這個地點的位置。
   String? _newPlaceName;
+
+  /// 正在地圖上選起點。
+  bool _pickingStart = false;
   AnomalyCategory _category = AnomalyCategory.suspicious;
   final _note = TextEditingController();
 
@@ -196,12 +207,14 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
     final avoided = avoidedCount(widget.anomalies);
     final detail = _detailId == null ? null : widget.anomalies.where((a) => a.id == _detailId).firstOrNull;
     final picked = points.where((p) => p.id == _pickedPointId).firstOrNull ?? points.firstOrNull;
-    final title = _pointsView ? '附近求助地點' : '${!rs.live && (widget.position == null || demoHome) ? '起點' : '目前位置'} → ${isHome ? place.label : '求助地點'}';
+    final from = widget.manualStart != null ? '指定起點' : (!rs.live && (widget.position == null || demoHome) ? '起點' : '目前位置');
+    final title = _pointsView ? '附近求助地點' : '$from → ${isHome ? place.label : '求助地點'}';
     final meters = (isHome ? rs.meters : null) ?? routeMeters(path);
     final minutes = (isHome ? rs.minutes : null) ?? walkMinutes(meters);
 
     final (String summary, Widget body) = switch (true) {
       _ when _newPlaceName != null => ('新增地點', _newPlaceSheet()),
+      _ when _pickingStart => ('設定起點', _startPickSheet()),
       _ when _picking || _pin != null => ('回報狀況', _pin == null ? _pickSheet() : _formSheet()),
       _ when detail != null => ('${anomalyCategoryLabel[detail.category]}・${anomalyStatusLabel[detail.status]}', _detailSheet(detail)),
       _ when _pointsView => ('附近求助地點', _pointsSheet(points, picked)),
@@ -226,7 +239,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                 Positioned.fill(
                   child: DemoMap(
                     // 真實路線從使用者實際位置出發。
-                    start: rs.live && isHome && path.isNotEmpty && widget.position == null ? path.first : _start,
+                    start: widget.manualStart ?? (rs.live && isHome && path.isNotEmpty && widget.position == null ? path.first : _start),
                     points: points,
                     anomalies: widget.anomalies,
                     path: _pointsView ? const [] : path,
@@ -250,7 +263,15 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                       if (_size == _SheetSize.collapsed) _size = _SheetSize.normal;
                     }),
                     onPoint: _pointsView ? (id) => setState(() => _pickedPointId = id) : null,
-                    onPick: _newPlaceName != null
+                    onPick: _pickingStart
+                        ? (at) {
+                            widget.onStartChanged?.call(at);
+                            setState(() {
+                              _pickingStart = false;
+                              _toast = '已設定起點';
+                            });
+                          }
+                        : _newPlaceName != null
                         ? (at) {
                             widget.onAddPlace(_newPlaceName!, at);
                             setState(() {
@@ -379,7 +400,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                         boxShadow: SwShadow.float,
                       ),
                       child: Text(
-                        _newPlaceName != null ? '點地圖選擇「$_newPlaceName」的位置' : '點地圖選擇要回報的位置，或點 ⚠ 更新既有回報',
+                        _pickingStart ? '點地圖選擇起點' : _newPlaceName != null ? '點地圖選擇「$_newPlaceName」的位置' : '點地圖選擇要回報的位置，或點 ⚠ 更新既有回報',
                         textAlign: TextAlign.center,
                         style: SwText.bodyStrong.copyWith(color: SwColors.warnText),
                       ),
@@ -558,6 +579,17 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
     _ => Icons.place_outlined,
   };
 
+  Widget _startPickSheet() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text('設定起點', style: SwText.heading),
+      const SizedBox(height: 4),
+      Text('在地圖上點一下你要出發的位置。', style: SwText.secondary),
+      const SizedBox(height: 12),
+      SwChip(label: '取消', icon: Icons.close_rounded, onTap: () => setState(() => _pickingStart = false)),
+    ],
+  );
+
   /// 目的地選單：常用地點（家、公司…）可切換、刪除、新增（新增後在地圖上點位置）。只存在記憶體。
   Future<void> _openPlaces(BuildContext context) async {
     final name = TextEditingController();
@@ -584,6 +616,37 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                   ),
                 ),
                 const SizedBox(height: 12),
+                if (widget.onStartChanged != null) ...[
+                  Semantics(header: true, child: Text('從哪裡出發？', style: SwText.heading)),
+                  const SizedBox(height: 8),
+                  _StartChoice(
+                    icon: Icons.my_location_rounded,
+                    label: '目前位置（GPS）',
+                    selected: widget.manualStart == null,
+                    onTap: () {
+                      widget.onStartChanged!(null);
+                      Navigator.of(sheetContext).pop();
+                    },
+                  ),
+                  _StartChoice(
+                    icon: Icons.touch_app_outlined,
+                    label: widget.manualStart == null ? '在地圖上選起點' : '指定起點（點此重新選）',
+                    selected: widget.manualStart != null,
+                    onTap: () {
+                      setState(() {
+                        _pickingStart = true;
+                        _newPlaceName = null;
+                        _picking = false;
+                        _legend = false;
+                        _pin = null;
+                        _detailId = null;
+                        if (_size == _SheetSize.collapsed) _size = _SheetSize.normal;
+                      });
+                      Navigator.of(sheetContext).pop();
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                ],
                 Semantics(header: true, child: Text('要去哪裡？', style: SwText.heading)),
                 const SizedBox(height: 4),
                 Text('常用地點只存在這支手機，不會上傳。', style: SwText.small),
@@ -1530,6 +1593,41 @@ class _RouteOption extends StatelessWidget {
               ),
             ),
             Text('$minutes 分・$meters 公尺', style: SwText.secondary),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+
+/// 起點選項（目前位置／在地圖上選）。整列可點，56 高。
+class _StartChoice extends StatelessWidget {
+  const _StartChoice({required this.icon, required this.label, required this.selected, required this.onTap});
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 8),
+    child: SwPressable(
+      onTap: onTap,
+      selected: selected,
+      color: selected ? SwColors.brandSoft : SwColors.bg,
+      border: BorderSide(color: selected ? SwColors.brand : SwColors.border),
+      radius: 10,
+      semanticsLabel: '$label${selected ? '，目前選擇' : ''}',
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: SizedBox(
+        height: 56,
+        child: Row(
+          children: [
+            Icon(icon, color: SwColors.brand),
+            const SizedBox(width: 12),
+            Expanded(child: Text(label, style: SwText.bodyStrong)),
+            if (selected) const Icon(Icons.check_rounded, color: SwColors.brand),
           ],
         ),
       ),
