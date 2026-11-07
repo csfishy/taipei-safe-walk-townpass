@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:town_pass/features/safe_walk/companion/companion_controller.dart';
 import 'package:town_pass/features/safe_walk/companion/companion_service.dart';
-import 'package:town_pass/features/safe_walk/presentation/safe_walk_speaker.dart';
+import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_route_speaker.dart';
 import 'package:town_pass/features/safe_walk/shared/contracts/cancellation.dart';
 import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart'
     as sw;
@@ -16,7 +16,7 @@ typedef CompanionTextPreviewMapper = sw.CompanionScenario? Function(
 /// No recordings/player are configured in this integration. Even an injected
 /// mapper cannot enable audio: non-null audio sources are rejected. A future
 /// audible implementation needs separate asset/player approval and integration.
-final class CompanionSpeakerAdapter implements SafeWalkSpeaker {
+final class CompanionSpeakerAdapter implements SafeWalkRouteSpeaker {
   factory CompanionSpeakerAdapter({
     required CompanionController controller,
     CompanionTextPreviewMapper? scenarioForText,
@@ -112,6 +112,7 @@ final class CompanionSpeakerAdapter implements SafeWalkSpeaker {
 
   /// Latches the bridge off immediately, before awaiting M5 cleanup. Late view
   /// replies cannot restart a run. A new flow creates a new bridge instance.
+  @override
   Future<void> stopForEmergency() {
     if (_disposed) return Future<void>.value();
     _emergencyStopped = true;
@@ -121,6 +122,7 @@ final class CompanionSpeakerAdapter implements SafeWalkSpeaker {
   }
 
   /// This bridge owns the injected controller; disposal is idempotent.
+  @override
   Future<void> dispose() => _disposeFuture ??= _disposeOnce();
 
   Future<void> _disposeOnce() async {
