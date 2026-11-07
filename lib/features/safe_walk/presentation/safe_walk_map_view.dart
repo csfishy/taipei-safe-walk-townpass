@@ -439,9 +439,9 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                     children: [
                       TextSpan(
                         text: '$minutes',
-                        style: SwText.display.copyWith(height: 1, color: SwColors.brandText),
+                        style: SwText.title.copyWith(height: 1, color: SwColors.brand),
                       ),
-                      TextSpan(text: ' 分鐘', style: SwText.heading),
+                      TextSpan(text: ' 分鐘', style: SwText.bodyStrong),
                     ],
                   ),
                 ),
@@ -1095,7 +1095,7 @@ class _StepsList extends StatelessWidget {
             child: icon,
           ),
           const SizedBox(width: 12),
-          Expanded(child: Text(text, style: SwText.heading)),
+          Expanded(child: Text(text, style: SwText.bodyStrong)),
           if (meters != null) Text(meters, style: SwText.secondary),
         ],
       ),

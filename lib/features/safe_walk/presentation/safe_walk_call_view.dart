@@ -284,7 +284,7 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
                         alignment: Alignment.center,
                         margin: const EdgeInsets.symmetric(vertical: 4),
                         decoration: const BoxDecoration(shape: BoxShape.circle, color: SwColors.brand),
-                        child: Text('家', style: SwText.heading.copyWith(color: SwColors.onBrand)),
+                        child: Text('家', style: SwText.bodyStrong.copyWith(color: SwColors.onBrand)),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
@@ -295,7 +295,7 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
                             Semantics(
                               header: true,
                               label: '$callerName，模擬來電',
-                              child: ExcludeSemantics(child: Text(callerName, style: SwText.heading)),
+                              child: ExcludeSemantics(child: Text(callerName, style: SwText.bodyStrong)),
                             ),
                             Text('模擬來電・$mm:$ss', style: SwText.secondary.copyWith(fontFeatures: const [FontFeature.tabularFigures()])),
                           ],
@@ -488,7 +488,7 @@ class _Bubble extends StatelessWidget {
       children: [
         Text(caller ? '對方' : '我', style: SwText.smallStrong.copyWith(color: caller ? SwColors.textSecondary : SwColors.onBrand)),
         const SizedBox(height: 2),
-        Text(entry.text, style: SwText.heading.copyWith(height: 1.5, color: caller ? SwColors.text : SwColors.onBrand)),
+        Text(entry.text, style: SwText.body.copyWith(color: caller ? SwColors.text : SwColors.onBrand)),
         if (caller) ...[
           const SizedBox(height: 4),
           Row(
@@ -647,13 +647,13 @@ class _IncomingState extends State<_Incoming> with SingleTickerProviderStateMixi
                                             height: 104,
                                             alignment: Alignment.center,
                                             decoration: BoxDecoration(color: TPColors.white, shape: BoxShape.circle, boxShadow: SwShadow.float),
-                                            child: Text('家', style: SwText.display.copyWith(color: TPColors.primary700)),
+                                            child: Text('家', style: SwText.title.copyWith(color: TPColors.primary700)),
                                           ),
                                         ),
                                       ),
                                     ),
                                     const SizedBox(height: 16),
-                                    Text('家人', style: SwText.display.copyWith(color: SwColors.onBrand)),
+                                    Text('家人', style: SwText.title.copyWith(color: SwColors.onBrand)),
                                     const SizedBox(height: 4),
                                     Row(
                                       mainAxisSize: MainAxisSize.min,
