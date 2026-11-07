@@ -161,4 +161,38 @@ void main() {
     await t.tap(find.text('結束通話'));
     await t.pumpAndSettle();
   });
+
+  testWidgets('完整句子：對方先回應你說的話，再接劇本下一句；劇本說完後仍會回應', (t) async {
+    final speaker = _Spy();
+    final night = m5CompanionScenarios.first;
+    await _open(t, speaker);
+    await t.tap(find.text('接聽'));
+    await t.pump(const Duration(milliseconds: 300));
+    await t.tap(find.text('完整句子'));
+    await t.pump(const Duration(milliseconds: 300));
+    final said = callTemplates[0];
+    await t.tap(find.text(said));
+    await t.pump(const Duration(seconds: 1));
+    expect(speaker.spoken.last, callTemplateAcks[said], reason: '先回應你說的話');
+    await t.pump(const Duration(seconds: 5));
+    expect(speaker.spoken.last, night.steps[1].text, reason: '再接劇本下一句');
+
+    // 用快速回覆把劇本走完
+    await t.tap(find.text('快速回覆'));
+    await t.pump(const Duration(milliseconds: 300));
+    for (var i = 1; i < night.steps.length; i++) {
+      await t.tap(find.text(companionReplies[night.id]![i].first).last);
+      await t.pump(const Duration(seconds: 1));
+    }
+    expect(find.textContaining('對方說完了'), findsOneWidget);
+    final before = speaker.spoken.length;
+    await t.tap(find.text('完整句子'));
+    await t.pump(const Duration(milliseconds: 300));
+    await t.tap(find.text(callTemplates[1]));
+    await t.pump(const Duration(seconds: 5));
+    expect(speaker.spoken.length, before + 1, reason: '劇本說完後只回應一句');
+    expect(speaker.spoken.last, callTemplateAcks[callTemplates[1]]);
+    await t.tap(find.text('結束通話'));
+    await t.pumpAndSettle();
+  });
 }

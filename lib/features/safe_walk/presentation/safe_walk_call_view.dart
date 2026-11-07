@@ -25,6 +25,9 @@ class SafeWalkCallSession {
   /// M5 陪伴劇本 id；null 時用第一個劇本。接聽前可在響鈴畫面切換。
   String? scenarioId;
   int line = 0, seq = 0, seconds = 0;
+
+  /// 劇本最後一句已經回過了。
+  bool finished = false;
   final List<_Entry> _log = [];
 }
 
@@ -105,7 +108,7 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
   sw.CompanionScenario get _scenario => m5CompanionScenarios.firstWhere((c) => c.id == _s.scenarioId, orElse: () => m5CompanionScenarios.first);
 
   /// 對方說完最後一句、你也回了之後，劇本結束。
-  bool get _scriptDone => _s.line >= _scenario.steps.length - 1 && _log.isNotEmpty && !_log.last.caller;
+  bool get _scriptDone => _s.finished;
 
   List<String> get _replies => companionReplies[_scenario.id]?.elementAtOrNull(_s.line) ?? const ['好。'];
 
@@ -219,7 +222,7 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
     _scrollDown();
   }
 
-  void _respond(String text) {
+  void _respond(String text, {bool sentence = false}) {
     if (_waiting || _left) return;
     _voice.stop();
     setState(() {
@@ -227,18 +230,39 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
       _log.add(_Entry('u${_s.seq++}', false, text));
     });
     _scrollDown();
-    _scheduleReply();
+    final ack = sentence ? callTemplateAcks[text] ?? '嗯嗯，好。' : null;
+    if (ack == null) {
+      _scheduleReply();
+      return;
+    }
+    // 完整句子不是針對這一句台詞寫的：對方先回應你說的話，再接劇本下一句。
+    setState(() => _waiting = true);
+    _reply = Timer(const Duration(milliseconds: 900), () {
+      if (!mounted || _left) return;
+      _say(ack);
+      _reply = Timer(Duration(milliseconds: 250 * ack.length + 600), () {
+        if (!mounted || _left) return;
+        if (_s.finished) {
+          setState(() => _waiting = false);
+        } else {
+          _scheduleReply(delay: Duration.zero);
+        }
+      });
+    });
   }
 
   /// 你回完之後，對方隔一下接下一句；劇本說完就不再接話。
-  void _scheduleReply() {
+  void _scheduleReply({Duration delay = const Duration(milliseconds: 900)}) {
     final steps = _scenario.steps;
     if (_s.line + 1 >= steps.length) {
-      setState(() {});
+      setState(() {
+        _s.finished = true;
+        _waiting = false;
+      });
       return;
     }
     _waiting = true;
-    _reply = Timer(const Duration(milliseconds: 900), () {
+    _reply = Timer(delay, () {
       if (!mounted || _left) return;
       setState(() {
         _s.line++;
@@ -403,7 +427,7 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
     Widget option(String text) => Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: SwPressable(
-        onTap: _waiting ? null : () => _respond(text),
+        onTap: _waiting ? null : () => _respond(text, sentence: _mode == _Mode.template),
         color: SwColors.surface,
         pressedColor: SwColors.brandSoft,
         border: BorderSide(color: _waiting ? SwColors.border : SwColors.brand),

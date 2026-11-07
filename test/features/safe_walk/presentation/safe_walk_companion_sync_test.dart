@@ -38,4 +38,15 @@ void main() {
       }
     }
   });
+
+  test('每個完整句子都有對方的回應，且不假裝真人在線', () {
+    const forbidden = ['陪你', '我在', '在線上', '在聽', '聽到', '看到你', '定位', '已通知', '報警'];
+    for (final t in callTemplates) {
+      final ack = callTemplateAcks[t];
+      expect(ack, isNotNull, reason: t);
+      for (final w in forbidden) {
+        expect(ack!.contains(w), isFalse, reason: '「$ack」含有「$w」');
+      }
+    }
+  });
 }
