@@ -21,6 +21,11 @@ M1 注入 repo 並將結果交 M2／M3，本模組不 import 兩者實作。合�
 
 ## 第一輪交付
 
-欄位對照、parser 正反案例、mock repo／取消／來源不可用測試；取得真實資料才交來源可追溯的小樣本，未取得時明列未配置。`test/features/safe_walk/safety_data/contract_safety_data_test.dart` 使用 `test/fixtures/safe_walk/` 驗證 unknown／null、strict 欄位、錯誤認可／統計、唯讀快照、mock/live 與取消；執行結果以整體初始化驗證紀錄為準，不將測試檔存在當作 PASS。真實資料與外部來源仍未接入。
+欄位對照、parser 正反案例、mock repo／取消／來源不可用測試；取得真實資料才交來源可追溯的小樣本，未取得時明列未配置。`test/features/safe_walk/safety_data/contract_safety_data_test.dart` 使用 `test/fixtures/safe_walk/` 驗證 unknown／null、strict 欄位、錯誤認可／統計、唯讀快照、mock/live 與取消；執行結果以整體初始化驗證紀錄為準，不將測試檔存在當作 PASS。第一份真實來源見下節。
+
+## 已接入的 live 來源
+
+- **AED 設置地點**（衛生局，data.taipei）：`aed/DataTaipeiAedRepository` → `AssistancePoint`，live-only、無後端；欄位對照、失敗語意、Web 限制與驗證紀錄見 [aed/README.md](aed/README.md)。尚未由 M1 接線。
+- 警察單位、行政區統計等其他來源仍未接入。
 
 預定分支 `feat/m4-safety-data`：**pending**，待初始化 PR 審查並由使用者確認合併後，才從共同 Flutter base 建立。

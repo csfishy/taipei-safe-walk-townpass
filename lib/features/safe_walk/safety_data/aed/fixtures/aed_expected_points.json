@@ -1,0 +1,572 @@
+[
+  {
+    "schemaVersion": "1.0.0",
+    "id": "tpe-aed-63000010-25.0543148-121.5626807-1",
+    "name": "GYMEFIT健康店（AED：入們扣口左側牆上）",
+    "kind": "public_facility",
+    "coordinates": {
+      "lat": 25.0543148,
+      "lng": 121.5626807
+    },
+    "address": "臺北市松山區健康路227號",
+    "publicPhone": null,
+    "recognition": {
+      "status": "not_applicable",
+      "evidenceUrl": null,
+      "checkedAt": null
+    },
+    "availability": "unknown",
+    "availabilityCheckedAt": null,
+    "capabilities": [
+      "unknown"
+    ],
+    "source": {
+      "datasetId": "data.taipei:cd050577-115f-4299-b37a-012ff490a632/438c61ad-24f6-4e54-a1cc-e2cfe0e7051e",
+      "title": "臺北市AED自動體外心臟去顫器設置地點（臺北市政府衛生局）",
+      "dataMode": "live",
+      "sourceUrl": "https://data.taipei/dataset/detail?id=cd050577-115f-4299-b37a-012ff490a632",
+      "retrievedAt": "2026-11-07T14:44:57+08:00",
+      "dataUpdatedAt": "2026-09-04T18:15:48+08:00",
+      "license": "政府資料開放授權條款-第1版",
+      "coverage": "臺北市12行政區；臺北市政府衛生局登錄之AED設置場所",
+      "limitations": [
+        "只表示衛生局登錄的AED設置地點，不代表AED此刻可取用、場所開放或有人可提供協助。",
+        "來源未提供開放時間；許多AED位於建築物內，需依場所開放時間進入。",
+        "座標為來源提供，未經實地核對；同一場所可能有多台AED，各自為一筆。",
+        "AED設置地點不是警察或官方合作求助據點，不構成安全保證。"
+      ]
+    }
+  },
+  {
+    "schemaVersion": "1.0.0",
+    "id": "tpe-aed-63000010-25.06369-121.552742-1",
+    "name": "交通部民用航空局臺北國際航空站(松山機場)（AED：國際線2樓內候機室(東)）",
+    "kind": "public_facility",
+    "coordinates": {
+      "lat": 25.06369,
+      "lng": 121.552742
+    },
+    "address": "臺北市松山區敦化北路340-9號",
+    "publicPhone": null,
+    "recognition": {
+      "status": "not_applicable",
+      "evidenceUrl": null,
+      "checkedAt": null
+    },
+    "availability": "unknown",
+    "availabilityCheckedAt": null,
+    "capabilities": [
+      "unknown"
+    ],
+    "source": {
+      "datasetId": "data.taipei:cd050577-115f-4299-b37a-012ff490a632/438c61ad-24f6-4e54-a1cc-e2cfe0e7051e",
+      "title": "臺北市AED自動體外心臟去顫器設置地點（臺北市政府衛生局）",
+      "dataMode": "live",
+      "sourceUrl": "https://data.taipei/dataset/detail?id=cd050577-115f-4299-b37a-012ff490a632",
+      "retrievedAt": "2026-11-07T14:44:57+08:00",
+      "dataUpdatedAt": "2026-09-04T18:15:48+08:00",
+      "license": "政府資料開放授權條款-第1版",
+      "coverage": "臺北市12行政區；臺北市政府衛生局登錄之AED設置場所",
+      "limitations": [
+        "只表示衛生局登錄的AED設置地點，不代表AED此刻可取用、場所開放或有人可提供協助。",
+        "來源未提供開放時間；許多AED位於建築物內，需依場所開放時間進入。",
+        "座標為來源提供，未經實地核對；同一場所可能有多台AED，各自為一筆。",
+        "AED設置地點不是警察或官方合作求助據點，不構成安全保證。"
+      ]
+    }
+  },
+  {
+    "schemaVersion": "1.0.0",
+    "id": "tpe-aed-63000010-25.06369-121.552742-2",
+    "name": "交通部民用航空局臺北國際航空站(松山機場)（AED：本站停車場）",
+    "kind": "public_facility",
+    "coordinates": {
+      "lat": 25.06369,
+      "lng": 121.552742
+    },
+    "address": "臺北市松山區敦化北路340-9號",
+    "publicPhone": null,
+    "recognition": {
+      "status": "not_applicable",
+      "evidenceUrl": null,
+      "checkedAt": null
+    },
+    "availability": "unknown",
+    "availabilityCheckedAt": null,
+    "capabilities": [
+      "unknown"
+    ],
+    "source": {
+      "datasetId": "data.taipei:cd050577-115f-4299-b37a-012ff490a632/438c61ad-24f6-4e54-a1cc-e2cfe0e7051e",
+      "title": "臺北市AED自動體外心臟去顫器設置地點（臺北市政府衛生局）",
+      "dataMode": "live",
+      "sourceUrl": "https://data.taipei/dataset/detail?id=cd050577-115f-4299-b37a-012ff490a632",
+      "retrievedAt": "2026-11-07T14:44:57+08:00",
+      "dataUpdatedAt": "2026-09-04T18:15:48+08:00",
+      "license": "政府資料開放授權條款-第1版",
+      "coverage": "臺北市12行政區；臺北市政府衛生局登錄之AED設置場所",
+      "limitations": [
+        "只表示衛生局登錄的AED設置地點，不代表AED此刻可取用、場所開放或有人可提供協助。",
+        "來源未提供開放時間；許多AED位於建築物內，需依場所開放時間進入。",
+        "座標為來源提供，未經實地核對；同一場所可能有多台AED，各自為一筆。",
+        "AED設置地點不是警察或官方合作求助據點，不構成安全保證。"
+      ]
+    }
+  },
+  {
+    "schemaVersion": "1.0.0",
+    "id": "tpe-aed-63000010-25.06369-121.552742-3",
+    "name": "交通部民用航空局臺北國際航空站(松山機場)（AED：本站停車場）",
+    "kind": "public_facility",
+    "coordinates": {
+      "lat": 25.06369,
+      "lng": 121.552742
+    },
+    "address": "臺北市松山區敦化北路340-9號",
+    "publicPhone": null,
+    "recognition": {
+      "status": "not_applicable",
+      "evidenceUrl": null,
+      "checkedAt": null
+    },
+    "availability": "unknown",
+    "availabilityCheckedAt": null,
+    "capabilities": [
+      "unknown"
+    ],
+    "source": {
+      "datasetId": "data.taipei:cd050577-115f-4299-b37a-012ff490a632/438c61ad-24f6-4e54-a1cc-e2cfe0e7051e",
+      "title": "臺北市AED自動體外心臟去顫器設置地點（臺北市政府衛生局）",
+      "dataMode": "live",
+      "sourceUrl": "https://data.taipei/dataset/detail?id=cd050577-115f-4299-b37a-012ff490a632",
+      "retrievedAt": "2026-11-07T14:44:57+08:00",
+      "dataUpdatedAt": "2026-09-04T18:15:48+08:00",
+      "license": "政府資料開放授權條款-第1版",
+      "coverage": "臺北市12行政區；臺北市政府衛生局登錄之AED設置場所",
+      "limitations": [
+        "只表示衛生局登錄的AED設置地點，不代表AED此刻可取用、場所開放或有人可提供協助。",
+        "來源未提供開放時間；許多AED位於建築物內，需依場所開放時間進入。",
+        "座標為來源提供，未經實地核對；同一場所可能有多台AED，各自為一筆。",
+        "AED設置地點不是警察或官方合作求助據點，不構成安全保證。"
+      ]
+    }
+  },
+  {
+    "schemaVersion": "1.0.0",
+    "id": "tpe-aed-63000020-25.040587-121.565888-1",
+    "name": "統一時代百貨台北店",
+    "kind": "public_facility",
+    "coordinates": {
+      "lat": 25.040587,
+      "lng": 121.565888
+    },
+    "address": "臺北市信義區忠孝東路5段8號",
+    "publicPhone": null,
+    "recognition": {
+      "status": "not_applicable",
+      "evidenceUrl": null,
+      "checkedAt": null
+    },
+    "availability": "unknown",
+    "availabilityCheckedAt": null,
+    "capabilities": [
+      "unknown"
+    ],
+    "source": {
+      "datasetId": "data.taipei:cd050577-115f-4299-b37a-012ff490a632/438c61ad-24f6-4e54-a1cc-e2cfe0e7051e",
+      "title": "臺北市AED自動體外心臟去顫器設置地點（臺北市政府衛生局）",
+      "dataMode": "live",
+      "sourceUrl": "https://data.taipei/dataset/detail?id=cd050577-115f-4299-b37a-012ff490a632",
+      "retrievedAt": "2026-11-07T14:44:57+08:00",
+      "dataUpdatedAt": "2026-09-04T18:15:48+08:00",
+      "license": "政府資料開放授權條款-第1版",
+      "coverage": "臺北市12行政區；臺北市政府衛生局登錄之AED設置場所",
+      "limitations": [
+        "只表示衛生局登錄的AED設置地點，不代表AED此刻可取用、場所開放或有人可提供協助。",
+        "來源未提供開放時間；許多AED位於建築物內，需依場所開放時間進入。",
+        "座標為來源提供，未經實地核對；同一場所可能有多台AED，各自為一筆。",
+        "AED設置地點不是警察或官方合作求助據點，不構成安全保證。"
+      ]
+    }
+  },
+  {
+    "schemaVersion": "1.0.0",
+    "id": "tpe-aed-63000020-25.040914-121.565136-1",
+    "name": "市府轉運站（AED：售票大廳）",
+    "kind": "public_facility",
+    "coordinates": {
+      "lat": 25.040914,
+      "lng": 121.565136
+    },
+    "address": "臺北市信義區忠孝東路五段六號",
+    "publicPhone": null,
+    "recognition": {
+      "status": "not_applicable",
+      "evidenceUrl": null,
+      "checkedAt": null
+    },
+    "availability": "unknown",
+    "availabilityCheckedAt": null,
+    "capabilities": [
+      "unknown"
+    ],
+    "source": {
+      "datasetId": "data.taipei:cd050577-115f-4299-b37a-012ff490a632/438c61ad-24f6-4e54-a1cc-e2cfe0e7051e",
+      "title": "臺北市AED自動體外心臟去顫器設置地點（臺北市政府衛生局）",
+      "dataMode": "live",
+      "sourceUrl": "https://data.taipei/dataset/detail?id=cd050577-115f-4299-b37a-012ff490a632",
+      "retrievedAt": "2026-11-07T14:44:57+08:00",
+      "dataUpdatedAt": "2026-09-04T18:15:48+08:00",
+      "license": "政府資料開放授權條款-第1版",
+      "coverage": "臺北市12行政區；臺北市政府衛生局登錄之AED設置場所",
+      "limitations": [
+        "只表示衛生局登錄的AED設置地點，不代表AED此刻可取用、場所開放或有人可提供協助。",
+        "來源未提供開放時間；許多AED位於建築物內，需依場所開放時間進入。",
+        "座標為來源提供，未經實地核對；同一場所可能有多台AED，各自為一筆。",
+        "AED設置地點不是警察或官方合作求助據點，不構成安全保證。"
+      ]
+    }
+  },
+  {
+    "schemaVersion": "1.0.0",
+    "id": "tpe-aed-63000030-25.02603-121.528283-1",
+    "name": "國立臺灣師範大學校本部(和平東路1段162號)（AED：校本部體育館2樓）",
+    "kind": "public_facility",
+    "coordinates": {
+      "lat": 25.02603,
+      "lng": 121.528283
+    },
+    "address": "臺北市大安區和平東路1段162號",
+    "publicPhone": null,
+    "recognition": {
+      "status": "not_applicable",
+      "evidenceUrl": null,
+      "checkedAt": null
+    },
+    "availability": "unknown",
+    "availabilityCheckedAt": null,
+    "capabilities": [
+      "unknown"
+    ],
+    "source": {
+      "datasetId": "data.taipei:cd050577-115f-4299-b37a-012ff490a632/438c61ad-24f6-4e54-a1cc-e2cfe0e7051e",
+      "title": "臺北市AED自動體外心臟去顫器設置地點（臺北市政府衛生局）",
+      "dataMode": "live",
+      "sourceUrl": "https://data.taipei/dataset/detail?id=cd050577-115f-4299-b37a-012ff490a632",
+      "retrievedAt": "2026-11-07T14:44:57+08:00",
+      "dataUpdatedAt": "2026-09-04T18:15:48+08:00",
+      "license": "政府資料開放授權條款-第1版",
+      "coverage": "臺北市12行政區；臺北市政府衛生局登錄之AED設置場所",
+      "limitations": [
+        "只表示衛生局登錄的AED設置地點，不代表AED此刻可取用、場所開放或有人可提供協助。",
+        "來源未提供開放時間；許多AED位於建築物內，需依場所開放時間進入。",
+        "座標為來源提供，未經實地核對；同一場所可能有多台AED，各自為一筆。",
+        "AED設置地點不是警察或官方合作求助據點，不構成安全保證。"
+      ]
+    }
+  },
+  {
+    "schemaVersion": "1.0.0",
+    "id": "tpe-aed-63000030-25.028995-121.552906-1",
+    "name": "臨江街夜市（AED：臺北市大安區臨江街89之5號）",
+    "kind": "public_facility",
+    "coordinates": {
+      "lat": 25.028995,
+      "lng": 121.552906
+    },
+    "address": "臺北市大安區臨江街，位於通化街至基隆路口間。",
+    "publicPhone": null,
+    "recognition": {
+      "status": "not_applicable",
+      "evidenceUrl": null,
+      "checkedAt": null
+    },
+    "availability": "unknown",
+    "availabilityCheckedAt": null,
+    "capabilities": [
+      "unknown"
+    ],
+    "source": {
+      "datasetId": "data.taipei:cd050577-115f-4299-b37a-012ff490a632/438c61ad-24f6-4e54-a1cc-e2cfe0e7051e",
+      "title": "臺北市AED自動體外心臟去顫器設置地點（臺北市政府衛生局）",
+      "dataMode": "live",
+      "sourceUrl": "https://data.taipei/dataset/detail?id=cd050577-115f-4299-b37a-012ff490a632",
+      "retrievedAt": "2026-11-07T14:44:57+08:00",
+      "dataUpdatedAt": "2026-09-04T18:15:48+08:00",
+      "license": "政府資料開放授權條款-第1版",
+      "coverage": "臺北市12行政區；臺北市政府衛生局登錄之AED設置場所",
+      "limitations": [
+        "只表示衛生局登錄的AED設置地點，不代表AED此刻可取用、場所開放或有人可提供協助。",
+        "來源未提供開放時間；許多AED位於建築物內，需依場所開放時間進入。",
+        "座標為來源提供，未經實地核對；同一場所可能有多台AED，各自為一筆。",
+        "AED設置地點不是警察或官方合作求助據點，不構成安全保證。"
+      ]
+    }
+  },
+  {
+    "schemaVersion": "1.0.0",
+    "id": "tpe-aed-63000030-25.036628-121.53721-1",
+    "name": "福容大飯店股份有限公司台北分公司（AED：一樓大廳櫃檯前方）",
+    "kind": "public_facility",
+    "coordinates": {
+      "lat": 25.036628,
+      "lng": 121.53721
+    },
+    "address": "臺北市大安區建國南路一段266號",
+    "publicPhone": null,
+    "recognition": {
+      "status": "not_applicable",
+      "evidenceUrl": null,
+      "checkedAt": null
+    },
+    "availability": "unknown",
+    "availabilityCheckedAt": null,
+    "capabilities": [
+      "unknown"
+    ],
+    "source": {
+      "datasetId": "data.taipei:cd050577-115f-4299-b37a-012ff490a632/438c61ad-24f6-4e54-a1cc-e2cfe0e7051e",
+      "title": "臺北市AED自動體外心臟去顫器設置地點（臺北市政府衛生局）",
+      "dataMode": "live",
+      "sourceUrl": "https://data.taipei/dataset/detail?id=cd050577-115f-4299-b37a-012ff490a632",
+      "retrievedAt": "2026-11-07T14:44:57+08:00",
+      "dataUpdatedAt": "2026-09-04T18:15:48+08:00",
+      "license": "政府資料開放授權條款-第1版",
+      "coverage": "臺北市12行政區；臺北市政府衛生局登錄之AED設置場所",
+      "limitations": [
+        "只表示衛生局登錄的AED設置地點，不代表AED此刻可取用、場所開放或有人可提供協助。",
+        "來源未提供開放時間；許多AED位於建築物內，需依場所開放時間進入。",
+        "座標為來源提供，未經實地核對；同一場所可能有多台AED，各自為一筆。",
+        "AED設置地點不是警察或官方合作求助據點，不構成安全保證。"
+      ]
+    }
+  },
+  {
+    "schemaVersion": "1.0.0",
+    "id": "tpe-aed-63000040-25.078611-121.526287-1",
+    "name": "財團法人臺灣敦睦聯誼會所屬作業組織圓山大飯店（AED：聯誼會游泳池）",
+    "kind": "public_facility",
+    "coordinates": {
+      "lat": 25.078611,
+      "lng": 121.526287
+    },
+    "address": "臺北市中山區中山北路4段1巷1號",
+    "publicPhone": null,
+    "recognition": {
+      "status": "not_applicable",
+      "evidenceUrl": null,
+      "checkedAt": null
+    },
+    "availability": "unknown",
+    "availabilityCheckedAt": null,
+    "capabilities": [
+      "unknown"
+    ],
+    "source": {
+      "datasetId": "data.taipei:cd050577-115f-4299-b37a-012ff490a632/438c61ad-24f6-4e54-a1cc-e2cfe0e7051e",
+      "title": "臺北市AED自動體外心臟去顫器設置地點（臺北市政府衛生局）",
+      "dataMode": "live",
+      "sourceUrl": "https://data.taipei/dataset/detail?id=cd050577-115f-4299-b37a-012ff490a632",
+      "retrievedAt": "2026-11-07T14:44:57+08:00",
+      "dataUpdatedAt": "2026-09-04T18:15:48+08:00",
+      "license": "政府資料開放授權條款-第1版",
+      "coverage": "臺北市12行政區；臺北市政府衛生局登錄之AED設置場所",
+      "limitations": [
+        "只表示衛生局登錄的AED設置地點，不代表AED此刻可取用、場所開放或有人可提供協助。",
+        "來源未提供開放時間；許多AED位於建築物內，需依場所開放時間進入。",
+        "座標為來源提供，未經實地核對；同一場所可能有多台AED，各自為一筆。",
+        "AED設置地點不是警察或官方合作求助據點，不構成安全保證。"
+      ]
+    }
+  },
+  {
+    "schemaVersion": "1.0.0",
+    "id": "tpe-aed-63000050-25.040772-121.520655-1",
+    "name": "國立臺灣大學(醫學校區)（AED：醫學體育館）",
+    "kind": "public_facility",
+    "coordinates": {
+      "lat": 25.040772,
+      "lng": 121.520655
+    },
+    "address": "臺北市中正區仁愛路1段1號",
+    "publicPhone": null,
+    "recognition": {
+      "status": "not_applicable",
+      "evidenceUrl": null,
+      "checkedAt": null
+    },
+    "availability": "unknown",
+    "availabilityCheckedAt": null,
+    "capabilities": [
+      "unknown"
+    ],
+    "source": {
+      "datasetId": "data.taipei:cd050577-115f-4299-b37a-012ff490a632/438c61ad-24f6-4e54-a1cc-e2cfe0e7051e",
+      "title": "臺北市AED自動體外心臟去顫器設置地點（臺北市政府衛生局）",
+      "dataMode": "live",
+      "sourceUrl": "https://data.taipei/dataset/detail?id=cd050577-115f-4299-b37a-012ff490a632",
+      "retrievedAt": "2026-11-07T14:44:57+08:00",
+      "dataUpdatedAt": "2026-09-04T18:15:48+08:00",
+      "license": "政府資料開放授權條款-第1版",
+      "coverage": "臺北市12行政區；臺北市政府衛生局登錄之AED設置場所",
+      "limitations": [
+        "只表示衛生局登錄的AED設置地點，不代表AED此刻可取用、場所開放或有人可提供協助。",
+        "來源未提供開放時間；許多AED位於建築物內，需依場所開放時間進入。",
+        "座標為來源提供，未經實地核對；同一場所可能有多台AED，各自為一筆。",
+        "AED設置地點不是警察或官方合作求助據點，不構成安全保證。"
+      ]
+    }
+  },
+  {
+    "schemaVersion": "1.0.0",
+    "id": "tpe-aed-63000110-25.10235-121.548432-1",
+    "name": "國立故宮博物院（AED：國立故宮博物院研究大樓1樓大廳）",
+    "kind": "public_facility",
+    "coordinates": {
+      "lat": 25.10235,
+      "lng": 121.548432
+    },
+    "address": "臺北市士林區至善路2段221號",
+    "publicPhone": null,
+    "recognition": {
+      "status": "not_applicable",
+      "evidenceUrl": null,
+      "checkedAt": null
+    },
+    "availability": "unknown",
+    "availabilityCheckedAt": null,
+    "capabilities": [
+      "unknown"
+    ],
+    "source": {
+      "datasetId": "data.taipei:cd050577-115f-4299-b37a-012ff490a632/438c61ad-24f6-4e54-a1cc-e2cfe0e7051e",
+      "title": "臺北市AED自動體外心臟去顫器設置地點（臺北市政府衛生局）",
+      "dataMode": "live",
+      "sourceUrl": "https://data.taipei/dataset/detail?id=cd050577-115f-4299-b37a-012ff490a632",
+      "retrievedAt": "2026-11-07T14:44:57+08:00",
+      "dataUpdatedAt": "2026-09-04T18:15:48+08:00",
+      "license": "政府資料開放授權條款-第1版",
+      "coverage": "臺北市12行政區；臺北市政府衛生局登錄之AED設置場所",
+      "limitations": [
+        "只表示衛生局登錄的AED設置地點，不代表AED此刻可取用、場所開放或有人可提供協助。",
+        "來源未提供開放時間；許多AED位於建築物內，需依場所開放時間進入。",
+        "座標為來源提供，未經實地核對；同一場所可能有多台AED，各自為一筆。",
+        "AED設置地點不是警察或官方合作求助據點，不構成安全保證。"
+      ]
+    }
+  },
+  {
+    "schemaVersion": "1.0.0",
+    "id": "tpe-aed-63000110-25.10235-121.548432-2",
+    "name": "國立故宮博物院（AED：地下一樓醫務室醫務室）",
+    "kind": "public_facility",
+    "coordinates": {
+      "lat": 25.10235,
+      "lng": 121.548432
+    },
+    "address": "臺北市士林區至善路2段221號",
+    "publicPhone": null,
+    "recognition": {
+      "status": "not_applicable",
+      "evidenceUrl": null,
+      "checkedAt": null
+    },
+    "availability": "unknown",
+    "availabilityCheckedAt": null,
+    "capabilities": [
+      "unknown"
+    ],
+    "source": {
+      "datasetId": "data.taipei:cd050577-115f-4299-b37a-012ff490a632/438c61ad-24f6-4e54-a1cc-e2cfe0e7051e",
+      "title": "臺北市AED自動體外心臟去顫器設置地點（臺北市政府衛生局）",
+      "dataMode": "live",
+      "sourceUrl": "https://data.taipei/dataset/detail?id=cd050577-115f-4299-b37a-012ff490a632",
+      "retrievedAt": "2026-11-07T14:44:57+08:00",
+      "dataUpdatedAt": "2026-09-04T18:15:48+08:00",
+      "license": "政府資料開放授權條款-第1版",
+      "coverage": "臺北市12行政區；臺北市政府衛生局登錄之AED設置場所",
+      "limitations": [
+        "只表示衛生局登錄的AED設置地點，不代表AED此刻可取用、場所開放或有人可提供協助。",
+        "來源未提供開放時間；許多AED位於建築物內，需依場所開放時間進入。",
+        "座標為來源提供，未經實地核對；同一場所可能有多台AED，各自為一筆。",
+        "AED設置地點不是警察或官方合作求助據點，不構成安全保證。"
+      ]
+    }
+  },
+  {
+    "schemaVersion": "1.0.0",
+    "id": "tpe-aed-63000110-25.136543-121.538749-1",
+    "name": "中國文化大學 大恩館（AED：大孝館(體育館)）",
+    "kind": "public_facility",
+    "coordinates": {
+      "lat": 25.136543,
+      "lng": 121.538749
+    },
+    "address": "臺北市士林區華岡路55號",
+    "publicPhone": null,
+    "recognition": {
+      "status": "not_applicable",
+      "evidenceUrl": null,
+      "checkedAt": null
+    },
+    "availability": "unknown",
+    "availabilityCheckedAt": null,
+    "capabilities": [
+      "unknown"
+    ],
+    "source": {
+      "datasetId": "data.taipei:cd050577-115f-4299-b37a-012ff490a632/438c61ad-24f6-4e54-a1cc-e2cfe0e7051e",
+      "title": "臺北市AED自動體外心臟去顫器設置地點（臺北市政府衛生局）",
+      "dataMode": "live",
+      "sourceUrl": "https://data.taipei/dataset/detail?id=cd050577-115f-4299-b37a-012ff490a632",
+      "retrievedAt": "2026-11-07T14:44:57+08:00",
+      "dataUpdatedAt": "2026-09-04T18:15:48+08:00",
+      "license": "政府資料開放授權條款-第1版",
+      "coverage": "臺北市12行政區；臺北市政府衛生局登錄之AED設置場所",
+      "limitations": [
+        "只表示衛生局登錄的AED設置地點，不代表AED此刻可取用、場所開放或有人可提供協助。",
+        "來源未提供開放時間；許多AED位於建築物內，需依場所開放時間進入。",
+        "座標為來源提供，未經實地核對；同一場所可能有多台AED，各自為一筆。",
+        "AED設置地點不是警察或官方合作求助據點，不構成安全保證。"
+      ]
+    }
+  },
+  {
+    "schemaVersion": "1.0.0",
+    "id": "tpe-aed-63000120-25.15149182-121.5465617-1",
+    "name": "七星公園-苗圃涼亭(亞洲形上觀音山揹水隊捐贈)",
+    "kind": "public_facility",
+    "coordinates": {
+      "lat": 25.15149182,
+      "lng": 121.5465617
+    },
+    "address": null,
+    "publicPhone": null,
+    "recognition": {
+      "status": "not_applicable",
+      "evidenceUrl": null,
+      "checkedAt": null
+    },
+    "availability": "unknown",
+    "availabilityCheckedAt": null,
+    "capabilities": [
+      "unknown"
+    ],
+    "source": {
+      "datasetId": "data.taipei:cd050577-115f-4299-b37a-012ff490a632/438c61ad-24f6-4e54-a1cc-e2cfe0e7051e",
+      "title": "臺北市AED自動體外心臟去顫器設置地點（臺北市政府衛生局）",
+      "dataMode": "live",
+      "sourceUrl": "https://data.taipei/dataset/detail?id=cd050577-115f-4299-b37a-012ff490a632",
+      "retrievedAt": "2026-11-07T14:44:57+08:00",
+      "dataUpdatedAt": "2026-09-04T18:15:48+08:00",
+      "license": "政府資料開放授權條款-第1版",
+      "coverage": "臺北市12行政區；臺北市政府衛生局登錄之AED設置場所",
+      "limitations": [
+        "只表示衛生局登錄的AED設置地點，不代表AED此刻可取用、場所開放或有人可提供協助。",
+        "來源未提供開放時間；許多AED位於建築物內，需依場所開放時間進入。",
+        "座標為來源提供，未經實地核對；同一場所可能有多台AED，各自為一筆。",
+        "AED設置地點不是警察或官方合作求助據點，不構成安全保證。"
+      ]
+    }
+  }
+]
