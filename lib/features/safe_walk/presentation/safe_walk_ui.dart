@@ -337,7 +337,7 @@ class SwSecondaryAction extends StatelessWidget {
   );
 }
 
-/// 最底列：寬度足夠時「左次要、右緊急求助」；窄螢幕（< 360）或字級放大時改成上下排，緊急求助在上、滿寬。
+/// 最底列：寬度足夠時「左次要、右緊急求助」；窄螢幕（畫面寬 < 360，扣掉左右留白後 < 328）或字級放大時改成上下排，緊急求助在上、滿寬。
 class SwActionBar extends StatelessWidget {
   const SwActionBar({super.key, required this.secondary, required this.onEmergency});
   final Widget secondary;
@@ -352,7 +352,7 @@ class SwActionBar extends StatelessWidget {
     child: LayoutBuilder(
       builder: (context, box) {
         final bigText = MediaQuery.textScalerOf(context).scale(16) > 20;
-        if (box.maxWidth < 360 || bigText) {
+        if (box.maxWidth < 328 || bigText) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
