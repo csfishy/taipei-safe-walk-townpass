@@ -4,6 +4,7 @@ import 'package:latlong2/latlong.dart' as ll;
 import 'package:town_pass/features/safe_walk/presentation/demo_map.dart';
 import 'package:town_pass/features/safe_walk/presentation/mock/safe_walk_demo_data.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_ui.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 /// 預設地圖中心：臺北市政府（公開地標，只用來開地圖，不代表任何使用者位置）。
 const _kDefaultCenter = ll.LatLng(25.0375, 121.5637);
@@ -11,7 +12,13 @@ const _kDefaultCenter = ll.LatLng(25.0375, 121.5637);
 /// 設定／編輯「家」：在地圖上點選位置，按「儲存」才交給 [onSave]（M1 負責存在裝置上）。
 /// 目前沒有接地址搜尋，所以只能在地圖上選點。座標不顯示成文字、不寫日誌。
 class SafeWalkHomeSettingView extends StatefulWidget {
-  const SafeWalkHomeSettingView({super.key, this.initial, required this.onSave, this.onClear, required this.onBack});
+  const SafeWalkHomeSettingView({
+    super.key,
+    this.initial,
+    required this.onSave,
+    this.onClear,
+    required this.onBack,
+  });
 
   /// 目前已儲存的家；null 代表第一次設定。
   final LatLng? initial;
@@ -20,12 +27,14 @@ class SafeWalkHomeSettingView extends StatefulWidget {
   final VoidCallback onBack;
 
   @override
-  State<SafeWalkHomeSettingView> createState() => _SafeWalkHomeSettingViewState();
+  State<SafeWalkHomeSettingView> createState() =>
+      _SafeWalkHomeSettingViewState();
 }
 
 class _SafeWalkHomeSettingViewState extends State<SafeWalkHomeSettingView> {
   LatLng? _pin;
   bool _busy = false;
+  bool _mapEnabled = false;
   String? _error;
 
   @override
@@ -50,6 +59,20 @@ class _SafeWalkHomeSettingViewState extends State<SafeWalkHomeSettingView> {
     }
   }
 
+  Future<void> _openAttribution() async {
+    const url = 'https://www.openstreetmap.org/copyright';
+    try {
+      if (await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication))
+        return;
+    } catch (_) {
+      // Fixed fallback text never contains the selected location.
+    }
+    if (mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('無法開啟授權說明，請瀏覽 $url')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final pin = _pin;
@@ -57,52 +80,108 @@ class _SafeWalkHomeSettingViewState extends State<SafeWalkHomeSettingView> {
     return Scaffold(
       backgroundColor: SwColors.bg,
       body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Expanded(
             child: Stack(
               children: [
                 Positioned.fill(
-                  child: FlutterMap(
-                    options: MapOptions(
-                      initialCenter: pin == null ? _kDefaultCenter : ll.LatLng(pin.lat, pin.lng),
-                      initialZoom: pin == null ? 14 : 17,
-                      minZoom: 3,
-                      maxZoom: 19,
-                      backgroundColor: SwColors.surface,
-                      interactionOptions: const InteractionOptions(flags: InteractiveFlag.pinchZoom | InteractiveFlag.drag | InteractiveFlag.flingAnimation),
-                      onTap: _busy ? null : (_, at) => setState(() => _pin = LatLng(at.latitude, at.longitude)),
-                    ),
-                    children: [
-                      TileLayer(urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', userAgentPackageName: 'town_pass', maxNativeZoom: 19, tileProvider: DemoMap.createTileProvider()),
-                      if (pin != null)
-                        MarkerLayer(
-                          markers: [
-                            Marker(
-                              point: ll.LatLng(pin.lat, pin.lng),
-                              width: 48,
-                              height: 48,
-                              alignment: Alignment.topCenter,
-                              child: const Icon(Icons.home_rounded, size: 40, color: SwColors.brandText, semanticLabel: '家的位置'),
+                  child: !_mapEnabled
+                      ? Center(
+                          child: SingleChildScrollView(
+                            child: Padding(
+                              padding: const EdgeInsets.all(24),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    '載入地圖會向 OpenStreetMap 請求檢視範圍；編輯時範圍包含已儲存的家。是否載入？',
+                                    style: SwText.body,
+                                  ),
+                                  const SizedBox(height: 16),
+                                  SwPrimaryButton(
+                                    label: '載入地圖',
+                                    icon: Icons.map_outlined,
+                                    onTap: () =>
+                                        setState(() => _mapEnabled = true),
+                                  ),
+                                ],
+                              ),
                             ),
+                          ),
+                        )
+                      : FlutterMap(
+                          options: MapOptions(
+                            initialCenter: pin == null
+                                ? _kDefaultCenter
+                                : ll.LatLng(pin.lat, pin.lng),
+                            initialZoom: pin == null ? 14 : 17,
+                            minZoom: 3,
+                            maxZoom: 19,
+                            backgroundColor: SwColors.surface,
+                            interactionOptions: const InteractionOptions(
+                              flags:
+                                  InteractiveFlag.pinchZoom |
+                                  InteractiveFlag.drag |
+                                  InteractiveFlag.flingAnimation,
+                            ),
+                            onTap: _busy
+                                ? null
+                                : (_, at) => setState(
+                                    () => _pin = LatLng(
+                                      at.latitude,
+                                      at.longitude,
+                                    ),
+                                  ),
+                          ),
+                          children: [
+                            TileLayer(
+                              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                              userAgentPackageName: 'town_pass',
+                              maxNativeZoom: 19,
+                              tileProvider: DemoMap.createTileProvider(),
+                            ),
+                            if (pin != null)
+                              MarkerLayer(
+                                markers: [
+                                  Marker(
+                                    point: ll.LatLng(pin.lat, pin.lng),
+                                    width: 48,
+                                    height: 48,
+                                    alignment: Alignment.topCenter,
+                                    child: const Icon(
+                                      Icons.home_rounded,
+                                      size: 40,
+                                      color: SwColors.brandText,
+                                      semanticLabel: '家的位置',
+                                    ),
+                                  ),
+                                ],
+                              ),
                           ],
                         ),
-                    ],
-                  ),
                 ),
                 SafeArea(
                   bottom: false,
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-                    child: SwRoundButton(icon: Icons.arrow_back_ios_new_rounded, label: '返回', onTap: () {
-                      if (!_busy) widget.onBack();
-                    }),
+                    child: SwRoundButton(
+                      icon: Icons.arrow_back_ios_new_rounded,
+                      label: '返回',
+                      onTap: () {
+                        if (!_busy) widget.onBack();
+                      },
+                    ),
                   ),
                 ),
               ],
             ),
           ),
           Container(
-            decoration: BoxDecoration(color: SwColors.surface, boxShadow: SwShadow.sheet),
+            decoration: BoxDecoration(
+              color: SwColors.surface,
+              boxShadow: SwShadow.sheet,
+            ),
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
             child: SafeArea(
               top: false,
@@ -110,10 +189,35 @@ class _SafeWalkHomeSettingViewState extends State<SafeWalkHomeSettingView> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Semantics(header: true, child: Text(editing ? '編輯「家」' : '設定「家」', style: SwText.heading)),
+                  Semantics(
+                    header: true,
+                    child: Text(
+                      editing ? '編輯「家」' : '設定「家」',
+                      style: SwText.heading,
+                    ),
+                  ),
                   const SizedBox(height: 4),
-                  Text(pin == null ? '在地圖上點一下你家的位置。目前還不支援輸入地址搜尋。' : '已選擇位置，可再點地圖更換。位置只存在這支手機，不會上傳。', style: SwText.secondary),
-                  if (_error != null) ...[const SizedBox(height: 8), Text(_error!, style: SwText.bodyStrong.copyWith(color: SwColors.sos))],
+                  Text(
+                    pin == null
+                        ? '在地圖上點一下你家的位置。目前還不支援輸入地址搜尋。'
+                        : '已選擇位置，可再點地圖更換。家的設定儲存在裝置上。',
+                    style: SwText.secondary,
+                  ),
+                  Text(
+                    '載入地圖會向 OpenStreetMap 請求目前檢視範圍的圖磚。',
+                    style: SwText.secondary,
+                  ),
+                  TextButton(
+                    onPressed: _openAttribution,
+                    child: const Text('© OpenStreetMap contributors'),
+                  ),
+                  if (_error != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      _error!,
+                      style: SwText.bodyStrong.copyWith(color: SwColors.sos),
+                    ),
+                  ],
                   const SizedBox(height: 12),
                   Row(
                     children: [
@@ -128,7 +232,16 @@ class _SafeWalkHomeSettingViewState extends State<SafeWalkHomeSettingView> {
                         const SizedBox(width: 12),
                       ],
                       Expanded(
-                        child: SwPrimaryButton(label: _busy ? '儲存中…' : '儲存', icon: Icons.check_rounded, onTap: pin == null || _busy ? null : () => _run(() => widget.onSave(pin), '儲存失敗，請再試一次。')),
+                        child: SwPrimaryButton(
+                          label: _busy ? '儲存中…' : '儲存',
+                          icon: Icons.check_rounded,
+                          onTap: pin == null || _busy
+                              ? null
+                              : () => _run(
+                                  () => widget.onSave(pin),
+                                  '儲存失敗，請再試一次。',
+                                ),
+                        ),
                       ),
                     ],
                   ),

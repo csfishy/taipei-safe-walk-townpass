@@ -65,7 +65,7 @@ class SafeWalkHomeView extends StatelessWidget {
                 _GoHomeCard(destination: destination, avoided: avoided, onTap: () => onOpen(SafeWalkEntry.map)),
                 if (onEditHome != null) ...[
                   const SizedBox(height: 16),
-                  _FeatureRow(icon: Icons.home_rounded, name: homeSet ? '編輯「家」' : '設定「家」', desc: homeSet ? '更換或移除家的位置' : '第一次使用請先設定，只存在這支手機', onTap: onEditHome!),
+                  _FeatureRow(icon: Icons.home_rounded, name: homeSet ? '編輯「家」' : '設定「家」', desc: homeSet ? '更換或移除家的位置' : '第一次使用請先設定，儲存在裝置上', onTap: onEditHome!),
                 ],
                 const SizedBox(height: 24),
                 Semantics(header: true, child: Text('其他功能', style: SwText.bodyStrong)),

@@ -72,15 +72,18 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
   String? _pointsError;
   late final HomeLocationService _homeService;
   sw.Coordinates? _home;
+  int _homeRevision = 0;
 
   Future<void> _loadHome() async {
+    final revision = _homeRevision;
     final home = await _homeService.load();
-    if (!mounted || home == null) return;
+    if (!mounted || home == null || revision != _homeRevision) return;
     setState(() => _home = sw.Coordinates(lat: home.lat, lng: home.lng));
   }
 
   /// 使用者按儲存／移除時才寫入裝置；失敗會往上丟，由設定畫面顯示錯誤。
   Future<void> _changeHome(sw.Coordinates? home) async {
+    ++_homeRevision;
     if (home == null) {
       await _homeService.clear();
     } else {

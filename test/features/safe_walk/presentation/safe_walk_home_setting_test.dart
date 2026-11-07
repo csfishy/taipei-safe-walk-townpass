@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_flow.dart';
-import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart' as sw;
+import 'package:town_pass/features/safe_walk/presentation/safe_walk_home_setting_view.dart';
+import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart'
+    as sw;
 
 // 只使用明顯虛構的座標（接近 0,0），不是任何真實住家。
 Future<void> _pump(WidgetTester t, Widget w) async {
@@ -13,6 +16,24 @@ Future<void> _pump(WidgetTester t, Widget w) async {
 }
 
 void main() {
+  testWidgets('放大字體仍可讀取圖磚說明與使用儲存控制', (t) async {
+    await _pump(
+      t,
+      MediaQuery(
+        data: const MediaQueryData(textScaler: TextScaler.linear(2)),
+        child: SafeWalkHomeSettingView(onSave: (_) async {}, onBack: () {}),
+      ),
+    );
+    expect(t.takeException(), isNull);
+    expect(find.byType(FlutterMap), findsNothing);
+    await t.ensureVisible(find.text('載入地圖'));
+    await t.tap(find.text('載入地圖'));
+    await t.pumpAndSettle();
+    expect(t.takeException(), isNull);
+    expect(find.byType(FlutterMap), findsOneWidget);
+    expect(find.text('儲存').hitTestable(), findsOneWidget);
+  });
+
   testWidgets('沒有 onHomeChanged 時不顯示設定入口', (t) async {
     await _pump(t, const SafeWalkFlow());
     expect(find.text('設定「家」'), findsNothing);
@@ -29,6 +50,10 @@ void main() {
     await t.pumpAndSettle();
     expect(saved, isEmpty);
 
+    expect(find.byType(FlutterMap), findsNothing);
+    expect(find.text('© OpenStreetMap contributors'), findsOneWidget);
+    await t.tap(find.text('載入地圖'));
+    await t.pumpAndSettle();
     await t.tapAt(const Offset(200, 300));
     await t.pumpAndSettle();
     await t.tap(find.text('儲存'));
@@ -52,6 +77,7 @@ void main() {
     expect(find.text('設定「家」'), findsNothing);
     await t.tap(find.text('編輯「家」'));
     await t.pumpAndSettle();
+    expect(find.byType(FlutterMap), findsNothing);
     await t.tap(find.text('移除'));
     await t.pumpAndSettle();
     expect(saved, [null]);
@@ -63,6 +89,8 @@ void main() {
       SafeWalkFlow(onHomeChanged: (h) async => throw StateError('secret 0.5')),
     );
     await t.tap(find.text('設定「家」'));
+    await t.pumpAndSettle();
+    await t.tap(find.text('載入地圖'));
     await t.pumpAndSettle();
     await t.tapAt(const Offset(200, 300));
     await t.pumpAndSettle();

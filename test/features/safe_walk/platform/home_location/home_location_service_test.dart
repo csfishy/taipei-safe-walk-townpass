@@ -13,7 +13,23 @@ final class _FakeStore implements HomeLocationStore {
   Future<void> clear() async => value = null;
 }
 
+class _RejectingPreferences implements SharedPreferences {
+  @override
+  Future<bool> setString(String key, String value) async => false;
+  @override
+  Future<bool> remove(String key) async => false;
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
 void main() {
+  test('平台拒絕寫入或移除時，不回報成功', () async {
+    final store = SharedPreferencesHomeLocationStore(
+      preferences: () async => _RejectingPreferences(),
+    );
+    await expectLater(store.write('artificial fixture'), throwsStateError);
+    await expectLater(store.clear(), throwsStateError);
+  });
   test('未設定時 load 回 null', () async {
     expect(await HomeLocationService(_FakeStore()).load(), isNull);
   });

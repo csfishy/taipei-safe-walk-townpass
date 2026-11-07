@@ -2,7 +2,8 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// 使用者的「家」。只存在這支手機；不上傳、不寫日誌、不進 repo、不放 URL。
+/// 使用者的「家」。本儲存服務只寫入裝置設定，不傳送網路請求或寫日誌。
+/// 地圖檢視另需使用者同意載入第三方圖磚；不承諾排除系統備份。
 /// [toString] 刻意不含座標，避免意外被 print／log 印出。
 final class HomeLocation {
   const HomeLocation._(this.lat, this.lng);
@@ -36,20 +37,28 @@ abstract interface class HomeLocationStore {
 }
 
 final class SharedPreferencesHomeLocationStore implements HomeLocationStore {
+  SharedPreferencesHomeLocationStore({
+    Future<SharedPreferences> Function()? preferences,
+  }) : _preferences = preferences ?? SharedPreferences.getInstance;
+
+  final Future<SharedPreferences> Function() _preferences;
   static const key = 'safe_walk.home_location';
 
   @override
-  Future<String?> read() async =>
-      (await SharedPreferences.getInstance()).getString(key);
+  Future<String?> read() async => (await _preferences()).getString(key);
 
   @override
   Future<void> write(String value) async {
-    await (await SharedPreferences.getInstance()).setString(key, value);
+    if (!await (await _preferences()).setString(key, value)) {
+      throw StateError('Unable to save home location.');
+    }
   }
 
   @override
   Future<void> clear() async {
-    await (await SharedPreferences.getInstance()).remove(key);
+    if (!await (await _preferences()).remove(key)) {
+      throw StateError('Unable to remove home location.');
+    }
   }
 }
 
