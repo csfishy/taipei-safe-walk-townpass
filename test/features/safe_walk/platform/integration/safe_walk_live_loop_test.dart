@@ -938,6 +938,7 @@ void main() {
       List<RouteReferenceArea> areas = const [],
       bool showMap = false,
       sw.Coordinates? home,
+      bool askTiles = false,
     }) async {
       t.view.physicalSize = const Size(900, 3000);
       t.view.devicePixelRatio = 1;
@@ -952,6 +953,7 @@ void main() {
             crimeRepository: db.repository,
             reviewedAreas: areas,
             showLiveMap: showMap,
+            askMapTilesOnOpen: askTiles,
             watchPosition: () => const Stream<sw.Position>.empty(),
             homeLocationStore: _HomeStore(home),
             speaker: _SilentSpeaker(),
@@ -990,6 +992,33 @@ void main() {
       await t.pumpAndSettle();
       expect(find.byType(SafeWalkMapView), findsNothing);
     }
+
+    testWidgets(
+      'opening the map asks for OSM tiles once; nothing loads until 同意載入',
+      (t) async {
+        final platform = _livePlatform();
+        final routes = _Routes();
+        final db = _Db();
+        await pumpRoot(t, platform: platform, routes: routes, db: db, showMap: true, askTiles: true);
+        await openMap(t);
+        expect(find.text('地圖載入設定'), findsOneWidget, reason: 'separate tile consent is asked, not granted');
+        expect(find.byType(TileLayer), findsNothing);
+        await t.tap(find.text('不載入'));
+        await t.pumpAndSettle();
+        expect(map(t).showMapTiles, isFalse);
+        expect(find.byType(TileLayer), findsNothing);
+        await leaveMap(t);
+        await openMap(t);
+        await t.tap(find.text('同意載入'));
+        await t.pumpAndSettle();
+        expect(map(t).showMapTiles, isTrue);
+        expect(find.byType(TileLayer), findsOneWidget);
+        expect(platform.calls, 0, reason: 'tile consent never reads GPS');
+        expect(routes.requests, isEmpty);
+        expect(db.calls, isEmpty);
+        await t.pumpWidget(const SizedBox.shrink());
+      },
+    );
 
     testWidgets(
       'M3 runs the full consented route loop; root entry reads nothing',
