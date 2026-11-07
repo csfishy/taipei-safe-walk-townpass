@@ -146,7 +146,10 @@ void main() {
       await t.pump(const Duration(seconds: 1));
     }
     expect(speaker.spoken, ride.steps.map((s) => s.text).toList(), reason: '兩段繁中照讀稿之間依序播放三段英文台詞');
-    expect(find.textContaining('嚇阻台詞已播放完畢'), findsOneWidget);
+    // The fake has not completed its final utterance: do not claim playback
+    // finished just because the final line was queued.
+    expect(find.textContaining('已到劇本最後一句'), findsOneWidget);
+    expect(find.textContaining('已播放完畢'), findsNothing);
 
     await t.tap(find.text('結束通話'));
     await t.pumpAndSettle();

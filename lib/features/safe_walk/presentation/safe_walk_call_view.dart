@@ -26,7 +26,7 @@ class SafeWalkCallSession {
   String? scenarioId;
   int line = 0, seq = 0, seconds = 0;
 
-  /// 劇本最後一句男性台詞已播放。
+  /// 已進入最後一句男性台詞，不再要求使用者回覆。
   bool finished = false;
   final List<_Entry> _log = [];
 }
@@ -152,7 +152,7 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> with WidgetsBindingO
 
   sw.CompanionScenario get _scenario => m5CompanionScenarios.firstWhere((c) => c.id == _s.scenarioId, orElse: () => m5CompanionScenarios.first);
 
-  /// 最後一句男性台詞播放後，劇本結束。
+  /// 最後一句男性台詞已排入；不代表裝置已完成播放。
   bool get _scriptDone => _s.finished;
 
   List<String> get _replies => companionReplies[_scenario.id]?.elementAtOrNull(_s.line) ?? const ['好。'];
@@ -490,7 +490,7 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> with WidgetsBindingO
     final note = _waiting || _scriptDone
         ? Padding(
             padding: const EdgeInsets.only(bottom: 8),
-            child: Text(_waiting ? '對方回應中，請稍候' : '嚇阻台詞已播放完畢；如仍有危險，請立即求助', style: SwText.secondary),
+            child: Text(_waiting ? '對方回應中，請稍候' : '已到劇本最後一句；如仍有危險，請立即求助', style: SwText.secondary),
           )
         : const SizedBox.shrink();
     switch (_mode) {
