@@ -26,7 +26,7 @@ lib/features/safe_walk/ 是同一 Flutter App 內的五模組及 shared。既有
 5. M4 資料經 Parser／語意驗證，由 M1 注入 M2 lookup／M3 列表；途經據點核對 ID、來源、認可／營業資訊。查詢失敗不偽裝無資料。
 6. M5 裝置 TTS 已有組合接線，按使用者操作播放，無語音則文字預覽。SOS 先停止語音，再由使用者主動交接系統撥號／官方入口；與附近協助者及官方派遣分開。
 
-目前第 2–5 步尚未完整 Live 接線：組合根固定 Mock，雖有 OSRM 實例與 scope，未將路線參數傳給 Flow；仍 DemoMap，RouteFollower／真實據點未接入。TTS 已有真實引擎接線，不能再寫成完全未實作，也不代表 iPhone 已通過。
+目前第 2–5 步尚未完整 Live 接線：組合根固定 Mock，雖有 OSRM 實例與 scope，未將路線參數傳給 Flow；RouteFollower／真實據點未接入。隨 #29 交付的底圖增量保留 `DemoMap` 類名，renderer 已接 flutter_map／OSM 真實圖磚及座標投影，底圖子能力為 WIRED_NOT_VERIFIED；路線／點位仍 Mock，Live gates 未開，不能當作完整導航已驗收。本段增量不改寫 `03f98f2` 原快照。TTS 已有真實引擎接線，也不代表 iPhone 已通過。
 
 ## 模式、服務與驗收
 

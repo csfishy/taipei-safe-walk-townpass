@@ -10,7 +10,7 @@
 | M2 路線 | `DefaultRouteService`、`OsrmWalkingRouteProvider`、座標驗證、取消及同意檢查已存在；組合根已建立 OSRM provider。 | 真實 provider 證據、GPS 與正式地圖操作接線；不是尚未實作 OSRM。 |
 | M1 控制 | `SafeWalkNavigationController`／`SafeWalkNavigationScope` 已提供結果、loading、同意、取消及 lifecycle callbacks；背景會取消並鎖 inactive。 | Flow 尚未消費 scope，組合根也未傳 `route`／`routeLoading`／`onPlanRoute`。scope tests 不等於 UI 操作端到端驗收。 |
 | M3 介面 | 已合併 `SafeWalkFlow(route: RouteResult?, routeLoading: bool, onPlanRoute: ValueChanged<Coordinates>?)`、`RouteState` loading／failure／success；`_go(map)` 在使用者進入地圖才呼叫 callback，目前沒有初始化 post-frame 規劃。 | 保留 API，由 M1 adapter 接線，補同意／撤回、取消及 lifecycle。舊「M3 尚未合併／無路線介面」已失效。 |
-| 地圖與模式 | 常用目的地可讀 geometry，但 `DemoMap` 仍使用固定 DemoGeo 投影；Flow 初始化 demoPlaces／demoAnomalies，缺位置／據點仍可補 Demo。據點切換只改 `_pointIndex`、畫 `DemoGeo.lRoute`。 | 真實底圖、正確投影／viewport／標記、Live 缺值分流，以及所有目的地事件接線。 |
+| 地圖與模式 | #29 底圖增量保留 `DemoMap` 類名，renderer 已改用 flutter_map／OSM 圖磚與座標投影；Flow 的路線/點位仍 Mock，缺位置／據點仍可補 Demo。據點切換只改 `_pointIndex`、畫 `DemoGeo.lRoute`。 | 沿用已接 renderer，補正式 geometry／viewport／標記整合、Live 缺值分流及所有目的地事件接線；底圖與 iPhone 驗收待完成。 |
 | 距離／時間 | 已能讀 route 距離、秒數與第一則 explanation；duration null 仍以 `walkMinutes` 補值，據點卡也用直線距離換算分鐘。 | Live 未知時間保留未知、完整 warnings／provider、直線距離明確標示；不顯示虛構避讓件數與地標。 |
 | 跟隨 | `RouteFollower` 已有進度、偏離、抵達與 remainingSeconds 計算及測試。 | 尚未接 App；先支援使用者主動更新位置。若需連續定位，由 M1 沿用 TownPass 服務定義啟停／同意，M2 不另開 GPS。 |
 | 便利商店／外部導航 | `OsmConvenienceStoreSource`、`NearestStorePlanner`、`googleMapsWalkingUri` 已存在。 | 尚未接組合根或正式操作；便利商店不是政府認證救援據點。 |
@@ -57,7 +57,7 @@ request factory 現有預設為 direct、繞行上限 500 m、assistancePointIds
 
 ## Live 呈現驗收
 
-- 使用真實底圖及正確投影／viewport；geometry 為 GeoJSON `[longitude, latitude]`。DemoMap 保留給 Mock，不能把任意 OSRM 座標疊到虛構街道。
+- 沿用 #29 已接的 OSM 底圖及 flutter_map 座標投影，驗證正式 geometry／viewport；geometry 為 GeoJSON `[longitude, latitude]`。`DemoMap` 只是沿用類名，不代表資料模式；真實底圖不會使 Mock 路線／點位成為 Live，禁止混用真實資料與 DemoGeo／虛構覆蓋物冒稱 Live。
 - 使用 distanceMeters／durationSeconds；duration null 顯示未知，不用 walkMinutes 補 ETA。據點直線距離標明其語意。
 - result／candidate 的 warnings、explanations、provider、來源及模式須可讀；載入、取消、無路線、網路失敗、未配置與無資料可區分。
 - Live 不顯示 demoAnomalies、虛構避險件數、捷徑、地標或安全保證。walkingNetworkVerified 僅表示 provider 使用步行路網，不證明治安、照明、無障礙或目前通行。

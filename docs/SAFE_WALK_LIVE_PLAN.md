@@ -4,6 +4,8 @@
 
 審查更新（2026-11-07）：原始計畫依 `03f98f2` 盤點；main `65ee6f7dd9c07710ecf18084b1975b6998287b3e` 已合併 #26 speaker lifecycle 修正與回歸。P1-C 接續裝置驗收與剩餘缺口，不重做已合併修正；#28／#29 仍未合併，後續先核對各自 PR，不將其提案當已完成。
 
+圖磚增量隨 #29 交付：P0-C 沿用已接的 flutter_map／OSM renderer，`DemoMap` 僅是沿用類名，不重做底圖。接續完成 Live 資料／模式、狀態與裝置驗收；R5 整體仍 IMPLEMENTED_NOT_WIRED，底圖子能力 WIRED_NOT_VERIFIED，不先解除 Live gates 或宣稱該 PR 已合併。
+
 ## P0：正常流程的真實 GPS、OSRM 與 Live UI
 
 | 任務／Owner | 修改檔案範圍 | 接收 → 輸出契約 | 實際完成標準 | 測試與 iPhone 驗收 | 前置依賴 |
@@ -13,7 +15,7 @@
 | P0-C 真實地圖與狀態：M3 莅紋，M1 協調套件 | presentation/safe_walk_flow.dart、safe_walk_map_view.dart、safe_walk_home_view.dart、demo_map.dart 的 Demo 邊界、UI 測試；必要 pubspec／平台設定由 M1 | M1 注入 RouteResult／loading／error／mode、意圖 callbacks → 地圖與操作 | 真實底圖／投影與 attribution，實際 geometry／距離／nullable duration；Live 無 DemoGeo、固定 ETA、虛構避險數／地標；同意、取消、換目的地可操作 | Widget 以任意幾何核對呈現；入口至 Provider seam；iPhone 底圖／投影／斷網、小螢幕／大字體／VoiceOver | P0-A/B；底圖來源合法性、套件相容與 M3 設計決策 |
 | P0-D Live 導航驗收與逐能力啟用：M1 小魚，M2/M3 共同簽認 | platform/integration 的能力配置、integration／presentation 測試、Readiness 證據與 CI 所需範圍 | P0-A/B/C 實作與測試證據 → 正常入口可用的 Live 導航 | 逐項解除 mode／presentation／provider 閘門，已驗證功能正式流程可達，未配置能力有下一步；維持 Demo 隔離 | 正常入口 E2E＋真實 Provider＋iPhone 權限、位置、路線、取消／背景／SOS；記 SHA／裝置／skip | P0-A/B/C 全部必要證據，不以 bool 翻轉代替驗收 |
 
-P0-A/B/C 可按約定介面平行開發，整合／驗收按表列前置依賴，P0-D 最後啟用。P0-A 以注入合成資料測 Flow，不將真 GPS／geometry 畫在 DemoMap 上冒充 Live。若尚缺真實底圖或裝置，先完成接線與自動驗證，保持 WIRED_NOT_VERIFIED 並清楚列缺口，不宣稱已上線。
+P0-A/B/C 可按約定介面平行開發，整合／驗收按表列前置依賴，P0-D 最後啟用。P0-A 以注入合成資料測 Flow，不將真 GPS／geometry 與 Mock 起點、路線／點位混用而冒充 Live；不以 `DemoMap` 類名判定能力。先沿用 #29 底圖補接線與自動驗證，逐子能力如實記錄狀態，缺少真實資料整合或裝置證據時不宣稱已上線。
 
 ## P1：據點、外部導航、語音與官方求助交接
 
@@ -40,4 +42,4 @@ P0-A/B/C 可按約定介面平行開發，整合／驗收按表列前置依賴�
 
 ## 下一階段第一個 Codex 提示詞
 
-> 在 taipei-safe-walk-townpass 最新 origin/main 建立 feature/m1-live-navigation-wiring 分支，先讀 AGENTS、SAFE_WALK_LIVE_MVP、LIVE_READINESS、NAVIGATION_PRESENTATION_CONTRACT 與 M1/M2/M3 README，核對所有未合併 PR／CI／工作樹。實作 P0-A：由 M1 小魚維護 platform/integration 與必要 shared 程序內 scope，與 M3 莅紋協作最小修改 presentation/safe_walk_flow.dart 與對應 presentation tests，保留既有 route／routeLoading／onPlanRoute API，新增必要的 error、同意、取消、目的地及 lifecycle 參數或消費 shared scope；不假設這些參數已存在。沿用 TownPassPlatformAdapter／GeoLocatorService，在使用者啟動導航／更新位置時讀真實 GPS；定位權限和第三方路線查詢同意分開。把既有 Controller 的 RouteResult、loading、error、取消、換目的地與同意 callbacks 正確傳到 Flow，接上 navigation opened／closed 的生命週期；不再只建立未消費 scope。未同意不送 OSRM，拒絕／逾時不補 Demo，撤回／背景／離開／SOS 與換目的地取消並忽略遲到結果。加入逐能力配置的可測接點，以注入合成資料驗 Flow／callbacks；真 GPS／路線查詢的隔離驗證不得畫在 DemoMap 上冒充 Live。保留明確使用者同意的隔離驗證路徑；保留公開入口的 Live gate，直到 P0-B/C/D 真實底圖、Provider 與 iPhone 證據完成，不能只改常數。不要重做 M3 設計、啟用附近通知／官方派遣、加 GPS watcher 或改 JSON Schema。新增有意義的 Adapter／Controller／入口整合測試，驗請求與 geometry 確實到達 Flow、同意前無外送、取消不復活；跑 lock、generation、Schema --check、module guard、scoped analyze 與適當既有測試。列出真實 Provider／iPhone 未驗項目並更新 Readiness；commit、push 團隊 origin、建 PR，不 merge。
+> 在 taipei-safe-walk-townpass 最新 origin/main 建立 feature/m1-live-navigation-wiring 分支，先讀 AGENTS、SAFE_WALK_LIVE_MVP、LIVE_READINESS、NAVIGATION_PRESENTATION_CONTRACT 與 M1/M2/M3 README，核對所有未合併 PR／CI／工作樹。實作 P0-A：由 M1 小魚維護 platform/integration 與必要 shared 程序內 scope，與 M3 莅紋協作最小修改 presentation/safe_walk_flow.dart 與對應 presentation tests，保留既有 route／routeLoading／onPlanRoute API，新增必要的 error、同意、取消、目的地及 lifecycle 參數或消費 shared scope；不假設這些參數已存在。沿用 TownPassPlatformAdapter／GeoLocatorService，在使用者啟動導航／更新位置時讀真實 GPS；定位權限和第三方路線查詢同意分開。把既有 Controller 的 RouteResult、loading、error、取消、換目的地與同意 callbacks 正確傳到 Flow，接上 navigation opened／closed 的生命週期；不再只建立未消費 scope。未同意不送 OSRM，拒絕／逾時不補 Demo，撤回／背景／離開／SOS 與換目的地取消並忽略遲到結果。加入逐能力配置的可測接點，以注入合成資料驗 Flow／callbacks；真 GPS／路線查詢的隔離驗證不得與 Mock 起點、路線／點位混用而冒充 Live。保留明確使用者同意的隔離驗證路徑；保留公開入口的 Live gate，直到 P0-B/C/D 真實底圖、Provider 與 iPhone 證據完成，不能只改常數。沿用 #29 已接底圖 renderer，DemoMap 僅是類名；不要重做 M3 設計、啟用附近通知／官方派遣、加 GPS watcher 或改 JSON Schema。新增有意義的 Adapter／Controller／入口整合測試，驗請求與 geometry 確實到達 Flow、同意前無外送、取消不復活；跑 lock、generation、Schema --check、module guard、scoped analyze 與適當既有測試。列出真實 Provider／iPhone 未驗項目並更新 Readiness；commit、push 團隊 origin、建 PR，不 merge。

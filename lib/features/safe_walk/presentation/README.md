@@ -59,7 +59,7 @@ SafeWalkFlow(
 ```
 
 - 官方路由與服務入口已由 M1 完成（`local://safe_walk`）。
-- 路線 API 已存在；M1 組合根也已建立 M2 OSRM service 與 shared scope，但尚未把 route／routeLoading／onPlanRoute 傳給 Flow，Flow 也未消費 scope。這不是「接一個 service 即完成 Live」：仍需真實 GPS、同意、lifecycle、真實底圖與完整模式分流。據點路線目前仍是 DemoGeo.lRoute。
+- 路線 API 已存在；M1 組合根也已建立 M2 OSRM service 與 shared scope，但尚未把 route／routeLoading／onPlanRoute 傳給 Flow，Flow 也未消費 scope。隨 #29 交付的 `DemoMap` renderer 已接 flutter_map／OSM 底圖及投影，沿用類名而非固定 Demo 畫布；路線／點位仍 Mock，據點路線仍是 DemoGeo.lRoute。仍需真實 GPS、同意、lifecycle、Live 資料與完整模式分流，底圖子能力 WIRED_NOT_VERIFIED 不代表完整 Live UI 或裝置驗收。
 - 異常回報與簡訊範本目前是呈現層提案型別；需要跨模組持久 payload 時才提出獨立 Schema 變更。來電劇本已有共用 CompanionScenario／M5 JSON 同步測試，不因接線重建第二套 Schema。
 - M1 已預設注入 `TtsSafeWalkSpeaker.device()`，M5 本機 TTS 與離線語音檢查已合併；可用聲音確認後才朗讀，否則文字／無聲預覽。不再把「完全沒有音訊實作」當現況；真實 iPhone 播放與中斷仍須驗收。響鈴目前只有震動，未交付鈴聲音檔。TTS 不需麥克風權限。
 - 簡訊報警的收件號碼由 M1 決定；開啟簡訊 App 不代表警方已收到或受理。
@@ -68,7 +68,7 @@ SafeWalkFlow(
 
 - Mock 僅供開發、測試及清楚標示的展示。正式功能完成相應驗收後必須由正式操作使用 Live；目前固定 Mock 與 readiness false 是未驗收隔離，不是永久禁令，各能力可分別啟用。
 - 使用者主動開始導航／更新位置才由 M1 取 TownPass 真實 GPS；定位權限與第三方路線查詢同意分開，提供拒絕及撤回。Flow 目前只在使用者進入地圖／換常用目的地／重試時呼叫既有 callback，無初始化自動規劃，但尚無完整 Live 同意／取消操作。
-- 沿用既有 TownPass 介面接上真實地圖底圖、正確投影與 viewport，顯示 M2 RouteResult geometry、距離及可取得時間。GeoJSON 為 `[longitude, latitude]`，DemoMap 固定投影不可直接用於任意真實座標。
+- 沿用既有 TownPass 介面與 #29 的 OSM 底圖 renderer，不因 `DemoMap` 類名重做底圖；接入並驗證正式 M2 RouteResult geometry、viewport、距離及可取得時間。GeoJSON 為 `[longitude, latitude]`；資料模式取決於來源與接線，真圖磚不會使 Mock 覆蓋物成為 Live，iPhone／底圖失敗呈現仍待驗。
 - durationSeconds null 顯示未知；目前 RouteState.minutes 與據點卡會呼叫 walkMinutes，Live 必須移除這些示範 ETA。完整呈現 result／candidate warnings、explanations、provider、loading、cancel、error 與下一步。
 - Live 不補 DemoGeo 起點、demoPlaces、demoPoints、demoAnomalies、L 形路線、虛構避險件數或示範地標。網路失敗提供重試或使用者選擇外部導航，不偷偷換 Mock；OSRM 路線不宣稱已驗證安全。
 - 保留 Flow 已有座標 callback，由 M1 adapter 建立 canonical request；最近據點／下一據點／帶我去也必須通知目的地變更及重新規劃。取消、換目的地、離開導航、切至通話、SOS、背景或撤回同意立即取消舊意圖；等待定位的 Future 需 generation 檢查，防止遲到重啟。
