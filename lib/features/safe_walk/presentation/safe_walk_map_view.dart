@@ -262,7 +262,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                                     child: Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        const Icon(Icons.place_outlined, size: 20, color: SwColors.brandDeep),
+                                        const Icon(Icons.place_outlined, size: 20, color: SwColors.brand),
                                         const SizedBox(width: 4),
                                         Flexible(
                                           child: AnimatedSwitcher(
@@ -270,7 +270,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                                             child: Text(title, key: ValueKey(title), style: SwText.bodyStrong, overflow: TextOverflow.ellipsis),
                                           ),
                                         ),
-                                        if (!_pointsView) const Icon(Icons.expand_more_rounded, color: SwColors.brandDeep),
+                                        if (!_pointsView) const Icon(Icons.expand_more_rounded, color: SwColors.brand),
                                       ],
                                     ),
                                   ),
@@ -439,7 +439,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                     children: [
                       TextSpan(
                         text: '$minutes',
-                        style: SwText.display.copyWith(height: 1, color: SwColors.brandDeep),
+                        style: SwText.display.copyWith(height: 1, color: SwColors.brandText),
                       ),
                       TextSpan(text: ' 分鐘', style: SwText.heading),
                     ],
@@ -540,10 +540,10 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                         height: 56,
                         child: Row(
                           children: [
-                            Icon(_placeIcon(p), color: SwColors.brandDeep),
+                            Icon(_placeIcon(p), color: SwColors.brand),
                             const SizedBox(width: 12),
                             Expanded(child: Text(p.label, style: SwText.bodyStrong)),
-                            if (p.id == widget.placeId) const Icon(Icons.check_rounded, color: SwColors.brandDeep),
+                            if (p.id == widget.placeId) const Icon(Icons.check_rounded, color: SwColors.brand),
                             if (!p.isHome)
                               IconButton(
                                 tooltip: '刪除${p.label}',
@@ -684,7 +684,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
-            borderSide: const BorderSide(color: SwColors.brandDeep, width: 2),
+            borderSide: const BorderSide(color: SwColors.brand, width: 2),
           ),
         ),
       ),
@@ -750,7 +750,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
               icon: const Icon(Icons.sms_outlined),
               label: Text(
                 '需要報警？準備簡訊內容',
-                style: SwText.bodyStrong.copyWith(color: SwColors.brandDeep, decoration: TextDecoration.underline),
+                style: SwText.bodyStrong.copyWith(color: SwColors.brandText, decoration: TextDecoration.underline),
               ),
             ),
           ],
@@ -857,7 +857,7 @@ class _Sheet extends StatelessWidget {
                                 Expanded(
                                   child: Text(summary, style: SwText.bodyStrong, overflow: TextOverflow.ellipsis),
                                 ),
-                                const Icon(Icons.expand_less_rounded, color: SwColors.brandDeep),
+                                const Icon(Icons.expand_less_rounded, color: SwColors.brand),
                               ],
                             ),
                           ),
@@ -867,7 +867,7 @@ class _Sheet extends StatelessWidget {
                             width: double.infinity,
                             child: Align(
                               alignment: Alignment.centerRight,
-                              child: Icon(Icons.expand_more_rounded, color: SwColors.brandDeep),
+                              child: Icon(Icons.expand_more_rounded, color: SwColors.brand),
                             ),
                           ),
                         },
@@ -953,12 +953,12 @@ class _Segmented extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(icon, size: 20, color: on ? SwColors.brandDeep : SwColors.textSecondary),
+                Icon(icon, size: 20, color: on ? SwColors.brand : SwColors.textSecondary),
                 const SizedBox(width: 6),
                 Flexible(
                   child: AnimatedDefaultTextStyle(
                     duration: SwMotion.of(context, 200),
-                    style: SwText.bodyStrong.copyWith(color: on ? SwColors.brandDeep : SwColors.textSecondary),
+                    style: SwText.bodyStrong.copyWith(color: on ? SwColors.brandText : SwColors.textSecondary),
                     child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
                   ),
                 ),
@@ -1019,10 +1019,10 @@ class _AvoidBadge extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.verified_outlined, size: 18, color: SwColors.brandDeep),
+          const Icon(Icons.verified_outlined, size: 18, color: SwColors.brand),
           const SizedBox(width: 4),
           Flexible(
-            child: Text('已繞開 $count 個異常回報', style: SwText.bodyStrong.copyWith(color: SwColors.brandDeep)),
+            child: Text('已繞開 $count 個異常回報', style: SwText.bodyStrong.copyWith(color: SwColors.brandText)),
           ),
         ],
       ),
@@ -1048,7 +1048,7 @@ class _StepsToggle extends StatelessWidget {
       height: swTouch,
       child: Row(
         children: [
-          const Icon(Icons.format_list_numbered_rounded, color: SwColors.brandDeep),
+          const Icon(Icons.format_list_numbered_rounded, color: SwColors.brand),
           const SizedBox(width: 8),
           // 標題佔滿左側，「N 個步驟／收合」與箭頭固定靠右。
           Expanded(
@@ -1062,13 +1062,13 @@ class _StepsToggle extends StatelessWidget {
               maxLines: 1,
               softWrap: false,
               overflow: TextOverflow.fade,
-              style: SwText.secondary.copyWith(color: SwColors.brandDeep),
+              style: SwText.secondary.copyWith(color: SwColors.brandText),
             ),
           ),
           AnimatedRotation(
             turns: open ? .5 : 0,
             duration: SwMotion.of(context, 200),
-            child: const Icon(Icons.expand_more_rounded, color: SwColors.brandDeep),
+            child: const Icon(Icons.expand_more_rounded, color: SwColors.brand),
           ),
         ],
       ),
@@ -1091,7 +1091,7 @@ class _StepsList extends StatelessWidget {
           Container(
             width: 36,
             height: 36,
-            decoration: BoxDecoration(shape: BoxShape.circle, color: end ? SwColors.brandDeep : SwColors.brandSoft),
+            decoration: BoxDecoration(shape: BoxShape.circle, color: end ? SwColors.brand : SwColors.brandSoft),
             child: icon,
           ),
           const SizedBox(width: 12),
@@ -1108,12 +1108,12 @@ class _StepsList extends StatelessWidget {
             row(
               RotationTransition(
                 turns: AlwaysStoppedAnimation(_turn[s.dir]!),
-                child: const Icon(Icons.arrow_upward_rounded, color: SwColors.brandDeep),
+                child: const Icon(Icons.arrow_upward_rounded, color: SwColors.brand),
               ),
               '往${stepDirLabel[s.dir]}走',
               meters: '約 ${s.meters} 公尺',
             ),
-          row(Icon(home ? Icons.home_rounded : Icons.place_rounded, color: SwColors.onDeep, size: 20), '抵達$arrive', end: true),
+          row(Icon(home ? Icons.home_rounded : Icons.place_rounded, color: SwColors.onBrand, size: 20), '抵達$arrive', end: true),
         ],
       ),
     );
@@ -1128,12 +1128,12 @@ class _StepRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final circleColor = done
-        ? SwColors.brandDeep
+        ? SwColors.brand
         : now
         ? SwColors.warnBg
         : SwColors.surface;
     final border = done
-        ? SwColors.brandDeep
+        ? SwColors.brand
         : now
         ? SwColors.warnText
         : SwColors.border;
@@ -1153,10 +1153,10 @@ class _StepRow extends StatelessWidget {
                   border: Border.all(color: border, width: 2),
                 ),
                 child: done
-                    ? const Icon(Icons.check_rounded, size: 14, color: SwColors.onDeep)
+                    ? const Icon(Icons.check_rounded, size: 14, color: SwColors.onBrand)
                     : Text('$index', style: SwText.caption.copyWith(height: 1, color: now ? SwColors.warnText : SwColors.textSecondary)),
               ),
-              if (!last) Expanded(child: Container(width: 2, color: done ? SwColors.brandDeep : SwColors.border)),
+              if (!last) Expanded(child: Container(width: 2, color: done ? SwColors.brand : SwColors.border)),
             ],
           ),
           const SizedBox(width: 12),
@@ -1205,8 +1205,8 @@ class _PlaceCard extends StatelessWidget {
                     width: 40,
                     height: 40,
                     alignment: Alignment.center,
-                    decoration: const BoxDecoration(shape: BoxShape.circle, color: SwColors.brandDeep),
-                    child: Text(pointGlyph[p.kind]!, style: SwText.bodyStrong.copyWith(color: SwColors.onDeep)),
+                    decoration: const BoxDecoration(shape: BoxShape.circle, color: SwColors.brand),
+                    child: Text(pointGlyph[p.kind]!, style: SwText.bodyStrong.copyWith(color: SwColors.onBrand)),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -1221,7 +1221,7 @@ class _PlaceCard extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                     decoration: BoxDecoration(color: known ? SwColors.brandSoft : SwColors.warnBg, borderRadius: BorderRadius.circular(6)),
-                    child: Text(_open[p.availability]!, style: SwText.smallStrong.copyWith(color: known ? SwColors.brandDeep : SwColors.warnText)),
+                    child: Text(_open[p.availability]!, style: SwText.smallStrong.copyWith(color: known ? SwColors.brandText : SwColors.warnText)),
                   ),
                 ],
               ),
@@ -1289,11 +1289,11 @@ class _Toast extends StatelessWidget {
       decoration: BoxDecoration(
         color: SwColors.brandSoft,
         borderRadius: BorderRadius.circular(8),
-        border: const Border(left: BorderSide(color: SwColors.brandDeep, width: 4)),
+        border: const Border(left: BorderSide(color: SwColors.brand, width: 4)),
       ),
       child: Row(
         children: [
-          const Icon(Icons.check_circle_rounded, color: SwColors.brandDeep, size: 20),
+          const Icon(Icons.check_circle_rounded, color: SwColors.brand, size: 20),
           const SizedBox(width: 8),
           Expanded(child: Text(text, style: SwText.bodyStrong)),
         ],
@@ -1331,7 +1331,7 @@ class _Legend extends StatelessWidget {
               Container(
                 width: 12,
                 height: 12,
-                decoration: const BoxDecoration(shape: BoxShape.circle, color: SwColors.brandDeep),
+                decoration: const BoxDecoration(shape: BoxShape.circle, color: SwColors.brand),
               ),
               '求助地點',
             )
@@ -1340,13 +1340,13 @@ class _Legend extends StatelessWidget {
               Container(
                 width: 18,
                 height: 5,
-                decoration: BoxDecoration(color: SwColors.brandDeep, borderRadius: BorderRadius.circular(3)),
+                decoration: BoxDecoration(color: SwColors.brand, borderRadius: BorderRadius.circular(3)),
               ),
               '建議路線',
             ),
           if (showShortcut) item(Text('···', style: SwText.bodyStrong.copyWith(color: TPColors.grayscale500)), '較短但經過異常'),
           item(const Icon(Icons.warning_rounded, size: 18, color: SwColors.warnMark), '異常回報'),
-          item(const Icon(Icons.home_rounded, size: 18, color: SwColors.brandDeep), '家'),
+          item(const Icon(Icons.home_rounded, size: 18, color: SwColors.brand), '家'),
           Text('示範地圖，非實際路網', style: SwText.small),
         ],
       ),
@@ -1381,7 +1381,7 @@ class _SwapButton extends StatelessWidget {
       child: SizedBox(
         width: swTouch,
         height: swTouch,
-        child: Icon(Icons.swap_horiz_rounded, color: onTap == null ? SwColors.textSecondary : SwColors.brandDeep),
+        child: Icon(Icons.swap_horiz_rounded, color: onTap == null ? SwColors.textSecondary : SwColors.brand),
       ),
     ),
   );
@@ -1396,7 +1396,7 @@ class _MapTool extends StatelessWidget {
   final bool selected, warn;
   @override
   Widget build(BuildContext context) {
-    final fg = warn ? SwColors.warnText : SwColors.brandDeep;
+    final fg = warn ? SwColors.warnText : SwColors.brandText;
     return DecoratedBox(
       decoration: BoxDecoration(borderRadius: BorderRadius.circular(14), boxShadow: SwShadow.float),
       child: SwPressable(

@@ -120,7 +120,7 @@ class SafeWalkEmergencyView extends StatelessWidget {
                         locating
                             ? Row(
                                 children: [
-                                  const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 3, color: SwColors.brandDeep)),
+                                  const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 3, color: SwColors.brand)),
                                   const SizedBox(width: 12),
                                   Text('正在取得位置…', style: SwText.bodyStrong),
                                 ],
@@ -135,7 +135,7 @@ class SafeWalkEmergencyView extends StatelessWidget {
                   padding: const EdgeInsets.all(12),
                   decoration: const BoxDecoration(
                     color: SwColors.brandSoft,
-                    border: Border(left: BorderSide(color: SwColors.brandDeep, width: 4)),
+                    border: Border(left: BorderSide(color: SwColors.brand, width: 4)),
                   ),
                   child: Text('先走到明亮、人多的地方，例如便利商店或派出所。', style: SwText.body),
                 ),
@@ -302,7 +302,8 @@ class _SmsReportCardState extends State<_SmsReportCard> {
                       onChanged: _step == _SmsStep.sending ? null : (v) => setState(() => _shareLocation = v ?? false),
                       contentPadding: EdgeInsets.zero,
                       controlAffinity: ListTileControlAffinity.leading,
-                      activeColor: SwColors.brandDeep,
+                      activeColor: SwColors.brand,
+                      checkColor: SwColors.onBrand,
                       title: Text('簡訊附上我的位置', style: SwText.bodyStrong),
                       subtitle: Text(widget.position == null ? '目前還沒有位置，會寫「尚未取得」' : '只放在這則簡訊裡，不會另外傳送', style: SwText.small),
                     ),
@@ -354,8 +355,8 @@ class _SmsReportCardState extends State<_SmsReportCard> {
               child: Container(
                 width: 44,
                 height: 44,
-                decoration: const BoxDecoration(shape: BoxShape.circle, color: SwColors.brandDeep),
-                child: const Icon(Icons.check_rounded, color: SwColors.onDeep, size: 28),
+                decoration: const BoxDecoration(shape: BoxShape.circle, color: SwColors.brand),
+                child: const Icon(Icons.check_rounded, color: SwColors.onBrand, size: 28),
               ),
             ),
             const SizedBox(width: 12),

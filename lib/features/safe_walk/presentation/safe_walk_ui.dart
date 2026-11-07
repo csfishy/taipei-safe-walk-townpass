@@ -3,9 +3,18 @@ import 'package:town_pass/util/tp_colors.dart';
 import 'package:town_pass/util/tp_text.dart';
 
 /// 安心行用色：全部引用官方 TPColors，依 docs/SAFE_WALK_COLOR_SPEC.md 的可讀配對。
-/// 白字只放在 primary700／red600 上；primary500 只當品牌點綴、邊框與圖示。
+/// 主色用 primary500（同臺北通）；primary500 上只放深色字。白字只放在 primary700／red600 上。
 abstract final class SwColors {
+  /// 臺北通主色（同 App 長條、服務卡）：路線、圖示、邊框、選取與填色；填色上的字與圖示用 [onBrand]。
   static const brand = TPColors.primary500;
+
+  /// 放在 [brand] 上的字與圖示（grayscale900／primary500 = 7.24:1）。
+  static const onBrand = TPColors.grayscale900;
+
+  /// 主色系「文字」：白底上要 4.5:1，primary500 只有 2.39:1，所以文字用 primary700。
+  static const brandText = TPColors.primary700;
+
+  /// 只在必須放白字的深色區塊使用（夜間情境卡）。
   static const brandDeep = TPColors.primary700;
   static const brandDeeper = TPColors.primary800;
   static const brandSoft = TPColors.primary50;
@@ -102,7 +111,7 @@ class SwStateMessage extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(icon, color: error ? SwColors.sos : SwColors.brandDeep),
+              Icon(icon, color: error ? SwColors.sos : SwColors.brand),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(title, style: SwText.heading.copyWith(color: error ? SwColors.sos : SwColors.text)),
@@ -168,7 +177,7 @@ class _SwPressableState extends State<SwPressable> {
   }
 }
 
-/// 主要按鈕：primary700 底白字（官方 primary500 配白字對比不足）。
+/// 主要按鈕：臺北通主色 primary500 底＋深色字（白字在 primary500 上對比不足）。
 class SwPrimaryButton extends StatelessWidget {
   const SwPrimaryButton({super.key, required this.label, this.icon, required this.onTap});
   final String label;
@@ -178,8 +187,8 @@ class SwPrimaryButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) => SwPressable(
     onTap: onTap,
-    color: onTap == null ? TPColors.grayscale100 : SwColors.brandDeep,
-    pressedColor: TPColors.primary800,
+    color: onTap == null ? TPColors.grayscale100 : SwColors.brand,
+    pressedColor: TPColors.primary400,
     radius: 8,
     padding: const EdgeInsets.symmetric(horizontal: 20),
     child: SizedBox(
@@ -188,8 +197,8 @@ class SwPrimaryButton extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          if (icon != null) ...[Icon(icon, size: 20, color: onTap == null ? SwColors.textSecondary : SwColors.onDeep), const SizedBox(width: 8)],
-          Text(label, style: SwText.bodyStrong.copyWith(color: onTap == null ? SwColors.textSecondary : SwColors.onDeep)),
+          if (icon != null) ...[Icon(icon, size: 20, color: onTap == null ? SwColors.textSecondary : SwColors.onBrand), const SizedBox(width: 8)],
+          Text(label, style: SwText.bodyStrong.copyWith(color: onTap == null ? SwColors.textSecondary : SwColors.onBrand)),
         ],
       ),
     ),
@@ -206,7 +215,7 @@ class SwChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fg = onTap == null ? SwColors.textSecondary : SwColors.brandDeep;
+    final fg = onTap == null ? SwColors.textSecondary : SwColors.brandText;
     return SwPressable(
       onTap: onTap,
       selected: selected,

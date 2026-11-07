@@ -230,8 +230,8 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
                         height: 40,
                         alignment: Alignment.center,
                         margin: const EdgeInsets.symmetric(vertical: 4),
-                        decoration: const BoxDecoration(shape: BoxShape.circle, color: SwColors.brandDeep),
-                        child: Text('家', style: SwText.heading.copyWith(color: SwColors.onDeep)),
+                        decoration: const BoxDecoration(shape: BoxShape.circle, color: SwColors.brand),
+                        child: Text('家', style: SwText.heading.copyWith(color: SwColors.onBrand)),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
@@ -311,10 +311,10 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
                               alignment: Alignment.center,
                               decoration: BoxDecoration(
                                 border: Border(
-                                  bottom: BorderSide(color: _mode == m ? SwColors.brandDeep : SwColors.border, width: _mode == m ? 3 : 1),
+                                  bottom: BorderSide(color: _mode == m ? SwColors.brand : SwColors.border, width: _mode == m ? 3 : 1),
                                 ),
                               ),
-                              child: Text(label, style: SwText.bodyStrong.copyWith(color: _mode == m ? SwColors.brandDeep : SwColors.textSecondary)),
+                              child: Text(label, style: SwText.bodyStrong.copyWith(color: _mode == m ? SwColors.brandText : SwColors.textSecondary)),
                             ),
                           ),
                         ),
@@ -346,7 +346,7 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: SizedBox(
           width: double.infinity,
-          child: Text(text, style: SwText.bodyStrong.copyWith(color: _waiting ? SwColors.textSecondary : SwColors.brandDeep)),
+          child: Text(text, style: SwText.bodyStrong.copyWith(color: _waiting ? SwColors.textSecondary : SwColors.brandText)),
         ),
       ),
     );
@@ -415,19 +415,19 @@ class _Bubble extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(caller ? '對方' : '我', style: SwText.smallStrong.copyWith(color: caller ? SwColors.textSecondary : SwColors.onDeep)),
+        Text(caller ? '對方' : '我', style: SwText.smallStrong.copyWith(color: caller ? SwColors.textSecondary : SwColors.onBrand)),
         const SizedBox(height: 2),
-        Text(entry.text, style: SwText.heading.copyWith(height: 1.5, color: caller ? SwColors.text : SwColors.onDeep)),
+        Text(entry.text, style: SwText.heading.copyWith(height: 1.5, color: caller ? SwColors.text : SwColors.onBrand)),
         if (caller) ...[
           const SizedBox(height: 4),
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(speaking ? Icons.graphic_eq_rounded : Icons.replay_rounded, size: 18, color: speaking ? SwColors.brandDeep : SwColors.textSecondary),
+              Icon(speaking ? Icons.graphic_eq_rounded : Icons.replay_rounded, size: 18, color: speaking ? SwColors.brand : SwColors.textSecondary),
               const SizedBox(width: 4),
               Text(
                 speaking ? (silent ? '播放中（無聲示範）・點一下停止' : '朗讀中・點一下停止') : '點一下重播',
-                style: (speaking ? SwText.smallStrong : SwText.small).copyWith(color: speaking ? SwColors.brandDeep : SwColors.textSecondary),
+                style: (speaking ? SwText.smallStrong : SwText.small).copyWith(color: speaking ? SwColors.brandText : SwColors.textSecondary),
               ),
             ],
           ),
@@ -455,7 +455,7 @@ class _Bubble extends StatelessWidget {
             : Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 decoration: const BoxDecoration(
-                  color: SwColors.brandDeep,
+                  color: SwColors.brand,
                   borderRadius: BorderRadius.only(topLeft: r, topRight: r, bottomLeft: r, bottomRight: Radius.circular(4)),
                 ),
                 child: body,
@@ -541,12 +541,12 @@ class _NextStep extends StatelessWidget {
                   Container(
                     width: 44,
                     height: 44,
-                    decoration: const BoxDecoration(color: SwColors.brandDeep, shape: BoxShape.circle),
+                    decoration: const BoxDecoration(color: SwColors.brand, shape: BoxShape.circle),
                     child: now == null
-                        ? const Icon(Icons.route_outlined, color: SwColors.onDeep, size: 24)
+                        ? const Icon(Icons.route_outlined, color: SwColors.onBrand, size: 24)
                         : RotationTransition(
                             turns: AlwaysStoppedAnimation(_turn[now.dir]!),
-                            child: const Icon(Icons.arrow_upward_rounded, color: SwColors.onDeep, size: 26),
+                            child: const Icon(Icons.arrow_upward_rounded, color: SwColors.onBrand, size: 26),
                           ),
                   ),
                   const SizedBox(width: 12),
@@ -570,7 +570,7 @@ class _NextStep extends StatelessWidget {
   }
 }
 
-/// 響鈴畫面：臺北通深青色底、頭像外一圈圈擴散的光圈，下方「拒絕」「接聽」。白字只放在 primary700／800 上。
+/// 響鈴畫面：臺北通主色底（primary500，配深色字）、頭像外一圈圈擴散的光圈，下方「拒絕」「接聽」。
 class _Incoming extends StatefulWidget {
   const _Incoming({required this.onAnswer, required this.onDecline, required this.onEmergency});
   final VoidCallback onAnswer, onDecline, onEmergency;
@@ -623,7 +623,7 @@ class _IncomingState extends State<_Incoming> with SingleTickerProviderStateMixi
         child: GestureDetector(
           onTap: onTap,
           behavior: HitTestBehavior.opaque,
-          child: Text(label, style: SwText.bodyStrong.copyWith(color: SwColors.onDeep)),
+          child: Text(label, style: SwText.bodyStrong.copyWith(color: SwColors.onBrand)),
         ),
       ),
     ],
@@ -633,13 +633,13 @@ class _IncomingState extends State<_Incoming> with SingleTickerProviderStateMixi
   Widget build(BuildContext context) {
     final still = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
     return Scaffold(
-      backgroundColor: TPColors.primary800,
+      backgroundColor: TPColors.primary500,
       body: Column(
         children: [
           Expanded(
             child: DecoratedBox(
               decoration: const BoxDecoration(
-                gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [TPColors.primary700, TPColors.primary800]),
+                gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [TPColors.primary400, TPColors.primary500]),
               ),
               child: SafeArea(
                 bottom: false,
@@ -654,11 +654,11 @@ class _IncomingState extends State<_Incoming> with SingleTickerProviderStateMixi
                           children: [
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                              decoration: BoxDecoration(color: TPColors.white.withValues(alpha: .14), borderRadius: BorderRadius.circular(20)),
+                              decoration: BoxDecoration(color: TPColors.white.withValues(alpha: .5), borderRadius: BorderRadius.circular(20)),
                               child: Text(
                                 '模擬來電・不是真人通話，也沒有報警',
                                 textAlign: TextAlign.center,
-                                style: SwText.small.copyWith(color: SwColors.onDeep),
+                                style: SwText.small.copyWith(color: SwColors.onBrand),
                               ),
                             ),
                             const SizedBox(height: 32),
@@ -686,14 +686,14 @@ class _IncomingState extends State<_Incoming> with SingleTickerProviderStateMixi
                                       ),
                                     ),
                                     const SizedBox(height: 16),
-                                    Text('家人', style: SwText.display.copyWith(color: SwColors.onDeep)),
+                                    Text('家人', style: SwText.display.copyWith(color: SwColors.onBrand)),
                                     const SizedBox(height: 4),
                                     Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        const Icon(Icons.vibration_rounded, color: SwColors.onDeep, size: 20),
+                                        const Icon(Icons.vibration_rounded, color: SwColors.onBrand, size: 20),
                                         const SizedBox(width: 6),
-                                        Text('來電中…', style: SwText.body.copyWith(color: SwColors.onDeep)),
+                                        Text('來電中…', style: SwText.body.copyWith(color: SwColors.onBrand)),
                                       ],
                                     ),
                                   ],
@@ -705,8 +705,8 @@ class _IncomingState extends State<_Incoming> with SingleTickerProviderStateMixi
                               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                               crossAxisAlignment: CrossAxisAlignment.end,
                               children: [
-                                _button(icon: Icons.call_end_rounded, label: '拒絕', bg: TPColors.white.withValues(alpha: .16), fg: SwColors.onDeep, onTap: widget.onDecline),
-                                _button(icon: Icons.call_rounded, label: '接聽', bg: TPColors.white, fg: TPColors.primary700, onTap: widget.onAnswer, size: 84),
+                                _button(icon: Icons.call_end_rounded, label: '拒絕', bg: TPColors.white.withValues(alpha: .5), fg: SwColors.onBrand, onTap: widget.onDecline),
+                                _button(icon: Icons.call_rounded, label: '接聽', bg: TPColors.white, fg: SwColors.brandText, onTap: widget.onAnswer, size: 84),
                               ],
                             ),
                           ],

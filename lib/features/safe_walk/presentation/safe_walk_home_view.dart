@@ -190,7 +190,7 @@ class _FeatureRow extends StatelessWidget {
       child: ExcludeSemantics(
         child: Row(
           children: [
-            Icon(icon, size: 30, color: TPColors.primary600),
+            Icon(icon, size: 30, color: SwColors.brand),
             const SizedBox(width: 16),
             Expanded(
               child: Column(
