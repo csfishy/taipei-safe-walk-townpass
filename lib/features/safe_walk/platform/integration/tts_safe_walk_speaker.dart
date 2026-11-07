@@ -1,20 +1,26 @@
 import 'dart:async';
 
+import 'package:town_pass/features/safe_walk/companion/companion_ringtone.dart';
 import 'package:town_pass/features/safe_walk/companion/companion_tts.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_route_speaker.dart';
+import 'package:town_pass/features/safe_walk/presentation/safe_walk_speaker.dart';
 
 /// M1 bridge from the view's speaker to M5's on-device TTS.
 ///
 /// Device speech only: no API key, network service or recording. Until the
 /// device confirms a Chinese voice it is unavailable and the view keeps its
 /// text-only notice. After an emergency stop it stays silent for this route.
-final class TtsSafeWalkSpeaker implements SafeWalkRouteSpeaker {
-  TtsSafeWalkSpeaker(this._tts);
+final class TtsSafeWalkSpeaker implements SafeWalkRouteSpeaker, SafeWalkRinger {
+  TtsSafeWalkSpeaker(this._tts, {CompanionRingtone? ringtone})
+    : _ringtone = ringtone; // ignore: prefer_initializing_formals
 
-  factory TtsSafeWalkSpeaker.device() =>
-      TtsSafeWalkSpeaker(CompanionTtsSpeaker(FlutterTtsEngine()));
+  factory TtsSafeWalkSpeaker.device() => TtsSafeWalkSpeaker(
+    CompanionTtsSpeaker(FlutterTtsEngine()),
+    ringtone: CompanionRingtone.device(),
+  );
 
   final CompanionTtsSpeaker _tts;
+  final CompanionRingtone? _ringtone;
   bool _emergencyStopped = false;
   bool _lifecycleActive = true;
 
@@ -38,8 +44,20 @@ final class TtsSafeWalkSpeaker implements SafeWalkRouteSpeaker {
   void setLifecycleActive(bool active) {
     if (_lifecycleActive == active) return;
     _lifecycleActive = active;
-    if (!active) _tts.stop();
+    if (!active) {
+      _tts.stop();
+      _ringtone?.stop();
+    }
   }
+
+  @override
+  void startRing() {
+    if (!_lifecycleActive || _emergencyStopped) return;
+    unawaited(_ringtone?.start());
+  }
+
+  @override
+  void stopRing() => _ringtone?.stop();
 
   @override
   void stop() => _tts.stop();
@@ -47,9 +65,13 @@ final class TtsSafeWalkSpeaker implements SafeWalkRouteSpeaker {
   @override
   Future<void> stopForEmergency() async {
     _emergencyStopped = true;
+    _ringtone?.stop();
     _tts.stop();
   }
 
   @override
-  Future<void> dispose() => _tts.dispose();
+  Future<void> dispose() async {
+    await _ringtone?.dispose();
+    await _tts.dispose();
+  }
 }

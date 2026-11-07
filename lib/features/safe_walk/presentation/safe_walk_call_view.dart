@@ -73,6 +73,12 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> with WidgetsBindingO
 
   bool get _active => !_left && _foreground;
 
+  /// 鈴聲（speaker 支援時）：接聽、拒絕、離開、背景與 SOS 都要停。
+  void _stopRing() {
+    final ringer = widget.speaker;
+    if (ringer is SafeWalkRinger) (ringer as SafeWalkRinger).stopRing();
+  }
+
   void _stopTurn() {
     _gen++;
     _reply?.cancel();
@@ -94,6 +100,7 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> with WidgetsBindingO
   void leave() {
     if (_left) return;
     _left = true;
+    _stopRing();
     _stopTurn();
     _clock?.cancel();
     _buzz?.cancel();
@@ -118,7 +125,9 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> with WidgetsBindingO
       _scrollDown(jump: true);
       return;
     }
-    // 響鈴時手機震動（網頁沒有震動）；鈴聲音檔需另外核准，先不播放。
+    // 響鈴時手機震動（網頁沒有震動）；鈴聲由 speaker 以程式合成的原創音播放（模擬提示音）。
+    final ringer = widget.speaker;
+    if (ringer is SafeWalkRinger) (ringer as SafeWalkRinger).startRing();
     HapticFeedback.vibrate();
     // 跟光圈一樣響約 18 秒就停（12 次 × 1.5 秒），不會一直震。
     _buzz = Timer.periodic(const Duration(milliseconds: 1500), (t) {
@@ -143,6 +152,7 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> with WidgetsBindingO
       if (!_ringing) _startClock();
     } else {
       _foreground = false;
+      _stopRing();
       _stopTurn();
       _clock?.cancel();
       _buzz?.cancel();
@@ -221,6 +231,7 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> with WidgetsBindingO
   void _answer() {
     if (!_active || !_ringing) return;
     _buzz?.cancel();
+    _stopRing();
     _s.answered = true;
     setState(() => _ringing = false);
     _s.line = 0;
