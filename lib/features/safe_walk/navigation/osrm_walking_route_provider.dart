@@ -57,6 +57,9 @@ final class OsrmWalkingRouteProvider implements WalkingRouteProvider {
     }
 
     final viaFuture = _fetch([origin, ...via, destination], cancellation);
+    // Observe errors even while direct is pending or if direct fails first.
+    // Awaiting this same future below still propagates its error or fallback.
+    viaFuture.ignore();
     final direct = await directFuture;
     final _Leg viaLeg;
     try {
@@ -122,6 +125,8 @@ final class OsrmWalkingRouteProvider implements WalkingRouteProvider {
     List<sw.Coordinates> waypoints,
     SafeWalkCancellation? cancellation,
   ) async {
+    cancellation?.throwIfCancelled();
+    if (!hasConsent()) throw const ConsentRequiredException();
     final path = waypoints
         .map((c) => '${c.lng.toStringAsFixed(6)},${c.lat.toStringAsFixed(6)}')
         .join(';');
