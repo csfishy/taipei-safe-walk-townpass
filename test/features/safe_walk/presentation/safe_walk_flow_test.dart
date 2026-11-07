@@ -175,7 +175,7 @@ void main() {
     await t.pump(const Duration(milliseconds: 300));
     await t.tap(find.text('接聽'));
     await t.pump(const Duration(milliseconds: 300));
-    await t.tap(find.text('我在大馬路上，快到了。'));
+    await t.tap(find.text('我快到了，但我後面好像有人一直跟著我。'));
     await t.pump(const Duration(milliseconds: 800));
     await t.tap(find.text('緊急求助').first);
     await t.pump(const Duration(milliseconds: 100));

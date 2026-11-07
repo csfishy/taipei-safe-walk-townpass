@@ -402,6 +402,10 @@ void main() {
     }
 
     test('terminal barrier timeout disables voice and rejects late restart', () async {
+      availableLanguages = {'en-US'};
+      voices = [
+        {'name': 'local-en-US', 'locale': 'en-US', 'network_required': '0', 'features': ''},
+      ];
       final speaker = CompanionTtsSpeaker(FlutterTtsEngine(FlutterTts()));
       await speaker.prepare();
       speaker.speak('舊句');

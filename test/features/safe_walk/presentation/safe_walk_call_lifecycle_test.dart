@@ -96,7 +96,7 @@ void main() {
     await t.tap(find.text('接聽'));
     await t.pump(const Duration(milliseconds: 300));
     expect(speaker.spoken, hasLength(1));
-    await t.tap(find.text('我在大馬路上，快到了。'));
+    await t.tap(find.text('我快到了，但我後面好像有人一直跟著我。'));
     await t.pump(const Duration(milliseconds: 100));
     await t.tap(find.bySemanticsLabel('返回'));
     await t.pumpAndSettle();
