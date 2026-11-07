@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:town_pass/features/safe_walk/presentation/demo_map.dart';
 import 'package:town_pass/features/safe_walk/presentation/mock/safe_walk_demo_data.dart';
-import 'package:town_pass/features/safe_walk/presentation/safe_walk_live_map_view.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_ui.dart';
 import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart' as sw;
 import 'package:town_pass/util/tp_colors.dart';
@@ -79,12 +78,10 @@ class SafeWalkMapView extends StatefulWidget {
     this.onSms,
     this.startView = MapStartView.route,
     this.routeState = const RouteState(),
-    this.mode = sw.DataMode.mock,
   });
 
   /// 前往目前目的地（回家／常用地點）的路線；求助地點的路線仍是示範。
   final RouteState routeState;
-  final sw.DataMode mode;
   final List<SavedPlace> places;
   final String placeId;
   final ValueChanged<String> onSelectPlace, onDeletePlace;
@@ -163,9 +160,6 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
 
   @override
   Widget build(BuildContext context) {
-    if (widget.mode == sw.DataMode.live) {
-      return SafeWalkLiveMapView(onBack: widget.onBack, onCall: widget.onCall, onEmergency: widget.onEmergency);
-    }
     final points = _sorted;
     final point = _pointIndex != null && points.isNotEmpty ? points[_pointIndex! % points.length] : null;
     final isHome = _pointIndex == null;
