@@ -627,6 +627,9 @@ class _Bubble extends StatelessWidget {
         ConstrainedBox(
           constraints: BoxConstraints(maxWidth: maxW),
           child: Semantics(
+            button: true,
+            enabled: onTap != null,
+            onTap: onTap,
             liveRegion: speaking,
             label: '對方：${entry.text}',
             hint: speaking ? '點兩下停止朗讀' : '點兩下重播',
