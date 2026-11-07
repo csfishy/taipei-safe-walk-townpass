@@ -1,5 +1,7 @@
 # Checks, prereleases and GitHub Pages
 
+CI／Demo 資料庫 gate：兩份編譯／檢查工作流先跑 runner-local PostGIS 驗證。main 的 check／Web／Android／iOS 全部通過後，`build.yml` 僅執行一次專用 Demo reset；成功才允許下列 main prerelease／Pages 步驟。缺白名單、Secrets 或驗證失敗會阻擋發布；版本 tag 不重設共享 Demo。遠端尚待 Level C 審查與配置，見 [隔離資料庫重設](SAFE_WALK_DATABASE_RESET.md)。
+
 The product target is [Live MVP](SAFE_WALK_LIVE_MVP.md), with per-capability gates in [Readiness](SAFE_WALK_LIVE_READINESS.md). A successful build, prerelease or Pages deployment does not verify real providers or iPhone behavior. The current Demo preview is a snapshot, not a permanent Mock product requirement.
 
 The `check-and-build` workflow runs on main pushes, pull requests, matching `v*-pre.*` tags, and manual dispatch. Flutter is pinned to `.fvmrc`'s 3.47.6 and dependencies are installed with `--enforce-lockfile`; code generation runs on every clean checkout.

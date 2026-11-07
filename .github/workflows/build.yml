@@ -20,7 +20,11 @@ env:
   COMMIT_PRERELEASE: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
 
 jobs:
+  database-ci:
+    uses: ./.github/workflows/demo_database_ci.yml
+
   check:
+    needs: database-ci
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     outputs:
@@ -175,9 +179,50 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-  publish:
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+  demo-database-reset:
+    name: Reset the dedicated Demo database once after successful builds
+    if: >-
+      ${{ (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+          github.ref == 'refs/heads/main' }}
     needs: [check, web, android, ios]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    # Configure this protected environment only after Level C review. No remote
+    # database credentials are available to PR or platform build jobs.
+    environment: safe-walk-demo
+    concurrency:
+      # Repository-wide across workflows; never interrupt an in-flight reset.
+      group: safe-walk-demo-database
+      cancel-in-progress: false
+    permissions:
+      contents: read
+    env:
+      RESET_DATABASE_ENVIRONMENT: demo
+      RESET_DATABASE_PROJECT_ID: ${{ secrets.DEMO_SUPABASE_PROJECT_ID }}
+      RESET_DATABASE_URL: ${{ secrets.DEMO_DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install database reset dependencies
+        run: python3 -m pip install --requirement scripts/requirements-db.txt
+      - name: Validate the allowlisted target, migrate, reset, seed and verify
+        run: python3 scripts/reset_demo_database.py --environment demo
+
+  publish:
+    # The reset job is intentionally skipped for release tags. Explicit result
+    # checks preserve tag publishing without permitting a failed main reset.
+    if: >-
+      ${{ always() && !cancelled() && github.event_name == 'push' &&
+          needs.check.result == 'success' && needs.web.result == 'success' &&
+          needs.android.result == 'success' && needs.ios.result == 'success' &&
+          ((github.ref == 'refs/heads/main' && needs.demo-database-reset.result == 'success') ||
+           (startsWith(github.ref, 'refs/tags/v') && needs.demo-database-reset.result == 'skipped')) }}
+    needs: [check, web, android, ios, demo-database-reset]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -206,8 +251,10 @@ jobs:
         run: python3 tool/publish_prerelease.py --tag "$RELEASE_TAG"
 
   pages-settings:
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-    needs: [web, android, ios]
+    if: >-
+      ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' &&
+          needs.demo-database-reset.result == 'success' }}
+    needs: [web, android, ios, demo-database-reset]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:

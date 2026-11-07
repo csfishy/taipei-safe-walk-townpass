@@ -26,8 +26,12 @@ defaults:
     shell: bash
 
 jobs:
+  database-ci:
+    uses: ./.github/workflows/demo_database_ci.yml
+
   checks:
     name: Safe Walk contracts and tests
+    needs: database-ci
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
