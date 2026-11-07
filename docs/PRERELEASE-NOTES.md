@@ -1,6 +1,8 @@
 Town Pass 開發預覽，從本 release 記錄的 source commit 建立；實際功能以該版本的程式與驗證結果為準。這不是正式市政服務、政府受理或完整導航產品。
 
-現行開發目標為 [Live MVP](SAFE_WALK_LIVE_MVP.md)，能力是否完成以 [Readiness](SAFE_WALK_LIVE_READINESS.md) 與相同 build SHA 的實際證據為準。保留 Demo 預覽不代表產品永久預設 Mock；安裝包／網站可開啟不等於 Live 已驗收。
+正式交付依 [LIVE-FIRST／NO PRODUCTION MOCK](SAFE_WALK_LIVE_FIRST.md) 與 [Live MVP](SAFE_WALK_LIVE_MVP.md)，能力是否完成以 [Readiness](SAFE_WALK_LIVE_READINESS.md) 及相同 build SHA 的實際證據為準。Production 僅提供真能力或 Unavailable＋真實原因＋下一步，Fake／Mock／fixtures 僅限隔離測試，清楚標示 Demo 也不能替代正式流程。安裝包／網站可開啟不等於 Live 已驗收。
+
+本次規範基線 main `7b99fea` 經 #49 restore 後正式入口仍 Mock，#35 舊接線已移除；這是待修現況，不可將此版本宣稱為已完成的 Live 產品。#39 僅合入 feature branch，#44 仍開放；未合併程式或文件中的目標不算此 release 的成果。每個 release 應以自身 source commit 列出已驗、未驗、失敗與 skip，沒有裝置證據就明列未驗；競賽正式功能不採 Google Maps、不加入 AED。
 
 - Android APK：Flutter Release build，使用可拋棄的 Android Debug 測試金鑰簽署；不是正式商店簽章。不同 CI build 的金鑰可能不同，更新前可能需要移除舊預覽版。
 - iOS IPA：真實 iPhone arm64 Release build，封裝 `Payload/Runner.app`，沒有簽章／provisioning profile；安裝前需要適當簽署，不能直接用 TestFlight 安裝。

@@ -94,7 +94,7 @@ void main() {
   );
 
   test(
-    'planner picks the shortest real walk to a store and builds a Google link',
+    'planner picks the shortest real walk to a store ',
     () async {
       // Two stand-in stores (not real shops) so only the routing is live.
       sw.AssistancePoint standIn(String id, double lat, double lng) =>
@@ -158,10 +158,9 @@ void main() {
       // ignore: avoid_print
       print(
         'Planner: ${result.store!.point.name}, walk '
-        '${result.store!.walkingRoute!.distanceMeters.round()} m, '
-        'link ${result.googleMapsUri}',
+        '${result.store!.walkingRoute!.distanceMeters.round()} m',
       );
-      expect(result.googleMapsUri!.queryParameters['travelmode'], 'walking');
+      expect(result.store!.walkingRoute, isNotNull);
     },
     skip: live ? false : 'set SAFE_WALK_LIVE=1 to call the real services',
     timeout: const Timeout(Duration(seconds: 60)),

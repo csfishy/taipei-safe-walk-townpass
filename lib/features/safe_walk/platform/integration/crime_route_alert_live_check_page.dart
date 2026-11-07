@@ -47,15 +47,17 @@ class CrimeRouteAlertLiveCheckPage extends StatefulWidget {
 }
 
 class _CrimeRouteAlertLiveCheckPageState
-    extends State<CrimeRouteAlertLiveCheckPage> {
+    extends State<CrimeRouteAlertLiveCheckPage>
+    with WidgetsBindingObserver {
   late final RouteService _routes = widget.createRouteService(
-    () => _routingConsent && mounted,
+    () => _routingConsent && _foreground && mounted,
   );
   final _lat = TextEditingController();
   final _lng = TextEditingController();
   bool _routingConsent = false;
   bool _referenceConsent = false;
   bool _busy = false;
+  bool _foreground = true;
   sw.Position? _origin;
   String? _message;
   sw.RouteSuccess? _route;
@@ -64,6 +66,35 @@ class _CrimeRouteAlertLiveCheckPageState
   _Cancellation? _request;
 
   DateTime _now() => (widget.clock ?? DateTime.now)();
+
+  @override
+  void initState() {
+    super.initState();
+    final state = WidgetsBinding.instance.lifecycleState;
+    _foreground = state == null || state == AppLifecycleState.resumed;
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    setState(() {
+      _foreground = state == AppLifecycleState.resumed;
+      if (!_foreground) {
+        final hadWork = _busy || _origin != null || _route != null;
+        _invalidate();
+        _origin = null;
+        if (hadWork) _message = '已停止定位與比對；回到畫面後請重新取得目前位置。';
+      }
+    });
+  }
+
+  void _finishCancelled(int sequence) {
+    if (!mounted || sequence != _sequence) return;
+    setState(() {
+      _invalidate();
+      _message = '作業已取消，請重試。';
+    });
+  }
 
   void _invalidate() {
     _sequence++;
@@ -75,6 +106,7 @@ class _CrimeRouteAlertLiveCheckPageState
   }
 
   Future<void> _locate() async {
+    if (!_foreground) return;
     setState(() {
       _invalidate();
       _origin = null;
@@ -91,6 +123,7 @@ class _CrimeRouteAlertLiveCheckPageState
         cancellation: request,
       );
     } on SafeWalkCancelledException {
+      _finishCancelled(sequence);
       return;
     } catch (_) {
       result = sw.LocationFailure(
@@ -122,7 +155,12 @@ class _CrimeRouteAlertLiveCheckPageState
   Future<void> _plan() async {
     final origin = _origin;
     final destination = _destination();
-    if (origin == null || destination == null || !_routingConsent) return;
+    if (!_foreground ||
+        origin == null ||
+        destination == null ||
+        !_routingConsent) {
+      return;
+    }
     setState(() {
       _invalidate();
       _message = null;
@@ -130,19 +168,33 @@ class _CrimeRouteAlertLiveCheckPageState
     });
     final sequence = _sequence;
     final request = _request = _Cancellation();
-    final routeResult = await _routes.planRoute(
-      sw.RouteRequest(
-        requestId: 'p0-2-route-$sequence',
-        mode: sw.DataMode.live,
-        origin: origin,
-        destination: destination,
-        departAt: _now().toUtc().toIso8601String(),
-        preference: sw.RouteKind.direct,
-        maxExtraDistanceMeters: 500,
-        assistancePointIds: const [],
-      ),
-      cancellation: request,
-    );
+    final sw.RouteResult routeResult;
+    try {
+      routeResult = await _routes.planRoute(
+        sw.RouteRequest(
+          requestId: 'p0-2-route-$sequence',
+          mode: sw.DataMode.live,
+          origin: origin,
+          destination: destination,
+          departAt: _now().toUtc().toIso8601String(),
+          preference: sw.RouteKind.direct,
+          maxExtraDistanceMeters: 500,
+          assistancePointIds: const [],
+        ),
+        cancellation: request,
+      );
+    } on SafeWalkCancelledException {
+      _finishCancelled(sequence);
+      return;
+    } catch (_) {
+      if (!mounted || sequence != _sequence) return;
+      setState(() {
+        _busy = false;
+        _request = null;
+        _message = '步行路線規劃失敗，請重試；本次未查詢犯罪參考資料。';
+      });
+      return;
+    }
     if (!mounted || sequence != _sequence) return;
     if (routeResult is! sw.RouteSuccess) {
       setState(() {
@@ -152,7 +204,8 @@ class _CrimeRouteAlertLiveCheckPageState
       });
       return;
     }
-    setState(() => _route = routeResult);
+    final route = routeResult;
+    setState(() => _route = route);
     if (!_referenceConsent) {
       setState(() {
         _busy = false;
@@ -165,10 +218,11 @@ class _CrimeRouteAlertLiveCheckPageState
     String? error;
     try {
       alert = await widget.alertService.assess(
-        routeResult,
+        route,
         cancellation: request,
       );
     } on SafeWalkCancelledException {
+      _finishCancelled(sequence);
       return;
     } catch (_) {
       error = '犯罪參考資料比對失敗；未產生提示。';
@@ -184,6 +238,7 @@ class _CrimeRouteAlertLiveCheckPageState
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _request?.cancel();
     _lat.dispose();
     _lng.dispose();
@@ -195,7 +250,11 @@ class _CrimeRouteAlertLiveCheckPageState
     final route = _route;
     final alert = _alert;
     final canPlan =
-        !_busy && _origin != null && _routingConsent && _destination() != null;
+        _foreground &&
+        !_busy &&
+        _origin != null &&
+        _routingConsent &&
+        _destination() != null;
     return Scaffold(
       appBar: AppBar(title: const Text('步行路線與犯罪參考資料比對')),
       body: ListView(
@@ -208,7 +267,7 @@ class _CrimeRouteAlertLiveCheckPageState
           const SizedBox(height: 8),
           FilledButton(
             key: const Key('crime-route-locate'),
-            onPressed: _busy ? null : _locate,
+            onPressed: _busy || !_foreground ? null : _locate,
             child: const Text('取得目前位置'),
           ),
           Text(

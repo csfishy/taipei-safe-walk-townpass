@@ -3,6 +3,10 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:town_pass/features/safe_walk/platform/home_location/home_location_service.dart';
+import 'package:town_pass/features/safe_walk/presentation/safe_walk_flow.dart';
+import 'package:town_pass/features/safe_walk/presentation/safe_walk_map_view.dart';
 import 'package:town_pass/features/safe_walk/navigation/route_reference_area_check.dart';
 import 'package:town_pass/features/safe_walk/navigation/route_service.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/crime_route_alert_service.dart';
@@ -438,6 +442,62 @@ void main() {
 
   group('live loop: cancel, background, exit and stale results', () {
     test(
+      'provider cancellation ends GPS and route work and permits retry',
+      () async {
+        final platform = _Platform(
+          () async => throw const SafeWalkCancelledException(),
+        );
+        final routes = _Routes(
+          (_) async => throw const SafeWalkCancelledException(),
+        );
+        final c = _loop(platform: platform, routes: routes)
+          ..setLocationConsent(true);
+        await c.locate();
+        expect(c.failure, LiveLoopFailure.cancelled);
+        expect(c.busy, isFalse);
+        platform.answer = null;
+        await _ready(c);
+        await c.planRoute();
+        expect(c.failure, LiveLoopFailure.cancelled);
+        expect(c.canPlan, isTrue);
+        routes.answer = null;
+        await c.planRoute();
+        expect(c.stage, LiveLoopStage.ready);
+      },
+    );
+
+    test(
+      'provider cancellation ends reference assessment and permits retry',
+      () async {
+        final db = _Db()
+          ..answer = () async => throw const SafeWalkCancelledException();
+        final c = _loop(db: db);
+        await _ready(c);
+        await c.planRoute();
+        expect(c.failure, LiveLoopFailure.cancelled);
+        expect(c.route, isNull);
+        expect(c.canPlan, isTrue);
+        db.answer = null;
+        await c.planRoute();
+        expect(c.stage, LiveLoopStage.ready);
+      },
+    );
+
+    test(
+      'revoking consent in a listener prevents the provider from starting',
+      () async {
+        final platform = _Platform();
+        final c = _loop(platform: platform)..setLocationConsent(true);
+        c.addListener(() {
+          if (c.stage == LiveLoopStage.locating) c.setLocationConsent(false);
+        });
+        await c.locate();
+        expect(platform.calls, 0);
+        expect(c.stage, LiveLoopStage.idle);
+      },
+    );
+
+    test(
       'cancel drops in-flight routing; the late result is ignored',
       () async {
         final pending = Completer<sw.RouteResult>();
@@ -541,6 +601,25 @@ void main() {
   });
 
   group('report status: database on entry, evidenced areas only', () {
+    test(
+      'provider cancellation leaves loading and foreground gates retry',
+      () async {
+        final db = _Db()
+          ..answer = () async => throw const SafeWalkCancelledException();
+        final c = SafeWalkReportStatusController(repository: db.repository);
+        await c.load();
+        expect(c.stage, ReportStatusStage.cancelled);
+        c.setForeground(false);
+        db.answer = null;
+        await c.load();
+        expect(db.calls, hasLength(1));
+        c.setForeground(true);
+        expect(db.calls, hasLength(1));
+        await c.load();
+        expect(c.stage, ReportStatusStage.answered);
+      },
+    );
+
     test('answered shows reviewed areas, never reference points', () async {
       final db = _Db();
       final c = SafeWalkReportStatusController(
@@ -857,6 +936,8 @@ void main() {
       required _Routes routes,
       required _Db db,
       List<RouteReferenceArea> areas = const [],
+      bool showMap = false,
+      sw.Coordinates? home,
     }) async {
       t.view.physicalSize = const Size(900, 3000);
       t.view.devicePixelRatio = 1;
@@ -869,7 +950,8 @@ void main() {
             liveRouteService: routes,
             crimeReference: db.repository,
             reviewedAreas: areas,
-            showLiveMap: false,
+            showLiveMap: showMap,
+            homeLocationStore: _HomeStore(home),
             speaker: _SilentSpeaker(),
           ),
         ),
@@ -936,6 +1018,80 @@ void main() {
       expect(c.origin, isNull);
       await t.pumpWidget(const SizedBox.shrink());
     });
+
+    testWidgets(
+      'official entry uses Live and unwired pages never show Mock data or SMS success',
+      (t) async {
+        final platform = _livePlatform();
+        final routes = _Routes();
+        final db = _Db();
+        await pumpRoot(t, platform: platform, routes: routes, db: db);
+        expect(
+          t.widget<SafeWalkFlow>(find.byType(SafeWalkFlow)).mode,
+          sw.DataMode.live,
+        );
+        expect(find.text('目前為示範資料，未連線真實服務'), findsNothing);
+        await t.tap(find.text('附近求助地點'));
+        await t.pumpAndSettle();
+        expect(find.byType(SafeWalkMapView), findsNothing);
+        expect(find.textContaining('附近求助地點查詢尚未接線'), findsOneWidget);
+        await t.tap(find.byType(BackButton));
+        await t.pumpAndSettle();
+        await t.tap(find.text('緊急求助'));
+        await t.pumpAndSettle();
+        expect(find.text('簡訊求助尚未配置'), findsOneWidget);
+        expect(find.text('傳送簡訊'), findsNothing);
+        expect(find.textContaining('示範完成'), findsNothing);
+        expect(platform.calls, 0);
+        expect(routes.requests, isEmpty);
+        expect(db.calls, isEmpty);
+        await t.pumpWidget(const SizedBox.shrink());
+      },
+    );
+
+    testWidgets(
+      'saved home selects only a destination and GPS does not consent to OSM tiles',
+      (t) async {
+        final platform = _livePlatform();
+        final routes = _Routes();
+        final db = _Db();
+        final home = sw.Coordinates(lat: 1, lng: 2);
+        await pumpRoot(
+          t,
+          platform: platform,
+          routes: routes,
+          db: db,
+          showMap: true,
+          home: home,
+        );
+        await openMap(t);
+        await t.tap(find.byKey(const Key('live-use-saved-home')));
+        await t.pump();
+        final c = t
+            .widget<SafeWalkLiveRoutePage>(find.byType(SafeWalkLiveRoutePage))
+            .controller;
+        expect(c.destination?.lat, 1);
+        expect(c.destination?.lng, 2);
+        expect(platform.calls, 0);
+        expect(routes.requests, isEmpty);
+        await t.tap(find.byKey(const Key('live-consent-location')));
+        await t.pump();
+        await t.tap(find.byKey(const Key('live-locate')));
+        await t.pumpAndSettle();
+        expect(c.origin, isNotNull);
+        expect(find.byType(TileLayer), findsNothing);
+        expect(find.byType(SafeWalkLiveMap), findsNothing);
+        expect(
+          t
+              .widget<SwitchListTile>(find.byKey(const Key('live-consent-map')))
+              .value,
+          isFalse,
+        );
+        expect(routes.requests, isEmpty);
+        expect(db.calls, isEmpty);
+        await t.pumpWidget(const SizedBox.shrink());
+      },
+    );
 
     testWidgets('route failure shows the failure and never the demo map', (
       t,
@@ -1051,6 +1207,18 @@ _Platform _livePlatform() =>
 
 final class SocketExceptionLike implements Exception {
   const SocketExceptionLike();
+}
+
+final class _HomeStore implements HomeLocationStore {
+  _HomeStore(this.home);
+  final sw.Coordinates? home;
+  @override
+  Future<String?> read() async =>
+      home == null ? null : jsonEncode({'lat': home!.lat, 'lng': home!.lng});
+  @override
+  Future<void> write(String value) async {}
+  @override
+  Future<void> clear() async {}
 }
 
 final class _SilentSpeaker implements SafeWalkRouteSpeaker {

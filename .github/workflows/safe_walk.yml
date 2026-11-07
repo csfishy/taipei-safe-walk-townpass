@@ -39,6 +39,10 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      - name: Guard persistent crime reference data isolation
+        run: |
+          python3 tool/check_crime_database_isolation.py
+          python3 -m unittest discover -s tool -p 'test_*crime*.py' -v
       - run: python3 tool/release_metadata.py
       - name: Install the SDK pinned in .fvmrc
         uses: subosito/flutter-action@v2
@@ -145,6 +149,8 @@ jobs:
       - run: dart run tool/generate_safe_walk_contracts.dart --check
       - name: Build a debug APK without release credentials
         run: flutter build apk --debug --no-pub
+      - name: Verify debug APK excludes reference database binaries
+        run: python3 tool/check_crime_database_isolation.py --archive build/app/outputs/flutter-apk/app-debug.apk
       - name: Save the debug APK (no release or deployment)
         uses: actions/upload-artifact@v4
         with:

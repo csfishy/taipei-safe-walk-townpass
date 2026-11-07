@@ -11,6 +11,7 @@ import 'package:town_pass/features/safe_walk/platform/integration/crime_referenc
 import 'package:town_pass/features/safe_walk/platform/integration/crime_route_alert_service.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_live_loop_controller.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_live_loop_pages.dart';
+import 'package:town_pass/features/safe_walk/platform/home_location/home_location_service.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_route_speaker.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/tts_safe_walk_speaker.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_navigation_controller.dart';
@@ -26,9 +27,9 @@ import 'package:town_pass/features/safe_walk/shared/contracts/safe_walk_navigati
 import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart'
     as sw;
 
-/// M1's single composition boundary. The first native demo is explicitly mock.
-/// Live location/data require M3's live-state presentation and approved providers
-/// before this route can expose them; no flag silently mixes live and demo data.
+/// M1's composition boundary. The official entry selects the consent-gated live
+/// loop; isolated legacy tests may still compose the explicit mock path.
+/// Unwired production capabilities remain unavailable instead of using fixtures.
 class SafeWalkCompositionRoot extends StatefulWidget {
   const SafeWalkCompositionRoot({
     super.key,
@@ -37,6 +38,7 @@ class SafeWalkCompositionRoot extends StatefulWidget {
     this.speaker,
     this.routeService,
     this.routeTransport,
+    this.homeLocationStore,
     this.onExit,
     this.liveLoop = false,
     this.liveRouteService,
@@ -50,7 +52,7 @@ class SafeWalkCompositionRoot extends StatefulWidget {
   /// routing consent -> destination -> real OSRM walking route -> crime
   /// reference information -> map, and a report-status screen that queries
   /// the database on entry. Failures are shown; nothing falls back to Mock.
-  /// Home, call, points and SOS keep their existing (Mock) behaviour.
+  /// Unwired points and emergency handoffs stay explicitly unavailable.
   final bool liveLoop;
 
   /// Live route service for [liveLoop]; defaults to M2's OSRM foot provider.
@@ -69,7 +71,7 @@ class SafeWalkCompositionRoot extends StatefulWidget {
   final PlatformService? platform;
   final SafetyDataRepository? safetyData;
 
-  /// Defaults to M2's service. Injection never changes the route's Mock mode.
+  /// Legacy presentation service used by isolated non-live-loop compositions.
   final RouteService? routeService;
 
   /// Optional transport for provider verification without public requests.
@@ -78,6 +80,9 @@ class SafeWalkCompositionRoot extends StatefulWidget {
   /// Ownership transfers to this route, which disposes the speaker once.
   /// Defaults to on-device TTS; it stays text-only until a voice is confirmed.
   final SafeWalkRouteSpeaker? speaker;
+
+  /// 「家」的裝置儲存；預設用 SharedPreferences，測試可注入 fake。
+  final HomeLocationStore? homeLocationStore;
   final VoidCallback? onExit;
 
   @override
@@ -90,7 +95,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
   final _lifetime = _RouteCancellation();
   _RouteCancellation? _pointsRequest;
   late final PlatformService _platform;
-  late final SafetyDataRepository _safetyData;
+  SafetyDataRepository? _safetyData;
   late final SafeWalkRouteSpeaker _speaker;
   late final SafeWalkNavigationController _navigation;
   int _routeSequence = 0;
@@ -98,28 +103,59 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
   List<sw.AssistancePoint> _points = const [];
   bool _pointsLoading = true;
   String? _pointsError;
+  late final HomeLocationService _homeService;
+  sw.Coordinates? _home;
+  int _homeRevision = 0;
+
+  Future<void> _loadHome() async {
+    final revision = _homeRevision;
+    final home = await _homeService.load();
+    if (!mounted || home == null || revision != _homeRevision) return;
+    setState(() => _home = sw.Coordinates(lat: home.lat, lng: home.lng));
+  }
+
+  /// 使用者按儲存／移除時才寫入裝置；失敗會往上丟，由設定畫面顯示錯誤。
+  Future<void> _changeHome(sw.Coordinates? home) async {
+    ++_homeRevision;
+    if (home == null) {
+      await _homeService.clear();
+    } else {
+      await _homeService.save(home.lat, home.lng);
+    }
+    if (mounted) setState(() => _home = home);
+  }
 
   @override
   void initState() {
     super.initState();
+    _homeService = HomeLocationService(
+      widget.homeLocationStore ?? SharedPreferencesHomeLocationStore(),
+    );
+    unawaited(_loadHome());
     WidgetsBinding.instance.addObserver(this);
     _platform =
         widget.platform ??
         TownPassPlatformAdapter(
-          mockPosition: sw.Position.fromJson({
-            'schemaVersion': '1.0.0',
-            'coordinates': {'lat': DemoGeo.start.lat, 'lng': DemoGeo.start.lng},
-            'source': 'mock',
-            'accuracyMeters': null,
-            'observedAt': null,
-          }),
+          mockPosition: widget.liveLoop
+              ? null
+              : sw.Position.fromJson({
+                  'schemaVersion': '1.0.0',
+                  'coordinates': {
+                    'lat': DemoGeo.start.lat,
+                    'lng': DemoGeo.start.lng,
+                  },
+                  'source': 'mock',
+                  'accuracyMeters': null,
+                  'observedAt': null,
+                }),
         );
-    _safetyData =
-        widget.safetyData ??
-        MockSafetyDataRepository(
-          assistancePoints: demoAssistancePoints(),
-          areaStatistics: const [],
-        );
+    _safetyData = widget.liveLoop
+        ? null
+        : widget.safetyData ??
+              MockSafetyDataRepository(
+                assistancePoints: demoAssistancePoints(),
+                areaStatistics: const [],
+              );
     _speaker = widget.speaker ?? _deviceSpeaker();
     _navigation = SafeWalkNavigationController(
       routeService:
@@ -135,15 +171,24 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
               pointLookup: _lookupRoutePoints,
             ),
           ),
-      // M3 still draws demo geometry/ETA/PiP. M2 lifecycle fixes are included,
-      // but real-provider/native validation remains pending. This UI cannot
-      // enable either readiness gate.
-      mode: sw.DataMode.mock,
+      // The legacy map does not become a live provider when the official loop
+      // is selected. Only _live owns the production route requests.
+      mode: widget.liveLoop ? sw.DataMode.live : sw.DataMode.mock,
       livePresentationReady: false,
       liveProviderReady: false,
     );
-    if (widget.liveLoop) _composeLiveLoop();
-    unawaited(_loadPoints());
+    if (widget.liveLoop) {
+      _composeLiveLoop();
+      final lifecycle = WidgetsBinding.instance.lifecycleState;
+      final foreground =
+          lifecycle == null || lifecycle == AppLifecycleState.resumed;
+      _live!.setForeground(foreground);
+      _report!.setForeground(foreground);
+      _pointsLoading = false;
+      _pointsError = '附近求助地點查詢尚未接線；請使用已知的警察局或便利商店資訊。';
+    } else {
+      unawaited(_loadPoints());
+    }
   }
 
   SafeWalkLiveLoopController? _live;
@@ -213,6 +258,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     final active = state == AppLifecycleState.resumed;
     _speaker.setLifecycleActive(active);
     _live?.setForeground(active);
+    _report?.setForeground(active);
     if (!active) {
       _closeNavigation();
       _report?.cancel();
@@ -263,6 +309,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
   }
 
   Future<void> _loadPoints() async {
+    if (widget.liveLoop) return;
     _pointsRequest?.cancel();
     final request = _pointsRequest = _RouteCancellation();
     setState(() {
@@ -271,7 +318,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
       _pointsError = null;
     });
     try {
-      final points = await _safetyData.getAssistancePoints(
+      final points = await _safetyData!.getAssistancePoints(
         mode: sw.DataMode.mock,
         cancellation: request,
       );
@@ -302,6 +349,9 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
   }
 
   Future<sw.LocationResult> _locate() async {
+    if (widget.liveLoop) {
+      return _locationFailure('緊急求助頁的定位尚未配置；請向接聽人員描述附近路名或地標。');
+    }
     try {
       final result = await _platform.getCurrentPosition(
         mode: sw.DataMode.mock,
@@ -346,7 +396,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     try {
       if (_lifetime.isCancelled) throw const SafeWalkCancelledException();
       return await _platform.requestEmergency(
-        mode: sw.DataMode.mock,
+        mode: widget.liveLoop ? sw.DataMode.live : sw.DataMode.mock,
         channel: channel,
         userInitiated: true,
         allowRealCalls: false,
@@ -357,7 +407,9 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
         'channel': channel.wireValue,
         'action': 'failed',
         'officialReceipt': null,
-        'message': '示範求助暫時無法完成；未撥號、未傳送，也未通知任何人。',
+        'message': widget.liveLoop
+            ? '求助功能尚未配置；未撥號、未傳送，也未通知任何人。請使用手機電話功能聯絡 110／119。'
+            : '示範求助暫時無法完成；未撥號、未傳送，也未通知任何人。',
       });
     }
   }
@@ -383,15 +435,17 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
       child: child!,
     ),
     child: SafeWalkFlow(
-      mode: sw.DataMode.mock,
+      mode: widget.liveLoop ? sw.DataMode.live : sw.DataMode.mock,
       allowRealCalls: false,
       points: _points,
       pointsLoading: _pointsLoading,
       pointsError: _pointsError,
-      onRetryPoints: () => unawaited(_loadPoints()),
+      onRetryPoints: widget.liveLoop ? null : () => unawaited(_loadPoints()),
       speaker: _speaker,
       onLocate: _locate,
       onEmergency: _emergency,
+      homeLocation: _home,
+      onHomeChanged: _changeHome,
       onExit: _exit,
       liveMapBuilder: _live == null
           ? null
@@ -400,6 +454,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
               onBack: onBack,
               onEmergency: onEmergency,
               showMap: widget.showLiveMap,
+              savedHome: _home,
             ),
       reportBuilder: _report == null
           ? null
