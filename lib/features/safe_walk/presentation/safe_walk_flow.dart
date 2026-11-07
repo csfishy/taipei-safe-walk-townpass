@@ -27,6 +27,8 @@ class SafeWalkFlow extends StatefulWidget {
     this.routeLoading = false,
     this.onPlanRoute,
     this.onReportsChanged,
+    this.livePosition,
+    this.onLeaveMap,
     this.speaker = const UnavailableSpeaker(),
     this.onLocate,
     this.onEmergency,
@@ -52,6 +54,12 @@ class SafeWalkFlow extends StatefulWidget {
 
   /// 每次規劃路線前，送出目前尚未解除的回報點（真實路線會避開以它們為中心的圓）。
   final ValueChanged<List<ReportSpot>>? onReportsChanged;
+
+  /// 導航中持續更新的目前位置（只在地圖開著時由 M1 提供）。
+  final sw.Position? livePosition;
+
+  /// 離開地圖時呼叫，讓 M1 停止持續定位與路線請求。
+  final VoidCallback? onLeaveMap;
   final SafeWalkSpeaker speaker;
 
   /// M1：使用者按「取得目前位置」時呼叫 PlatformService.getCurrentPosition(userInitiated: true)。
@@ -121,6 +129,7 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
     if (_screen == _Screen.call && s != _Screen.call) _callKey.currentState?.leave();
     // 使用者明確打開地圖（點「安心行」主卡）時才請 M1 規劃路線；一進安心行不自動送出。
     if (s == _Screen.map && _screen != _Screen.map) _planRoute();
+    if (s != _Screen.map && _screen == _Screen.map) widget.onLeaveMap?.call();
     if (s == _Screen.home) _call = null;
     setState(() {
       _forward = s != _Screen.home && s != _back;
@@ -176,7 +185,7 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
   Widget build(BuildContext context) {
     Widget map({MapStartView start = MapStartView.route}) => SafeWalkMapView(
       key: ValueKey(start),
-      position: _position,
+      position: widget.livePosition ?? _position,
       pointsState: _pointsState,
       routeState: _routeState,
       anomalies: _anomalies,
@@ -232,7 +241,7 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
       _Screen.emergency => SafeWalkEmergencyView(
         mode: widget.mode,
         allowRealCalls: widget.allowRealCalls,
-        position: _position,
+        position: widget.livePosition ?? _position,
         statusMessage: _emergencyMessage,
         statusIsError: _emergencyError,
         locating: _locating,

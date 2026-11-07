@@ -6,6 +6,7 @@ import 'package:town_pass/features/safe_walk/navigation/default_json_transport.d
 import 'package:town_pass/features/safe_walk/navigation/default_route_service.dart';
 import 'package:town_pass/features/safe_walk/navigation/json_transport.dart';
 import 'package:town_pass/features/safe_walk/navigation/osrm_walking_route_provider.dart';
+import 'package:town_pass/features/safe_walk/navigation/route_follower.dart';
 import 'package:town_pass/features/safe_walk/navigation/route_service.dart';
 import 'package:town_pass/features/safe_walk/navigation/valhalla_avoiding_route_planner.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/avoiding_route_service.dart';
@@ -13,6 +14,7 @@ import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_rout
 import 'package:town_pass/features/safe_walk/platform/integration/tts_safe_walk_speaker.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_navigation_controller.dart';
 import 'package:town_pass/features/safe_walk/platform/platform_service.dart';
+import 'package:town_pass/features/safe_walk/platform/position_watch.dart';
 import 'package:town_pass/features/safe_walk/platform/townpass_platform_adapter.dart';
 import 'package:town_pass/features/safe_walk/presentation/mock/safe_walk_demo_data.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_flow.dart';
@@ -36,7 +38,11 @@ class SafeWalkCompositionRoot extends StatefulWidget {
     this.routeTransport,
     this.onExit,
     this.liveRoutes = false,
+    this.watchPosition,
   });
+
+  /// Continuous positions while the map is open; defaults to the device GPS.
+  final Stream<sw.Position> Function()? watchPosition;
 
   /// Real walking routes: opening the map reads the device position (after the
   /// user agrees to share it with the OSM routing service) and asks OSRM for a
@@ -79,6 +85,15 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
   /// Unresolved reports to route around (50 m circles), sent by the map.
   List<AvoidArea> _areas = const [];
   bool _askingConsent = false;
+
+  // Route following: one follower per option; re-plan only when off all of them.
+  sw.Coordinates? _destination;
+  sw.RouteResult? _followed;
+  List<RouteFollower> _followers = const [];
+  StreamSubscription<sw.Position>? _watch;
+  sw.Position? _livePosition;
+  DateTime? _lastReplan;
+  static const _replanGap = Duration(seconds: 15);
 
   @override
   void initState() {
@@ -135,7 +150,56 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
       livePresentationReady: widget.liveRoutes,
       liveProviderReady: widget.liveRoutes,
     );
+    _navigation.addListener(_syncFollowing);
     unawaited(_loadPoints());
+  }
+
+  /// A new live route starts (or restarts) following; anything else stops it.
+  void _syncFollowing() {
+    final result = _navigation.routeResult;
+    if (identical(result, _followed)) return;
+    _followed = result;
+    if (!widget.liveRoutes ||
+        !_navigationActive ||
+        result is! sw.RouteSuccess ||
+        result.mode != sw.DataMode.live) {
+      if (result == null || result is sw.RouteFailure) return;
+      _stopFollowing();
+      return;
+    }
+    _followers = [for (final r in result.routes) RouteFollower(r)];
+    _watch ??= (widget.watchPosition ?? watchDevicePosition)().listen(
+      _onPosition,
+      onError: (_) => _stopFollowing(),
+    );
+  }
+
+  void _onPosition(sw.Position position) {
+    if (!mounted || _followers.isEmpty) return;
+    setState(() => _livePosition = position);
+    final updates = [for (final f in _followers) f.update(position)];
+    final offAll = updates.every((u) => u.shouldReroute);
+    final destination = _destination;
+    final now = DateTime.now();
+    if (!offAll ||
+        destination == null ||
+        _navigation.routeLoading ||
+        (_lastReplan != null && now.difference(_lastReplan!) < _replanGap)) {
+      return;
+    }
+    _lastReplan = now;
+    unawaited(
+      _planRoute(
+        _createRouteRequest(origin: position, destination: destination),
+      ),
+    );
+  }
+
+  void _stopFollowing() {
+    unawaited(_watch?.cancel());
+    _watch = null;
+    _followers = const [];
+    _livePosition = null;
   }
 
   Future<List<sw.AssistancePoint>> _lookupRoutePoints(
@@ -166,6 +230,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
       if (agreed != true || !mounted) return;
       _navigation.setRoutingConsent(true);
     }
+    _destination = destination;
     _openNavigation();
     final sw.LocationResult located;
     try {
@@ -215,6 +280,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
   }
 
   void _closeNavigation() {
+    _stopFollowing();
     _navigationActive = false;
     _navigation.cancelRoute();
   }
@@ -396,6 +462,8 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
       pointsError: _pointsError,
       onRetryPoints: () => unawaited(_loadPoints()),
       route: widget.liveRoutes ? _navigation.routeResult : null,
+      livePosition: _livePosition,
+      onLeaveMap: _closeNavigation,
       routeLoading: widget.liveRoutes && _navigation.routeLoading,
       onPlanRoute: widget.liveRoutes
           ? (destination) => unawaited(_planTo(destination))
@@ -419,6 +487,8 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _stopFollowing();
+    _navigation.removeListener(_syncFollowing);
     _lifetime.cancel();
     _pointsRequest?.cancel();
     _navigation.dispose();

@@ -225,7 +225,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                 Positioned.fill(
                   child: DemoMap(
                     // 真實路線從使用者實際位置出發。
-                    start: rs.live && isHome && path.isNotEmpty ? path.first : _start,
+                    start: rs.live && isHome && path.isNotEmpty && widget.position == null ? path.first : _start,
                     points: points,
                     anomalies: widget.anomalies,
                     path: _pointsView ? const [] : path,
