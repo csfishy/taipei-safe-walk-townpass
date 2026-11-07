@@ -12,7 +12,8 @@ permissions:
 
 concurrency:
   group: build-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  # Native builds are expensive; documentation pushes must not cancel them.
+  cancel-in-progress: false
 
 env:
   FLUTTER_VERSION: '3.47.6'
@@ -133,9 +134,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: python3 tool/release_metadata.py
-      - name: Select Xcode 26
+      - name: Select Xcode 26.1.1 (required by the locked device plugin)
         run: |
-          sudo xcode-select -s /Applications/Xcode_26.0.app/Contents/Developer
+          sudo xcode-select -s /Applications/Xcode_26.1.1.app/Contents/Developer
           xcodebuild -version
       - uses: subosito/flutter-action@v2
         with:
