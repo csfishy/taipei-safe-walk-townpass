@@ -63,6 +63,7 @@ class SafeWalkHomeView extends StatelessWidget {
                 Semantics(header: true, child: Text('其他功能', style: SwText.heading)),
                 const SizedBox(height: 12),
                 for (final (id, icon, name, desc) in _more) ...[_FeatureRow(icon: icon, name: name, desc: desc, onTap: () => onOpen(id)), const SizedBox(height: 10)],
+                Text('目前為示範資料，未連線真實服務', style: SwText.small),
               ],
             ),
           ),
@@ -126,7 +127,7 @@ class _GoHomeCardState extends State<_GoHomeCard> {
   @override
   Widget build(BuildContext context) => Semantics(
     button: true,
-    label: '安心行，前往${widget.destination}，已繞開 ${widget.avoided} 個異常回報，點擊開始',
+    label: '示範：安心行，前往${widget.destination}，已繞開 ${widget.avoided} 個異常回報，點擊開始',
     child: DecoratedBox(
       decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), boxShadow: SwShadow.float),
       child: ClipRRect(
