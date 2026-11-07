@@ -81,7 +81,7 @@ abstract class TPRoute {
     ),
     GetPage(
       name: safeWalk,
-      page: () => const SafeWalkCompositionRoot(liveRoutes: true, askMapTilesOnOpen: true),
+      page: () => const SafeWalkCompositionRoot(liveRoutes: true),
     ),
     GetPage(
       name: basicInfo,

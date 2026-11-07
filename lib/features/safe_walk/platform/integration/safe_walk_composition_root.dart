@@ -55,7 +55,6 @@ class SafeWalkCompositionRoot extends StatefulWidget {
     this.watchPosition,
     this.reviewedAreas = const [],
     this.showLiveMap = true,
-    this.askMapTilesOnOpen = false,
   });
 
   /// Continuous positions while the map is open; defaults to the device GPS.
@@ -69,11 +68,8 @@ class SafeWalkCompositionRoot extends StatefulWidget {
   /// Independently reviewed boundaries for the reference-information page.
   final List<RouteReferenceArea> reviewedAreas;
 
-  /// Tests can disable map tiles without changing production consent checks.
+  /// Tests can disable map tiles without changing route/reference consent checks.
   final bool showLiveMap;
-
-  /// Ask for the separate OSM tile consent when the map opens (official entry).
-  final bool askMapTilesOnOpen;
 
   final PlatformService? platform;
   final SafetyDataRepository? safetyData;
@@ -938,7 +934,6 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
             ? null
             : () => unawaited(_loadPoints()),
         showMapTiles: widget.showLiveMap,
-        askMapTilesOnOpen: widget.askMapTilesOnOpen,
         reportBuilder: _report == null
             ? null
             : (context, onBack) => SafeWalkReportStatusPage(
