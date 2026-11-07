@@ -37,7 +37,7 @@
       },
       {
         "id": "line-6",
-        "text": "要是真的覺得不對勁，馬上用求助，別管這通電話。",
+        "text": "進門後記得把門鎖好，再跟我說一聲。",
         "audioSrc": null,
         "pauseAfterMs": 2000
       }
@@ -157,13 +157,13 @@
       },
       {
         "id": "line-4",
-        "text": "如果覺得危險，馬上用求助，不用等。",
+        "text": "累了就先休息一下，不用急。",
         "audioSrc": null,
         "pauseAfterMs": 3000
       },
       {
         "id": "line-5",
-        "text": "不方便說話的話，求助畫面也可以用文字。",
+        "text": "不想說話也沒關係，慢慢來。",
         "audioSrc": null,
         "pauseAfterMs": 3000
       },
@@ -207,7 +207,7 @@
       },
       {
         "id": "line-5",
-        "text": "已經在車上的話，覺得路線不對就先用求助。",
+        "text": "上車後坐好，到了先跟我說一聲。",
         "audioSrc": null,
         "pauseAfterMs": 3000
       },
@@ -251,7 +251,7 @@
       },
       {
         "id": "line-5",
-        "text": "怕的話，按求助。",
+        "text": "到了打給我。",
         "audioSrc": null,
         "pauseAfterMs": 2500
       },
