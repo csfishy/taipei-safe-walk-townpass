@@ -1,6 +1,6 @@
 # Safe Walk CI 與選用雲端建置
 
-目前兩份工作流都先驗 runner-local disposable PostGIS 的 migrations／reset／seed／權限。只有 check-and-build 的 main 建置全部通過後才可一次重設專用 Demo，失敗阻擋發布與 Pages；Safe Walk CI 不接遠端 Secrets。白名單預設空、正式啟用待 Level C，詳見 [資料庫重設](SAFE_WALK_DATABASE_RESET.md)；下方初始化工作流敘述保留歷史範圍。
+兩份工作流都必須先驗 runner-local disposable PostGIS 的 migrations／雙重 reset／seed／權限；這些本機測試不受遠端啟用旗標影響，失敗仍阻擋後續檢查與編譯。Safe Walk CI 不接遠端 Secrets。只有 check-and-build 可在 main 檢查及三平台建置全部通過後，依 **Repository Actions Variable `DEMO_DATABASE_RESET_ENABLED`** 執行一次專用 Demo 重設。未設定或精確值 `false` 時，遠端預期跳過，Summary 揭露未重設，既有不依賴該資料庫的 main prerelease／Pages 可繼續；精確值 `true` 啟用後，缺配置、失敗、取消或非預期跳過都阻擋相關發布／部署。其他旗標值視為配置錯誤。白名單預設空、遠端啟用仍待 Level C，詳見 [資料庫重設](SAFE_WALK_DATABASE_RESET.md)；下方初始化敘述保留歷史範圍。
 
 現行功能驗收以 [Live MVP](SAFE_WALK_LIVE_MVP.md)／[Readiness](SAFE_WALK_LIVE_READINESS.md) 為準；下文「本次只追加」「未修改 UI」及初始化執行結果是歷史範圍。最新工作流已有 M3 Widget／原生入口及 TTS 等程式，CI 通過仍不代表真實 Provider 或 iPhone 驗收。
 
