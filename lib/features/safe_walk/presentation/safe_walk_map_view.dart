@@ -794,6 +794,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                             showShortcut: atHome && demoHome && !_pointsView,
                             live: rs.live,
                             crime: rs.live || widget.crimeSpots.isNotEmpty,
+                            helpPoints: points.isNotEmpty,
                           )
                         : const SizedBox.shrink(),
                   ),
@@ -2513,8 +2514,12 @@ class _Legend extends StatelessWidget {
     required this.showShortcut,
     this.live = false,
     this.crime = false,
+    this.helpPoints = false,
   });
   final bool pointsView, showShortcut, live, crime;
+
+  /// 地圖上有求助地點（「救」）。
+  final bool helpPoints;
   @override
   Widget build(BuildContext context) {
     Widget group(String title) => Padding(
@@ -2620,17 +2625,10 @@ class _Legend extends StatelessWidget {
             const Icon(Icons.home_rounded, size: 18, color: SwColors.brand),
             '家',
           ),
-          if (pointsView)
+          if (pointsView || helpPoints)
             item(
-              Container(
-                width: 12,
-                height: 12,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: SwColors.brand,
-                ),
-              ),
-              '求助地點',
+              const HelpPointMark(size: 20),
+              '求助地點（超商、派出所）',
             ),
         ],
       ),
