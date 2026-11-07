@@ -21,10 +21,7 @@ abstract interface class CompanionSpeechEngine {
 /// Reads one line at a time. A new [speak] or [stop] invalidates the previous
 /// line, so a late completion can never clear the indicator of a newer line.
 final class CompanionTtsSpeaker {
-  CompanionTtsSpeaker(
-    this._engine, {
-    this.languages = const ['zh-TW', 'zh-CN'],
-  });
+  CompanionTtsSpeaker(this._engine, {this.languages = const ['zh-TW', 'zh-CN']});
 
   final CompanionSpeechEngine _engine;
   final List<String> languages;
@@ -58,11 +55,7 @@ final class CompanionTtsSpeaker {
     unawaited(_run(text, generation, onDone));
   }
 
-  Future<void> _run(
-    String text,
-    int generation,
-    void Function()? onDone,
-  ) async {
+  Future<void> _run(String text, int generation, void Function()? onDone) async {
     try {
       await _engine.stop();
       if (!_isCurrent(generation)) return;
@@ -105,10 +98,7 @@ final class CompanionTtsSpeaker {
 /// utterance never completes that future. Completion, cancel and error
 /// callbacks, plus [stop] itself, release the pending utterance instead.
 final class FlutterTtsEngine implements CompanionSpeechEngine {
-  FlutterTtsEngine([FlutterTts? tts])
-    : _driver = tts == null
-          ? (_deviceDriver ??= _FlutterTtsDriver(FlutterTts()))
-          : _FlutterTtsDriver(tts);
+  FlutterTtsEngine([FlutterTts? tts]) : _driver = tts == null ? (_deviceDriver ??= _FlutterTtsDriver(FlutterTts())) : _FlutterTtsDriver(tts);
 
   // flutter_tts owns a static channel. Keep one handler across route handoffs;
   // each facade's owner prevents a late old-route stop from stopping a new one.
@@ -164,13 +154,13 @@ final class _FlutterTtsDriver {
     final stopping = _stopFuture;
     if (stopping != null) await stopping;
     if (_blocked) return false;
-    if (kIsWeb ||
-        (defaultTargetPlatform != TargetPlatform.android &&
-            defaultTargetPlatform != TargetPlatform.iOS)) {
+    if (kIsWeb || (defaultTargetPlatform != TargetPlatform.android && defaultTargetPlatform != TargetPlatform.iOS)) {
       return false;
     }
-    final voices = await _tts.getVoices;
-    if (voices is! List) return false;
+    final raw = await _tts.getVoices;
+    if (raw is! List) return false;
+    // Prefer the most natural-sounding installed voice (higher quality first).
+    final voices = [...raw]..sort((x, y) => _voiceQuality(y).compareTo(_voiceQuality(x)));
     for (final language in languages) {
       for (final voice in voices) {
         if (voice is! Map || voice['locale'] != language) continue;
@@ -180,9 +170,7 @@ final class _FlutterTtsDriver {
         if (defaultTargetPlatform == TargetPlatform.android) {
           // flutter_tts 4.2.5 exposes Android Voice's offline/install flags.
           final features = voice['features'];
-          if (voice['network_required'] != '0' ||
-              features is! String ||
-              features.split('\t').contains('notInstalled')) {
+          if (voice['network_required'] != '0' || features is! String || features.split('\t').contains('notInstalled')) {
             continue;
           }
         } else {
@@ -192,17 +180,27 @@ final class _FlutterTtsDriver {
           if (identifier is! String || identifier.isEmpty) continue;
           selected['identifier'] = identifier;
         }
-        if (await _tts.setVoice(selected) == 1) return true;
+        if (await _tts.setVoice(selected) == 1) {
+          // Slightly slower than default reads more like a person on the phone.
+          await _tts.setSpeechRate(0.46);
+          return true;
+        }
       }
     }
     return false;
   }
 
-  Future<void> speak(
-    String text,
-    Object owner,
-    bool Function() isCurrent,
-  ) async {
+  /// Android reports a numeric quality (300 low … 500 very high);
+  /// iOS reports default / enhanced / premium.
+  static int _voiceQuality(Object? voice) {
+    if (voice is! Map) return 0;
+    final q = voice['quality'];
+    if (q is num) return q.toInt();
+    if (q is! String) return 0;
+    return int.tryParse(q) ?? const {'premium': 3, 'enhanced': 2}[q.toLowerCase()] ?? 0;
+  }
+
+  Future<void> speak(String text, Object owner, bool Function() isCurrent) async {
     while (true) {
       if (!isCurrent()) return;
       final stopping = _stopFuture;
@@ -252,10 +250,7 @@ final class _FlutterTtsDriver {
     try {
       // Callbacks have no utterance ID. Do not submit another utterance until
       // the old one has terminated. Idle stops never enter this method.
-      await Future.wait<void>([
-        _tts.stop().then<void>((_) {}),
-        if (!_blocked && terminal != null) terminal.future,
-      ]).timeout(const Duration(seconds: 1));
+      await Future.wait<void>([_tts.stop().then<void>((_) {}), if (!_blocked && terminal != null) terminal.future]).timeout(const Duration(seconds: 1));
     } catch (_) {
       // Missing/failed acknowledgement cannot be guessed away with a delay.
       // This device driver stays text-only until the app restarts.
