@@ -44,6 +44,8 @@ final class LocalCompanionController implements CompanionController {
   Completer<void>? _activeInterruption;
   String? _scenarioId;
   sw.CompanionState _state = sw.CompanionState.idle;
+  Future<void>? _stopInFlight;
+  bool _disposing = false;
   bool _disposed = false;
   Future<void>? _disposeFuture;
 
@@ -64,7 +66,9 @@ final class LocalCompanionController implements CompanionController {
     _activeInterruption = interruption;
     if (_state == sw.CompanionState.playing ||
         _state == sw.CompanionState.paused) {
-      await _audio.stop();
+      await _stopAudio();
+    } else if (_stopInFlight case final stop?) {
+      await stop;
     }
     if (!_isCurrent(operation)) return;
 
@@ -95,8 +99,10 @@ final class LocalCompanionController implements CompanionController {
           await _cancelOperation(operation);
           return;
         }
+        final started = _observeMilestone(playback.started);
+        final completed = _observeMilestone(playback.completed);
         final cancelledBeforeStart = await _awaitOrInterruption(
-          playback.started,
+          started,
           cancellation,
           interruption.future,
         );
@@ -104,10 +110,11 @@ final class LocalCompanionController implements CompanionController {
           await _cancelOperation(operation);
           return;
         }
+        _rethrowMilestoneFailure(await started);
         _emit(sw.CompanionState.playing, sw.CompanionReason.user);
 
         final cancelledBeforeCompletion = await _awaitOrInterruption(
-          playback.completed,
+          completed,
           cancellation,
           interruption.future,
         );
@@ -115,6 +122,7 @@ final class LocalCompanionController implements CompanionController {
           await _cancelOperation(operation);
           return;
         }
+        _rethrowMilestoneFailure(await completed);
 
         final delayCancelled = await _awaitOrInterruption(
           step.pauseAfterMs == 0
@@ -133,8 +141,11 @@ final class LocalCompanionController implements CompanionController {
       } catch (_) {
         if (_isCurrent(operation)) {
           _invalidateOperation();
-          await _audio.stop();
-          _emit(sw.CompanionState.error, sw.CompanionReason.audioError);
+          final errorOperation = _operation;
+          await _stopAudio();
+          if (_isCurrent(errorOperation)) {
+            _emit(sw.CompanionState.error, sw.CompanionReason.audioError);
+          }
         }
         return;
       }
@@ -152,19 +163,24 @@ final class LocalCompanionController implements CompanionController {
     if (_state != sw.CompanionState.playing) return;
 
     _invalidateOperation();
+    final pauseOperation = _operation;
     await _audio.pause();
-    _emit(sw.CompanionState.paused, sw.CompanionReason.user);
+    if (_isCurrent(pauseOperation)) {
+      _emit(sw.CompanionState.paused, sw.CompanionReason.user);
+    }
   }
 
   @override
   Future<void> stop(sw.CompanionStopReason reason) async {
-    if (_disposed) return;
+    if (_disposing || _disposed) return;
     await _stop(reason);
   }
 
   Future<void> _stop(sw.CompanionStopReason reason) async {
     _invalidateOperation();
-    await _audio.stop();
+    final stopOperation = _operation;
+    await _stopAudio();
+    if (!_isCurrent(stopOperation)) return;
     if (_state == sw.CompanionState.ended ||
         _state == sw.CompanionState.error ||
         _scenarioId == null) {
@@ -177,15 +193,16 @@ final class LocalCompanionController implements CompanionController {
   Future<void> dispose() => _disposeFuture ??= _disposeOnce();
 
   Future<void> _disposeOnce() async {
-    if (_disposed) return;
+    if (_disposing || _disposed) return;
+    _disposing = true;
     await _stop(sw.CompanionStopReason.unmount);
     _disposed = true;
     await _audio.dispose();
     await _events.close();
   }
 
-  Future<bool> _awaitOrInterruption(
-    Future<void> work,
+  Future<bool> _awaitOrInterruption<T>(
+    Future<T> work,
     SafeWalkCancellation? cancellation,
     Future<void> interruption,
   ) async {
@@ -211,7 +228,19 @@ final class LocalCompanionController implements CompanionController {
   Future<void> _cancelOperation(int operation) async {
     if (_operation != operation) return;
     _invalidateOperation();
-    await _audio.stop();
+    await _stopAudio();
+  }
+
+  Future<void> _stopAudio() {
+    final pending = _stopInFlight;
+    if (pending != null) return pending;
+
+    late final Future<void> stop;
+    stop = Future<void>.sync(_audio.stop).whenComplete(() {
+      if (identical(_stopInFlight, stop)) _stopInFlight = null;
+    });
+    _stopInFlight = stop;
+    return stop;
   }
 
   void _invalidateOperation() {
@@ -239,9 +268,34 @@ final class LocalCompanionController implements CompanionController {
   }
 
   void _ensureUsable() {
-    if (_disposed) {
+    if (_disposing || _disposed) {
       throw StateError('Companion controller has been disposed');
     }
+  }
+}
+
+final class _MilestoneResult {
+  const _MilestoneResult.success() : error = null, stackTrace = null;
+
+  const _MilestoneResult.failure(this.error, this.stackTrace);
+
+  final Object? error;
+  final StackTrace? stackTrace;
+}
+
+Future<_MilestoneResult> _observeMilestone(Future<void> milestone) async {
+  try {
+    await milestone;
+    return const _MilestoneResult.success();
+  } catch (error, stackTrace) {
+    return _MilestoneResult.failure(error, stackTrace);
+  }
+}
+
+void _rethrowMilestoneFailure(_MilestoneResult result) {
+  final error = result.error;
+  if (error != null) {
+    Error.throwWithStackTrace(error, result.stackTrace ?? StackTrace.current);
   }
 }
 
