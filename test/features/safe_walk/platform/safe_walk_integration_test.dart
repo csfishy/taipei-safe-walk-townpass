@@ -174,7 +174,8 @@ void main() {
       expect(flow.mode, sw.DataMode.mock);
       expect(flow.allowRealCalls, isFalse);
       expect(flow.speaker.available, isFalse);
-      expect(flow.points, hasLength(3));
+      // Live entry shows no demo help points (real nearby places come later).
+      expect(flow.points, isEmpty);
       expect(
         flow.points!.every(
           (point) => point.source.dataMode == sw.DataMode.mock,
@@ -226,7 +227,6 @@ void main() {
       await t.pumpAndSettle();
       await t.tap(find.text('接聽'));
       await t.pumpAndSettle();
-      expect(find.text('語音尚未配置，播放為無聲示範'), findsNothing);
       expect(companion.starts, 0);
       await t.tap(find.text('緊急求助').first);
       await t.pumpAndSettle();

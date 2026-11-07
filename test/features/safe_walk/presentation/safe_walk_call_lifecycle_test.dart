@@ -137,7 +137,7 @@ void main() {
     await t.tap(find.text('接聽'));
     await t.pump(const Duration(milliseconds: 300));
     expect(speaker.spoken, [ride.steps[0].text]);
-    expect(find.text('模擬通話，未聯絡任何人'), findsNothing, reason: '正式畫面不顯示揭露字樣');
+    // #52 的通話畫面保留「模擬陪伴」標示（#48 P1-3）。
 
     await t.pump(const Duration(seconds: 20));
     expect(speaker.spoken, hasLength(1), reason: '沒回覆時對方不會自己一直說下去');
