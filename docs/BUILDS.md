@@ -31,12 +31,45 @@ dart run build_runner build
 flutter analyze --no-fatal-infos
 flutter test
 flutter test --platform chrome test/web_startup_test.dart
-flutter build apk --release
-flutter build ios --release --no-codesign
+# Set SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY in the local process first.
+dart run tool/prepare_native_client_config.dart secrets/native-client.json
+flutter build apk --release --dart-define-from-file=secrets/native-client.json
+flutter build ios --release --no-codesign --dart-define-from-file=secrets/native-client.json
 flutter build web --release --base-href /taipei-safe-walk-townpass/ --no-web-resources-cdn
 ```
 
 Use a real Python 3 interpreter. On Windows, use `py -3` or an installed `python.exe` if `python3` is only an App Execution Alias; WSL is optional and must be installed separately. iOS compilation requires macOS. `assets/build-info.json` and Dart-generated sources are generated and ignored; generate metadata before `pub get`. Locked dependency versions are retained. Unsigned IPA packaging uses `ditto` to zip `Payload/Runner.app`, not App Store export.
+
+## Native public client configuration
+
+Android and iPhone release builds require the repository Actions variable
+`SUPABASE_URL` and Actions secret `SUPABASE_PUBLISHABLE_KEY`. The latter is a
+**public client key**, stored as a secret solely so GitHub masks it in runner
+logs; it is necessarily embedded in the installed app. Never use a service-role
+key, secret API key, database password, or administration token.
+
+After package setup, `tool/prepare_native_client_config.dart` validates these
+settings using the same `SafeWalkSupabaseConfig` parser as the app, then writes
+only the two accepted values to `$RUNNER_TEMP/native-client.json`. Both native
+build commands consume that file with `--dart-define-from-file`. A missing,
+invalid, or elevated key fails the native job before compilation and therefore
+blocks publication. The generated JSON is neither logged nor uploaded as an
+artifact. The native package verifier also checks that the expected URL and
+public key reached the compiled arm64 Flutter payload, without printing either
+value. Local `secrets/` files are ignored and must not be committed.
+
+Same-repository PR builds use the same configuration. Fork PRs do not receive
+the key secret, so their native jobs deliberately fail configuration validation;
+the shared unit-check job can still run. Do not substitute a dummy key to make
+an installable but unusable artifact. Maintainers can run the reviewed change
+on a trusted repository branch to validate native packages.
+
+This build check verifies configuration syntax, not remote availability. The
+reviewed read-only RPC, its permissions, snapshot validity, and an iPhone query
+must also be verified before calling the feature live. Existing installed apps
+need a newly built package; changing Actions settings alone cannot update their
+compile-time values. Web builds retain their existing disabled browser-query
+default and receive neither these values nor `SAFE_WALK_WEB_ROUTES=true`.
 
 ## GitHub Pages owner setup
 

@@ -1,5 +1,37 @@
 # TownPass Supabase 連線設定
 
+## 2026-11-08：原生犯罪查詢發布修正
+
+本節記錄使用者授權「方案 1」的修正；下方舊基線及部署狀態保留為歷史，不代表現在的犯罪查詢介面仍不存在。
+
+第 163 次原生發布（main `f9154b0`）沒有帶入 Supabase 編譯設定，導致犯罪 Repository 未配置。M3 設定按鈕先關閉面板，再無提示地返回，因此看起來沒有反應。修正後，Android／iOS 建置從 Actions variable `SUPABASE_URL` 與 secret `SUPABASE_PUBLISHABLE_KEY` 產生暫存 dart-defines，使用 App 同一驗證器拒絕缺值與管理金鑰。後者仍是可供 App 使用的 **publishable key**，存為 secret 僅用於遮罩日誌；沒有設定 DB 密碼、service_role 或管理 token。
+
+原生封裝會檢查預期公開設定確實存在於 Flutter AOT 程式；缺設定時不可發布。這個檢查只證明編譯注入，不代替後端可用性或裝置驗收。Web 的既有預設關閉行為、附近通知封鎖及 Demo reset 均未因本修正啟用。操作方式見 [原生建置](BUILDS.md)。舊版 App 需安裝新建置，重新登入無法改變已編譯的設定。
+
+實際唯讀驗證使用既有專案 `gxofnhzkqcmzrftxqddi` 的公開 client key，沿正式 `CrimeReferenceWiring` → native HTTP → Repository → parser：
+
+| 檢查 | 2026-11-08 結果 |
+|---|---|
+| 無位置、limit 1 查詢 | 成功；快照 `5ea3810c-5744-4b89-baad-0121c8fc951b`，2,542 筆來源紀錄、10 個來源 |
+| 臺北市、limit 200 查詢 | 成功；符合 617 筆，本頁 200 筆中 182 筆有參考座標；不是全市完整頁面 |
+| 私有 schema 暴露檢查 | 公開 client 指定 `Accept-Profile: crime_reference` 的零筆讀取被 406／PGRST106 拒絕 |
+| 真實 RPC → Flutter 地圖 | Opt-in 測試 1 項通過；2 次真實查詢產生 17 個參考標記及 17 個 50 公尺產品緩衝，來源與精度標籤通過。人工起終點、隔離路線／TTS／儲存邊界，0 次裝置 GPS；不代表 iPhone 實機驗收 |
+
+遠端 `safe_walk_crime_reference_query` 已存在。本次沒有執行 SQL 部署、初始化、匯入、reset，亦沒有改動資料或 DB 權限。上述筆數是來源紀錄，並非去重案件數；有座標也不代表精確案發點。
+
+可明確重跑的唯讀工具（不可把設定值貼到日誌）：
+
+```text
+dart tool/check_crime_reference.dart secrets/supabase.local.json
+dart tool/check_crime_reference.dart secrets/supabase.local.json --city 臺北市 --require-coordinates
+```
+
+地圖驗收另以環境變數 `SAFE_WALK_CRIME_LIVE_CONFIG` 指定本機設定檔，再執行 `flutter test --no-pub test/features/safe_walk/platform/integration/crime_reference_live_map_acceptance_test.dart`；未設定時明確 skip，不讀本機設定或連網。它只在記憶體消費真實公開紀錄，選取有參考座標的紀錄後建立人工行程範圍，驗證同意後的查詢、來源標示與地圖圈，不存下原始回應。完成後移除這個環境變數，避免日常完整測試意外執行遠端驗收。
+
+第一個命令只查一筆、不傳位置；第二個只傳城市名稱，不取得 GPS 或傳送行程。工具只輸出快照識別、日期和筆數，不輸出個別紀錄、地址、座標或金鑰。這些結果不等於 iPhone 實機驗收；正式裝置仍須確認設定對話框、同意後重新規劃、標示詳情與撤回清除。犯罪標示沿用 **50 公尺產品避讓緩衝**，不是官方犯罪邊界或安全保證。
+
+## 歷史基線與隔離政策
+
 CI／專用 Demo 的初始化另見 [隔離資料庫重設](SAFE_WALK_DATABASE_RESET.md)。兩份工作流必跑 runner-local PostGIS 測試；遠端另需 Repository Actions Variable `DEMO_DATABASE_RESET_ENABLED` 精確為 `true` 才啟用。未設定或 `false` 時不連遠端，Summary 明示未重設，既有不依賴 `safe_walk_demo` 的建置／發布可繼續；啟用後缺白名單／Secrets／marker／角色或重設失敗仍須停止。其他旗標值是配置錯誤，不代表未啟用。遠端白名單目前為空，既有 `gxofnhzkqcmzrftxqddi` 保護不變，不會自動當成可清除的 Demo，也不執行舊匿名通知 RPC。旗標必須最後經 Level C 審查後才設定，不能用公開 client key 代替受限 SQL role 憑證。
 
 現行規格依 [LIVE-FIRST／NO PRODUCTION MOCK](SAFE_WALK_LIVE_FIRST.md)、[Live MVP](SAFE_WALK_LIVE_MVP.md) 與 [上線條件](SAFE_WALK_LIVE_READINESS.md)。2026-11-08 的 main `7b99fea` 仍是 Mock 正式入口，#35 的 P0 接線已由 #49 restore 移除；#39 僅合入 feature branch，#44 仍開放，不能列為主線已完成。正式持久資料以 Supabase 主資料庫為整合方向，必須接到完整使用者查詢／更新流程，不能只交連線 probe 或 Parser。

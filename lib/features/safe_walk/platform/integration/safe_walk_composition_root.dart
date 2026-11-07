@@ -183,6 +183,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
       },
     );
   }
+
   List<AvoidArea> _crimeAreas = const [];
   List<CrimeSpot> _crimeSpots = const [];
   bool _hasCrimeConsent = false;
@@ -270,11 +271,41 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
       });
     } on SafeWalkCancelledException {
       return;
+    } on CrimeReferenceQueryException catch (error) {
+      if (!_isCurrent(operation) || !_hasCrimeConsent) return;
+      setState(
+        () => _crimeQueryStatus =
+            '犯罪參考資料查詢失敗：${_crimeFailureMessage(error.failure)}'
+            '本次路線未套用犯罪參考避讓。',
+      );
+    } on ArgumentError {
+      if (!_isCurrent(operation) || !_hasCrimeConsent) return;
+      setState(
+        () => _crimeQueryStatus =
+            '犯罪參考資料查詢失敗：查詢範圍過大或條件不適用，請縮短行程後重新規劃。'
+            '本次路線未套用犯罪參考避讓。',
+      );
     } catch (_) {
       if (!_isCurrent(operation) || !_hasCrimeConsent) return;
-      setState(() => _crimeQueryStatus = '犯罪參考資料查詢失敗；本次路線未套用犯罪參考避讓，請重試。');
+      setState(
+        () => _crimeQueryStatus = '犯罪參考資料查詢失敗；請重新規劃路線以重試。本次路線未套用犯罪參考避讓。',
+      );
     }
   }
+
+  static String _crimeFailureMessage(
+    CrimeReferenceFailure failure,
+  ) => switch (failure) {
+    CrimeReferenceFailure.network => '網路連線失敗，請確認網路後重新規劃路線。',
+    CrimeReferenceFailure.timeout => '查詢逾時，請稍後重新規劃路線。',
+    CrimeReferenceFailure.unauthorized => '資料服務拒絕存取，請更新 App；若仍無法使用，請向服務維護者回報。',
+    CrimeReferenceFailure.interfaceMissing => '資料查詢服務尚未開放，請稍後再試或向服務維護者回報。',
+    CrimeReferenceFailure.invalidArgument => '查詢條件不適用，請調整起點與目的地後重新規劃。',
+    CrimeReferenceFailure.snapshotUnavailable => '犯罪參考資料暫時無法取得，請稍後再試或向服務維護者回報。',
+    CrimeReferenceFailure.serverUnavailable => '資料服務忙碌或暫時中斷，請稍後重新規劃路線。',
+    CrimeReferenceFailure.invalidResponse =>
+      '資料內容無法驗證，已停止顯示；請更新 App 或向服務維護者回報。',
+  };
 
   String _precisionLabel(CrimeSpatialPrecision precision) =>
       switch (precision) {
@@ -532,6 +563,23 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     if (!mounted || !_foreground || _lifetime.isCancelled) return;
     if (!_crime.isConfigured) {
       setState(() => _crimeQueryStatus = '犯罪參考資料尚未配置；路線未套用犯罪參考避讓。');
+      await showDialog<void>(
+        context: context,
+        builder: (dialog) => AlertDialog(
+          title: const Text('犯罪資料查詢暫時無法使用'),
+          content: const Text(
+            '這個版本尚未啟用犯罪參考資料服務。請更新至最新版本；'
+            '若仍無法使用，請向服務維護者回報。'
+            '你仍可規劃步行路線，但路線不會套用犯罪參考避讓。',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialog).pop(),
+              child: const Text('知道了'),
+            ),
+          ],
+        ),
+      );
       return;
     }
     _openNavigation();
