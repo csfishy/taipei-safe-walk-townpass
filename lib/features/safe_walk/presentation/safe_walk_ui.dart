@@ -37,8 +37,6 @@ abstract final class SwText {
   static TextStyle _tp(TextStyle s) => s.copyWith(fontFamily: 'Roboto', fontFamilyFallback: const ['PingFangTC']);
   // 字級一律對應 TPTextStyles，用法比照臺北通：頁面大標 24、彈出選單標題 18、卡片／清單／區塊標題與內文 16、說明 14、小字 12。
   // 臺北通頁面不用 36，所以這裡也不提供。不在畫面上另設 fontSize、fontWeight。
-  @Deprecated('臺北通不用 36；改用 title（24）。首頁改完後刪除')
-  static TextStyle display = _tp(TPTextStyles.h1SemiBold.copyWith(color: SwColors.text)); // 36
   static TextStyle title = _tp(TPTextStyles.h2SemiBold.copyWith(color: SwColors.text)); // 24 頁面大標
   static TextStyle heading = _tp(TPTextStyles.titleSemiBold.copyWith(color: SwColors.text)); // 18 彈出選單／狀態標題
   static TextStyle body = _tp(TPTextStyles.h3Regular.copyWith(color: SwColors.text, height: 1.5)); // 16

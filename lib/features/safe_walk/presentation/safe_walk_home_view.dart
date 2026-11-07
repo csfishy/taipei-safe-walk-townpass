@@ -60,7 +60,7 @@ class SafeWalkHomeView extends StatelessWidget {
                 const SizedBox(height: 16),
                 _GoHomeCard(destination: destination, minutes: homeMinutes, avoided: avoided, onTap: () => onOpen(SafeWalkEntry.map)),
                 const SizedBox(height: 24),
-                Semantics(header: true, child: Text('其他功能', style: SwText.heading)),
+                Semantics(header: true, child: Text('其他功能', style: SwText.bodyStrong)),
                 const SizedBox(height: 12),
                 for (final (id, icon, name, desc) in _more) ...[_FeatureRow(icon: icon, name: name, desc: desc, onTap: () => onOpen(id)), const SizedBox(height: 10)],
                 Text('目前為示範資料，未連線真實服務', style: SwText.small),
@@ -96,7 +96,7 @@ class _ContextCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('$hhmm・${night ? '天色已暗' : '白天'}', style: SwText.heading.copyWith(color: night ? SwColors.onDeep : SwColors.text)),
+                  Text('$hhmm・${night ? '天色已暗' : '白天'}', style: SwText.bodyStrong.copyWith(color: night ? SwColors.onDeep : SwColors.text)),
                   Text(night ? '建議走明亮的大路，需要時開模擬來電' : '出門前先看看沿路有沒有回報', style: SwText.body.copyWith(color: night ? TPColors.primary100 : SwColors.textSecondary)),
                 ],
               ),
@@ -160,8 +160,8 @@ class _GoHomeCardState extends State<_GoHomeCard> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('安心行', style: SwText.display.copyWith(color: TPColors.white)),
-                          Text('Safe Walk', style: SwText.heading.copyWith(color: TPColors.white)),
+                          Text('安心行', style: SwText.title.copyWith(color: TPColors.white)),
+                          Text('Safe Walk', style: SwText.small.copyWith(color: TPColors.white)),
                           const SizedBox(height: 48),
                           ConstrainedBox(
                             constraints: const BoxConstraints(minHeight: 56),
@@ -171,7 +171,7 @@ class _GoHomeCardState extends State<_GoHomeCard> {
                                 SvgPicture.string(swCardNavigationSvg, width: 26, height: 26),
                                 const SizedBox(width: 10),
                                 Flexible(
-                                  child: Text('點擊開始', style: SwText.title.copyWith(color: TPColors.white)),
+                                  child: Text('點擊開始', style: SwText.bodyStrong.copyWith(color: TPColors.white)),
                                 ),
                               ],
                             ),
@@ -225,7 +225,7 @@ class _FeatureRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(name, style: SwText.heading),
+                  Text(name, style: SwText.bodyStrong),
                   Text(desc, style: SwText.secondary),
                 ],
               ),
