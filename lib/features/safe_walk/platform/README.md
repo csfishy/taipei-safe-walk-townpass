@@ -20,3 +20,11 @@
 以 fake／mock 驗證模式與操作閘門、成功／拒絕／取消、求助不撥號不傳位置；原生權限、電話與 route 接線明列待驗。`platform_service.dart` 是抽象介面；`townpass_platform_adapter.dart` 提供 lazy 位置映射、有限等待與取消，正式求助 Adapter 尚未配置，因此無論旗標如何都不撥號、不傳位置，回 not_configured／cancelled 與固定 null 回執。
 
 預定分支 `feat/m1-platform`：**pending**。先審查初始化 PR，使用者確認合併後才從共同 Flutter base 建立，不自行 merge 或預先建立五個分支。
+
+## M1 導航整合（2026-11-07）
+
+`integration/SafeWalkCompositionRoot` 現在注入 M2 `DefaultRouteService`，使用已驗證的同模式 M4 據點 snapshot 核對途經 ID。`SafeWalkNavigationController` 管理共用 request/result、loading/error、取消與遲到結果；`shared/contracts/safe_walk_navigation_scope.dart` 提供 M3 接線邊界，不新增 GPS 監聽。
+
+原生入口固定 Mock，現有 M3 Demo 操作保留。Live UI/provider 閘門維持關閉，OSRM 僅預備注入、不發請求；Overpass 未接入。M3 尚未消費 scope，目的地變更、SOS 開頁及離開導航的使用者事件仍需由 M3 接上；不能把 scope 測試當成真實路線 UI 已完成。詳見 [M1／M2／M3 接線規格與交接](../../../../docs/SAFE_WALK_NAVIGATION_PRESENTATION_CONTRACT.md)。
+
+本輪完整 Flutter suite：359 通過、12 跳過（10 截圖、2 opt-in live smoke）；Schema／module guard／scoped analyze 通過。完整預設 analyze exit 1，僅 17 項既有 info、無 error/warning；CI 的 `--no-fatal-infos` exit 0。測試包含 22 項 controller、11 項 scope 接線及既有 TownPass 入口／Mock SOS 整合，不包含 iPhone 實機或公共 OSRM／Overpass 驗證。
