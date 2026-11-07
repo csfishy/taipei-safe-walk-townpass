@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:town_pass/features/safe_walk/presentation/mock/companion_dialogues.dart';
 import 'package:town_pass/features/safe_walk/presentation/mock/companion_scenarios.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_flow.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_speaker.dart';
@@ -78,7 +79,7 @@ void main() {
     await t.tap(find.text('接聽'));
     await t.pump(const Duration(milliseconds: 300));
     expect(speaker.spoken, hasLength(1));
-    await t.tap(find.text('我正在回家路上，已經吃過了。'));
+    await t.tap(find.text('我在大馬路上，快到了。'));
     await t.pump(const Duration(milliseconds: 100));
     await t.tap(find.bySemanticsLabel('返回'));
     await t.pumpAndSettle();
@@ -106,57 +107,47 @@ void main() {
     expect(_buzzes, after);
   });
 
-  testWidgets('通話中去地圖看路再回來：不再響鈴，對話接續，對方補上回覆', (t) async {
+  testWidgets('M5 劇本一問一答：對方不會自己一直講；你回一句它才接下一句；說完會提示', (t) async {
     final speaker = _Spy();
-    await _open(t, speaker);
-    await t.tap(find.text('接聽'));
-    await t.pump(const Duration(milliseconds: 300));
-    await t.tap(find.text('我正在回家路上，已經吃過了。'));
-    await t.pump(const Duration(milliseconds: 100));
-    // 點上方「下一步」導航條到地圖
-    await t.tap(find.bySemanticsLabel(RegExp('點一下打開地圖')));
-    await t.pumpAndSettle();
-    expect(find.text('結束通話'), findsNothing);
-    await t.tap(find.text('模擬來電').last);
-    await t.pump(const Duration(milliseconds: 400));
-    expect(find.text('接聽'), findsNothing, reason: '已接聽的通話回來不再響鈴');
-    expect(find.text('喂，你走到哪裡啦？晚餐吃了沒？'), findsOneWidget, reason: '對話保留，不會從頭再來一次');
-    expect(find.text('我正在回家路上，已經吃過了。'), findsNWidgets(2), reason: '我的回覆泡泡還在（另一個是仍顯示的快速回覆）');
-    await t.pump(const Duration(seconds: 1));
-    expect(speaker.spoken, hasLength(2), reason: '離開前回覆過，回來後對方補上回答');
-    await t.tap(find.text('結束通話'));
-    await t.pumpAndSettle();
-    await t.tap(find.text('模擬來電'));
-    await t.pump(const Duration(milliseconds: 400));
-    expect(find.text('接聽'), findsOneWidget, reason: '結束後再打來是新的一通');
-    await t.tap(find.text('拒絕'));
-    await t.pumpAndSettle();
-  });
-
-  testWidgets('M5 劇本：響鈴時選情境，接聽後對方照停頓一句句說，回覆不打斷，離開就停', (t) async {
-    final speaker = _Spy();
-    final night = m5CompanionScenarios.first;
+    final ride = m5CompanionScenarios.firstWhere((c) => c.id == 'scenario-rideshare');
     await _open(t, speaker);
     await t.tap(find.textContaining('情境：'));
     await t.pumpAndSettle();
-    await t.tap(find.text(night.label));
+    await t.tap(find.text(ride.label));
     await t.pumpAndSettle();
-    expect(find.text('情境：${night.label}'), findsOneWidget);
+    expect(find.text('情境：${ride.label}'), findsOneWidget);
     await t.tap(find.text('接聽'));
     await t.pump(const Duration(milliseconds: 300));
-    expect(speaker.spoken, [night.steps[0].text]);
+    expect(speaker.spoken, [ride.steps[0].text]);
     expect(find.text('模擬通話，未聯絡任何人'), findsOneWidget, reason: '用 M5 的揭露文字');
 
-    // 回覆只加進對話，不需要等對方
-    await t.tap(find.text('我還在路上。'));
-    await t.pump(const Duration(milliseconds: 100));
-    final first = night.steps[0];
-    await t.pump(Duration(milliseconds: 250 * first.text.length + first.pauseAfterMs + 50));
-    expect(speaker.spoken, [night.steps[0].text, night.steps[1].text]);
+    await t.pump(const Duration(seconds: 20));
+    expect(speaker.spoken, hasLength(1), reason: '沒回覆時對方不會自己一直說下去');
+
+    for (var i = 0; i < ride.steps.length; i++) {
+      await t.tap(find.text(companionReplies[ride.id]![i].first).last);
+      await t.pump(const Duration(seconds: 1));
+    }
+    expect(speaker.spoken, ride.steps.map((s) => s.text).toList(), reason: '每回一句，對方照劇本接下一句');
+    expect(find.textContaining('對方說完了'), findsOneWidget);
 
     await t.tap(find.text('結束通話'));
     await t.pumpAndSettle();
-    await t.pump(const Duration(seconds: 30));
-    expect(speaker.spoken, hasLength(2), reason: '結束後不再朗讀下一句');
+  });
+
+  testWidgets('回覆區可以收合與展開', (t) async {
+    await _open(t, _Spy());
+    await t.tap(find.text('接聽'));
+    await t.pump(const Duration(milliseconds: 300));
+    final reply = companionReplies['walk-home-night']!.first.first;
+    expect(find.text(reply), findsOneWidget);
+    await t.tap(find.byTooltip('收合回覆區'));
+    await t.pumpAndSettle();
+    expect(find.text(reply), findsNothing);
+    await t.tap(find.text('快速回覆'));
+    await t.pumpAndSettle();
+    expect(find.text(reply), findsOneWidget);
+    await t.tap(find.text('結束通話'));
+    await t.pumpAndSettle();
   });
 }

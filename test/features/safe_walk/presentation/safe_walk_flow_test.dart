@@ -108,8 +108,8 @@ void main() {
     await t.pump(const Duration(milliseconds: 300));
     await t.tap(find.text('接聽'));
     await t.pump(const Duration(milliseconds: 300));
-    expect(speaker.spoken, ['喂，你走到哪裡啦？晚餐吃了沒？']);
-    await t.tap(find.text('我正在回家路上，已經吃過了。'));
+    expect(speaker.spoken, ['喂，你到哪了？']);
+    await t.tap(find.text('我在大馬路上，快到了。'));
     await t.pump(const Duration(milliseconds: 100));
     expect(speaker.spoken.length, 1, reason: '自己的回應不朗讀');
     await t.pump(const Duration(seconds: 1));
@@ -176,7 +176,7 @@ void main() {
     await t.pump(const Duration(milliseconds: 300));
     await t.tap(find.text('接聽'));
     await t.pump(const Duration(milliseconds: 300));
-    await t.tap(find.text('我正在回家路上，已經吃過了。'));
+    await t.tap(find.text('我在大馬路上，快到了。'));
     await t.pump(const Duration(milliseconds: 800));
     await t.tap(find.text('緊急求助').first);
     await t.pump(const Duration(milliseconds: 100));

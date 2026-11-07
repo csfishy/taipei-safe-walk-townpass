@@ -213,16 +213,8 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
       _Screen.report => map(start: MapStartView.report),
       _Screen.call => SafeWalkCallView(
         key: _callKey,
-        position: _position,
-        points: _pointsState.points,
-        anomalies: _anomalies,
         speaker: widget.speaker,
         session: _call ??= SafeWalkCallSession(),
-        routePath: _placePath,
-        routeMinutes: _routeState.minutes,
-        destination: _place.label,
-        routeStatus: _routeState.loading ? '路線計算中…' : (_routeState.failed ? _routeState.failTitle : null),
-        onMap: () => _go(_Screen.map),
         onEnd: () {
           _call = null;
           _go(_back);
