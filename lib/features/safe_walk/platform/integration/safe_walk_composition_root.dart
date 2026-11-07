@@ -13,6 +13,7 @@ import 'package:town_pass/features/safe_walk/navigation/route_follower.dart';
 import 'package:town_pass/features/safe_walk/navigation/route_service.dart';
 import 'package:town_pass/features/safe_walk/navigation/valhalla_avoiding_route_planner.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/avoiding_route_service.dart';
+import 'package:town_pass/features/safe_walk/platform/home_location/home_location_service.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_route_speaker.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/tts_safe_walk_speaker.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_navigation_controller.dart';
@@ -28,9 +29,8 @@ import 'package:town_pass/features/safe_walk/shared/contracts/safe_walk_navigati
 import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart'
     as sw;
 
-/// M1's single composition boundary. The first native demo is explicitly mock.
-/// Live location/data require M3's live-state presentation and approved providers
-/// before this route can expose them; no flag silently mixes live and demo data.
+/// M1's composition boundary for independently consented routing and reference
+/// queries. The product's 50 m buffer does not describe an official crime area.
 class SafeWalkCompositionRoot extends StatefulWidget {
   const SafeWalkCompositionRoot({
     super.key,
@@ -39,6 +39,9 @@ class SafeWalkCompositionRoot extends StatefulWidget {
     this.speaker,
     this.routeService,
     this.routeTransport,
+    this.homeLocationStore,
+    this.crimeRepository,
+    this.crimeServiceHost,
     this.onExit,
     this.liveRoutes = false,
     this.watchPosition,
@@ -64,6 +67,15 @@ class SafeWalkCompositionRoot extends StatefulWidget {
   /// Ownership transfers to this route, which disposes the speaker once.
   /// Defaults to on-device TTS; it stays text-only until a voice is confirmed.
   final SafeWalkRouteSpeaker? speaker;
+
+  /// 「家」的裝置儲存；預設用 SharedPreferences，測試可注入 fake。
+  final HomeLocationStore? homeLocationStore;
+
+  /// Optional read-only dependency for isolated integration verification.
+  final CrimeReferenceRepository? crimeRepository;
+
+  /// Public recipient hostname shown in the query consent. Never a credential.
+  final String? crimeServiceHost;
   final VoidCallback? onExit;
 
   @override
@@ -75,30 +87,87 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     with WidgetsBindingObserver {
   final _lifetime = _RouteCancellation();
   _RouteCancellation? _pointsRequest;
+  _RouteCancellation? _locationRequest;
   late final PlatformService _platform;
   late final SafetyDataRepository _safetyData;
   late final SafeWalkRouteSpeaker _speaker;
   late final SafeWalkNavigationController _navigation;
   int _routeSequence = 0;
   bool _navigationActive = false;
+  bool _foreground = true;
+  _RouteCancellation? _operation;
+  int _boundaryRevision = 0;
   List<sw.AssistancePoint> _points = const [];
   bool _pointsLoading = true;
   String? _pointsError;
+  late final HomeLocationService _homeService;
+  sw.Coordinates? _home;
+  int _homeRevision = 0;
+
+  Future<void> _loadHome() async {
+    final revision = _homeRevision;
+    final home = await _homeService.load();
+    if (!mounted || home == null || revision != _homeRevision) return;
+    setState(() => _home = sw.Coordinates(lat: home.lat, lng: home.lng));
+  }
+
+  /// 使用者按儲存／移除時才寫入裝置；失敗會往上丟，由設定畫面顯示錯誤。
+  Future<void> _changeHome(sw.Coordinates? home) async {
+    _invalidateOperation();
+    ++_homeRevision;
+    if (home == null) {
+      await _homeService.clear();
+    } else {
+      await _homeService.save(home.lat, home.lng);
+    }
+    if (mounted) setState(() => _home = home);
+  }
 
   /// Unresolved reports to route around (50 m circles), sent by the map.
   List<AvoidArea> _areas = const [];
 
-  /// Crime reference records near the route (purple "犯罪紀錄區"), avoided
-  /// together with reports. Reference coordinates only, not incident points.
+  /// Product-defined buffers around reference positions; not incident bounds.
   late final CrimeReferenceRepository _crime =
+      widget.crimeRepository ??
       CrimeReferenceWiring.fromEnvironment().repository;
   List<AvoidArea> _crimeAreas = const [];
   List<CrimeSpot> _crimeSpots = const [];
+  bool _hasCrimeConsent = false;
+  bool _crimeConsentAsked = false;
+  Future<bool?>? _routingConsentPrompt;
+  Future<bool?>? _crimeConsentPrompt;
+  String _crimeQueryStatus = '犯罪參考資料：尚未同意查詢。';
 
-  Future<void> _loadCrime(sw.Coordinates a, sw.Coordinates b) async {
-    if (!_crime.isConfigured) return;
+  String get _crimeServiceHost {
+    final host =
+        widget.crimeServiceHost ??
+        Uri.tryParse(const String.fromEnvironment('SUPABASE_URL'))?.host;
+    return host == null || host.isEmpty ? '已設定的 Supabase 犯罪資料服務' : host;
+  }
+
+  bool _isCurrent(_RouteCancellation operation) =>
+      mounted &&
+      _foreground &&
+      _navigationActive &&
+      !_lifetime.isCancelled &&
+      identical(_operation, operation) &&
+      !operation.isCancelled;
+
+  Future<void> _loadCrime(
+    sw.Coordinates a,
+    sw.Coordinates b,
+    _RouteCancellation operation,
+  ) async {
+    if (!_isCurrent(operation) || !_hasCrimeConsent) return;
+    if (!_crime.isConfigured) {
+      setState(() => _crimeQueryStatus = '犯罪參考資料尚未配置；本次路線未套用犯罪參考避讓。');
+      return;
+    }
     const m = 0.006; // ~600 m margin around the start/destination box
+    setState(() => _crimeQueryStatus = '犯罪參考資料查詢中…');
     try {
+      // Consent and operation state are checked immediately before the effect.
+      if (!_isCurrent(operation) || !_hasCrimeConsent) return;
       final result = await _crime.query(
         mode: sw.DataMode.live,
         query: CrimeReferenceQuery(
@@ -110,40 +179,63 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
           ),
           limit: crimeReferenceMaxLimit,
         ),
-        cancellation: _lifetime,
+        cancellation: operation,
       );
       final located = [
         for (final r in result.records)
           if (r.latitude != null && r.longitude != null) r,
       ];
-      if (!mounted) return;
+      if (!_isCurrent(operation) || !_hasCrimeConsent) return;
       setState(() {
         _crimeSpots = [
           for (final r in located)
             (
-              id: 'crime-${r.sourceRecordId}',
+              id: 'crime-${r.source.sourceKey}-${r.sourceRecordId}',
               at: LatLng(r.latitude!, r.longitude!),
-              label: '${r.category}・${r.eventDate}・${r.locationText}',
+              label:
+                  '${r.category}・${r.eventDate}・${r.locationText}\n'
+                  '來源：${r.source.name}（${r.source.sourceUrl}）\n'
+                  '位置精度：${_precisionLabel(r.spatialPrecision)}；'
+                  '更新：${r.source.dataUpdatedAt ?? '來源未提供'}\n'
+                  '50 公尺為產品避讓緩衝，並非精確案發範圍。',
             ),
         ];
         _crimeAreas = [
           for (final r in located)
             AvoidArea(
-              id: 'crime-${r.sourceRecordId}',
+              id: 'crime-${r.source.sourceKey}-${r.sourceRecordId}',
               center: sw.Coordinates(lat: r.latitude!, lng: r.longitude!),
               radiusMeters: AvoidArea.reportRadiusMeters,
               source: 'crime',
             ),
         ];
+        _crimeQueryStatus = located.isEmpty
+            ? '查詢成功，沒有可定位的犯罪參考紀錄；不代表沿途安全。'
+            : '已取得 ${located.length} 筆歷史參考位置，套用產品設定的 50 公尺避讓緩衝。'
+                  '${result.totalMatching > result.records.length ? '僅顯示本頁資料，尚有其他紀錄。' : ''}'
+                  '參考位置非精確案發點，不代表即時風險。';
       });
+    } on SafeWalkCancelledException {
+      return;
     } catch (_) {
-      // Unavailable data never blocks routing; the map simply shows none.
+      if (!_isCurrent(operation) || !_hasCrimeConsent) return;
+      setState(() => _crimeQueryStatus = '犯罪參考資料查詢失敗；本次路線未套用犯罪參考避讓，請重試。');
     }
   }
 
+  String _precisionLabel(CrimeSpatialPrecision precision) =>
+      switch (precision) {
+        CrimeSpatialPrecision.publicPlaceReference => '公共場所參考位置',
+        CrimeSpatialPrecision.roadSegmentReference => '路段參考位置',
+        CrimeSpatialPrecision.addressRangeReference => '門牌範圍參考位置',
+        CrimeSpatialPrecision.addressReference => '門牌參考位置',
+        CrimeSpatialPrecision.districtOnly => '僅行政區',
+        CrimeSpatialPrecision.blurredText => '模糊地點',
+        CrimeSpatialPrecision.unresolved => '未解析',
+      };
+
   /// Start point the user picked on the map; null = device GPS.
   sw.Coordinates? _manualOrigin;
-  bool _askingConsent = false;
 
   // Route following: one follower per option; re-plan only when off all of them.
   sw.Coordinates? _destination;
@@ -157,7 +249,14 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
   @override
   void initState() {
     super.initState();
+    _homeService = HomeLocationService(
+      widget.homeLocationStore ?? SharedPreferencesHomeLocationStore(),
+    );
+    unawaited(_loadHome());
     WidgetsBinding.instance.addObserver(this);
+    if (!_crime.isConfigured) {
+      _crimeQueryStatus = '犯罪參考資料尚未配置；路線未套用犯罪參考避讓。';
+    }
     _platform =
         widget.platform ??
         TownPassPlatformAdapter(
@@ -180,6 +279,8 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     bool hasConsent() =>
         _navigation.hasRoutingConsent &&
         _navigation.liveNavigationAvailable &&
+        _navigationActive &&
+        _foreground &&
         !_lifetime.isCancelled;
     final osrm = DefaultRouteService(
       pointLookup: _lookupRoutePoints,
@@ -202,15 +303,16 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
                   areas: () => [..._areas, ..._crimeAreas],
                 )
               : osrm),
-      // M3 still draws demo geometry/ETA/PiP. M2 lifecycle fixes are included,
-      // but real-provider/native validation remains pending. This UI cannot
-      // enable either readiness gate.
       mode: widget.liveRoutes ? sw.DataMode.live : sw.DataMode.mock,
       livePresentationReady: widget.liveRoutes,
       liveProviderReady: widget.liveRoutes,
     );
     _navigation.addListener(_syncFollowing);
-    unawaited(_loadPoints());
+    if (widget.liveRoutes) {
+      _pointsLoading = false;
+    } else {
+      unawaited(_loadPoints());
+    }
   }
 
   /// A new live route starts (or restarts) following; anything else stops it.
@@ -223,7 +325,6 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
         !_navigationActive ||
         result is! sw.RouteSuccess ||
         result.mode != sw.DataMode.live) {
-      if (result == null || result is sw.RouteFailure) return;
       _stopFollowing();
       return;
     }
@@ -235,7 +336,13 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
   }
 
   void _onPosition(sw.Position position) {
-    if (!mounted || _followers.isEmpty) return;
+    if (!mounted ||
+        !_foreground ||
+        !_navigationActive ||
+        !_navigation.hasRoutingConsent ||
+        _followers.isEmpty) {
+      return;
+    }
     setState(() => _livePosition = position);
     final updates = [for (final f in _followers) f.update(position)];
     final offAll = updates.every((u) => u.shouldReroute);
@@ -276,25 +383,104 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
   }
 
   Future<void> _planRoute(sw.RouteRequest request) async {
-    if (_lifetime.isCancelled || !_navigationActive) return;
+    if (_lifetime.isCancelled || !_foreground || !_navigationActive) return;
+    if (widget.liveRoutes && !_navigation.hasRoutingConsent) return;
     await _navigation.planRoute(request);
   }
 
-  /// Map opened, destination changed or retry: consent → GPS → OSRM route.
-  Future<void> _planTo(sw.Coordinates destination) async {
-    if (_lifetime.isCancelled || _askingConsent) return;
-    if (!_navigation.hasRoutingConsent) {
-      _askingConsent = true;
-      final agreed = await _askRoutingConsent();
-      _askingConsent = false;
-      if (agreed != true || !mounted) return;
-      _navigation.setRoutingConsent(true);
+  void _invalidateOperation() {
+    ++_boundaryRevision;
+    _operation?.cancel();
+    _operation = null;
+    _locationRequest?.cancel();
+    _locationRequest = null;
+    _stopFollowing();
+    _navigation.cancelRoute();
+    _crimeAreas = const [];
+    _crimeSpots = const [];
+    _crimeQueryStatus = !_crime.isConfigured
+        ? '犯罪參考資料尚未配置；路線未套用犯罪參考避讓。'
+        : _hasCrimeConsent
+        ? '犯罪參考查詢已清除；重新規劃路線時才會查詢。'
+        : '未同意犯罪參考查詢；路線不套用犯罪參考避讓。';
+  }
+
+  void _setRoutingConsent(bool consent) {
+    if (!consent) _invalidateOperation();
+    _navigation.setRoutingConsent(consent);
+  }
+
+  void _setCrimeConsent(bool consent) {
+    _hasCrimeConsent = consent;
+    _crimeConsentAsked = true;
+    if (!consent) _invalidateOperation();
+    if (mounted) {
+      setState(() {
+        _crimeQueryStatus = consent
+            ? '已同意犯罪參考查詢；重新規劃路線時才會查詢。'
+            : '未同意犯罪參考查詢；路線不套用犯罪參考避讓。';
+      });
     }
-    _destination = destination;
+  }
+
+  Future<void> _manageCrimeConsent() async {
+    if (!mounted || !_foreground || _lifetime.isCancelled) return;
+    if (!_crime.isConfigured) {
+      setState(() => _crimeQueryStatus = '犯罪參考資料尚未配置；路線未套用犯罪參考避讓。');
+      return;
+    }
     _openNavigation();
+    final revision = _boundaryRevision;
+    final prompt = _crimeConsentPrompt ??= _askCrimeConsent();
+    final agreed = await prompt;
+    if (identical(_crimeConsentPrompt, prompt)) _crimeConsentPrompt = null;
+    if (!mounted ||
+        !_foreground ||
+        !_navigationActive ||
+        _lifetime.isCancelled ||
+        revision != _boundaryRevision ||
+        agreed == null) {
+      return;
+    }
+    _setCrimeConsent(agreed);
+  }
+
+  /// Each explicit plan owns GPS, reference query and route work. A newer
+  /// destination or lifecycle boundary invalidates every later continuation.
+  Future<void> _planTo(sw.Coordinates destination) async {
+    if (!mounted || !_foreground || _lifetime.isCancelled) return;
+    _invalidateOperation();
+    _openNavigation();
+    _destination = destination;
+    final operation = _operation = _RouteCancellation();
+    if (!_navigation.hasRoutingConsent) {
+      final prompt = _routingConsentPrompt ??= _askRoutingConsent();
+      final agreed = await prompt;
+      if (identical(_routingConsentPrompt, prompt)) {
+        _routingConsentPrompt = null;
+      }
+      if (!_isCurrent(operation) || agreed != true) return;
+      _setRoutingConsent(true);
+    }
+    if (!_isCurrent(operation) || !_navigation.hasRoutingConsent) return;
+    if (_crime.isConfigured && !_crimeConsentAsked) {
+      final prompt = _crimeConsentPrompt ??= _askCrimeConsent();
+      final agreed = await prompt;
+      if (identical(_crimeConsentPrompt, prompt)) _crimeConsentPrompt = null;
+      if (!_isCurrent(operation)) return;
+      _hasCrimeConsent = agreed == true;
+      _crimeConsentAsked = true;
+      setState(
+        () => _crimeQueryStatus = _hasCrimeConsent
+            ? '已同意犯罪參考查詢。'
+            : '未同意犯罪參考查詢；本次路線不套用犯罪參考避讓。',
+      );
+    }
+    if (!_isCurrent(operation) || !_navigation.hasRoutingConsent) return;
     final manual = _manualOrigin;
     if (manual != null) {
-      await _loadCrime(manual, destination);
+      await _loadCrime(manual, destination, operation);
+      if (!_isCurrent(operation) || !_navigation.hasRoutingConsent) return;
       await _planRoute(
         _createRouteRequest(
           origin: sw.Position(
@@ -313,19 +499,27 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
       located = await _platform.getCurrentPosition(
         mode: _navigation.mode,
         userInitiated: true,
-        cancellation: _lifetime,
+        cancellation: operation,
       );
     } on SafeWalkCancelledException {
       return;
+    } catch (_) {
+      if (!mounted || !_isCurrent(operation)) return;
+      ScaffoldMessenger.maybeOf(context)
+          ?.showSnackBar(const SnackBar(content: Text('暫時無法取得位置，請重新定位或選擇起點。')));
+      return;
     }
-    if (!mounted || _lifetime.isCancelled) return;
+    if (!mounted || !_isCurrent(operation) || !_navigation.hasRoutingConsent) {
+      return;
+    }
     if (located is! sw.LocationSuccess) {
       ScaffoldMessenger.maybeOf(context)?.showSnackBar(
         SnackBar(content: Text((located as sw.LocationFailure).message)),
       );
       return;
     }
-    await _loadCrime(located.position.coordinates, destination);
+    await _loadCrime(located.position.coordinates, destination, operation);
+    if (!_isCurrent(operation) || !_navigation.hasRoutingConsent) return;
     await _planRoute(
       _createRouteRequest(origin: located.position, destination: destination),
     );
@@ -336,8 +530,10 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     builder: (dialog) => AlertDialog(
       title: const Text('規劃路線需要你的位置'),
       content: const Text(
-        '會把你目前的位置、目的地和要避開的回報點，傳給 OpenStreetMap 步行路線服務'
-        '（valhalla1.openstreetmap.de、routing.openstreetmap.de）來計算路線，不會傳給其他人。',
+        '會把起點、目的地及要避開的 50 公尺緩衝區傳給路線服務'
+        '（valhalla1.openstreetmap.de、routing.openstreetmap.de）計算步行路線。'
+        '導航期間會在前景持續更新位置，用於路線跟隨與偏離後重新規劃；離開導航或進入背景即停止。'
+        '系統定位權限與犯罪參考資料查詢會分別取得同意；可在地圖撤回路線查詢同意。',
       ),
       actions: [
         TextButton(
@@ -352,14 +548,37 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     ),
   );
 
+  Future<bool?> _askCrimeConsent() => showDialog<bool>(
+    context: context,
+    builder: (dialog) => AlertDialog(
+      title: const Text('犯罪參考資料查詢同意'),
+      content: Text(
+        '將起點與目的地周圍的查詢外框傳給 Supabase（$_crimeServiceHost），'
+        '讀取附近歷史犯罪參考資料。這會透露大致行程範圍，與路線查詢同意分開。'
+        '50 公尺是產品設定的避讓緩衝，並非官方案發範圍或安全保證。'
+        '拒絕仍可規劃步行路線；可隨時由地圖的犯罪查詢同意入口撤回。',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(dialog).pop(false),
+          child: Text(_hasCrimeConsent ? '撤回同意' : '不要查詢'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(dialog).pop(true),
+          child: const Text('同意查詢'),
+        ),
+      ],
+    ),
+  );
+
   void _openNavigation() {
-    if (!_lifetime.isCancelled) _navigationActive = true;
+    if (!_lifetime.isCancelled && _foreground) _navigationActive = true;
   }
 
   void _closeNavigation() {
-    _stopFollowing();
     _navigationActive = false;
-    _navigation.cancelRoute();
+    _destination = null;
+    _invalidateOperation();
   }
 
   @override
@@ -371,7 +590,10 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.hidden ||
         state == AppLifecycleState.detached) {
+      _foreground = false;
       _closeNavigation();
+    } else if (state == AppLifecycleState.resumed) {
+      _foreground = true;
     }
     if (mounted) setState(() {});
   }
@@ -456,16 +678,29 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
   }
 
   Future<sw.LocationResult> _locate() async {
+    _locationRequest?.cancel();
+    final request = _locationRequest = _RouteCancellation();
     try {
+      if (!_foreground || _lifetime.isCancelled) {
+        throw const SafeWalkCancelledException();
+      }
       final result = await _platform.getCurrentPosition(
-        mode: sw.DataMode.mock,
+        mode: widget.liveRoutes ? sw.DataMode.live : sw.DataMode.mock,
         userInitiated: true,
-        cancellation: _lifetime,
+        cancellation: request,
       );
       _lifetime.throwIfCancelled();
-      if (result is sw.LocationSuccess &&
+      request.throwIfCancelled();
+      if (!_foreground || !mounted) throw const SafeWalkCancelledException();
+      if (!widget.liveRoutes &&
+          result is sw.LocationSuccess &&
           result.position.source != sw.PositionSource.mock) {
         return _locationFailure('示範模式未取得示範位置，請重試。');
+      }
+      if (widget.liveRoutes &&
+          result is sw.LocationSuccess &&
+          result.position.source == sw.PositionSource.mock) {
+        return _locationFailure('未取得真實位置，請重新定位。');
       }
       return result;
     } on SafeWalkCancelledException {
@@ -527,15 +762,15 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
       routeError: _navigation.routeError,
       createRouteRequest: _createRouteRequest,
       onPlanRoute: _planRoute,
-      onCancelRoute: _navigation.cancelRoute,
-      onRoutingConsentChanged: _navigation.setRoutingConsent,
-      onDestinationChanged: _navigation.cancelRoute,
+      onCancelRoute: _invalidateOperation,
+      onRoutingConsentChanged: _setRoutingConsent,
+      onDestinationChanged: _invalidateOperation,
       onNavigationOpened: _openNavigation,
       onNavigationClosed: _closeNavigation,
       onEmergencyOpened: _closeNavigation,
       // Built here so route results, loading and live position reach the map.
       child: SafeWalkFlow(
-        mode: sw.DataMode.mock,
+        mode: widget.liveRoutes ? sw.DataMode.live : sw.DataMode.mock,
         allowRealCalls: false,
         // Live mode shows no demo help points; real nearby places come later.
         points: widget.liveRoutes ? const [] : _points,
@@ -546,10 +781,17 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
         livePosition: _livePosition,
         onLeaveMap: _closeNavigation,
         crimeSpots: _crimeSpots,
+        crimeQueryStatus: widget.liveRoutes ? _crimeQueryStatus : null,
+        onManageCrimeConsent: widget.liveRoutes
+            ? () => unawaited(_manageCrimeConsent())
+            : null,
+        onRevokeRoutingConsent: widget.liveRoutes
+            ? () => _setRoutingConsent(false)
+            : null,
         onStartChanged: widget.liveRoutes
             ? (origin) {
+                _invalidateOperation();
                 _manualOrigin = origin;
-                if (origin != null) _stopFollowing();
               }
             : null,
         routeLoading: widget.liveRoutes && _navigation.routeLoading,
@@ -568,6 +810,8 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
         speaker: _speaker,
         onLocate: _locate,
         onEmergency: _emergency,
+        homeLocation: _home,
+        onHomeChanged: _changeHome,
         onExit: _exit,
       ),
     ),
@@ -578,6 +822,8 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     WidgetsBinding.instance.removeObserver(this);
     _stopFollowing();
     _navigation.removeListener(_syncFollowing);
+    _operation?.cancel();
+    _locationRequest?.cancel();
     _lifetime.cancel();
     _pointsRequest?.cancel();
     _navigation.dispose();

@@ -1,6 +1,6 @@
 # 臺北安心行：Live MVP 正式驗收規格
 
-2026-11-07（Asia/Taipei）。團隊主要交付目標由 Mock Demo／Prototype 轉為 **真實、可驗證、可部署的 Live MVP／Production Readiness**。本文件定義目標，現況／缺口見 [Readiness](SAFE_WALK_LIVE_READINESS.md)，不因規格已合併就視為功能已上線。本次僅文件 PR，不改旗標、不啟用未驗證 Live。
+2026-11-08（Asia/Taipei）。依 [LIVE-FIRST／NO PRODUCTION MOCK](SAFE_WALK_LIVE_FIRST.md)，正式交付只有**真實、可驗證、可部署的完整使用者流程**；新功能直接做真實 Provider 與正式 UI 接線，不要求先交 Mock、Demo 或 Prototype。本文定義驗收，現況／缺口見 [Readiness](SAFE_WALK_LIVE_READINESS.md)。基線 main `7b99fea` 正式入口仍 Mock，#35 的 P0 接線已由 #49 restore 移除；這是尚待修正的現況，不能因文件或過去合併紀錄宣稱已 Live。本次文件不改旗標、不啟用未驗證能力。
 
 依 [開放協作規範](SAFE_WALK_COLLABORATION.md)，以下模組／姓名是主要負責與技術驗收聯絡人，不是目錄獨占權。所有成員可跨模組修改合理的功能程式及測試，由指定功能主責交付完整操作流程。一般接線、導航、UI callback、資料轉換、音訊及測試採 Level A；共用契約／Schema／Models、套件、TownPass route／原生設定、重大 UI 及 CI 採 Level B 合併前確認；正式部署開關及高風險真實外部操作採 Level C 隊長授權與安全／隱私驗收。Live 驗收標準不因開放協作而降低。
 
@@ -8,13 +8,13 @@
 
 | 能力模式 | 必須滿足 |
 |---|---|
-| Mock | 僅供開發、測試、離線及清楚標示的 Demo；不宣稱真實結果，不使用真實個資、不直接發緊急通報。 |
+| Mock | 僅限 Unit／Integration tests 的隔離替身與人工 fixtures；不得成為 Production 資料來源，正式入口不可選擇。 |
 | Live | 實際平台能力／真實合法來源；Provider、權限、同意均已配置；處理失敗、取消、不可用；通過該能力必要測試與實機驗收。 |
 | Unavailable | 未配置、資料不足或外部服務不可用，說明原因及可行下一步；不自動以 Mock 假成功。 |
 
-Development 可用 Mock；公開版本應優先提供已驗證 Live，不以單一全域 Mock 阻擋其他能力。定位、導航、據點、TTS、撥號 handoff 分別驗收／啟用，附近通知的 BLOCKED 不阻擋其他能力。混合能力的畫面逐項揭露，不能讓 Live 標籤替 Demo 路線背書。
+Production 僅提供已驗收真能力或 Unavailable＋真實原因＋下一步；清楚標示 Demo 不會使正式流程中的模擬資料合格。定位、導航、據點、TTS、撥號 handoff 分別驗收／啟用，附近通知的 BLOCKED 不阻擋其他已驗收能力。不得暗中 fallback、硬編成功或只改 `readiness`／`live=true`；只交 Adapter／Parser、獨立測試頁也不算完整功能。
 
-既有 JSON DataMode 只有 mock/live；Unavailable 映射既有 LocationFailure、RouteFailure、not_configured／錯誤及畫面狀態，不新增 Schema enum。Readiness 狀態限 IMPLEMENTED_NOT_WIRED、WIRED_NOT_VERIFIED、LIVE_VERIFIED、BLOCKED、NOT_IMPLEMENTED；只有 Mock Unit Test 不可標 LIVE_VERIFIED。
+既有 JSON DataMode 只有 mock/live，因契約相容保留，mock 值僅限隔離測試；Unavailable 映射既有 LocationFailure、RouteFailure、not_configured／錯誤及畫面狀態，不新增 Schema enum。Readiness 狀態限 IMPLEMENTED_NOT_WIRED、WIRED_NOT_VERIFIED、LIVE_VERIFIED、BLOCKED、NOT_IMPLEMENTED；只有 Mock Unit Test 不可標 LIVE_VERIFIED。
 
 證據要記錄 source SHA、Provider／endpoint、測試類型、實際結果與 skip、裝置／OS、日期及 Owner。外部服務測試使用人工公開地標，不留真實使用者軌跡。CI build／合成座標重播不能代替實體 iPhone 行走、GPS、音訊與系統交接。
 
@@ -36,10 +36,20 @@ Development 可用 Mock；公開版本應優先提供已驗證 Live，不以單�
 - M1 新位置輸入接入 RouteFollower；驗進度、偏航、到達、低精度／過期位置與刷新，偏航時明示需更新或重新查詢。
 - 使用者能選擇、更換目的地；每次 requestId 對應結果，取消／改目的地／撤回同意／背景／離開不讓舊結果覆寫。
 - 可選經過已查證據點，透過 M1 注入 lookup 核對 ID、來源、認可、營業與模式。查不到或已關閉不杜撰據點；直接路線替代需揭露繞路不可用／超出上限，不假稱已經過。
-- 網路、HTTP、格式、無路線／逾時明示錯誤，可重試或由使用者主動選外部導航；不自動開第三方 App／瀏覽器或改回 Mock。
+- 網路、HTTP、格式、無路線／逾時明示 Unavailable、原因與重試下一步；不自動開第三方 App／瀏覽器或改回 Mock。競賽正式功能不採 Google Maps，舊 URI builder 不構成正式整合許可。
 - OSRM 與 walkingNetworkVerified 不代表已驗證安全路線，不保證治安、照明、無障礙或即時通行。
 
 驗收：Provider 解析／錯誤／同意／取消及 follower 單元、正式入口整合、人工公開地標真實 Provider smoke、實體 iPhone 路線／位置刷新。預設公共 OSRM 程式已註明 fair-use／無 SLA；MVP 記錄允許使用條件及負載，Production Readiness 補服務維運方案。
+
+### 50 公尺避讓規格
+
+2026-11-08 使用者於 #59 審查明確決定保留：回報點及有座標的犯罪參考點，均可套用半徑 **50 公尺的產品避讓緩衝區**。這是繞行設定，不是官方確認的犯罪區域、精確案發位置、來源誤差範圍或安全保證；#48／#56 對來源證據的要求繼續適用於「實際犯罪範圍」的宣稱，不用來取消此產品設定。
+
+- 保留最短路線、距中心至少 15 公尺及完整 50 公尺緩衝避讓選項；相同路線可合併，不保證每次都有三條。
+- 犯罪點顯示來源、日期、位置精度及參考位置限制；圖面標為避讓緩衝，不能稱為已確認犯罪區。缺座標不補造中心或圓形。
+- 使用真實步行路網重新規劃，並以回傳 geometry 比對緩衝距離；不能只相信請求中的排除參數，也不手改 geometry 假避讓。
+- 起點或終點位於緩衝內時揭露無法完整避讓的例外；無可用避讓路線或降級到未避讓的路線時，明示限制，不宣稱避讓成功。
+- 定位、第三方路線與 Supabase 犯罪查詢的同意、撤回、取消及遲到回應保護仍須完成；保留緩衝不等於授權未同意的外傳或正式部署。
 
 ## M3 Flutter UI/UX｜莅紋
 
@@ -47,7 +57,7 @@ Development 可用 Mock；公開版本應優先提供已驗證 Live，不以單�
 - 使用真實地圖底圖及正確 WGS84／GeoJSON [lng, lat] 投影；授權、attribution、網路／底圖載入失敗均可處理。Live 不使用固定 DemoMap 畫布冒充地圖。
 - M1 注入 M2 RouteResult，呈現實際路線、距離、可取得的時間；loading、取消、錯誤、空結果、未知時間可區分。
 - 提供定位及獨立第三方查詢同意、撤回／重試／更新位置、目的地選擇與更換、路線／外部導航操作。
-- Live／Demo 與能力不可用清楚標示；Live 不顯示虛構避險件數、模擬 ETA／地標或示範據點。真實功能狀態與 M1 接線一致，不僅靠傳入 live 字樣。
+- 正式畫面清楚呈現真實能力與 Unavailable 原因／下一步；不得顯示虛構避險件數、模擬 ETA／地標或示範據點。狀態與 M1 接線一致，不僅靠傳入 live 字樣；不提供 Production Mock 切換。
 - 驗返回、SOS、背景、離開及重進，無遲到路線／語音復活；小螢幕、大字體、VoiceOver 與減少動態效果可操作。
 
 驗收：widget 測試核對真正傳入 geometry／distance／nullable duration、同意及錯誤，不只測截圖；入口至 Controller／Provider seam 整合及實機地圖／投影／無障礙。
@@ -56,9 +66,9 @@ Development 可用 Mock；公開版本應優先提供已驗證 Live，不以單�
 
 - 使用合法來源真實開放資料；保留 datasetId、sourceUrl、retrievedAt、dataUpdatedAt、license、coverage、limitations，未知用契約 null，不編造更新日或授權。
 - Repository 可供 M1 查詢，由 M1 注入 M2／M3，明確區分查詢失敗、成功無資料、尚未配置及過期快取。
-- 據點座標／ID／查核資訊正確；AED 登錄、OSM 24/7 商店不等於政府認證救援、安全合作站、此刻有人或願意協助。認可需 evidenceUrl／checkedAt，營業資訊不能當現場保證。
+- 據點座標／ID／查核資訊正確；OSM 24/7 商店不等於政府認證救援、安全合作站、此刻有人或願意協助。認可需 evidenceUrl／checkedAt，營業資訊不能當現場保證。競賽正式範圍不加入 AED 功能。
 - 全市犯罪統計不能拆成行政區、道路或逐時風險；既有 violent_crime snapshot 與尚未符合 district-only AreaStatistics 的資料保持分離。歷史率不直接推算即時安全路線。
-- 真實來源 fetch／parse／更新及異常測試有證據，fixtures 不當成已連線證據。來源格式或範圍不符時清楚 Unavailable。
+- 真實來源 fetch／parse／更新、正式查詢畫面及異常完整流程有證據，fixtures 只限隔離測試，不當成已連線證據。來源格式或範圍不符時清楚 Unavailable＋原因＋下一步。正式持久資料整合方向是 Supabase 主資料庫；#44 仍待合併及 Level C 權限／安全審查，不代表 main 已完成後端。
 
 驗收：Parser 正反例／Schema／語意、M1 lookup 與 M2 途經整合、真實來源與 provenance、iPhone 列表／斷網／空資料／錯誤及更新日期顯示。
 

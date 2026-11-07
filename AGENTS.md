@@ -1,4 +1,6 @@
-# 臺北安心行 · TownPass 持續開發規範
+# 臺北安心行 · TownPass LIVE-FIRST DEVELOPMENT
+
+**現行強制政策：LIVE-FIRST DEVELOPMENT + NO PRODUCTION MOCK。** 後續所有開發任務以可用、真實、可操作、可驗證的完整使用者流程為交付目標，不要求先做 Mock／Demo／Prototype。統一完成定義見 [LIVE-FIRST](docs/SAFE_WALK_LIVE_FIRST.md)；歷史初始化、舊 PR／測試紀錄只供追溯，不構成現行開發禁令。
 
 主要目標是 **Live MVP／Production Readiness**：交付真實、可驗證、可部署的功能。採 **Feature-First Development + Soft Ownership + Contract-Based Integration**。開工先讀 [協作規範](docs/SAFE_WALK_COLLABORATION.md)、[Live MVP](docs/SAFE_WALK_LIVE_MVP.md)、[Readiness](docs/SAFE_WALK_LIVE_READINESS.md)、[架構](docs/SAFE_WALK_ARCHITECTURE.md)、[Schema](docs/SAFE_WALK_SCHEMA.md)、[模組契約](docs/SAFE_WALK_MODULES.md)、[顏色規範](docs/SAFE_WALK_COLOR_SPEC.md) 及涉及模組 README。初始化文件只供歷史查證，不作為拒絕後續 Live 或跨模組開發的理由。
 
@@ -6,16 +8,16 @@
 
 | 階段 | 交付標準 |
 |---|---|
-| Prototype | 清楚標示的 Mock／Fake 驗證操作與契約，不宣稱正式功能完成。 |
+| 測試／研究 | 可用隔離 Fake／Mock／fixtures 驗證契約與邊界；不是正式功能交付，也不是開始 Live 開發的前置階段。 |
 | Integration | 依賴注入接入實際模組，驗證同意、模式、取消、錯誤及生命週期。 |
 | Live MVP | 真實 Provider 完成必要測試與 iPhone 驗收，能從正式流程使用，失敗明確揭露。 |
 | Production Readiness | 補足服務容量／條款、維運、監測、更新、簽署部署、隱私及安全證據。 |
 
-目前 App 保留 Demo 與部分真實能力，逐能力推進 Integration → Live MVP；不宣稱全產品已可正式上線。本次規格 PR 不開啟未驗證功能。
+盤點基準為 main `7b99fea`（#49 恢復 `3c433001` 快照後）：正式入口仍固定 Mock，屬待修正缺口，不能當作符合本政策。#35 曾交付的 Live 接線已不在此基線；開放 PR 與歷史成果不等於 main 現況。文件 PR 不改執行期，也不宣稱全產品已上線；程式接線另以 PR、實際測試及適用裝置驗收交付。
 
-**Mock 僅作為測試與未驗證功能的隔離模式。正式功能完成相應驗收後，必須能透過正式操作流程使用 Live Provider。** Development 可用 Mock；公開版本優先提供已驗證的 Live 能力，不用全域 Mock 永久封鎖全部產品。各能力分開驗收、啟用及撤回；未完成能力回清楚的 Unavailable，不暗中回 Mock 假成功。
+**正式 App 唯一交付路徑為 Live。** Production 使用者資料來源與操作流程不得接入 Mock Provider／Repository、DemoGeo、虛構商店／犯罪座標、模擬路線或固定成功回應；失敗不得 fallback 到 Mock。Fake／Mock／fixtures 僅限 Unit／Integration tests 與隔離測試工具，不得由正式入口選用。新功能直接完成真實 Provider、正式 UI、錯誤／取消／逾時與來源揭露的完整流程；只交 Adapter／Parser／畫面不算完成。未完成能力回 Unavailable，列實際阻塞與下一步；已符合驗收的能力不受其他 BLOCKED 模組的全域 Mock 限制。
 
-Mock／Live 是既有 wire DataMode；Unavailable 是能力／操作呈現語意，映射既有失敗契約，不新增 Schema enum。Readiness 狀態只用 IMPLEMENTED_NOT_WIRED、WIRED_NOT_VERIFIED、LIVE_VERIFIED、BLOCKED、NOT_IMPLEMENTED；Mock unit test 不能證明 LIVE_VERIFIED。
+Mock／Live 是既有 wire DataMode；保留 `mock` 僅供測試／相容性，正式入口不得選用。Unavailable 是能力／操作呈現語意，映射既有失敗契約，不因政策任意破壞 Schema／enum。Readiness 只用 IMPLEMENTED_NOT_WIRED、WIRED_NOT_VERIFIED、LIVE_VERIFIED、BLOCKED、NOT_IMPLEMENTED；改文案、固定成功、`live=true` 或改 readiness 都不能代替真實接線與驗收，測試替身不能證明 LIVE_VERIFIED。
 
 ## 功能主責與軟性所有權
 
@@ -42,8 +44,10 @@ Mock／Live 是既有 wire DataMode；Unavailable 是能力／操作呈現語意
 
 - GPS 由使用者主動啟動導航／更新位置觸發，使用 TownPass 原生服務。定位權限與第三方查詢同意分開；不得自動追蹤、外傳或以示範座標補定位失敗。
 - 真實步行 Provider 顯示 geometry、距離、可取得的時間與限制。OSRM 路網不代表已驗證的安全路線。
+- 競賽導航使用 App 內 OSM／合法路網與 OSRM；不得以 Google Maps 外連作為正式導航交付。不得新增 AED 功能。
 - Live 不顯示 DemoGeo、虛構避險件數、模擬 ETA／地標；查詢失敗、無資料與未配置可區分。
 - 保留來源、取得／更新日期及限制。AED／便利商店不能直接當政府認證救援據點；全市／行政區歷史統計不能冒充即時道路風險。
+- 持久犯罪參考資料庫與 CI／Demo reset 隔離；App 只透過授權、受限、經審查的唯讀介面取得合法公開資訊，不能持有 service_role／管理金鑰／DB 密碼。模糊地址與參考座標不是精確案發點，無可信範圍不得宣稱避開實際犯罪區域。2026-11-08 使用者明確決定保留回報點及有座標犯罪參考點的 **50 公尺產品避讓緩衝**；它不是官方犯罪邊界、定位誤差或安全保證。保留此規格，驗證實際路線與緩衝的距離；無路線、起終點位於緩衝內或服務降級時明確揭露，不能因參考位置限制而刪除整項避讓功能。詳見 [Live MVP](docs/SAFE_WALK_LIVE_MVP.md#50-公尺避讓規格)。
 - 附近協助者通知需可信身分、接收資格、ownership、RLS/RPC、限流／防濫用、位置保留／刪除、明確同意與後端／裝置驗證；未完成維持 BLOCKED，匿名 UUID 不得開放陌生人位置通知。
 - 無官方授權不得自動送警消案件、派遣或杜撰受理編號；officialReceipt 保持 null。這不阻擋導航、查詢、TTS 或使用者主動開啟 110／119 系統撥號器及官方通報入口。
 - 開啟撥號器不等於電話接通，開啟外部管道不等於受理。測試不撥真實緊急號碼、不發真實通報。
@@ -51,6 +55,10 @@ Mock／Live 是既有 wire DataMode；Unavailable 是能力／操作呈現語意
 - 不提交 secrets、憑證、Token、真實位置紀錄、住家或聯絡人，不要求在對話貼 Token。測試／截圖使用人工位置並說明證據限制。
 
 ## Git、審查與驗證
+
+- **北北基犯罪參考資料庫是持久資料，不是 Demo seed。** 使用者指定既有 Supabase 專案的獨立 private `crime_reference` schema；保持 RLS 啟用、不授予 `anon`／`authenticated` 直接存取，不新增公開 RPC 或把憑證放進 App／CI。來源、原始位置文字、定位依據與精度必須保留；參考位置不等於精確犯罪發生點。
+- **build、CI、App 啟動、測試資料初始化及 Demo reset 絕不得 import、seed、update、delete、truncate、drop 或重建 `crime_reference`。** PR #40 的 `safe_walk_demo` 與此資料隔離，不擴大 Demo reset 範圍。任何資料更新只准明確授權的可信手動匯入，以新 snapshot version 新增並驗證，不能覆蓋或重置既有版本。受控 SQL 僅放 `supabase/crime_reference/`，不能由 workflow 呼叫；資料庫權限／匯入仍依 Level C 審查。
+- 本機 SQLite 僅供唯讀離線備份與匯出，實體檔放在所有 Git checkout／worktree **之外**，不可加入 assets、Git、Web ZIP、APK、IPA 或 release。新增版本只准明確 `import-new --allow-write`，不得覆寫既有檔；CI 禁止匯入。讀取／匯出使用 `mode=ro`，不得將 guard 接到真資料庫。操作與驗證見 [犯罪資料庫隔離](docs/SAFE_WALK_CRIME_DATABASE.md)。
 
 - 先 fetch 最新團隊 origin/main，核對工作樹、未合併 PR 與 CI；新功能預設短期任務分支，依賴未合併成果時從 parent 最新 head 建 stacked 分支並明列 base／SHA，不把它寫成 main 成果、不覆寫 parent。
 - upstream 只讀；push 明確指定團隊 origin。不 force push、不刪／重設隊員分支、不 reset／clean 他人工作、不擅自關 PR、移動 tag、自動 merge 或發布。

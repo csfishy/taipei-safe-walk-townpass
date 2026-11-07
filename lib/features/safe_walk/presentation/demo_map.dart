@@ -43,6 +43,8 @@ class DemoMap extends StatelessWidget {
     required this.path,
     this.altPaths = const [],
     this.destination,
+    this.showDestination = true,
+    this.showStart = true,
     this.showAttribution = true,
     this.crimeSpots = const [],
     this.avoidRadiusMeters = 0,
@@ -66,11 +68,12 @@ class DemoMap extends StatelessWidget {
 
   /// 目的地標記位置（預設為示範的家）。
   final LatLng? destination;
+  final bool showDestination, showStart;
 
   /// false 時由外層（例如下方資訊框）顯示 OSM 版權標示。
   final bool showAttribution;
 
-  /// 犯罪紀錄區：紫色範圍＋小點（參考位置，非精確案發地點）。
+  /// 紫色參考位置及產品設定的 50 公尺繞行緩衝，並非案發範圍。
   final List<({LatLng at, String label})> crimeSpots;
 
   /// When > 0, each unresolved report gets a circle of this real-world radius.
@@ -95,7 +98,7 @@ class DemoMap extends StatelessWidget {
       _ll(start),
       for (final at in path) _ll(at),
       if (!live) ...[
-        _ll(destination ?? DemoGeo.home),
+        if (showDestination) _ll(destination ?? DemoGeo.home),
         for (final p in points) ll.LatLng(p.coordinates.lat, p.coordinates.lng),
         for (final a in anomalies) _ll(a.at),
       ],
@@ -115,7 +118,10 @@ class DemoMap extends StatelessWidget {
         height: hit,
         alignment: Alignment.center,
         child: onTap == null
-            ? ExcludeSemantics(child: Center(child: child))
+            ? Semantics(
+                label: label,
+                child: ExcludeSemantics(child: Center(child: child)),
+              )
             : Semantics(
                 button: true,
                 label: label,
@@ -155,7 +161,7 @@ class DemoMap extends StatelessWidget {
               border: Border.all(color: SwColors.surface, width: 1.5),
             ),
           ),
-          label: '犯罪紀錄區：${c.label}（參考位置，非精確案發地點）',
+          label: '50 公尺避讓緩衝區：${c.label}（產品設定的繞行距離；參考位置不是精確案發點或官方犯罪範圍）',
         ),
       for (final p in points)
         marker(
@@ -168,8 +174,9 @@ class DemoMap extends StatelessWidget {
           label: '${p.name}，查看詳細資訊',
           onTap: onPoint == null ? null : () => onPoint!(p.id),
         ),
-      marker(destination ?? DemoGeo.home, 32, _HomeMark(active: homeActive)),
-      marker(start, 34, const _StartMark()),
+      if (showDestination)
+        marker(destination ?? DemoGeo.home, 32, _HomeMark(active: homeActive)),
+      if (showStart) marker(start, 34, const _StartMark()),
       if (pin != null)
         marker(
           pin!,

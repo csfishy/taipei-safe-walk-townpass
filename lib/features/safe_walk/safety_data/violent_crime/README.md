@@ -1,5 +1,7 @@
 # M4｜臺北市暴力犯罪月統計（live 來源，Dart）
 
+**現行政策：LIVE-FIRST DEVELOPMENT + NO PRODUCTION MOCK。** 本模組保持真實來源、錯誤即失敗，Mock／fixtures 僅供隔離測試。main `7b99fea` 仍為 IMPLEMENTED_NOT_WIRED；完整交付需接正式 App 的查詢、來源／日期／限制與錯誤 UI，不以單一 Parser 或 smoke 宣稱完成，見 [完成定義](../../../../../docs/SAFE_WALK_LIVE_FIRST.md)。本模組只是歷史全市月統計；P0 犯罪參考資料改採 Supabase 持久資料的受限唯讀介面，不能用本統計代替可信地理範圍或宣稱精確路段避讓。下方來源、原交付 SHA／測試記錄保留歷史事實。
+
 信義為資料主要聯絡人；所有成員均可跨來源、組合根及畫面開發完整功能與測試，依 [開放協作](../../../../../docs/SAFE_WALK_COLLABORATION.md) 說明目的、影響檔案及原負責人並避免檔案衝突。一般轉換／呈現屬 Level A，共用 Schema／Contracts／Models 變更屬 Level B；不以資料夾阻擋跨模組實作。
 
 讀取臺北市政府主計處「臺北市暴力犯罪案件按月別」，轉成**模組內型別** `CityMonthlyCrimeStatistics`（格式名 `m4.cityMonthlyCrimeStatistics/0.1`）。在 App 內執行，不新增後端、套件或資料庫。

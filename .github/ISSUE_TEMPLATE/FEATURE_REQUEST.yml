@@ -7,8 +7,12 @@ body:
   - type: markdown
     attributes:
       value: |
+        LIVE-FIRST DEVELOPMENT + NO PRODUCTION MOCK：直接描述真實 Provider 到正式 UI 的完整使用者流程，不需先做 Demo／Mock。測試替身僅供隔離測試；正式失敗回 Unavailable，不以假資料／固定成功或 readiness 旗標代替驗收。保留 Level A／B／C、同意與安全審查；競賽導航使用 App 內 OSM／合法路網，不依賴 Google Maps、不新增 AED。
+  - type: markdown
+    attributes:
+      value: |
         - 閱讀我們的所有文件，特別是我們的 [guideline](https://townpass.taipei/)，裡面可能已經有資訊可以幫助您解決您遇到的問題。
-        - 確認您的 issue 尚未有人[回報](https://github.com/taipei-doit/TownPass-Services/issues)。
+        - 確認您的 issue 尚未有人[回報](https://github.com/csfishy/taipei-safe-walk-townpass/issues)。
   - type: textarea
     id: description
     attributes:
@@ -39,3 +43,10 @@ body:
       render: bash
     validations:
       required: false
+  - type: textarea
+    id: live-acceptance
+    attributes:
+      label: 'LIVE 完成定義與驗收'
+      description: '列正式入口、使用者操作與同意、真實來源／日期／精度、UI 結果、失敗／空資料／逾時／取消、測試與實機證據；未完成請列阻塞原因與下一步。勿貼金鑰、密碼、住家或真實位置。'
+    validations:
+      required: true

@@ -1,5 +1,7 @@
 # 臺北安心行：Prototype → Live MVP 規格逐項審查
 
+> 歷史報告：以下至文末保留 2026-11-07 的 `03f98f2`／`65ee6f7` 稽核、PR 狀態、541 通過／17 跳過及增量原文；沒有重跑，也不能當目前基線的 PASS。現行 main `7b99fea` 經 #49 restore 後仍是 Mock 正式入口，#35 曾合併不代表目前保有接線。現行政策見 [LIVE-FIRST／NO PRODUCTION MOCK](SAFE_WALK_LIVE_FIRST.md)，新功能不要求先 Prototype，Production 只允許真實完整流程或 Unavailable＋原因＋下一步。最新缺口依 [Readiness](SAFE_WALK_LIVE_READINESS.md)，本文不作新程式審查替代品。
+
 日期：2026-11-07（Asia/Taipei）。本報告比較 **已 fetch 的團隊 main 程式／測試**與全部版控 Markdown，不只依 README 判斷。本次只調整文件，不修改程式、Schema、常數、套件、UI 設計或外部通知；現行規格以 [Live MVP](SAFE_WALK_LIVE_MVP.md) 為準。
 
 > 審查更新（2026-11-07）：PR #26 已合併至 main `65ee6f7dd9c07710ecf18084b1975b6998287b3e`，統一 speaker lifecycle 修正與回歸已進主線，仍缺實際 iPhone 驗收。下列 `03f98f2` 的 PR／CI 快照與 541 通過、17 跳過是原盤點事實，保留不改寫；本增量註記不宣告重跑或 LIVE_VERIFIED。R9 與 P1-C 的現行後續工作已更新，#28／#29 仍未合併，不計入主線完成。

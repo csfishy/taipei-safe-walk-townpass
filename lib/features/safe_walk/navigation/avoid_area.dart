@@ -2,9 +2,9 @@ import 'package:town_pass/features/safe_walk/shared/contracts/cancellation.dart'
 import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart'
     as sw;
 
-/// One area the walker should not pass: a circle around a report or a
-/// hard-coded crime/problem point. Not part of the shared schema yet; other
-/// sources convert their data to this shape.
+/// A product-defined routing buffer around a report or reference position.
+/// The radius is a routing preference, not an official incident boundary or
+/// an estimate of how accurately the source locates the incident.
 final class AvoidArea {
   const AvoidArea({
     required this.id,
@@ -13,7 +13,7 @@ final class AvoidArea {
     required this.source,
   });
 
-  /// Radius used for reports made inside Safe Walk.
+  /// Product-selected buffer for reports and crime reference positions.
   static const reportRadiusMeters = 50.0;
 
   /// A route may graze a circle but must stay this far from its centre to

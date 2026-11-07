@@ -4,6 +4,7 @@ import 'dart:math' as math;
 
 import 'package:town_pass/features/safe_walk/navigation/avoid_area.dart';
 import 'package:town_pass/features/safe_walk/navigation/coordinate_math.dart';
+import 'package:town_pass/features/safe_walk/navigation/default_route_service.dart';
 import 'package:town_pass/features/safe_walk/navigation/json_transport.dart';
 import 'package:town_pass/features/safe_walk/navigation/walking_route_provider.dart';
 import 'package:town_pass/features/safe_walk/shared/contracts/cancellation.dart';
@@ -50,6 +51,11 @@ final class ValhallaAvoidingRoutePlanner implements AvoidingRoutePlanner {
   }) async {
     cancellation?.throwIfCancelled();
     if (!hasConsent()) throw const WalkingRouteProviderUnavailable();
+    if (!isValidLatLng(origin.lat, origin.lng) ||
+        !isValidLatLng(destination.lat, destination.lng) ||
+        areas.any((a) => !a.radiusMeters.isFinite || a.radiusMeters <= 0)) {
+      throw const WalkingRouteProviderUnavailable();
+    }
 
     bool inside(AvoidArea a, sw.Coordinates p, double r) =>
         distanceMeters(a.center, p) <= r;
@@ -87,7 +93,28 @@ final class ValhallaAvoidingRoutePlanner implements AvoidingRoutePlanner {
       previousExcluded = key;
       final line = await _route(origin, destination, excluded, cancellation);
       if (line == null) continue;
-      if (previous != null && _sameLine(previous, line.coordinates)) continue;
+      // Some providers may ignore exclusions or snap onto an excluded road.
+      // Verify their original geometry before describing it as avoidance.
+      final requiredRadius = switch (level) {
+        AvoidLevel.none => null,
+        AvoidLevel.center => (AvoidArea a) => AvoidArea.centerRadiusMeters,
+        AvoidLevel.full => (AvoidArea a) => a.radiusMeters,
+      };
+      if (requiredRadius != null &&
+          areas.any((a) {
+            final radius = requiredRadius(a);
+            return !inside(a, origin, radius) &&
+                !inside(a, destination, radius) &&
+                _minDistance(line.coordinates, a.center) < radius;
+          })) {
+        continue;
+      }
+      if (previous != null && _sameLine(previous, line.coordinates)) {
+        // Keep one card, with the strongest verified avoidance level. A full
+        // 50 m detour must not lose that label just because the 15 m request
+        // happened to return the same road.
+        options.removeLast();
+      }
       previous = line.coordinates;
       options.add(
         AvoidRouteOption(
@@ -139,9 +166,9 @@ final class ValhallaAvoidingRoutePlanner implements AvoidingRoutePlanner {
           endpoint.replace(queryParameters: {'json': jsonEncode(body)}),
           cancellation: cancellation,
         );
-      } on JsonTransportException catch (e) {
-        // Valhalla answers "no path" with HTTP 400.
-        if (e.failure == TransportFailure.httpStatus) return null;
+      } on JsonTransportException {
+        // This transport does not expose the HTTP status/body. A server or
+        // rate-limit failure must not be reported as proof of no path.
         throw const WalkingRouteProviderUnavailable();
       } on SafeWalkCancelledException {
         rethrow;
@@ -150,8 +177,17 @@ final class ValhallaAvoidingRoutePlanner implements AvoidingRoutePlanner {
         throw const WalkingRouteProviderUnavailable();
       }
       cancellation?.throwIfCancelled();
+      if (!hasConsent()) throw const WalkingRouteProviderUnavailable();
       try {
-        return _parse(json);
+        final line = _parse(json);
+        if (line == null) return null;
+        if (distanceMeters(origin, _coordinate(line.coordinates.first)) >
+                maxEndpointSnapMeters ||
+            distanceMeters(destination, _coordinate(line.coordinates.last)) >
+                maxEndpointSnapMeters) {
+          throw const WalkingRouteProviderUnavailable();
+        }
+        return line;
       } on WalkingRouteProviderUnavailable {
         rethrow;
       } catch (_) {
@@ -165,7 +201,10 @@ final class ValhallaAvoidingRoutePlanner implements AvoidingRoutePlanner {
   static _Line? _parse(Object? json) {
     if (json is! Map) throw const WalkingRouteProviderUnavailable();
     final trip = json['trip'];
-    if (trip is! Map || trip['status'] != 0) return null;
+    if (trip is! Map || trip['status'] is! num) {
+      throw const WalkingRouteProviderUnavailable();
+    }
+    if (trip['status'] != 0) return null;
     final legs = trip['legs'];
     final summary = trip['summary'];
     if (legs is! List || legs.isEmpty || summary is! Map) {
@@ -176,10 +215,16 @@ final class ValhallaAvoidingRoutePlanner implements AvoidingRoutePlanner {
       final shape = leg is Map ? leg['shape'] : null;
       if (shape is! String) throw const WalkingRouteProviderUnavailable();
       final points = decodePolyline6(shape);
+      if (points.length < 2 || points.any((p) => !isValidLatLng(p[1], p[0]))) {
+        throw const WalkingRouteProviderUnavailable();
+      }
       coordinates.addAll(coordinates.isEmpty ? points : points.skip(1));
     }
     if (coordinates.length < 2) throw const WalkingRouteProviderUnavailable();
     final time = summary['time'];
+    if (time != null && (time is! num || !time.isFinite || time < 0)) {
+      throw const WalkingRouteProviderUnavailable();
+    }
     return _Line(coordinates, time is num ? time.toDouble() : null);
   }
 
@@ -214,8 +259,8 @@ final class ValhallaAvoidingRoutePlanner implements AvoidingRoutePlanner {
       explanations: [
         switch (level) {
           AvoidLevel.none => '最短步行路線',
-          AvoidLevel.center => '不經過回報點中心',
-          AvoidLevel.full => '避開 $avoided 個回報點範圍',
+          AvoidLevel.center => '避開參考點中心 15 公尺',
+          AvoidLevel.full => '避開 $avoided 個避讓緩衝區',
         },
       ],
       warnings: const ['依 OpenStreetMap 步行路網計算，不保證沿途安全或目前可通行'],
@@ -245,19 +290,30 @@ final class ValhallaAvoidingRoutePlanner implements AvoidingRoutePlanner {
       );
 }
 
+sw.Coordinates _coordinate(List<double> point) =>
+    sw.Coordinates(lat: point[1], lng: point[0]);
+
 /// Shortest distance in metres from [p] to the polyline ([lng, lat] pairs).
 double _minDistance(List<List<double>> line, sw.Coordinates p) {
-  final k = 111320 * math.cos(p.lat * math.pi / 180);
+  final metresPerDegree = earthRadiusMeters * math.pi / 180;
+  final k = metresPerDegree * math.cos(p.lat * math.pi / 180);
   var best = double.infinity;
   for (var i = 0; i + 1 < line.length; i++) {
-    final ax = (line[i][0] - p.lng) * k, ay = (line[i][1] - p.lat) * 110540;
+    final ax = (line[i][0] - p.lng) * k,
+        ay = (line[i][1] - p.lat) * metresPerDegree;
     final bx = (line[i + 1][0] - p.lng) * k,
-        by = (line[i + 1][1] - p.lat) * 110540;
+        by = (line[i + 1][1] - p.lat) * metresPerDegree;
     final dx = bx - ax, dy = by - ay, len = dx * dx + dy * dy;
     final t = len == 0 ? 0.0 : (-(ax * dx + ay * dy) / len).clamp(0.0, 1.0);
     best = math.min(
       best,
-      math.sqrt(math.pow(ax + t * dx, 2) + math.pow(ay + t * dy, 2)),
+      distanceMeters(
+        p,
+        sw.Coordinates(
+          lng: line[i][0] + t * (line[i + 1][0] - line[i][0]),
+          lat: line[i][1] + t * (line[i + 1][1] - line[i][1]),
+        ),
+      ),
     );
   }
   return best;
