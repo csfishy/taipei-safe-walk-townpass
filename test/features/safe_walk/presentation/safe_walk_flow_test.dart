@@ -101,26 +101,26 @@ void main() {
     expect(find.text('附近還沒有求助地點資料'), findsOneWidget);
   });
 
-  testWidgets('模擬來電：只朗讀對方台詞；自己輸入是讓對方說的話', (t) async {
+  testWidgets('模擬來電：英文由 TTS 朗讀，繁中只顯示供使用者照讀', (t) async {
     final speaker = _SpySpeaker();
     await _pump(t, SafeWalkFlow(speaker: speaker));
     await t.tap(find.text('模擬來電'));
     await t.pump(const Duration(milliseconds: 300));
     await t.tap(find.text('接聽'));
     await t.pump(const Duration(milliseconds: 300));
-    expect(speaker.spoken, ['喂，你到哪了？']);
-    await t.tap(find.text('我在大馬路上，快到了。'));
+    expect(speaker.spoken.single, startsWith('Damn it, babe'));
+    await t.tap(find.text('我快到了，但我後面好像有人一直跟著我。'));
     await t.pump(const Duration(milliseconds: 100));
     expect(speaker.spoken.length, 1, reason: '自己的回應不朗讀');
     await t.pump(const Duration(seconds: 1));
     expect(speaker.spoken.length, 2);
-    await t.tap(find.text('自己輸入'));
-    await t.pump(const Duration(milliseconds: 300));
-    await t.enterText(find.byType(TextField), '我在巷口等你');
-    await t.pump();
-    await t.tap(find.text('讓對方說'));
-    await t.pump(const Duration(milliseconds: 300));
-    expect(speaker.spoken.last, '我在巷口等你');
+    expect(speaker.spoken.last, startsWith("What? Don't turn around"));
+    await t.tap(find.text('好，我看到你了，我現在直接走過去。電話先不要掛。'));
+    await t.pump(const Duration(seconds: 1));
+    expect(speaker.spoken.length, 3);
+    expect(speaker.spoken.last, startsWith('I see you.'));
+    expect(find.textContaining('已到劇本最後一句'), findsOneWidget);
+    expect(find.textContaining('已播放完畢'), findsNothing);
     await t.tap(find.text('緊急求助').first);
     await t.pump(const Duration(milliseconds: 300));
     expect(speaker.stops, greaterThan(0));
@@ -176,7 +176,7 @@ void main() {
     await t.pump(const Duration(milliseconds: 300));
     await t.tap(find.text('接聽'));
     await t.pump(const Duration(milliseconds: 300));
-    await t.tap(find.text('我在大馬路上，快到了。'));
+    await t.tap(find.text('我快到了，但我後面好像有人一直跟著我。'));
     await t.pump(const Duration(milliseconds: 800));
     await t.tap(find.text('緊急求助').first);
     await t.pump(const Duration(milliseconds: 100));

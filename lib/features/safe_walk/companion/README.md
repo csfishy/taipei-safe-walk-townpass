@@ -39,7 +39,7 @@ state 只有 idle／playing／paused／ended／error。audioSrc 為 null 表示�
 
 ## 裝置 TTS 與驗證邊界
 
-`companion_tts.dart` 另提供文字朗讀，不冒稱真人來電。Android 只選 `getVoices` 明示 `network_required=0` 且沒有 `notInstalled` 的中文語音；iOS 從已安裝的 `AVSpeechSynthesisVoice.speechVoices()` 清單以 identifier 選取，原生 `AVSpeechSynthesizer` 在裝置上合成。設定語音成功才可用；沒有符合條件的語音、Web 與未驗證的平台保持文字預覽，不自行下載語音或外送文字。
+`companion_tts.dart` 另提供文字朗讀，不冒稱真人來電。單一嚇阻劇本使用英文男性角色台詞；Android 只選 `getVoices` 明示 `network_required=0` 且沒有 `notInstalled` 的英文語音，iOS 從已安裝的 `AVSpeechSynthesisVoice.speechVoices()` 清單以 identifier 選取，原生 `AVSpeechSynthesizer` 在裝置上合成。設定語音成功才可用；沒有符合條件的語音、Web 與未驗證的平台保持文字預覽，不自行下載語音或外送文字。平台 voice metadata 不保證性別，實際聲線仍須裝置驗收。
 
 依據：[Android Voice](https://developer.android.com/reference/android/speech/tts/Voice)、[Apple Speech synthesis](https://developer.apple.com/documentation/avfoundation/speech-synthesis) 與 [Apple 已安裝語音說明](https://developer.apple.com/videos/play/wwdc2020/10022/)。欄位映射已核對 lock 中 `flutter_tts 4.2.5` 的原生實作。
 
