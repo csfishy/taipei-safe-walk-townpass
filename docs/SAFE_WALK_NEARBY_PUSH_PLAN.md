@@ -51,7 +51,7 @@
 目前 `helper_locations` 只留最新一筆、TTL 10 分鐘，而且只在前景更新。推播的收件人由伺服器端 `ST_DWithin` 在**有效位置**中挑選，所以：
 
 - 若沒有任何背景位置來源，App 關閉 10 分鐘後這位協助者就不會被選中，推播沒有對象。
-- **B 方案（守護區）** 讓協助者主動指定「我通常在這附近、願意被通知」。伺服器只保存圓心（建議以約 100 公尺網格四捨五入）與半徑，不收即時位置。SOS 落在守護區半徑（500、1000 或 2000 公尺）內就通知。缺點是只涵蓋固定地點，涵蓋不到移動中的人，文案不能暗示「附近就一定會通知」。
+- **B 方案（守護區）** 讓協助者主動指定「我通常在這附近、願意被通知」。伺服器只保存圓心（建議以約 100 公尺網格四捨五入）與半徑，不收即時位置。SOS 落在守護區半徑（500 或 1000 公尺）內就通知。缺點是只涵蓋固定地點，涵蓋不到移動中的人，文案不能暗示「附近就一定會通知」。
 - **A 方案（背景定位）** 覆蓋最好，但持續追蹤的隱私、電量、商店審查與 `AGENTS.md` 的「不得自動追蹤」都要重新評估，本計畫不預設採用。
 
 ## 4. 架構
@@ -106,7 +106,7 @@ create table safe_walk_nearby.helper_areas (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references safe_walk_nearby.helper_profiles (user_id) on delete cascade,
   center extensions.geography (point, 4326) not null,   -- 已四捨五入至約 100 公尺網格
-  radius_m integer not null check (radius_m between 500 and 2000),
+  radius_m integer not null check (radius_m between 500 and 1000),
   created_at timestamptz not null default now()
 );
 -- 每位使用者最多 3 個守護區；與裝置數上限（例如 5）由函式檢查。

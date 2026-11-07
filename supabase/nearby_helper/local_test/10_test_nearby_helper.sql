@@ -394,22 +394,22 @@ begin
 
   select extensions.st_y(q.g::extensions.geometry) as lat,
          extensions.st_x(q.g::extensions.geometry) as lng into n_in
-    from (select extensions.st_project(base, 1900, 0) as g) q;
+    from (select extensions.st_project(base, 900, 0) as g) q;
   select extensions.st_y(q.g::extensions.geometry) as lat,
          extensions.st_x(q.g::extensions.geometry) as lng into n_out
-    from (select extensions.st_project(base, 2100, 0) as g) q;
+    from (select extensions.st_project(base, 1100, 0) as g) q;
 
-  -- Helpers set areas. a_in's covers the SOS (about 1.9 km away, radius 2 km);
-  -- a_out's does not (2.1 km). 'outside' and 'expired' have no usable live
+  -- Helpers set areas. a_in's covers the SOS (about 0.9 km away, radius 1 km);
+  -- a_out's does not (1.1 km). 'outside' and 'expired' have no usable live
   -- position, 'same' also has one (it must still be notified only once).
   perform pg_temp.as_user(a_in);
   perform public.nearby_helper_opt_in('test.v1');
   perform public.nearby_helper_set_areas(jsonb_build_array(
-    jsonb_build_object('lat', n_in.lat, 'lng', n_in.lng, 'radius_m', 2000)));
+    jsonb_build_object('lat', n_in.lat, 'lng', n_in.lng, 'radius_m', 1000)));
   perform pg_temp.as_user(a_out);
   perform public.nearby_helper_opt_in('test.v1');
   perform public.nearby_helper_set_areas(jsonb_build_array(
-    jsonb_build_object('lat', n_out.lat, 'lng', n_out.lng, 'radius_m', 2000)));
+    jsonb_build_object('lat', n_out.lat, 'lng', n_out.lng, 'radius_m', 1000)));
   for r in select * from pts where name in ('outside', 'expired', 'same') loop
     perform pg_temp.as_user(r.uid);
     perform public.nearby_helper_set_areas(jsonb_build_array(
@@ -432,7 +432,9 @@ begin
   perform pg_temp.expect_state($q$select public.nearby_helper_set_areas('{}'::jsonb)$q$, '22023');
   perform pg_temp.expect_state($q$select public.nearby_helper_set_areas(null)$q$, '22023');
   perform pg_temp.expect_state($q$select public.nearby_helper_set_areas('[{"lat":25,"lng":121,"radius_m":499}]')$q$, '22023');
-  perform pg_temp.expect_state($q$select public.nearby_helper_set_areas('[{"lat":25,"lng":121,"radius_m":2001}]')$q$, '22023');
+  perform pg_temp.expect_state($q$select public.nearby_helper_set_areas('[{"lat":25,"lng":121,"radius_m":1001}]')$q$, '22023');
+  -- 2 km was allowed once; the cap is now 1 km.
+  perform pg_temp.expect_state($q$select public.nearby_helper_set_areas('[{"lat":25,"lng":121,"radius_m":2000}]')$q$, '22023');
   perform pg_temp.expect_state($q$select public.nearby_helper_set_areas('[{"lat":25,"lng":121,"radius_m":500.5}]')$q$, '22023');
   perform pg_temp.expect_state($q$select public.nearby_helper_set_areas('[{"lat":91,"lng":121,"radius_m":500}]')$q$, '22023');
   perform pg_temp.expect_state($q$select public.nearby_helper_set_areas('[{"lat":25,"lng":181,"radius_m":500}]')$q$, '22023');
@@ -466,7 +468,7 @@ begin
   update safe_walk_nearby.helper_areas set created_at = now() - interval '1 minute';
   perform pg_temp.as_user(a_in);
   perform public.nearby_helper_set_areas(jsonb_build_array(
-    jsonb_build_object('lat', n_in.lat, 'lng', n_in.lng, 'radius_m', 2000)));
+    jsonb_build_object('lat', n_in.lat, 'lng', n_in.lng, 'radius_m', 1000)));
   reset role;
   perform pg_temp.check(
     (select count(*) from safe_walk_nearby.helper_areas where user_id = a_in) = 1,

@@ -75,7 +75,7 @@ final class NearbyGuardArea {
 }
 
 /// Radii a helper can choose for a guard area, in metres.
-const nearbyGuardAreaRadii = [500, 1000, 2000];
+const nearbyGuardAreaRadii = [500, 1000];
 
 /// At most this many guard areas per helper.
 const nearbyGuardAreaMax = 3;

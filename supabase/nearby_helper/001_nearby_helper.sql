@@ -73,7 +73,7 @@ create table if not exists safe_walk_nearby.helper_areas (
   user_id uuid not null
     references safe_walk_nearby.helper_profiles (user_id) on delete cascade,
   center extensions.geography (point, 4326) not null,
-  radius_m integer not null check (radius_m between 500 and 2000),
+  radius_m integer not null check (radius_m between 500 and 1000),
   created_at timestamptz not null default now()
 );
 create index if not exists helper_areas_center_idx
@@ -413,7 +413,7 @@ begin
     v_lng := (v_item ->> 'lng')::numeric;
     v_radius := (v_item ->> 'radius_m')::numeric;
     if v_lat not between -90 and 90 or v_lng not between -180 and 180
-       or v_radius <> trunc(v_radius) or v_radius not between 500 and 2000 then
+       or v_radius <> trunc(v_radius) or v_radius not between 500 and 1000 then
       raise exception 'invalid_input' using errcode = '22023';
     end if;
   end loop;
