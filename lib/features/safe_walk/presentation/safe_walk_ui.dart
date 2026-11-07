@@ -3,13 +3,13 @@ import 'package:town_pass/util/tp_colors.dart';
 import 'package:town_pass/util/tp_text.dart';
 
 /// 安心行用色：全部引用官方 TPColors，依 docs/SAFE_WALK_COLOR_SPEC.md 的可讀配對。
-/// 主色用 primary500（同臺北通）；primary500 上只放深色字。白字只放在 primary700／red600 上。
+/// 主色用 primary500（同臺北通），上面放白字與白色圖示，與臺北通相同。
 abstract final class SwColors {
   /// 臺北通主色（同 App 長條、服務卡）：路線、圖示、邊框、選取與填色；填色上的字與圖示用 [onBrand]。
   static const brand = TPColors.primary500;
 
-  /// 放在 [brand] 上的字與圖示（grayscale900／primary500 = 7.24:1）。
-  static const onBrand = TPColors.grayscale900;
+  /// 放在 [brand] 上的字與圖示：白色，與臺北通長條、服務卡一致（白／primary500 對比 2.39:1，低於 WCAG，11/7 使用者決定沿用臺北通做法）。
+  static const onBrand = TPColors.white;
 
   /// 主色系「文字」：白底上要 4.5:1，primary500 只有 2.39:1，所以文字用 primary700。
   static const brandText = TPColors.primary700;
@@ -177,7 +177,7 @@ class _SwPressableState extends State<SwPressable> {
   }
 }
 
-/// 主要按鈕：臺北通主色 primary500 底＋深色字（白字在 primary500 上對比不足）。
+/// 主要按鈕：臺北通主色 primary500 底＋白字（同臺北通 TPButton.primary）。
 class SwPrimaryButton extends StatelessWidget {
   const SwPrimaryButton({super.key, required this.label, this.icon, required this.onTap});
   final String label;

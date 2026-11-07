@@ -654,7 +654,7 @@ class _IncomingState extends State<_Incoming> with SingleTickerProviderStateMixi
                           children: [
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                              decoration: BoxDecoration(color: TPColors.white.withValues(alpha: .5), borderRadius: BorderRadius.circular(20)),
+                              decoration: BoxDecoration(color: SwColors.brandDeep, borderRadius: BorderRadius.circular(20)),
                               child: Text(
                                 '模擬來電・不是真人通話，也沒有報警',
                                 textAlign: TextAlign.center,
@@ -705,7 +705,7 @@ class _IncomingState extends State<_Incoming> with SingleTickerProviderStateMixi
                               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                               crossAxisAlignment: CrossAxisAlignment.end,
                               children: [
-                                _button(icon: Icons.call_end_rounded, label: '拒絕', bg: TPColors.white.withValues(alpha: .5), fg: SwColors.onBrand, onTap: widget.onDecline),
+                                _button(icon: Icons.call_end_rounded, label: '拒絕', bg: SwColors.brandDeep, fg: TPColors.white, onTap: widget.onDecline),
                                 _button(icon: Icons.call_rounded, label: '接聽', bg: TPColors.white, fg: SwColors.brandText, onTap: widget.onAnswer, size: 84),
                               ],
                             ),

@@ -28,9 +28,9 @@ Future<void> _pump(WidgetTester t, Widget w) async {
 }
 
 void main() {
-  testWidgets('首頁只有四個入口、示範標示與緊急求助', (t) async {
+  testWidgets('首頁只有四個入口與緊急求助', (t) async {
     await _pump(t, const SafeWalkFlow());
-    for (final name in ['安心行', '點擊開始', '模擬來電', '附近求助地點', '回報狀況', '緊急求助', '示範模式（Mock）']) {
+    for (final name in ['安心行', '點擊開始', '模擬來電', '附近求助地點', '回報狀況', '緊急求助']) {
       expect(find.text(name), findsWidgets, reason: name);
     }
   });
