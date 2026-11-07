@@ -75,11 +75,14 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
     onRetry: widget.onRetryPoints,
   );
 
-  void _go(_Screen s) => setState(() {
-    _forward = s != _Screen.home && s != _back;
-    if (s == _Screen.call || s == _Screen.emergency) _back = _screen == _Screen.call ? _back : _screen;
-    _screen = s;
-  });
+  void _go(_Screen s) {
+    if (_screen == _Screen.call && s != _Screen.call) widget.speaker.stop();
+    setState(() {
+      _forward = s != _Screen.home && s != _back;
+      if (s == _Screen.call || s == _Screen.emergency) _back = _screen == _Screen.call ? _back : _screen;
+      _screen = s;
+    });
+  }
 
   void _openEmergency() {
     widget.speaker.stop();
@@ -104,10 +107,12 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
     if (!mounted) return;
     setState(() {
       _locating = false;
-      if (result is sw.LocationSuccess) _position = result.position;
+      _position = result is sw.LocationSuccess ? result.position : null;
       _emergencyError = result is sw.LocationFailure;
       _emergencyMessage = switch (result) {
-        sw.LocationSuccess() => '已取得位置；尚未傳送給任何人。',
+        sw.LocationSuccess() => widget.mode == sw.DataMode.mock
+            ? '已取得示範位置；不是真實定位，未傳送給任何人。'
+            : '已取得位置；尚未傳送給任何人。',
         sw.LocationFailure(:final message) => message,
       };
     });

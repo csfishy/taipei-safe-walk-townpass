@@ -197,7 +197,14 @@ class _SmsReportCardState extends State<_SmsReportCard> {
 
   Future<void> _send() async {
     setState(() => _step = _SmsStep.sending);
-    final ok = widget.onSend == null ? await Future.delayed(const Duration(milliseconds: 900), () => true) : await widget.onSend!(_body);
+    bool ok;
+    try {
+      ok = widget.mode == sw.DataMode.mock || widget.onSend == null
+          ? await Future.delayed(const Duration(milliseconds: 900), () => true)
+          : await widget.onSend!(_body);
+    } catch (_) {
+      ok = false;
+    }
     if (mounted) setState(() => _step = ok ? _SmsStep.sent : _SmsStep.failed);
   }
 
@@ -351,7 +358,7 @@ class _SmsReportCardState extends State<_SmsReportCard> {
               ),
             ),
             const SizedBox(width: 12),
-            Expanded(child: Text(mock ? '簡訊已送出（示範）' : '已開啟簡訊 App', style: SwText.heading.copyWith(fontSize: 20))),
+            Expanded(child: Text(mock ? '示範完成／未傳送簡訊' : '已開啟簡訊 App', style: SwText.heading.copyWith(fontSize: 20))),
           ],
         ),
         const SizedBox(height: 8),
