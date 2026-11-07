@@ -14,6 +14,7 @@
 - [快速開始](#快速開始)
 - [專案結構](#專案結構)
 - [架構與模組分工](#架構與模組分工)
+- [技術框架](#技術框架)
 - [資料、隱私與安全原則](#資料隱私與安全原則)
 - [測試與驗證](#測試與驗證)
 - [CI、預覽版與網站](#ci預覽版與網站)
@@ -175,6 +176,23 @@ Android、iOS 執行前需先安裝對應 SDK、模擬器或準備實機。執�
 ### 取消與生命週期
 
 使用者取消、改目的地、撤回同意、離開頁面、進入背景或觸發 SOS 時，相關計時器、音訊與延遲的非同步結果都必須失效並清理，不能回傳過期的成功結果。
+
+## 技術框架
+
+| 類別 | 技術 | 用途 |
+|---|---|---|
+| 應用框架 | Flutter 3.47.6、Dart 3.13.5（以 [.fvmrc](.fvmrc) 固定） | 單一程式碼支援 Android、iOS 與 Web |
+| 基底 App | TownPass Flutter（臺北市政府，GPLv3） | 官方殼、登入、路由、主題與既有服務 |
+| 狀態與路由 | GetX（`get`） | 官方 App 的路由與頁面狀態 |
+| 地圖與路線 | `flutter_map`、`latlong2`、OpenStreetMap 圖磚、OSRM 步行路網 | App 內地圖與步行路線；不使用 Google Maps 導航 |
+| 定位與感測 | `geolocator`、`sensors_plus` | 使用者主動觸發的定位與裝置感測 |
+| 據點與犯罪參考資料 | OSM Overpass API（便利商店，ODbL）；臺北市統計資料庫月別暴力犯罪 CSV；Supabase 唯讀查詢（RPC，僅使用公開金鑰） | 附近據點與歷史統計參考；不是即時路段風險 |
+| 語音與音訊 | `flutter_tts`（裝置 TTS）、`audioplayers`（模擬陪伴鈴聲，屬 Level B 依賴） | 模擬陪伴語音與提示音 |
+| 本機儲存 | `shared_preferences` | 使用者設定的「家」，只存在裝置上 |
+| 資料契約 | JSON Schema（`schemas/`）、`json_serializable`、`build_runner` | 單一來源的 payload 契約與生成的 Dart Model |
+| 測試與 CI | `flutter_test`、`flutter analyze`、GitHub Actions（`safe_walk.yml`、`build.yml`、`demo_database_ci.yml`）、Codemagic（iOS） | 單元與 Widget 測試、契約一致性檢查與建置 |
+
+官方 TownPass 原有的 WebView、通知、掃碼、圖片選取等能力沿用其既有套件，本專案不另外改寫。
 
 ## 資料、隱私與安全原則
 
