@@ -153,7 +153,7 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
   Future<void> _locate() async {
     if (widget.onLocate == null) {
       setState(() {
-        _emergencyMessage = '示範模式不會取得位置；請說出附近的路名或地標。';
+        _emergencyMessage = '目前無法取得位置；請說出附近的路名或地標。';
         _emergencyError = false;
       });
       return;
@@ -166,7 +166,7 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
       _position = result is sw.LocationSuccess ? result.position : null;
       _emergencyError = result is sw.LocationFailure;
       _emergencyMessage = switch (result) {
-        sw.LocationSuccess() => widget.mode == sw.DataMode.mock ? '已取得示範位置；不是真實定位，未傳送給任何人。' : '已取得位置；尚未傳送給任何人。',
+        sw.LocationSuccess() => widget.mode == sw.DataMode.mock ? '已取得位置。' : '已取得位置；尚未傳送給任何人。',
         sw.LocationFailure(:final message) => message,
       };
     });
@@ -177,7 +177,8 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
     if (!mounted) return;
     setState(() {
       _emergencyError = r?.action == sw.EmergencyAction.failed;
-      _emergencyMessage = r?.message ?? '示範：沒有撥號，也沒有通知任何人。';
+      // 示範模式不顯示 M1 回傳的「示範：…」字樣，統一說明目前沒有撥號設定。
+      _emergencyMessage = widget.mode == sw.DataMode.mock ? '目前沒有撥號設定，未實際串接警方。' : r?.message ?? '目前沒有撥號設定，未實際串接警方。';
     });
   }
 

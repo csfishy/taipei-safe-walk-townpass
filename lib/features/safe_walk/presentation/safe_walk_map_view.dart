@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:town_pass/features/safe_walk/presentation/demo_map.dart';
 import 'package:town_pass/features/safe_walk/presentation/mock/safe_walk_demo_data.dart';
+import 'package:town_pass/features/safe_walk/presentation/safe_walk_sources.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_ui.dart';
 import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart' as sw;
 import 'package:town_pass/util/tp_colors.dart';
@@ -154,7 +155,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
         if (a.status == AnomalyStatus.pending) a.status = AnomalyStatus.multiReported;
       }
       a.updates.add(text);
-      _toast = '已更新這個回報（示範，未傳送）';
+      _toast = '已更新這個回報';
     });
     widget.onAnomaliesChanged();
   }
@@ -177,7 +178,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
       _picking = false;
       _detailId = a.id;
       if (_size == _SheetSize.collapsed) _size = _SheetSize.normal;
-      _toast = '已標示在地圖上（示範，未傳送）';
+      _toast = '已標示在地圖上';
     });
   }
 
@@ -195,7 +196,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
     final avoided = avoidedCount(widget.anomalies);
     final detail = _detailId == null ? null : widget.anomalies.where((a) => a.id == _detailId).firstOrNull;
     final picked = points.where((p) => p.id == _pickedPointId).firstOrNull ?? points.firstOrNull;
-    final title = _pointsView ? '附近求助地點' : '${!rs.live && (widget.position == null || demoHome) ? '示範起點' : '目前位置'} → ${isHome ? place.label : '求助地點'}';
+    final title = _pointsView ? '附近求助地點' : '${!rs.live && (widget.position == null || demoHome) ? '起點' : '目前位置'} → ${isHome ? place.label : '求助地點'}';
     final meters = (isHome ? rs.meters : null) ?? routeMeters(path);
     final minutes = (isHome ? rs.minutes : null) ?? walkMinutes(meters);
 
@@ -253,7 +254,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                         ? (at) {
                             widget.onAddPlace(_newPlaceName!, at);
                             setState(() {
-                              _toast = '已新增「$_newPlaceName」（只存在這支手機，示範）';
+                              _toast = '已新增「$_newPlaceName」（只存在這支手機）';
                               _newPlaceName = null;
                               _pointIndex = null;
                             });
@@ -308,7 +309,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                                 ),
                               ),
                               const SizedBox(height: 6),
-                              SwMockBadge(text: rs.best != null && rs.live ? '路線僅供參考・請留意實際路況' : '示範路線／非即時導航'),
+                              SwMockBadge(text: '路線僅供參考・請留意實際路況'),
                             ],
                           ),
                         ),
@@ -488,7 +489,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                     else if (isHome && place.isHome)
                       _AvoidBadge(count: avoided)
                     else if (isHome)
-                      Text('示範路線・未驗證道路', style: SwText.secondary)
+                      Text('路線僅供參考', style: SwText.secondary)
                     else
                       Text('${_kind[point!.kind]}・${_openLong[point.availability]}', style: SwText.secondary),
                   ],
@@ -512,6 +513,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
             alignment: Alignment.topCenter,
             child: _stepsOpen ? _StepsList(steps: routeSteps(path), arrive: destName, home: isHome) : const SizedBox(width: double.infinity),
           ),
+          const Align(alignment: Alignment.centerLeft, child: SwSourcesLink()),
         ],
       ],
     );
@@ -584,7 +586,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                 const SizedBox(height: 12),
                 Semantics(header: true, child: Text('要去哪裡？', style: SwText.heading)),
                 const SizedBox(height: 4),
-                Text('常用地點只存在這支手機，不會上傳（示範位置）。', style: SwText.small),
+                Text('常用地點只存在這支手機，不會上傳。', style: SwText.small),
                 const SizedBox(height: 12),
                 for (final p in widget.places)
                   Padding(
@@ -753,7 +755,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
           ),
         ),
       ),
-      Text('示範模式：只會標在你的畫面上，不會傳送給任何人。', style: SwText.small),
+      Text('回報會標示在地圖上。', style: SwText.small),
       const SizedBox(height: 12),
       Wrap(
         spacing: 8,
@@ -790,7 +792,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
             last: i == AnomalyStatus.values.length - 1,
             text:
                 '${anomalyStatusLabel[st]}${st == AnomalyStatus.forwardedDemo
-                    ? '（示範，未實際送出）'
+                    ? ''
                     : st == AnomalyStatus.cleared
                     ? '（警方確認後移除）'
                     : ''}',
@@ -1412,7 +1414,6 @@ class _Legend extends StatelessWidget {
           if (showShortcut) item(Text('···', style: SwText.bodyStrong.copyWith(color: TPColors.grayscale500)), '較短但經過異常'),
           item(const Icon(Icons.warning_rounded, size: 18, color: SwColors.warnMark), '異常回報'),
           item(const Icon(Icons.home_rounded, size: 18, color: SwColors.brand), '家'),
-          Text('示範地圖，非實際路網', style: SwText.small),
         ],
       ),
     );

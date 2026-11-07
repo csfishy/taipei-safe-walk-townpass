@@ -18,6 +18,7 @@ class _Spy implements SafeWalkSpeaker {
     spoken.add(text);
     completions.add(onDone);
   }
+
   void finish() => completions.last?.call();
   @override
   void stop() {}
@@ -136,7 +137,7 @@ void main() {
     await t.tap(find.text('接聽'));
     await t.pump(const Duration(milliseconds: 300));
     expect(speaker.spoken, [ride.steps[0].text]);
-    expect(find.text('模擬通話，未聯絡任何人'), findsOneWidget, reason: '用 M5 的揭露文字');
+    expect(find.text('模擬通話，未聯絡任何人'), findsNothing, reason: '正式畫面不顯示揭露字樣');
 
     await t.pump(const Duration(seconds: 20));
     expect(speaker.spoken, hasLength(1), reason: '沒回覆時對方不會自己一直說下去');
@@ -219,7 +220,7 @@ void main() {
     expect(spoken, [m5CompanionScenarios.first.steps.first.text]);
   });
 
-  testWidgets('語音準備晚到：揭露更新後，手動重播使用真正的 speaker', (t) async {
+  testWidgets('語音準備晚到：手動重播使用真正的 speaker', (t) async {
     final speaker = _Spy()..ready = false;
     await _open(t, speaker);
     await t.tap(find.text('接聽'));
@@ -230,10 +231,8 @@ void main() {
     await t.tap(find.text(m5CompanionScenarios.first.steps.first.text));
     await t.pump();
     final spoken = [...speaker.spoken];
-    final notice = find.text('台詞由手機語音朗讀').evaluate().length;
     await t.pumpWidget(const MaterialApp(home: SizedBox()));
 
-    expect(notice, 1);
     expect(spoken, [m5CompanionScenarios.first.steps.first.text]);
   });
 

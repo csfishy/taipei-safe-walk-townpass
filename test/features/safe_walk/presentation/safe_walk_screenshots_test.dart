@@ -104,6 +104,16 @@ void main() {
     await _shot(t, '01-home');
   }, skip: _skip);
 
+  testWidgets('01c 資料來源與授權', (t) async {
+    await _app(t);
+    await t.ensureVisible(find.text('資料來源與授權'));
+    await t.pumpAndSettle();
+    await t.tap(find.text('資料來源與授權'));
+    await t.pump(const Duration(milliseconds: 400));
+    await t.pump(const Duration(milliseconds: 400));
+    await expectLater(find.byType(MaterialApp), matchesGoldenFile('screenshots/01c-data-sources.png'));
+  }, skip: _skip);
+
   testWidgets('01b 安心行卡片按下', (t) async {
     await _app(t);
     final g = await t.startGesture(t.getCenter(find.text('點擊開始')));
