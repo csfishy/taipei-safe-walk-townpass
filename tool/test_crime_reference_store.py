@@ -109,6 +109,24 @@ class CrimeReferenceStoreTests(unittest.TestCase):
             with self.subTest(updates=updates), self.assertRaises(ValueError):
                 validate(data)
 
+    def test_export_refuses_checkout_and_worktree_assets_before_writing(self):
+        original = self.create()["sha256"]
+        template = self.root / "template.html"
+        template.write_text('/*__CRIME_DATA__*/', encoding="utf-8")
+        for marker_is_file in (False, True):
+            checkout = self.root / str(marker_is_file)
+            checkout.mkdir()
+            marker = checkout / ".git"
+            if marker_is_file:
+                marker.write_text("gitdir: /synthetic/worktree", encoding="utf-8")
+            else:
+                marker.mkdir()
+            for output in (checkout, checkout / "assets" / "exports"):
+                with self.subTest(output=output), self.assertRaisesRegex(ValueError, "outside every Git"):
+                    export_document(self.db, output, template)
+                self.assertFalse((output / "nnk-crime-2026.json").exists())
+        self.assertEqual(sha256(self.db), original)
+
     def test_unverified_or_district_coordinates_rejected(self):
         data = sample()
         data["records"][0].update(latitude=25.0, longitude=121.5)

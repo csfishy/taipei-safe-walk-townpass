@@ -173,6 +173,9 @@ def query(path: Path, *, city: str = "", category: str = "", text: str = "", lim
 def export_document(path: Path, output: Path, template: Path) -> dict:
     path = outside_git(path)
     output = output.expanduser().resolve()
+    # JSON/HTML contain the complete reference records even without a SQLite
+    # header. Keep these exports out of checkout assets and release packages.
+    outside_git(output / "nnk-crime-2026.json")
     if output == path or output == path.parent or path.is_relative_to(output):
         raise ValueError("Document output must be separate from the protected database directory")
     before = sha256(path)
