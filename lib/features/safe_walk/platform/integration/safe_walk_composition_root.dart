@@ -1,11 +1,14 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:town_pass/features/safe_walk/navigation/avoid_area.dart';
 import 'package:town_pass/features/safe_walk/navigation/default_json_transport.dart';
 import 'package:town_pass/features/safe_walk/navigation/default_route_service.dart';
 import 'package:town_pass/features/safe_walk/navigation/json_transport.dart';
 import 'package:town_pass/features/safe_walk/navigation/osrm_walking_route_provider.dart';
 import 'package:town_pass/features/safe_walk/navigation/route_service.dart';
+import 'package:town_pass/features/safe_walk/navigation/valhalla_avoiding_route_planner.dart';
+import 'package:town_pass/features/safe_walk/platform/integration/avoiding_route_service.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_route_speaker.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/tts_safe_walk_speaker.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_navigation_controller.dart';
@@ -73,6 +76,10 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
   bool _pointsLoading = true;
   String? _pointsError;
 
+  /// Unresolved reports to route around (50 m circles), sent by the map.
+  List<AvoidArea> _areas = const [];
+  bool _askingConsent = false;
+
   @override
   void initState() {
     super.initState();
@@ -95,20 +102,32 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
           areaStatistics: const [],
         );
     _speaker = widget.speaker ?? _deviceSpeaker();
+    final transport = widget.routeTransport ?? createDefaultJsonTransport();
+    bool hasConsent() =>
+        _navigation.hasRoutingConsent &&
+        _navigation.liveNavigationAvailable &&
+        !_lifetime.isCancelled;
+    final osrm = DefaultRouteService(
+      pointLookup: _lookupRoutePoints,
+      liveProvider: OsrmWalkingRouteProvider(
+        transport: transport,
+        hasConsent: hasConsent,
+        pointLookup: _lookupRoutePoints,
+      ),
+    );
     _navigation = SafeWalkNavigationController(
       routeService:
           widget.routeService ??
-          DefaultRouteService(
-            pointLookup: _lookupRoutePoints,
-            liveProvider: OsrmWalkingRouteProvider(
-              transport: widget.routeTransport ?? createDefaultJsonTransport(),
-              hasConsent: () =>
-                  _navigation.hasRoutingConsent &&
-                  _navigation.liveNavigationAvailable &&
-                  !_lifetime.isCancelled,
-              pointLookup: _lookupRoutePoints,
-            ),
-          ),
+          (widget.liveRoutes
+              ? AvoidingRouteService(
+                  planner: ValhallaAvoidingRoutePlanner(
+                    transport: transport,
+                    hasConsent: hasConsent,
+                  ),
+                  fallback: osrm,
+                  areas: () => _areas,
+                )
+              : osrm),
       // M3 still draws demo geometry/ETA/PiP. M2 lifecycle fixes are included,
       // but real-provider/native validation remains pending. This UI cannot
       // enable either readiness gate.
@@ -139,9 +158,11 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
 
   /// Map opened, destination changed or retry: consent → GPS → OSRM route.
   Future<void> _planTo(sw.Coordinates destination) async {
-    if (_lifetime.isCancelled || _navigation.routeLoading) return;
+    if (_lifetime.isCancelled || _askingConsent) return;
     if (!_navigation.hasRoutingConsent) {
+      _askingConsent = true;
       final agreed = await _askRoutingConsent();
+      _askingConsent = false;
       if (agreed != true || !mounted) return;
       _navigation.setRoutingConsent(true);
     }
@@ -173,8 +194,8 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     builder: (dialog) => AlertDialog(
       title: const Text('規劃路線需要你的位置'),
       content: const Text(
-        '會把你目前的位置和目的地傳給 OpenStreetMap 步行路線服務'
-        '（routing.openstreetmap.de）來計算路線，不會傳給其他人。',
+        '會把你目前的位置、目的地和要避開的回報點，傳給 OpenStreetMap 步行路線服務'
+        '（valhalla1.openstreetmap.de、routing.openstreetmap.de）來計算路線，不會傳給其他人。',
       ),
       actions: [
         TextButton(
@@ -379,6 +400,15 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
       onPlanRoute: widget.liveRoutes
           ? (destination) => unawaited(_planTo(destination))
           : null,
+      onReportsChanged: (spots) => _areas = [
+        for (final spot in spots)
+          AvoidArea(
+            id: spot.id,
+            center: spot.center,
+            radiusMeters: AvoidArea.reportRadiusMeters,
+            source: 'report',
+          ),
+      ],
       speaker: _speaker,
       onLocate: _locate,
       onEmergency: _emergency,

@@ -45,6 +45,20 @@ int routeMeters(List<LatLng> path) {
 /// 以每分鐘 70 公尺估算（示範值）。
 int walkMinutes(int meters) => math.max(1, (meters / 70).round());
 
+/// 路線（GeoJSON 座標）是否有一段離 [at] 不到 [radius] 公尺（點到線段距離）。
+bool routePassesWithin(List<sw.GeoJsonCoordinate> line, LatLng at, double radius) {
+  final k = 111320 * math.cos(at.lat * math.pi / 180);
+  for (var i = 0; i + 1 < line.length; i++) {
+    final ax = (line[i].longitude - at.lng) * k, ay = (line[i].latitude - at.lat) * 110540;
+    final bx = (line[i + 1].longitude - at.lng) * k, by = (line[i + 1].latitude - at.lat) * 110540;
+    final dx = bx - ax, dy = by - ay, len = dx * dx + dy * dy;
+    final t = len == 0 ? 0.0 : (-(ax * dx + ay * dy) / len).clamp(0.0, 1.0);
+    final x = ax + t * dx, y = ay + t * dy;
+    if (x * x + y * y < radius * radius) return true;
+  }
+  return false;
+}
+
 enum StepDir { east, west, north, south }
 
 const stepDirLabel = {StepDir.east: '東', StepDir.west: '西', StepDir.north: '北', StepDir.south: '南'};
@@ -135,6 +149,9 @@ const anomalyCategoryLabel = {AnomalyCategory.fight: '打架衝突', AnomalyCate
 enum AnomalyStatus { pending, multiReported, forwardedDemo, cleared }
 
 const anomalyStatusLabel = {AnomalyStatus.pending: '待確認', AnomalyStatus.multiReported: '多人回報', AnomalyStatus.forwardedDemo: '已協助轉通報', AnomalyStatus.cleared: '已解除'};
+
+/// 系統內回報的避讓半徑（公尺），與路線規劃一致。
+const reportAvoidRadiusMeters = 50.0;
 
 class Anomaly {
   Anomaly({required this.id, required this.category, required this.at, required this.firstReportedAt, required this.reportCount, required this.status, List<String>? updates})

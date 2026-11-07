@@ -11,6 +11,9 @@ import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart
 enum _Screen { home, map, points, report, call, emergency }
 
 /// 安心行入口（M3）。所有對外動作經由 callback 交給 M1 接線；M3 不取 GPS、不撥號、不 import 其他模組。
+/// 一個要避開的回報點（中心）；半徑由路線規劃決定（系統內回報為 [reportAvoidRadiusMeters]）。
+typedef ReportSpot = ({String id, sw.Coordinates center});
+
 class SafeWalkFlow extends StatefulWidget {
   const SafeWalkFlow({
     super.key,
@@ -23,6 +26,7 @@ class SafeWalkFlow extends StatefulWidget {
     this.route,
     this.routeLoading = false,
     this.onPlanRoute,
+    this.onReportsChanged,
     this.speaker = const UnavailableSpeaker(),
     this.onLocate,
     this.onEmergency,
@@ -45,6 +49,9 @@ class SafeWalkFlow extends StatefulWidget {
   /// M1：使用者打開地圖、換目的地、按「再試一次」時呼叫（不會在一進安心行時自動呼叫），請依此目的地呼叫 RouteService.planRoute，
   /// 再把結果傳回 [route]。null 時畫面一律用示範路線。
   final ValueChanged<sw.Coordinates>? onPlanRoute;
+
+  /// 每次規劃路線前，送出目前尚未解除的回報點（真實路線會避開以它們為中心的圓）。
+  final ValueChanged<List<ReportSpot>>? onReportsChanged;
   final SafeWalkSpeaker speaker;
 
   /// M1：使用者按「取得目前位置」時呼叫 PlatformService.getCurrentPosition(userInitiated: true)。
@@ -88,7 +95,14 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
 
   RouteState get _routeState => RouteState(result: widget.route, loading: widget.routeLoading, onRetry: widget.onPlanRoute == null ? null : _planRoute);
 
-  void _planRoute() => widget.onPlanRoute?.call(sw.Coordinates(lat: _place.at.lat, lng: _place.at.lng));
+  void _planRoute() {
+    if (widget.onPlanRoute == null) return;
+    widget.onReportsChanged?.call([
+      for (final a in _anomalies)
+        if (a.status != AnomalyStatus.cleared) (id: a.id, center: sw.Coordinates(lat: a.at.lat, lng: a.at.lng)),
+    ]);
+    widget.onPlanRoute!(sw.Coordinates(lat: _place.at.lat, lng: _place.at.lng));
+  }
 
   void _selectPlace(String id) {
     if (id == _placeId) return;
@@ -167,7 +181,11 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
       routeState: _routeState,
       anomalies: _anomalies,
       startView: start,
-      onAnomaliesChanged: () => setState(() {}),
+      onAnomaliesChanged: () {
+        setState(() {});
+        // 新增或解除回報後立刻重新規劃，路線馬上改道。
+        _planRoute();
+      },
       places: _places,
       placeId: _placeId,
       onSelectPlace: _selectPlace,

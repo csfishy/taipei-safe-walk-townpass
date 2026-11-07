@@ -38,6 +38,8 @@ class DemoMap extends StatelessWidget {
     required this.points,
     required this.anomalies,
     required this.path,
+    this.altPaths = const [],
+    this.avoidRadiusMeters = 0,
     this.showShortcut = false,
     this.homeActive = true,
     this.selectedPointId,
@@ -52,6 +54,12 @@ class DemoMap extends StatelessWidget {
   final List<sw.AssistancePoint> points;
   final List<Anomaly> anomalies;
   final List<LatLng> path;
+
+  /// Other route options, drawn grey under [path].
+  final List<List<LatLng>> altPaths;
+
+  /// When > 0, each unresolved report gets a circle of this real-world radius.
+  final double avoidRadiusMeters;
   final bool showShortcut, homeActive, compact;
   final String? selectedPointId, selectedAnomalyId;
   final LatLng? pin;
@@ -66,12 +74,16 @@ class DemoMap extends StatelessWidget {
   Widget _buildMap(BuildContext context, Size viewport) {
     final interactive = !compact;
     // 初始視野：涵蓋起點、回家、所有求助地點與異常回報（避開上方標題與下方資訊框）。
+    // 有真實路線時只框路線，避免把遠處的示範資料一起框進來。
+    final live = avoidRadiusMeters > 0 && path.length > 1;
     final fit = LatLngBounds.fromPoints([
       _ll(start),
-      _ll(DemoGeo.home),
       for (final at in path) _ll(at),
-      for (final p in points) ll.LatLng(p.coordinates.lat, p.coordinates.lng),
-      for (final a in anomalies) _ll(a.at),
+      if (!live) ...[
+        _ll(DemoGeo.home),
+        for (final p in points) ll.LatLng(p.coordinates.lat, p.coordinates.lng),
+        for (final a in anomalies) _ll(a.at),
+      ],
     ]);
 
     Marker marker(
@@ -144,6 +156,15 @@ class DemoMap extends StatelessWidget {
           color: TPColors.grayscale500,
           pattern: StrokePattern.dashed(segments: [2.0, 7.0]),
         ),
+      for (final alt in altPaths)
+        if (alt.length > 1)
+          Polyline(
+            points: alt.map(_ll).toList(),
+            strokeWidth: 5,
+            color: TPColors.grayscale400,
+            borderStrokeWidth: 2,
+            borderColor: SwColors.surface,
+          ),
       if (path.length > 1) ...[
         Polyline(
           points: path.map(_ll).toList(),
@@ -206,6 +227,21 @@ class DemoMap extends StatelessWidget {
           // browser cache. Tests inject tiles without changing these defaults.
           tileProvider: createTileProvider(),
         ),
+        if (avoidRadiusMeters > 0)
+          CircleLayer(
+            circles: [
+              for (final a in anomalies)
+                if (a.status != AnomalyStatus.cleared)
+                  CircleMarker(
+                    point: _ll(a.at),
+                    radius: avoidRadiusMeters,
+                    useRadiusInMeter: true,
+                    color: SwColors.warnMark.withValues(alpha: .18),
+                    borderColor: SwColors.warnMark,
+                    borderStrokeWidth: 2,
+                  ),
+            ],
+          ),
         // 路線淡入（保留原本換路線時的過場動畫）。
         TweenAnimationBuilder<double>(
           key: ValueKey(path.map((p) => '${p.lat},${p.lng}').join('|')),

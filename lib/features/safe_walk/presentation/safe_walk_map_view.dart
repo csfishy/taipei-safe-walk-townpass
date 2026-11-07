@@ -23,14 +23,27 @@ class PointsState {
 /// 前往目前目的地的路線狀態（M2 RouteService → M1 提供）。
 /// [result] 為 null 且不在計算中＝尚未配置：畫面改用示範路線與示範起點，並標示「示範路線」，不與真實位置混用。
 class RouteState {
-  const RouteState({this.result, this.loading = false, this.onRetry});
+  const RouteState({this.result, this.loading = false, this.onRetry, this.selected = 0});
   final sw.RouteResult? result;
   final bool loading;
   final VoidCallback? onRetry;
 
+  /// 使用者選的路線（[options] 的索引）。
+  final int selected;
+  RouteState select(int i) => RouteState(result: result, loading: loading, onRetry: onRetry, selected: i);
+
   bool get configured => loading || result != null;
-  sw.RouteCandidate? get best => switch (result) {
-    sw.RouteSuccess(:final routes) when routes.isNotEmpty => routes.first,
+
+  /// 可選的路線；真實避讓時依「完全避開 → 不經過中心 → 最短」排列。
+  List<sw.RouteCandidate> get options => switch (result) {
+    sw.RouteSuccess(:final routes) => routes,
+    _ => const [],
+  };
+  sw.RouteCandidate? get best => options.isEmpty ? null : options[selected.clamp(0, options.length - 1)];
+
+  /// 起點或終點已在回報範圍內時的提醒。
+  String? get insideWarning => switch (result) {
+    sw.RouteSuccess(:final warnings) => warnings.where((w) => w.contains('回報範圍內')).firstOrNull,
     _ => null,
   };
 
@@ -108,6 +121,16 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
   String? _detailId, _pickedPointId, _toast;
   bool _stepsOpen = false;
 
+  /// 選了第幾條路線；路線結果更新時回到預設（第一條＝最能避開回報的）。
+  int _routeChoice = 0;
+  RouteState get _rs => widget.routeState.select(_routeChoice);
+
+  @override
+  void didUpdateWidget(SafeWalkMapView old) {
+    super.didUpdateWidget(old);
+    if (old.routeState.result != widget.routeState.result) _routeChoice = 0;
+  }
+
   /// 正在新增的地點名稱；不為 null 時，點地圖是選這個地點的位置。
   String? _newPlaceName;
   AnomalyCategory _category = AnomalyCategory.suspicious;
@@ -165,7 +188,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
     final isHome = _pointIndex == null;
     final place = widget.places.firstWhere((p) => p.id == widget.placeId, orElse: () => widget.places.first);
     final atHome = isHome && place.isHome;
-    final rs = widget.routeState;
+    final rs = _rs;
     // 尚未配置路線時用示範起點畫示範路線；計算中或失敗時不畫線。
     final demoHome = isHome && !rs.configured;
     final path = point != null ? DemoGeo.lRoute(_start, _at(point)) : (!isHome ? <LatLng>[] : (rs.path ?? (demoHome ? placeRoute(DemoGeo.start, place) : const <LatLng>[])));
@@ -205,6 +228,13 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                     points: points,
                     anomalies: widget.anomalies,
                     path: _pointsView ? const [] : path,
+                    altPaths: _pointsView || !isHome
+                        ? const []
+                        : [
+                            for (final (i, r) in rs.options.indexed)
+                              if (i != rs.selected) [for (final c in r.geometry.coordinates) LatLng(c.latitude, c.longitude)],
+                          ],
+                    avoidRadiusMeters: rs.live ? reportAvoidRadiusMeters : 0,
                     showShortcut: atHome && demoHome && !_pointsView,
                     homeActive: isHome || _pointsView,
                     selectedPointId: _pointsView ? picked?.id : point?.id,
@@ -389,7 +419,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
 
   Widget _routeSheet(List<LatLng> path, int meters, int minutes, bool isHome, sw.AssistancePoint? point, int avoided, SavedPlace place) {
     final ps = widget.pointsState;
-    final rs = widget.routeState;
+    final rs = _rs;
     final destName = isHome ? place.label : point?.name ?? '求助地點';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -472,6 +502,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
               ],
             ],
           ),
+          if (isHome && rs.live) ..._avoidSection(rs),
           const SizedBox(height: 12),
           _StepsToggle(open: _stepsOpen, count: routeSteps(path).length + 1, onTap: () => setState(() => _stepsOpen = !_stepsOpen)),
           AnimatedSize(
@@ -483,6 +514,39 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
         ],
       ],
     );
+  }
+
+  /// 真實路線：起訖在回報範圍內的提醒、可選路線、找不到避讓路線時改去求助地點。
+  List<Widget> _avoidSection(RouteState rs) {
+    final open = widget.anomalies.where((a) => a.status != AnomalyStatus.cleared).toList();
+    int passes(sw.RouteCandidate r) => open.where((a) => routePassesWithin(r.geometry.coordinates, a.at, reportAvoidRadiusMeters)).length;
+    final noClear = open.isNotEmpty && rs.options.isNotEmpty && rs.options.every((r) => passes(r) > 0);
+    return [
+      if (rs.insideWarning != null) ...[
+        const SizedBox(height: 8),
+        SwMockBadge(text: '你目前在回報範圍內'),
+      ],
+      if (rs.options.length > 1) ...[
+        const SizedBox(height: 12),
+        Semantics(header: true, child: Text('選擇路線', style: SwText.smallStrong)),
+        const SizedBox(height: 6),
+        for (final (i, r) in rs.options.indexed)
+          _RouteOption(
+            label: r.explanations.firstOrNull ?? '步行路線',
+            minutes: r.durationSeconds == null ? walkMinutes(r.distanceMeters.round()) : (r.durationSeconds! / 60).ceil(),
+            meters: r.distanceMeters.round(),
+            passes: passes(r),
+            selected: i == rs.selected,
+            onTap: () => setState(() => _routeChoice = i),
+          ),
+      ],
+      if (noClear) ...[
+        const SizedBox(height: 8),
+        SwStateMessage(icon: Icons.wrong_location_outlined, title: '找不到避開回報點的路線', message: '目前每條路線都會經過回報範圍。可以改去最近的求助地點，或選一條經過最少回報的路線。'),
+        const SizedBox(height: 8),
+        SwChip(label: '看最近求助地點', icon: Icons.local_police_outlined, onTap: () => setState(() => _pointIndex = 0)),
+      ],
+    ];
   }
 
   IconData _placeIcon(SavedPlace p) => switch (p.id) {
@@ -1423,4 +1487,50 @@ class _MapTool extends StatelessWidget {
       ),
     );
   }
+}
+
+
+/// 一條可選的路線：分鐘、距離、會經過幾個回報點。整列可點，≥ 56 高。
+class _RouteOption extends StatelessWidget {
+  const _RouteOption({required this.label, required this.minutes, required this.meters, required this.passes, required this.selected, required this.onTap});
+  final String label;
+  final int minutes, meters, passes;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 8),
+    child: SwPressable(
+      onTap: onTap,
+      radius: 12,
+      semanticsLabel: '$label，$minutes 分鐘，$meters 公尺，${passes == 0 ? '不經過回報點' : '經過 $passes 個回報點'}${selected ? '，已選擇' : ''}',
+      child: AnimatedContainer(
+        duration: SwMotion.of(context, 180),
+        constraints: const BoxConstraints(minHeight: 56),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? SwColors.brandSoft : SwColors.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: selected ? SwColors.brand : SwColors.border, width: selected ? 2 : 1),
+        ),
+        child: Row(
+          children: [
+            Icon(selected ? Icons.radio_button_checked_rounded : Icons.radio_button_off_rounded, color: selected ? SwColors.brand : SwColors.textSecondary),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label, style: SwText.bodyStrong),
+                  Text(passes == 0 ? '不經過回報點' : '經過 $passes 個回報點', style: SwText.small.copyWith(color: passes == 0 ? SwColors.brandText : SwColors.warnText)),
+                ],
+              ),
+            ),
+            Text('$minutes 分・$meters 公尺', style: SwText.secondary),
+          ],
+        ),
+      ),
+    ),
+  );
 }
