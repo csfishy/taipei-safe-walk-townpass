@@ -4,15 +4,13 @@
 
 - **Repository**：[csfishy/taipei-safe-walk-townpass](https://github.com/csfishy/taipei-safe-walk-townpass)；Public，預設分支 `main`。
 - **開發基線**：Flutter **3.47.6**／Dart **3.13.5**，依 [.fvmrc](.fvmrc) 與已提交的 [pubspec.lock](pubspec.lock)；同一個 Flutter App，採 Feature-First／Soft Ownership／Contract-Based Integration。
-- **目前狀態**：基於 main `c4410706292ab008774e7b559c98ac59be08708e` 的本 P0 分支接入受控真實步行路線預覽，為 **WIRED_NOT_VERIFIED**，尚待 PR／非作者審查，未合併或發布。TownPass 單次 GPS、獨立第三方同意、OSRM 路線與真地圖接入正常流程；Mock 是顯式獨立模式。真據點、RouteFollower 產品流程、通知及系統求助交接不在本輪開啟範圍，TTS 與導航都仍缺 iPhone 證據。詳見 [P0 操作與驗證](docs/SAFE_WALK_P0_LIVE_PREVIEW.md) 及 [Live Readiness](docs/SAFE_WALK_LIVE_READINESS.md)；[CI](https://github.com/csfishy/taipei-safe-walk-townpass/actions) 成功不等於 LIVE_VERIFIED 或部署驗收。
+- **目前狀態**：以 main `03f98f2b7b5254db73774c4d097eb4d610499c2c` 盤點，已有原生入口、M3 畫面、OSRM Provider、RouteFollower、OSM 店家／外部導航工具、全市犯罪資料 Repository、裝置 TTS 與 Supabase 連線基礎。導航仍受 Mock／接線／真地圖及驗收缺口隔離；TTS 已接但缺 iPhone 證據。詳見 [Live Readiness](docs/SAFE_WALK_LIVE_READINESS.md)；[CI](https://github.com/csfishy/taipei-safe-walk-townpass/actions) 成功不等於真實功能或部署已驗收。
 
 ## 在 TownPass 開啟安心行
 
 從 TownPass **首頁新聞上方的「臺北安心行」功能卡片**進入，卡片包含圖示、說明與向右箭頭，排列方式參考 TownPass-self。也可從「城市服務」的釘選項目開啟；兩處進入同一個原生功能頁，返回回到原本的 TownPass 畫面。
 
-原生入口預設開啟「真實服務預覽」，進入功能不會自動取 GPS、查路線、播放語音、撥號或傳送簡訊。在步行預覽點地圖或輸入緯經度選目的地，分別同意定位與向 OSRM 傳送精確起訖座標，再按「開始或重試預覽」才取單次 GPS 並查詢真路線。未知時間不補假 ETA；取消、返回、背景、SOS 或撤回任一同意會停止並清除結果，回前景不自動重查。底圖會向 OSM 載入視野圖磚，詳見 [資料接收者與限制](docs/SAFE_WALK_P0_LIVE_PREVIEW.md)。
-
-Live 據點與回報尚未配置，失敗不回 Demo；求助尚未接入真實撥號／通報，不聲稱已通知。模擬來電沿用裝置本機 TTS，無可用語音時文字預覽。Web 預設 Live 路線 transport 未配置，Chrome／Pages 不能代替原生驗收。先前固定 Mock 的實作紀錄見 [整合歷史](docs/SAFE_WALK_INTEGRATION.md)，不代表本輪仍無接線。
+目前導航／據點／求助流程仍是明確標示的示範模式，模擬來電已接裝置本機 TTS，無可用語音時文字預覽。進入功能不會自動取 GPS、播放語音、撥號或傳送簡訊。這是當前狀態，不是永久產品限制；已驗證能力須逐項接入正常流程，未配置／失敗清楚顯示 Unavailable，不暗中切換 Mock。實際接線見 [整合說明](docs/SAFE_WALK_INTEGRATION.md)。
 
 ## Clone 與五人分工
 
@@ -108,7 +106,7 @@ flutter build ios --release --no-codesign --no-pub --build-name 0.0.12 --build-n
 flutter build web --release --no-pub --base-href /taipei-safe-walk-townpass/ --no-web-resources-cdn
 ```
 
-iOS `--build-name` 使用 pubspec 版本的純數字部分，升版時需同步調整。這些命令需要對應平台工具；列出命令不是已完成建置的證明。預覽使用獨立身份 `Town Pass Preview`／`io.github.csfishy.taipeisafewalktownpass.preview`，不是正式市政服務發行版。Android APK 使用測試金鑰；unsigned IPA 沒有 provisioning profile／簽章，不能直接安裝或當作 TestFlight 版本，需在 Mac／Xcode 以適用開發身分與 provisioning 重新簽署後安裝。下載 IPA 不代表 iPhone 驗收完成；限制見 [預發佈說明](docs/PRERELEASE-NOTES.md)。
+iOS `--build-name` 使用 pubspec 版本的純數字部分，升版時需同步調整。這些命令需要對應平台工具；列出命令不是已完成建置的證明。預覽使用獨立身份 `Town Pass Preview`／`io.github.csfishy.taipeisafewalktownpass.preview`，不是正式市政服務發行版。Android APK 使用測試金鑰；unsigned IPA 沒有 provisioning profile／簽章，不能直接安裝或當作 TestFlight 版本，仍需適當簽署。下載與安裝限制見 [預發佈說明](docs/PRERELEASE-NOTES.md)。
 
 GitHub Pages 僅從最新 main 部署：必要資料庫測試、分析及 Web／Android／iOS 三個建置成功，上方 Demo gate 已符合，且 owner／admin 已將 Source 設為 **GitHub Actions**、允許 main environment 部署後才發布；Pages 未配置或來源已過期時明確跳過。專案網址為 [csfishy.github.io/taipei-safe-walk-townpass](https://csfishy.github.io/taipei-safe-walk-townpass/)，實際部署結果以對應 run 為準。Web ZIP 或 Release 下載頁不是網站部署證明。
 
@@ -129,7 +127,6 @@ GitHub Pages 僅從最新 main 部署：必要資料庫測試、分析及 Web／
 | [AGENTS.md](AGENTS.md) | 人員與 AI 協作、修改範圍、資料與 Git 規則 |
 | [Live MVP](docs/SAFE_WALK_LIVE_MVP.md) | 現行正式功能驗收及 Mock／Live／Unavailable 定義 |
 | [Live Readiness](docs/SAFE_WALK_LIVE_READINESS.md) | 逐能力現況、接線／測試／實機缺口與旗標解除條件 |
-| [P0 真實步行預覽](docs/SAFE_WALK_P0_LIVE_PREVIEW.md) | 本輪操作、兩份同意、GPS／OSRM 接線、取消、證據與 iPhone 待驗 |
 | [規格逐項審查](docs/SAFE_WALK_SPEC_AUDIT.md)、[P0–P2 工程計畫](docs/SAFE_WALK_LIVE_PLAN.md) | Markdown／程式對照、五人分工與第一個實作提示詞 |
 | [架構基線](docs/SAFE_WALK_ARCHITECTURE.md) | 官方接點、模組邊界與整合方向 |
 | [五人模組契約](docs/SAFE_WALK_MODULES.md) | 輸入／輸出、主要聯絡人、狀態與持續交付 |
