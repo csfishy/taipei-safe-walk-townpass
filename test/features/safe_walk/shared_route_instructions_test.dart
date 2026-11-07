@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:town_pass/features/safe_walk/navigation/route_instructions.dart';
+import 'package:town_pass/features/safe_walk/shared/route_instructions.dart';
 
 void main() {
   test('Valhalla maneuvers read like 「XX路口X轉，沿OO路直行X公尺」', () {
