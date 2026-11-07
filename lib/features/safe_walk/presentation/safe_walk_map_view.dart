@@ -157,7 +157,6 @@ class SafeWalkMapView extends StatefulWidget {
     this.crimeConsent = false,
     this.destinationConfigured = true,
     this.showMapTiles = true,
-    this.onMapTileConsent,
   });
 
   /// 犯罪參考位置及產品設定的避讓緩衝（紫色，非案發範圍）。
@@ -172,7 +171,6 @@ class SafeWalkMapView extends StatefulWidget {
   final bool crimeConsent;
   final bool destinationConfigured;
   final bool showMapTiles;
-  final VoidCallback? onMapTileConsent;
 
   /// 使用者在地圖上指定的起點；null＝用目前位置（GPS）。
   final LatLng? manualStart;
@@ -898,7 +896,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                   icon: Icons.alt_route_rounded,
                   label: '路線查詢設定',
                   status: widget.routingConsent
-                      ? '已同意路線查詢；可在此撤回。系統定位權限與圖磚載入分別設定。'
+                      ? '已同意路線查詢；可在此撤回。系統定位權限另行設定，地圖圖磚自動載入。'
                       : '未同意路線查詢；不會傳送起點、目的地與避讓緩衝。',
                   onTap: widget.onManageRoutingConsent!,
                 ),
@@ -912,15 +910,6 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                       widget.crimeQueryStatus!,
                   ].join('\n'),
                   onTap: widget.onManageCrimeConsent!,
-                ),
-              if (widget.onMapTileConsent != null)
-                (
-                  icon: Icons.map_outlined,
-                  label: '地圖載入設定',
-                  status: widget.showMapTiles
-                      ? '已同意載入地圖圖磚；可在此撤回。'
-                      : '未同意載入地圖圖磚。',
-                  onTap: widget.onMapTileConsent!,
                 ),
             ],
           ),
@@ -2265,7 +2254,10 @@ class _Legend extends StatelessWidget {
   Widget build(BuildContext context) {
     Widget group(String title) => Padding(
       padding: const EdgeInsets.only(top: 6, bottom: 2),
-      child: Text(title, style: SwText.small.copyWith(color: SwColors.textSecondary)),
+      child: Text(
+        title,
+        style: SwText.small.copyWith(color: SwColors.textSecondary),
+      ),
     );
     Widget item(Widget key, String text) => Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
@@ -2320,7 +2312,9 @@ class _Legend extends StatelessWidget {
               item(
                 Text(
                   '···',
-                  style: SwText.bodyStrong.copyWith(color: TPColors.grayscale500),
+                  style: SwText.bodyStrong.copyWith(
+                    color: TPColors.grayscale500,
+                  ),
                 ),
                 '較短但經過異常',
               ),

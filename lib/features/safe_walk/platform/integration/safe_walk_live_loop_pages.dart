@@ -43,7 +43,6 @@ class SafeWalkLiveRoutePage extends StatefulWidget {
 class _SafeWalkLiveRoutePageState extends State<SafeWalkLiveRoutePage> {
   final _lat = TextEditingController();
   final _lng = TextEditingController();
-  bool _mapConsent = false;
 
   SafeWalkLiveLoopController get _c => widget.controller;
 
@@ -170,17 +169,11 @@ class _SafeWalkLiveRoutePageState extends State<SafeWalkLiveRoutePage> {
               key: const Key('live-destination'),
             ),
             if (widget.showMap)
-              SwitchListTile(
-                key: const Key('live-consent-map'),
-                contentPadding: EdgeInsets.zero,
-                value: _mapConsent,
-                onChanged: (value) => setState(() => _mapConsent = value),
-                title: const Text(
-                  '同意載入 OpenStreetMap 地圖圖磚（tile.openstreetmap.org）',
-                ),
-                subtitle: const Text('會傳送目前檢視範圍，可能包含起點與目的地；不同意仍可輸入座標規劃。'),
+              const Text(
+                '地圖會自動向 OpenStreetMap（tile.openstreetmap.org）載入目前檢視範圍的圖磚；'
+                '對方會看到檢視範圍與 IP，範圍可能包含起點與目的地。',
               ),
-            if (widget.showMap && _mapConsent && _c.origin != null)
+            if (widget.showMap && _c.origin != null)
               SizedBox(
                 height: 280,
                 child: SafeWalkLiveMap(
@@ -303,7 +296,6 @@ class _SafeWalkReportStatusPageState extends State<SafeWalkReportStatusPage> {
 
   SafeWalkReportStatusController get _c => widget.controller;
   Object? _visit;
-  bool _mapConsent = false;
 
   @override
   void initState() {
@@ -379,10 +371,9 @@ class _SafeWalkReportStatusPageState extends State<SafeWalkReportStatusPage> {
           children: [
             const Text('使用者回報尚未接上真實後端；本頁只查詢資料庫現況，不送出任何回報。'),
             if (widget.showMap)
-              SwitchListTile(
-                value: _mapConsent,
-                onChanged: (value) => setState(() => _mapConsent = value),
-                title: const Text('同意向 OpenStreetMap 載入檢視範圍的圖磚'),
+              const Text(
+                '地圖會自動向 OpenStreetMap（tile.openstreetmap.org）載入目前檢視範圍的圖磚；'
+                '對方會看到檢視範圍與 IP。',
               ),
             const SizedBox(height: 8),
             Text(
@@ -497,7 +488,7 @@ class _SafeWalkReportStatusPageState extends State<SafeWalkReportStatusPage> {
               ],
             ),
           ),
-        if (widget.showMap && _mapConsent)
+        if (widget.showMap)
           SizedBox(
             height: 240,
             child: SafeWalkLiveMap(areas: areas, candidates: const []),
