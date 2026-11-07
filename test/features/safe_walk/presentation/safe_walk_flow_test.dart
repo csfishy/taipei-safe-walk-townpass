@@ -133,4 +133,63 @@ void main() {
     await t.pumpAndSettle();
     expect(find.text('簡訊已送出（示範）'), findsOneWidget);
   });
+
+  testWidgets('[P2] Mock 模式即使注入 sender 也不呼叫外部簡訊', (t) async {
+    var sent = 0;
+    await _pump(t, SafeWalkFlow(onSendSms: (body) async {
+      sent++;
+      return true;
+    }));
+    await t.tap(find.text('緊急求助').first);
+    await t.pumpAndSettle();
+    await t.scrollUntilVisible(find.text('傳送簡訊'), 200, scrollable: find.byType(Scrollable).first);
+    await t.drag(find.byType(Scrollable).first, const Offset(0, -200));
+    await t.pumpAndSettle();
+    await t.tap(find.text('傳送簡訊'));
+    await t.pump(const Duration(milliseconds: 100));
+    await t.pump(const Duration(seconds: 1));
+    await t.pumpAndSettle();
+    expect(sent, 0);
+    expect(find.text('簡訊已送出（示範）'), findsOneWidget);
+  });
+
+  testWidgets('[P2] 回覆倒數中按 SOS，不會在求助畫面重新朗讀', (t) async {
+    final speaker = _SpySpeaker();
+    await _pump(t, SafeWalkFlow(speaker: speaker));
+    await t.tap(find.text('模擬來電'));
+    await t.pump(const Duration(milliseconds: 300));
+    await t.tap(find.text('我正在回家路上，已經吃過了。'));
+    await t.pump(const Duration(milliseconds: 800));
+    await t.tap(find.text('緊急求助').first);
+    await t.pump(const Duration(milliseconds: 100));
+    await t.pump(const Duration(seconds: 2));
+    expect(speaker.spoken.length, 1, reason: '倒數被取消，不應再朗讀下一句');
+    expect(find.text('撥打 110 報警'), findsOneWidget);
+  });
+
+  for (final (label, width, scale) in [('320px', 320.0, 1.0), ('390px＋200% 文字', 390.0, 2.0), ('320px＋200% 文字', 320.0, 2.0)]) {
+    testWidgets('[P2] $label：首頁、地圖、來電、緊急求助都不溢出', (t) async {
+      t.view.physicalSize = Size(width * 3, 844 * 3);
+      t.view.devicePixelRatio = 3;
+      addTearDown(t.view.reset);
+      Future<void> open(String entry) async {
+        await t.pumpWidget(MaterialApp(
+          builder: (c, child) => MediaQuery(data: MediaQuery.of(c).copyWith(textScaler: TextScaler.linear(scale)), child: child!),
+          home: SafeWalkFlow(key: UniqueKey()),
+        ));
+        await t.pumpAndSettle();
+        if (entry.isNotEmpty) {
+          await t.tap(find.text(entry).first);
+          await t.pump(const Duration(milliseconds: 400));
+        }
+        expect(t.takeException(), isNull, reason: '$label $entry');
+      }
+
+      await open('');
+      await open('安心回家');
+      expect(find.text('緊急求助'), findsWidgets);
+      await open('模擬來電');
+      await open('緊急求助');
+    });
+  }
 }

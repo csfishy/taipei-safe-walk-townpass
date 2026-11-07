@@ -1008,37 +1008,8 @@ class _BottomBar extends StatelessWidget {
   const _BottomBar({required this.onCall, required this.onEmergency});
   final VoidCallback onCall, onEmergency;
   @override
-  Widget build(BuildContext context) => Container(
-    decoration: const BoxDecoration(
-      color: SwColors.surface,
-      border: Border(top: BorderSide(color: SwColors.border)),
-    ),
-    padding: EdgeInsets.fromLTRB(16, 12, 16, 12 + MediaQuery.paddingOf(context).bottom),
-    child: Row(
-      children: [
-        SwPressable(
-          onTap: onCall,
-          color: SwColors.surface,
-          pressedColor: SwColors.brandSoft,
-          border: const BorderSide(color: SwColors.border),
-          radius: 12,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: SizedBox(
-            height: swTouchLarge,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.phone_in_talk_outlined, color: SwColors.text),
-                const SizedBox(width: 8),
-                Text('模擬來電', style: SwText.bodyStrong),
-              ],
-            ),
-          ),
-        ),
-        const Spacer(),
-        const SizedBox(width: 24),
-        SwSosButton(onTap: onEmergency),
-      ],
-    ),
+  Widget build(BuildContext context) => SwActionBar(
+    secondary: SwSecondaryAction(icon: Icons.phone_in_talk_outlined, label: '模擬來電', onTap: onCall),
+    onEmergency: onEmergency,
   );
 }

@@ -57,6 +57,7 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
   sw.Position? _position;
   String? _emergencyMessage;
   bool _emergencyError = false, _locating = false;
+  final _callKey = GlobalKey<SafeWalkCallViewState>();
   late final List<Anomaly> _anomalies = demoAnomalies();
   late final List<sw.AssistancePoint> _demoPoints = demoAssistancePoints();
 
@@ -75,13 +76,17 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
     onRetry: widget.onRetryPoints,
   );
 
-  void _go(_Screen s) => setState(() {
-    _forward = s != _Screen.home && s != _back;
-    if (s == _Screen.call || s == _Screen.emergency) _back = _screen == _Screen.call ? _back : _screen;
-    _screen = s;
-  });
+  void _go(_Screen s) {
+    if (_screen == _Screen.call && s != _Screen.call) _callKey.currentState?.leave();
+    setState(() {
+      _forward = s != _Screen.home && s != _back;
+      if (s == _Screen.call || s == _Screen.emergency) _back = _screen == _Screen.call ? _back : _screen;
+      _screen = s;
+    });
+  }
 
   void _openEmergency() {
+    _callKey.currentState?.leave();
     widget.speaker.stop();
     setState(() {
       _forward = true;
@@ -150,6 +155,7 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
       _Screen.points => map(start: MapStartView.points),
       _Screen.report => map(start: MapStartView.report),
       _Screen.call => SafeWalkCallView(
+        key: _callKey,
         position: _position,
         points: _pointsState.points,
         anomalies: _anomalies,

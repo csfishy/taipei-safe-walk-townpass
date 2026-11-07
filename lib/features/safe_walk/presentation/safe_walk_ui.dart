@@ -237,16 +237,25 @@ class SwSosButton extends StatelessWidget {
     radius: 12,
     semanticsLabel: '緊急求助',
     padding: const EdgeInsets.symmetric(horizontal: 20),
-    child: SizedBox(
-      height: swTouchLarge,
-      child: Row(
-        mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.sos_rounded, size: 26, color: SwColors.onDeep),
-          const SizedBox(width: 8),
-          Text('緊急求助', style: SwText.heading.copyWith(color: SwColors.onDeep)),
-        ],
+    child: ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: swTouchLarge),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.sos_rounded, size: 26, color: SwColors.onDeep),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                '緊急求助',
+                textAlign: TextAlign.center,
+                style: SwText.heading.copyWith(color: SwColors.onDeep),
+              ),
+            ),
+          ],
+        ),
       ),
     ),
   );
@@ -293,6 +302,73 @@ class SwRoundButton extends StatelessWidget {
         height: swTouch,
         child: Icon(icon, color: SwColors.text),
       ),
+    ),
+  );
+}
+
+/// 底列的次要動作（模擬來電、結束通話）：白底灰框，比緊急求助低調。
+class SwSecondaryAction extends StatelessWidget {
+  const SwSecondaryAction({super.key, required this.icon, required this.label, required this.onTap});
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  @override
+  Widget build(BuildContext context) => SwPressable(
+    onTap: onTap,
+    color: SwColors.surface,
+    pressedColor: SwColors.brandSoft,
+    border: const BorderSide(color: SwColors.border),
+    radius: 12,
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+    child: ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: swTouchLarge - 12),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, color: SwColors.textSecondary),
+          const SizedBox(width: 8),
+          Flexible(child: Text(label, style: SwText.bodyStrong)),
+        ],
+      ),
+    ),
+  );
+}
+
+/// 最底列：寬度足夠時「左次要、右緊急求助」；窄螢幕（< 360）或字級放大時改成上下排，緊急求助在上、滿寬。
+class SwActionBar extends StatelessWidget {
+  const SwActionBar({super.key, required this.secondary, required this.onEmergency});
+  final Widget secondary;
+  final VoidCallback onEmergency;
+  @override
+  Widget build(BuildContext context) => Container(
+    decoration: const BoxDecoration(
+      color: SwColors.surface,
+      border: Border(top: BorderSide(color: SwColors.border)),
+    ),
+    padding: EdgeInsets.fromLTRB(16, 12, 16, 12 + MediaQuery.paddingOf(context).bottom),
+    child: LayoutBuilder(
+      builder: (context, box) {
+        final bigText = MediaQuery.textScalerOf(context).scale(16) > 20;
+        if (box.maxWidth < 360 || bigText) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SwSosButton(onTap: onEmergency, expand: true),
+              const SizedBox(height: 8),
+              secondary,
+            ],
+          );
+        }
+        return Row(
+          children: [
+            Flexible(child: secondary),
+            const SizedBox(width: 16),
+            const Spacer(),
+            SwSosButton(onTap: onEmergency),
+          ],
+        );
+      },
     ),
   );
 }

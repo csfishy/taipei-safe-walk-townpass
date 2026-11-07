@@ -35,10 +35,10 @@ class SafeWalkCallView extends StatefulWidget {
   final VoidCallback onMap, onEnd, onEmergency;
 
   @override
-  State<SafeWalkCallView> createState() => _SafeWalkCallViewState();
+  State<SafeWalkCallView> createState() => SafeWalkCallViewState();
 }
 
-class _SafeWalkCallViewState extends State<SafeWalkCallView> {
+class SafeWalkCallViewState extends State<SafeWalkCallView> {
   int _line = 0;
   final _log = <_Entry>[];
   String? _speaking;
@@ -50,11 +50,34 @@ class _SafeWalkCallViewState extends State<SafeWalkCallView> {
   Timer? _clock, _reply;
   bool _pipLeft = false;
 
+  /// 已離開（或正在離開）此畫面；之後的計時器、朗讀與 onDone 一律忽略。
+  bool _left = false;
+
+  /// 每次離開遞增，讓離開前排進來的朗讀完成回呼失效。
+  int _gen = 0;
+
+  /// 離開意圖發生時呼叫（含 SOS）：同步取消回覆計時器與時鐘、停止朗讀。換頁動畫期間舊頁仍 mounted，也不會再朗讀。
+  void leave() {
+    if (_left) return;
+    _left = true;
+    _gen++;
+    _reply?.cancel();
+    _clock?.cancel();
+    widget.speaker.stop();
+  }
+
+  void _leaveThen(VoidCallback go) {
+    leave();
+    go();
+  }
+
   @override
   void initState() {
     super.initState();
     _say(FakeCallScript.lines[0].text);
-    _clock = Timer.periodic(const Duration(seconds: 1), (_) => setState(() => _seconds++));
+    _clock = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted && !_left) setState(() => _seconds++);
+    });
   }
 
   @override
@@ -68,11 +91,14 @@ class _SafeWalkCallViewState extends State<SafeWalkCallView> {
   }
 
   void _speak(_Entry e) {
+    if (_left) return;
+    final gen = _gen;
     setState(() => _speaking = e.key);
     widget.speaker.speak(
       e.text,
       onDone: () {
-        if (mounted && _speaking == e.key) setState(() => _speaking = null);
+        if (!mounted || _left || gen != _gen) return;
+        if (_speaking == e.key) setState(() => _speaking = null);
       },
     );
   }
@@ -87,6 +113,7 @@ class _SafeWalkCallViewState extends State<SafeWalkCallView> {
   }
 
   void _say(String text) {
+    if (_left) return;
     final e = _Entry('c${_seq++}', true, text);
     setState(() => _log.add(e));
     _speak(e);
@@ -94,7 +121,7 @@ class _SafeWalkCallViewState extends State<SafeWalkCallView> {
   }
 
   void _respond(String text) {
-    if (_waiting) return;
+    if (_waiting || _left) return;
     widget.speaker.stop();
     setState(() {
       _speaking = null;
@@ -104,7 +131,7 @@ class _SafeWalkCallViewState extends State<SafeWalkCallView> {
     _scrollDown();
     final next = FakeCallScript.lines[_line].next;
     _reply = Timer(const Duration(milliseconds: 900), () {
-      if (!mounted) return;
+      if (!mounted || _left) return;
       setState(() {
         _line = next;
         _waiting = false;
@@ -136,7 +163,7 @@ class _SafeWalkCallViewState extends State<SafeWalkCallView> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Center(
-                        child: SwRoundButton(icon: Icons.arrow_back_ios_new_rounded, label: '返回', onTap: widget.onEnd),
+                        child: SwRoundButton(icon: Icons.arrow_back_ios_new_rounded, label: '返回', onTap: () => _leaveThen(widget.onEnd)),
                       ),
                       const SizedBox(width: 12),
                       Container(
@@ -211,7 +238,7 @@ class _SafeWalkCallViewState extends State<SafeWalkCallView> {
                           final v = d.primaryVelocity ?? 0;
                           if (v.abs() > 100) setState(() => _pipLeft = v < 0);
                         },
-                        child: _Pip(start: start, points: widget.points, anomalies: widget.anomalies, onTap: widget.onMap),
+                        child: _Pip(start: start, points: widget.points, anomalies: widget.anomalies, onTap: () => _leaveThen(widget.onMap)),
                       ),
                     ),
                   ],
@@ -254,42 +281,9 @@ class _SafeWalkCallViewState extends State<SafeWalkCallView> {
               ],
             ),
           ),
-          Container(
-            decoration: const BoxDecoration(
-              color: SwColors.surface,
-              border: Border(top: BorderSide(color: SwColors.border)),
-            ),
-            padding: EdgeInsets.fromLTRB(16, 12, 16, 12 + MediaQuery.paddingOf(context).bottom),
-            child: Row(
-              children: [
-                SwPressable(
-                  onTap: widget.onEnd,
-                  color: SwColors.surface,
-                  pressedColor: SwColors.brandSoft,
-                  border: const BorderSide(color: SwColors.border),
-                  radius: 12,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: SizedBox(
-                    height: swTouchLarge,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.call_end_rounded, color: SwColors.textSecondary),
-                        const SizedBox(width: 8),
-                        Text('結束通話', style: SwText.bodyStrong),
-                      ],
-                    ),
-                  ),
-                ),
-                const Spacer(),
-                SwSosButton(
-                  onTap: () {
-                    widget.speaker.stop();
-                    widget.onEmergency();
-                  },
-                ),
-              ],
-            ),
+          SwActionBar(
+            secondary: SwSecondaryAction(icon: Icons.call_end_rounded, label: '結束通話', onTap: () => _leaveThen(widget.onEnd)),
+            onEmergency: () => _leaveThen(widget.onEmergency),
           ),
         ],
       ),

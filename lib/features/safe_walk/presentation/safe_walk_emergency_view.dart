@@ -195,15 +195,18 @@ class _SmsReportCardState extends State<_SmsReportCard> {
     return SmsDraftTemplate.format(time: time, position: _shareLocation ? widget.position : null, situation: _situation, nearbyPointName: widget.nearbyPointName);
   }
 
+  bool get _usesSender => widget.mode == sw.DataMode.live && widget.onSend != null;
+
   Future<void> _send() async {
     setState(() => _step = _SmsStep.sending);
-    final ok = widget.onSend == null ? await Future.delayed(const Duration(milliseconds: 900), () => true) : await widget.onSend!(_body);
+    // Mock 一律只在本地模擬，即使 M1 已注入 sender 也不呼叫，避免帶位置的內容外傳。
+    final ok = _usesSender ? await widget.onSend!(_body) : await Future.delayed(const Duration(milliseconds: 900), () => true);
     if (mounted) setState(() => _step = ok ? _SmsStep.sent : _SmsStep.failed);
   }
 
   @override
   Widget build(BuildContext context) {
-    final mock = widget.onSend == null || widget.mode == sw.DataMode.mock;
+    final mock = !_usesSender;
     return AnimatedContainer(
       duration: SwMotion.of(context, 220),
       padding: const EdgeInsets.all(16),
