@@ -39,6 +39,8 @@ class DemoMap extends StatelessWidget {
     required this.anomalies,
     required this.path,
     this.altPaths = const [],
+    this.destination,
+    this.showAttribution = true,
     this.avoidRadiusMeters = 0,
     this.showShortcut = false,
     this.homeActive = true,
@@ -57,6 +59,12 @@ class DemoMap extends StatelessWidget {
 
   /// Other route options, drawn grey under [path].
   final List<List<LatLng>> altPaths;
+
+  /// 目的地標記位置（預設為示範的家）。
+  final LatLng? destination;
+
+  /// false 時由外層（例如下方資訊框）顯示 OSM 版權標示。
+  final bool showAttribution;
 
   /// When > 0, each unresolved report gets a circle of this real-world radius.
   final double avoidRadiusMeters;
@@ -80,7 +88,7 @@ class DemoMap extends StatelessWidget {
       _ll(start),
       for (final at in path) _ll(at),
       if (!live) ...[
-        _ll(DemoGeo.home),
+        _ll(destination ?? DemoGeo.home),
         for (final p in points) ll.LatLng(p.coordinates.lat, p.coordinates.lng),
         for (final a in anomalies) _ll(a.at),
       ],
@@ -138,7 +146,7 @@ class DemoMap extends StatelessWidget {
           label: '${p.name}，查看詳細資訊',
           onTap: onPoint == null ? null : () => onPoint!(p.id),
         ),
-      marker(DemoGeo.home, 32, _HomeMark(active: homeActive)),
+      marker(destination ?? DemoGeo.home, 32, _HomeMark(active: homeActive)),
       marker(start, 34, const _StartMark()),
       if (pin != null)
         marker(
@@ -211,7 +219,9 @@ class DemoMap extends StatelessWidget {
           flags: interactive
               ? InteractiveFlag.pinchZoom |
                     InteractiveFlag.drag |
-                    InteractiveFlag.flingAnimation
+                    InteractiveFlag.flingAnimation |
+                    // 電腦預覽可用滑鼠滾輪縮放；不開雙擊縮放，點地圖設點才不會延遲。
+                    InteractiveFlag.scrollWheelZoom
               : InteractiveFlag.none,
         ),
         onTap: onPick == null
@@ -258,33 +268,30 @@ class DemoMap extends StatelessWidget {
     return Stack(
       children: [
         Positioned.fill(child: map),
-        Positioned(
-          left: 0,
-          right: 0,
-          bottom: 0,
-          child: Semantics(
-            link: true,
-            label: 'OpenStreetMap 地圖來源與授權',
-            onTap: () => unawaited(_openAttribution(context)),
-            child: ExcludeSemantics(
-              child: Material(
-                color: SwColors.surface,
-                child: InkWell(
-                  onTap: () => unawaited(_openAttribution(context)),
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(minHeight: swTouch),
+        // 小而半透明，只佔右下角；地圖維持滿版（仍可點開 OSM 授權頁）。
+        if (showAttribution)
+          Positioned(
+            right: 0,
+            bottom: 0,
+            child: Semantics(
+              link: true,
+              label: 'OpenStreetMap 地圖來源與授權',
+              onTap: () => unawaited(openAttribution(context)),
+              child: ExcludeSemantics(
+                child: Material(
+                  color: SwColors.surface.withValues(alpha: .7),
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(6),
+                  ),
+                  child: InkWell(
+                    onTap: () => unawaited(openAttribution(context)),
                     child: const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      child: Align(
-                        alignment: Alignment.centerRight,
-                        heightFactor: 1,
-                        child: Text(
-                          '© OpenStreetMap contributors',
-                          textAlign: TextAlign.right,
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: TPColors.grayscale700,
-                          ),
+                      padding: EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                      child: Text(
+                        '© OpenStreetMap',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: TPColors.grayscale700,
                         ),
                       ),
                     ),
@@ -293,12 +300,12 @@ class DemoMap extends StatelessWidget {
               ),
             ),
           ),
-        ),
       ],
     );
   }
 
-  Future<void> _openAttribution(BuildContext context) async {
+  /// 開啟 OSM 版權頁；放在地圖外的版權標示也用這個。
+  static Future<void> openAttribution(BuildContext context) async {
     const url = 'https://www.openstreetmap.org/copyright';
     try {
       if (await launchUrl(

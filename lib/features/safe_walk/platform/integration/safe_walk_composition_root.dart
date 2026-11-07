@@ -308,7 +308,11 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     final active = state == AppLifecycleState.resumed;
     _speaker.setLifecycleActive(active);
-    if (!active) {
+    // `inactive` is transient (a system dialog, or the browser window losing
+    // focus on web); only really leaving the app clears the route.
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.detached) {
       _closeNavigation();
     }
     if (mounted) setState(() {});
@@ -471,41 +475,41 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
       onNavigationOpened: _openNavigation,
       onNavigationClosed: _closeNavigation,
       onEmergencyOpened: _closeNavigation,
-      child: child!,
-    ),
-    child: SafeWalkFlow(
-      mode: sw.DataMode.mock,
-      allowRealCalls: false,
-      points: _points,
-      pointsLoading: _pointsLoading,
-      pointsError: _pointsError,
-      onRetryPoints: () => unawaited(_loadPoints()),
-      route: widget.liveRoutes ? _navigation.routeResult : null,
-      livePosition: _livePosition,
-      onLeaveMap: _closeNavigation,
-      onStartChanged: widget.liveRoutes
-          ? (origin) {
-              _manualOrigin = origin;
-              if (origin != null) _stopFollowing();
-            }
-          : null,
-      routeLoading: widget.liveRoutes && _navigation.routeLoading,
-      onPlanRoute: widget.liveRoutes
-          ? (destination) => unawaited(_planTo(destination))
-          : null,
-      onReportsChanged: (spots) => _areas = [
-        for (final spot in spots)
-          AvoidArea(
-            id: spot.id,
-            center: spot.center,
-            radiusMeters: AvoidArea.reportRadiusMeters,
-            source: 'report',
-          ),
-      ],
-      speaker: _speaker,
-      onLocate: _locate,
-      onEmergency: _emergency,
-      onExit: _exit,
+      // Built here so route results, loading and live position reach the map.
+      child: SafeWalkFlow(
+        mode: sw.DataMode.mock,
+        allowRealCalls: false,
+        points: _points,
+        pointsLoading: _pointsLoading,
+        pointsError: _pointsError,
+        onRetryPoints: () => unawaited(_loadPoints()),
+        route: widget.liveRoutes ? _navigation.routeResult : null,
+        livePosition: _livePosition,
+        onLeaveMap: _closeNavigation,
+        onStartChanged: widget.liveRoutes
+            ? (origin) {
+                _manualOrigin = origin;
+                if (origin != null) _stopFollowing();
+              }
+            : null,
+        routeLoading: widget.liveRoutes && _navigation.routeLoading,
+        onPlanRoute: widget.liveRoutes
+            ? (destination) => unawaited(_planTo(destination))
+            : null,
+        onReportsChanged: (spots) => _areas = [
+          for (final spot in spots)
+            AvoidArea(
+              id: spot.id,
+              center: spot.center,
+              radiusMeters: AvoidArea.reportRadiusMeters,
+              source: 'report',
+            ),
+        ],
+        speaker: _speaker,
+        onLocate: _locate,
+        onEmergency: _emergency,
+        onExit: _exit,
+      ),
     ),
   );
 

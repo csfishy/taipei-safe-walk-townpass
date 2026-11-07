@@ -41,10 +41,18 @@ final class WebJsonTransport implements JsonTransport {
       );
     }
     cancellation?.throwIfCancelled();
-    if (response.status != 200) {
+    final int status;
+    final String text;
+    try {
+      status = response.status.toDartInt;
+      text = (await response.text().toDart).toDart;
+    } catch (error) {
+      debugPrint('[safe-walk web transport] read ${error.runtimeType}');
+      throw const JsonTransportException(TransportFailure.network);
+    }
+    if (status != 200) {
       throw const JsonTransportException(TransportFailure.httpStatus);
     }
-    final text = (await response.text().toDart).toDart;
     if (text.length > maxBytes) {
       throw const JsonTransportException(TransportFailure.tooLarge);
     }
@@ -67,7 +75,7 @@ final class WebJsonTransport implements JsonTransport {
 external JSPromise<_Response> _fetch(JSString url);
 
 extension type _Response._(JSObject _) implements JSObject {
-  external int get status;
+  external JSNumber get status;
   external JSPromise<JSString> text();
 }
 

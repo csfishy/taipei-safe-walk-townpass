@@ -101,7 +101,8 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
   late final List<SavedPlace> _places = [...demoPlaces()];
   String _placeId = 'home';
   SavedPlace get _place => _places.firstWhere((p) => p.id == _placeId, orElse: () => _places.first);
-  late final List<Anomaly> _anomalies = demoAnomalies();
+  // 真實路線模式不放示範回報；只顯示使用者自己標的回報點。
+  late final List<Anomaly> _anomalies = widget.onPlanRoute != null ? <Anomaly>[] : demoAnomalies();
   late final List<sw.AssistancePoint> _demoPoints = demoAssistancePoints();
 
   String? get _nearestPointName {
@@ -216,6 +217,15 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
         final p = SavedPlace('place-${DateTime.now().microsecondsSinceEpoch}', name, at);
         setState(() => _places.add(p));
         _selectPlace(p.id);
+      },
+      onEditPlace: (id, name, at) {
+        final i = _places.indexWhere((p) => p.id == id);
+        if (i < 0) return;
+        setState(() {
+          _places[i] = SavedPlace(id, name, at);
+          _placeId = id;
+        });
+        _planRoute();
       },
       onDeletePlace: (id) {
         final wasCurrent = _placeId == id;

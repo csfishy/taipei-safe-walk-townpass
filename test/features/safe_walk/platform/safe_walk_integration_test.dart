@@ -213,7 +213,7 @@ void main() {
       expect(platform.emergencies, 0);
       await t.tap(find.text('安心行'));
       await t.pumpAndSettle();
-      expect(find.text('路線僅供參考・請留意實際路況'), findsOneWidget);
+      expect(find.text('路線僅供參考・請留意實際路況'), findsNothing);
       await t.tap(find.text('文字路線'));
       await t.pumpAndSettle();
       expect(find.text('抵達家'), findsOneWidget);

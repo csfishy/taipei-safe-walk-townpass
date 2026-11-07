@@ -64,7 +64,7 @@ void main() {
         size: compact ? const Size(84, 84) : const Size(320, 400),
       );
 
-      expect(find.text('© OpenStreetMap contributors'), findsOneWidget);
+      expect(find.text('© OpenStreetMap'), findsOneWidget);
       expect(find.bySemanticsLabel('OpenStreetMap 地圖來源與授權'), findsOneWidget);
       await tester.pumpWidget(const SizedBox.shrink());
     });

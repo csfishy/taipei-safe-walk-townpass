@@ -59,30 +59,61 @@ bool routePassesWithin(List<sw.GeoJsonCoordinate> line, LatLng at, double radius
   return false;
 }
 
-enum StepDir { east, west, north, south }
+/// 相對於前進方向的轉彎（像導航 App 的「左轉／右轉」，不是東西南北）。
+enum StepTurn { start, straight, slightLeft, left, sharpLeft, slightRight, right, sharpRight, uTurn }
 
-const stepDirLabel = {StepDir.east: '東', StepDir.west: '西', StepDir.north: '北', StepDir.south: '南'};
+const stepTurnLabel = {
+  StepTurn.start: '出發，沿路直走',
+  StepTurn.straight: '繼續直走',
+  StepTurn.slightLeft: '稍微靠左',
+  StepTurn.left: '左轉',
+  StepTurn.sharpLeft: '向左急轉',
+  StepTurn.slightRight: '稍微靠右',
+  StepTurn.right: '右轉',
+  StepTurn.sharpRight: '向右急轉',
+  StepTurn.uTurn: '迴轉',
+};
 
 class RouteStep {
-  RouteStep(this.dir, this.meters);
-  final StepDir dir;
+  RouteStep(this.turn, this.meters);
+  final StepTurn turn;
   int meters;
 }
 
-/// 把路線轉成白話步驟（同方向合併、四捨五入到 10 公尺）。
+double _bearing(LatLng a, LatLng b) {
+  final dLng = (b.lng - a.lng) * math.cos(a.lat * math.pi / 180);
+  return (math.atan2(dLng, b.lat - a.lat) * 180 / math.pi + 360) % 360;
+}
+
+/// 把路線轉成白話步驟：每次方向改變超過 25° 算一個轉彎，左右依前進方向判斷；
+/// 距離四捨五入到 10 公尺。路名要等路線服務提供逐路口指示才有。
 List<RouteStep> routeSteps(List<LatLng> path) {
   final steps = <RouteStep>[];
+  double? heading;
   for (var i = 1; i < path.length; i++) {
     final a = path[i - 1], b = path[i];
-    final dLat = b.lat - a.lat, dLng = b.lng - a.lng;
-    final dir = (dLng.abs() * math.cos(a.lat * math.pi / 180) > dLat.abs()) ? (dLng > 0 ? StepDir.east : StepDir.west) : (dLat > 0 ? StepDir.north : StepDir.south);
     final m = metersBetween(a, b).round();
     if (m < 3) continue;
-    if (steps.isNotEmpty && steps.last.dir == dir) {
-      steps.last.meters += m;
+    final h = _bearing(a, b);
+    if (heading == null) {
+      steps.add(RouteStep(StepTurn.start, m));
     } else {
-      steps.add(RouteStep(dir, m));
+      final d = ((h - heading + 540) % 360) - 180; // -180..180，正值＝往右
+      final a2 = d.abs();
+      final turn = a2 < 25
+          ? null
+          : a2 >= 155
+          ? StepTurn.uTurn
+          : d < 0
+          ? (a2 < 60 ? StepTurn.slightLeft : a2 < 120 ? StepTurn.left : StepTurn.sharpLeft)
+          : (a2 < 60 ? StepTurn.slightRight : a2 < 120 ? StepTurn.right : StepTurn.sharpRight);
+      if (turn == null || m < 8 && steps.last.meters < 8) {
+        steps.last.meters += m;
+      } else {
+        steps.add(RouteStep(turn, m));
+      }
     }
+    heading = h;
   }
   for (final s in steps) {
     s.meters = math.max(10, (s.meters / 10).round() * 10);
@@ -100,7 +131,9 @@ class SavedPlace {
   bool get isHome => id == 'home';
 }
 
-List<SavedPlace> demoPlaces() => const [SavedPlace('home', '家', DemoGeo.home), SavedPlace('work', '公司', LatLng(25.0014, 121.4997))];
+/// 預設常用地點（可在目的地選單編輯）。座標取自 OpenStreetMap：
+/// 家＝臺北市立大學天母校區體育館，公司＝臺北市立大學天母校區（忠誠路二段 101 號）。
+List<SavedPlace> demoPlaces() => const [SavedPlace('home', '家', LatLng(25.1160, 121.535083)), SavedPlace('work', '公司', LatLng(25.114604, 121.537019))];
 
 /// 到某個常用地點的示範路線：家用繞開異常的路線，其他用沿街 L 形。
 List<LatLng> placeRoute(LatLng start, SavedPlace p) => p.isHome && start.lat == DemoGeo.start.lat && start.lng == DemoGeo.start.lng ? DemoGeo.homeRoute : DemoGeo.lRoute(start, p.at);

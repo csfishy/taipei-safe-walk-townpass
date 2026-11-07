@@ -306,9 +306,10 @@ void main() {
       final scope = _scope(tester);
       scope.onNavigationOpened();
       final work = scope.onPlanRoute(_request(scope));
+      // inactive alone is transient (a system dialog); paused leaves the app.
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
-      await work;
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      await work;
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
       await tester.pump();
       expect(routes.cancellations.single.isCancelled, isTrue);

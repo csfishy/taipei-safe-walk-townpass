@@ -143,9 +143,20 @@ final class ValhallaAvoidingRoutePlanner implements AvoidingRoutePlanner {
         // Valhalla answers "no path" with HTTP 400.
         if (e.failure == TransportFailure.httpStatus) return null;
         throw const WalkingRouteProviderUnavailable();
+      } on SafeWalkCancelledException {
+        rethrow;
+      } catch (_) {
+        // Any other transport fault must not leave the plan hanging.
+        throw const WalkingRouteProviderUnavailable();
       }
       cancellation?.throwIfCancelled();
-      return _parse(json);
+      try {
+        return _parse(json);
+      } on WalkingRouteProviderUnavailable {
+        rethrow;
+      } catch (_) {
+        throw const WalkingRouteProviderUnavailable();
+      }
     });
     _queue = run.then((_) {}, onError: (_) {});
     return run;
@@ -264,7 +275,9 @@ List<List<double>> decodePolyline6(String encoded) {
       result |= (byte & 0x1f) << shift;
       shift += 5;
     } while (byte >= 0x20);
-    return (result & 1) != 0 ? ~(result >> 1) : result >> 1;
+    // Not `~`: on web, bitwise results are unsigned 32-bit, which turns a
+    // negative step into a huge number.
+    return (result & 1) != 0 ? -(result >> 1) - 1 : result >> 1;
   }
 
   while (index < encoded.length) {
