@@ -10,13 +10,13 @@ enum SafeWalkEntry { map, call, points, report }
 /// 入口頁：比照臺北通開啟服務時的樣式——上方主色長條＋右上關閉；
 /// 時間情境卡、「安心行」主卡（臺北天際線插圖）、其他功能一項一行、最下方緊急求助。
 class SafeWalkHomeView extends StatelessWidget {
-  const SafeWalkHomeView({super.key, required this.onOpen, required this.onEmergency, required this.homeMinutes, required this.avoided, this.destination = '家', this.onBack, this.now});
+  const SafeWalkHomeView({super.key, required this.onOpen, required this.onEmergency, required this.avoided, this.destination = '家', this.onBack, this.now});
   final ValueChanged<SafeWalkEntry> onOpen;
   final VoidCallback onEmergency;
 
   /// 關閉安心行、回到臺北通（右上 ✕）。
   final VoidCallback? onBack;
-  final int homeMinutes, avoided;
+  final int avoided;
   final String destination;
 
   /// 測試可固定時間；正式由裝置時間決定。
@@ -58,11 +58,12 @@ class SafeWalkHomeView extends StatelessWidget {
                 Semantics(header: true, label: '臺北安心行', child: const SizedBox.shrink()),
                 _ContextCard(now: t),
                 const SizedBox(height: 16),
-                _GoHomeCard(destination: destination, minutes: homeMinutes, avoided: avoided, onTap: () => onOpen(SafeWalkEntry.map)),
+                _GoHomeCard(destination: destination, avoided: avoided, onTap: () => onOpen(SafeWalkEntry.map)),
                 const SizedBox(height: 24),
-                Semantics(header: true, child: Text('其他功能', style: SwText.heading)),
+                Semantics(header: true, child: Text('其他功能', style: SwText.bodyStrong)),
                 const SizedBox(height: 12),
                 for (final (id, icon, name, desc) in _more) ...[_FeatureRow(icon: icon, name: name, desc: desc, onTap: () => onOpen(id)), const SizedBox(height: 10)],
+                Text('目前為示範資料，未連線真實服務', style: SwText.small),
               ],
             ),
           ),
@@ -95,7 +96,7 @@ class _ContextCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('$hhmm・${night ? '天色已暗' : '白天'}', style: SwText.heading.copyWith(color: night ? SwColors.onDeep : SwColors.text)),
+                  Text('$hhmm・${night ? '天色已暗' : '白天'}', style: SwText.bodyStrong.copyWith(color: night ? SwColors.onDeep : SwColors.text)),
                   Text(night ? '建議走明亮的大路，需要時開模擬來電' : '出門前先看看沿路有沒有回報', style: SwText.body.copyWith(color: night ? TPColors.primary100 : SwColors.textSecondary)),
                 ],
               ),
@@ -109,9 +110,9 @@ class _ContextCard extends StatelessWidget {
 
 /// Figma 主卡：左下透明文字動作、右下原始天際線插圖。
 class _GoHomeCard extends StatefulWidget {
-  const _GoHomeCard({required this.destination, required this.minutes, required this.avoided, required this.onTap});
+  const _GoHomeCard({required this.destination, required this.avoided, required this.onTap});
   final String destination;
-  final int minutes, avoided;
+  final int avoided;
   final VoidCallback onTap;
 
   @override
@@ -126,7 +127,7 @@ class _GoHomeCardState extends State<_GoHomeCard> {
   @override
   Widget build(BuildContext context) => Semantics(
     button: true,
-    label: '安心行，前往${widget.destination}，已繞開 ${widget.avoided} 個異常回報，點擊開始',
+    label: '示範：安心行，前往${widget.destination}，已繞開 ${widget.avoided} 個異常回報，點擊開始',
     child: DecoratedBox(
       decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), boxShadow: SwShadow.float),
       child: ClipRRect(
@@ -159,8 +160,8 @@ class _GoHomeCardState extends State<_GoHomeCard> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('安心行', style: SwText.display.copyWith(color: TPColors.white)),
-                          Text('Safe Walk', style: SwText.heading.copyWith(color: TPColors.white)),
+                          Text('安心行', style: SwText.title.copyWith(color: TPColors.white)),
+                          Text('Safe Walk', style: SwText.small.copyWith(color: TPColors.white)),
                           const SizedBox(height: 48),
                           ConstrainedBox(
                             constraints: const BoxConstraints(minHeight: 56),
@@ -170,7 +171,7 @@ class _GoHomeCardState extends State<_GoHomeCard> {
                                 SvgPicture.string(swCardNavigationSvg, width: 26, height: 26),
                                 const SizedBox(width: 10),
                                 Flexible(
-                                  child: Text('點擊開始', style: SwText.title.copyWith(color: TPColors.white)),
+                                  child: Text('點擊開始', style: SwText.bodyStrong.copyWith(color: TPColors.white)),
                                 ),
                               ],
                             ),
@@ -224,7 +225,7 @@ class _FeatureRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(name, style: SwText.heading),
+                  Text(name, style: SwText.bodyStrong),
                   Text(desc, style: SwText.secondary),
                 ],
               ),
