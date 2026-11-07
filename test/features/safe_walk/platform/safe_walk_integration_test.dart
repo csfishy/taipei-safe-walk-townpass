@@ -238,12 +238,12 @@ void main() {
       );
       expect(platform.emergencies, 1);
       await t.scrollUntilVisible(
-        find.text('目前沒有撥號設定，未實際串接警方。'),
+        find.text('示範：未撥號、未通知任何人。'),
         200,
         scrollable: find.byType(Scrollable).first,
       );
       await t.pumpAndSettle();
-      expect(find.text('目前沒有撥號設定，未實際串接警方。'), findsOneWidget);
+      expect(find.text('示範：未撥號、未通知任何人。'), findsOneWidget);
       await t.scrollUntilVisible(
         find.text('我現在安全，關閉'),
         200,
@@ -419,7 +419,7 @@ void main() {
     await t.pump(const Duration(seconds: 1));
     await t.pumpAndSettle();
     expect(sent, 0);
-    expect(find.text('簡訊內容已準備好'), findsOneWidget);
+    expect(find.text('示範完成／未傳送簡訊'), findsOneWidget);
   });
 
   testWidgets('SOS cancels a reply before the outgoing call animation ends', (

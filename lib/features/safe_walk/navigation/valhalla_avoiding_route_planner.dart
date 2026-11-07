@@ -212,14 +212,6 @@ final class ValhallaAvoidingRoutePlanner implements AvoidingRoutePlanner {
     _Line line,
     List<AvoidArea> areas,
   ) {
-    final avoided = level == AvoidLevel.none
-        ? 0
-        : areas
-              .where(
-                (a) =>
-                    _minDistance(line.coordinates, a.center) >= a.radiusMeters,
-              )
-              .length;
     return sw.RouteCandidate(
       id: 'valhalla-${level.name}',
       kind: sw.RouteKind.direct,
@@ -239,7 +231,7 @@ final class ValhallaAvoidingRoutePlanner implements AvoidingRoutePlanner {
         switch (level) {
           AvoidLevel.none => '最快路線',
           AvoidLevel.center => '不經過回報點中心',
-          AvoidLevel.full => '完全避開 $avoided 個範圍',
+          AvoidLevel.full => '完全避開',
         },
       ],
       warnings: const ['依 OpenStreetMap 步行路網計算，不保證沿途安全或目前可通行'],

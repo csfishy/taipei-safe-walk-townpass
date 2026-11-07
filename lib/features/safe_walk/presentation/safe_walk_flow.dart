@@ -257,8 +257,7 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
     if (!mounted) return;
     setState(() {
       _emergencyError = r?.action == sw.EmergencyAction.failed;
-      // 示範模式不顯示 M1 回傳的「示範：…」字樣，統一說明目前沒有撥號設定。
-      _emergencyMessage = widget.mode == sw.DataMode.mock ? '目前沒有撥號設定，未實際串接警方。' : r?.message ?? '目前沒有撥號設定，未實際串接警方。';
+      _emergencyMessage = r?.message ?? '示範：沒有撥號，也沒有通知任何人。';
     });
   }
 
