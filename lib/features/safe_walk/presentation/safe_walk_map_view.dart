@@ -1704,21 +1704,17 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
       const SizedBox(height: 4),
       Text('在地圖上點一下位置，或用你現在的位置。', style: SwText.secondary),
       const SizedBox(height: 8),
-      Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: [
-          SwChip(
-            label: '用我目前的位置',
-            icon: Icons.my_location_rounded,
-            onTap: () => setState(() => _pin = _start),
-          ),
-          SwChip(
-            label: '取消回報',
-            icon: Icons.close_rounded,
-            onTap: () => setState(() => _picking = false),
-          ),
-        ],
+      SwButtonPair(
+        first: SwPrimaryButton(
+          label: '用我目前的位置',
+          icon: Icons.my_location_rounded,
+          onTap: () => setState(() => _pin = _start),
+        ),
+        second: SwOutlineButton(
+          label: '取消回報',
+          icon: Icons.close_rounded,
+          onTap: () => setState(() => _picking = false),
+        ),
       ),
     ],
   );
@@ -1795,18 +1791,16 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
       ),
       Text('回報會標示在地圖上。', style: SwText.small),
       const SizedBox(height: 12),
-      Row(
-        children: [
-          Expanded(
-            child: SwPrimaryButton(
-              label: '標示到地圖',
-              icon: Icons.add_location_alt_outlined,
-              onTap: _submit,
-            ),
-          ),
-          const SizedBox(width: 8),
-          SwChip(label: '重新選位置', onTap: () => setState(() => _pin = null)),
-        ],
+      SwButtonPair(
+        first: SwPrimaryButton(
+          label: '標示到地圖',
+          icon: Icons.add_location_alt_outlined,
+          onTap: _submit,
+        ),
+        second: SwOutlineButton(
+          label: '重新選位置',
+          onTap: () => setState(() => _pin = null),
+        ),
       ),
     ],
   );
@@ -1860,21 +1854,18 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
           const SizedBox(height: 12),
           Text('你現在看到的狀況是？', style: SwText.bodyStrong),
           const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              SwChip(
-                label: '仍在發生',
-                icon: Icons.priority_high_rounded,
-                onTap: () => _update(a, '有人回報：仍在發生', bump: true),
-              ),
-              SwChip(
-                label: '看起來沒事了',
-                icon: Icons.check_circle_outline_rounded,
-                onTap: () => _update(a, '有人回報：現場看起來已經沒事（待確認）', bump: false),
-              ),
-            ],
+          // 兩個狀態同等重要，用兩顆等寬外框按鈕。
+          SwButtonPair(
+            first: SwOutlineButton(
+              label: '仍在發生',
+              icon: Icons.priority_high_rounded,
+              onTap: () => _update(a, '有人回報：仍在發生', bump: true),
+            ),
+            second: SwOutlineButton(
+              label: '看起來沒事了',
+              icon: Icons.check_circle_outline_rounded,
+              onTap: () => _update(a, '有人回報：現場看起來已經沒事（待確認）', bump: false),
+            ),
           ),
           if (widget.onSms != null) ...[
             const SizedBox(height: 8),
