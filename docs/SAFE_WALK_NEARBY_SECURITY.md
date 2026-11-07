@@ -4,6 +4,8 @@ PR #41 修正後維持 **BLOCKED**。目前沒有可驗證使用者身分與協�
 
 `SupabaseNearbyAlertTransport` 已停止所有 HTTP 呼叫。服務在取得 GPS 前回傳 Unavailable；附近接收、加入協助者及發送均無法由環境旗標開啟。測試中的 fake transport 僅用於取消與流程契約驗證，不是正式替代後端。已經提交至其他後端的操作無法由本機取消回收；取消只阻止後續副作用並忽略遲到結果。
 
+重新啟用所需的後端與客戶端設計提案見 [附近協助者通知：可審查的重新設計提案](SAFE_WALK_NEARBY_HELPER_DESIGN.md)；該文件只是提案，不改變本文件的 BLOCKED 狀態。
+
 ## 舊後端的處置
 
 `supabase/nearby_emergency.sql` 現在只撤銷三個確切舊 RPC 簽章對 `PUBLIC`、`anon`、`authenticated`、`service_role` 的執行權。不存在的函式與角色會略過；如果繼承權限仍允許 API 角色執行，交易失敗，不能視為完成隔離。它不新增資料表、不建立替代 RPC、不刪除任何資料，也不觸及犯罪參考資料或 Demo schema。
