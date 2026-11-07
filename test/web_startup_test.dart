@@ -2,7 +2,8 @@
 library;
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter/services.dart';
+import 'package:device_info_plus/device_info_plus.dart';
+import 'package:device_info_plus_platform_interface/device_info_plus_platform_interface.dart';
 import 'package:get/get.dart';
 import 'package:town_pass/page/account/account_view_controller.dart';
 import 'package:town_pass/service/account_service.dart';
@@ -11,17 +12,13 @@ import 'package:town_pass/service/notification_service.dart';
 import 'package:town_pass/service/package_service.dart';
 
 void main() {
-  final binding = TestWidgetsFlutterBinding.ensureInitialized();
-  const deviceChannel = MethodChannel('dev.fluttercommunity.plus/device_info');
-  final deviceCalls = <String>[];
+  TestWidgetsFlutterBinding.ensureInitialized();
+  late _BrowserDeviceInfo devicePlugin;
   setUp(() {
-    deviceCalls.clear();
     // Flutter web unit tests do not auto-register app plugins. Stub only the
     // device plugin boundary; exercise the real browser guards in the service.
-    binding.defaultBinaryMessenger.setMockMethodCallHandler(deviceChannel, (call) async {
-      deviceCalls.add(call.method);
-      return <String, dynamic>{'userAgent': 'Chrome test', 'languages': <String>['zh-TW']};
-    });
+    devicePlugin = _BrowserDeviceInfo();
+    DeviceInfoPlatform.instance = devicePlugin;
   });
   tearDown(() => Get.reset());
 
@@ -30,7 +27,7 @@ void main() {
     expect(device.baseDeviceInfo, isNotNull);
     expect(device.androidDeviceInfo, isNull);
     expect(device.iosDeviceInfo, isNull);
-    expect(deviceCalls, ['getDeviceInfo']);
+    expect(devicePlugin.calls, 1);
     await NotificationService().init();
     await NotificationService.requestPermission();
     await expectLater(
@@ -47,4 +44,17 @@ void main() {
     expect(Uri.splitQueryString(query)['subject'], '城市通相關事宜');
     expect(Uri.splitQueryString(query)['body'], contains('APP版本：'));
   });
+}
+
+class _BrowserDeviceInfo extends DeviceInfoPlatform {
+  int calls = 0;
+
+  @override
+  Future<BaseDeviceInfo> deviceInfo() async {
+    calls++;
+    return WebBrowserInfo.fromMap({
+      'userAgent': 'Chrome test',
+      'languages': <String>['zh-TW'],
+    });
+  }
 }
