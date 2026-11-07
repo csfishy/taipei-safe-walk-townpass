@@ -10,6 +10,9 @@ const _scenarioFile =
 /// Phrases that would claim police, rescue, location tracking, a contacted
 /// person, or a live listener (AGENTS.md M5: no fake live person; the
 /// controller never uses a microphone, so nothing "hears" the user).
+///
+/// This list only blocks known wording; it cannot prove every line is safe.
+/// The UI must still show 「模擬通話，未聯絡任何人」 before and during playback.
 const _forbiddenPhrases = <String>[
   '警察',
   '報警',
@@ -25,6 +28,16 @@ const _forbiddenPhrases = <String>[
   '在聽',
   '聽到',
   '聽得到',
+  '看到你',
+  '看見你',
+  '知道你在哪',
+  '收到訊息',
+  '收到位置',
+  '已聯絡',
+  '通知家人',
+  '保持通話',
+  '通話中',
+  '正在連線',
 ];
 
 List<Object?> _loadScenarios() =>

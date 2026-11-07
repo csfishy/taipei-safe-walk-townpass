@@ -69,7 +69,7 @@
       },
       {
         "id": "line-4",
-        "text": "好，到了再打給我。",
+        "text": "好，到了先確認下車地點和四周。",
         "audioSrc": null,
         "pauseAfterMs": 2500
       },
@@ -81,7 +81,7 @@
       },
       {
         "id": "line-6",
-        "text": "快到了記得跟我說一聲。",
+        "text": "快到了，先留意車外環境和下車位置。",
         "audioSrc": null,
         "pauseAfterMs": 2500
       }
