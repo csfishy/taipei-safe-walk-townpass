@@ -1,38 +1,26 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
-import 'package:flutter/material.dart';
+// The upstream counter template expected a counter that TownPass does not have,
+// and booted native services without initialization. Keep a route contract smoke
+// test instead; device startup and the official UI still need device validation.
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:town_pass/main.dart';
-
-/// Helper function to verify the counter's displayed text in the widget tree.
-/// This function specifically checks for the presence of [expectedCount]
-/// and the absence of the *other* number (assuming a simple 0-1 counter based on the test).
-void _verifyCounterValue(WidgetTester tester, int expectedCount) {
-  expect(find.text('$expectedCount'), findsOneWidget);
-  // Also verify that the *other* possible counter value (0 or 1) is not present.
-  final unexpectedCount = expectedCount == 0 ? 1 : 0;
-  expect(find.text('$unexpectedCount'), findsNothing);
-}
+import 'package:town_pass/util/tp_route.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
-
-    // Verify that our counter starts at 0.
-    _verifyCounterValue(tester, 0);
-
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
-
-    // Verify that our counter has incremented.
-    _verifyCounterValue(tester, 1);
+  test('official main, account, service editing and WebView routes remain', () {
+    final names = TPRoute.page.map((page) => page.name).toList();
+    expect(TPRoute.main, '/');
+    expect(
+      names,
+      containsAll([
+        TPRoute.main,
+        TPRoute.account,
+        TPRoute.basicInfo,
+        TPRoute.serviceEdit,
+        TPRoute.webView,
+      ]),
+    );
+  });
+  test('official route names remain unique', () {
+    final names = TPRoute.page.map((page) => page.name).toList();
+    expect(names.toSet().length, names.length);
   });
 }

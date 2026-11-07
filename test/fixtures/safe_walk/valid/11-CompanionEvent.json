@@ -1,0 +1,7 @@
+{
+  "schemaVersion": "1.0.0",
+  "scenarioId": "demo-companion-1",
+  "state": "ended",
+  "reason": "emergency",
+  "occurredAt": "2026-11-07T11:30:00+08:00"
+}

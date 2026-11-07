@@ -1,0 +1,10 @@
+{
+  "schemaVersion": "1.0.0",
+  "coordinates": {
+    "lat": 121.5,
+    "lng": 25.0
+  },
+  "source": "mock",
+  "accuracyMeters": null,
+  "observedAt": null
+}

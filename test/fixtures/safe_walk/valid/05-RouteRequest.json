@@ -1,0 +1,25 @@
+{
+  "schemaVersion": "1.0.0",
+  "requestId": "demo-request-1",
+  "mode": "mock",
+  "origin": {
+    "schemaVersion": "1.0.0",
+    "coordinates": {
+      "lat": 25.0,
+      "lng": 121.5
+    },
+    "source": "mock",
+    "accuracyMeters": null,
+    "observedAt": null
+  },
+  "destination": {
+    "lat": 25.001,
+    "lng": 121.501
+  },
+  "departAt": "2026-11-07T11:30:00+08:00",
+  "preference": "via_assistance",
+  "maxExtraDistanceMeters": 300,
+  "assistancePointIds": [
+    "demo-point-1"
+  ]
+}
