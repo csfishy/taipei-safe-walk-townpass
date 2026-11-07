@@ -1,0 +1,127 @@
+[
+  {
+    "file": "fixtures/valid/01-Position.json",
+    "schema": "Position",
+    "valid": true
+  },
+  {
+    "file": "fixtures/valid/02-LocationResult.json",
+    "schema": "LocationResult",
+    "valid": true
+  },
+  {
+    "file": "fixtures/valid/03-AssistancePoint.json",
+    "schema": "AssistancePoint",
+    "valid": true
+  },
+  {
+    "file": "fixtures/valid/04-AreaStatistics.json",
+    "schema": "AreaStatistics",
+    "valid": true
+  },
+  {
+    "file": "fixtures/valid/05-RouteRequest.json",
+    "schema": "RouteRequest",
+    "valid": true
+  },
+  {
+    "file": "fixtures/valid/06-RouteResult.json",
+    "schema": "RouteResult",
+    "valid": true
+  },
+  {
+    "file": "fixtures/valid/07-RouteResult.json",
+    "schema": "RouteResult",
+    "valid": true
+  },
+  {
+    "file": "fixtures/valid/08-IncidentSummary.json",
+    "schema": "IncidentSummary",
+    "valid": true
+  },
+  {
+    "file": "fixtures/valid/09-EmergencyActionResult.json",
+    "schema": "EmergencyActionResult",
+    "valid": true
+  },
+  {
+    "file": "fixtures/valid/10-CompanionScenario.json",
+    "schema": "CompanionScenario",
+    "valid": true
+  },
+  {
+    "file": "fixtures/valid/11-CompanionEvent.json",
+    "schema": "CompanionEvent",
+    "valid": true
+  },
+  {
+    "file": "fixtures/valid/12-AppEvent.json",
+    "schema": "AppEvent",
+    "valid": true
+  },
+  {
+    "file": "fixtures/invalid/01-lat-lng-swapped.json",
+    "schema": "Position",
+    "valid": false
+  },
+  {
+    "file": "fixtures/invalid/02-missing-timezone.json",
+    "schema": "Position",
+    "valid": false
+  },
+  {
+    "file": "fixtures/invalid/03-unexpected-personal-field.json",
+    "schema": "Position",
+    "valid": false
+  },
+  {
+    "file": "fixtures/invalid/04-wrong-schema-version.json",
+    "schema": "Position",
+    "valid": false
+  },
+  {
+    "file": "fixtures/invalid/05-recognition-without-evidence.json",
+    "schema": "AssistancePoint",
+    "valid": false
+  },
+  {
+    "file": "fixtures/invalid/06-invented-hourly-statistic.json",
+    "schema": "AreaStatistics",
+    "valid": false
+  },
+  {
+    "file": "fixtures/invalid/07-negative-rate.json",
+    "schema": "AreaStatistics",
+    "valid": false
+  },
+  {
+    "file": "fixtures/invalid/08-geojson-order.json",
+    "schema": "RouteResult",
+    "valid": false
+  },
+  {
+    "file": "fixtures/invalid/09-failure-with-success-path.json",
+    "schema": "RouteResult",
+    "valid": false
+  },
+  {
+    "file": "fixtures/invalid/10-false-dispatch.json",
+    "schema": "EmergencyActionResult",
+    "valid": false
+  },
+  {
+    "file": "fixtures/invalid/11-fake-official-receipt.json",
+    "schema": "EmergencyActionResult",
+    "valid": false
+  },
+  {
+    "file": "fixtures/invalid/12-remote-audio-not-approved.json",
+    "schema": "CompanionScenario",
+    "valid": false
+  },
+  {
+    "file": "fixtures/invalid/13-unsupported-responder-field.json",
+    "schema": "IncidentSummary",
+    "valid": false
+  }
+]

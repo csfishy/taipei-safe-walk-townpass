@@ -1,0 +1,42 @@
+{
+  "schemaVersion": "1.0.0",
+  "requestId": "demo-request-1",
+  "mode": "mock",
+  "generatedAt": "2026-11-07T11:30:00+08:00",
+  "status": "ok",
+  "routes": [
+    {
+      "id": "demo-route-1",
+      "kind": "via_assistance",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            25.0,
+            121.5
+          ],
+          [
+            25.001,
+            121.501
+          ]
+        ]
+      },
+      "distanceMeters": 180,
+      "durationSeconds": null,
+      "viaPointIds": [
+        "demo-point-1"
+      ],
+      "provider": "mock-fixture",
+      "walkingNetworkVerified": false,
+      "explanations": [
+        "僅測試 M2 → M3 資料交換"
+      ],
+      "warnings": [
+        "示範折線，未驗證道路，禁止實地導航"
+      ]
+    }
+  ],
+  "warnings": [
+    "目前為示範模式，不提供安全保證"
+  ]
+}

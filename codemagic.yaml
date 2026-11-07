@@ -1,0 +1,71 @@
+# Optional, manually started Codemagic workflow. No account, signing or publishing
+# integration is configured by this file. Repository root is the Flutter project.
+workflows:
+  safe-walk-ios-unsigned:
+    name: Safe Walk checks and unsigned iOS (manual)
+    instance_type: mac_mini_m2
+    working_directory: .
+    max_build_duration: 60
+    environment:
+      flutter: fvm
+      cocoapods: default
+      # Use the host's default Xcode; record and verify it on the first cloud run.
+      # No Apple account, certificates, provisioning profile or secret group.
+    scripts:
+      - name: Record and verify the pinned SDK and available Xcode
+        script: |
+          #!/usr/bin/env bash
+          set -euo pipefail
+          mkdir -p build/ci-reports
+          flutter --version --machine > build/ci-reports/flutter-sdk.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          expected = json.loads(Path('.fvmrc').read_text())['flutter']
+          actual = json.loads(Path('build/ci-reports/flutter-sdk.json').read_text())['frameworkVersion']
+          if expected != actual:
+              raise SystemExit(f'Flutter SDK mismatch: .fvmrc={expected}, installed={actual}')
+          print(f'Using pinned Flutter {actual}')
+          PY
+          xcodebuild -version 2>&1 | tee build/ci-reports/xcode-version.log
+      - name: Resolve the committed dependency lock
+        script: flutter pub get --enforce-lockfile
+      - name: Generate the official TownPass Dart and asset bindings
+        script: dart run build_runner build
+      - name: Check Safe Walk schema-generated contracts
+        script: dart run tool/generate_safe_walk_contracts.dart --check
+      - name: Full Flutter analysis (nonblocking; inspect its real exit code)
+        ignore_failure: true
+        script: |
+          #!/usr/bin/env bash
+          set -euo pipefail
+          set +e
+          flutter analyze --no-pub 2>&1 | tee build/ci-reports/full-analyze.log
+          analysis_exit=${PIPESTATUS[0]}
+          set -e
+          printf '%s\n' "$analysis_exit" > build/ci-reports/full-analyze-exit.txt
+          if [[ "$analysis_exit" != '0' ]]; then
+            printf 'FULL FLUTTER ANALYSIS DID NOT PASS (exit %s). This result is retained, not converted to PASS.\n' "$analysis_exit" >&2
+          fi
+          exit "$analysis_exit"
+      - name: Strict analysis of Safe Walk, tools and new tests
+        script: |
+          #!/usr/bin/env bash
+          set -euo pipefail
+          if [[ -f build/ci-reports/full-analyze.log ]] && grep -Eq '^[[:space:]]*error[[:space:]]' build/ci-reports/full-analyze.log; then
+            echo 'Full Flutter analysis contains an error; stopping the build.' >&2
+            exit 1
+          fi
+          flutter analyze --no-pub lib/features/safe_walk tool test/features/safe_walk
+      - name: Run the complete Flutter test suite
+        script: |
+          #!/usr/bin/env bash
+          set -euo pipefail
+          flutter test --no-pub --machine | tee build/ci-reports/flutter-tests.json
+        test_report: build/ci-reports/flutter-tests.json
+      - name: Build an unsigned iPhone device app
+        script: flutter build ios --debug --no-codesign --no-pub
+    artifacts:
+      - build/ci-reports/**
+      - build/ios/iphoneos/**/*.app
+      - /tmp/xcodebuild_logs/*.log

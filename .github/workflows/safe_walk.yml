@@ -1,0 +1,148 @@
+name: Safe Walk CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - 'migration/**'
+  workflow_dispatch:
+    inputs:
+      build_android_debug:
+        description: 'Also build a test-signed Android debug APK; no publishing'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: safe-walk-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  checks:
+    name: Safe Walk contracts and tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Install the SDK pinned in .fvmrc
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version-file: .fvmrc
+          channel: stable
+          cache: true
+      - name: Record and verify the Flutter version
+        run: |
+          mkdir -p build/ci-reports
+          flutter --version --machine > build/ci-reports/flutter-sdk.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          expected = json.loads(Path('.fvmrc').read_text())['flutter']
+          actual = json.loads(Path('build/ci-reports/flutter-sdk.json').read_text())['frameworkVersion']
+          if expected != actual:
+              raise SystemExit(f'Flutter SDK mismatch: .fvmrc={expected}, installed={actual}')
+          print(f'Using pinned Flutter {actual}')
+          PY
+      - name: Resolve the committed dependency lock
+        run: flutter pub get --enforce-lockfile
+      - name: Generate the official TownPass Dart and asset bindings
+        run: dart run build_runner build
+      - name: Check Safe Walk schema-generated contracts
+        run: dart run tool/generate_safe_walk_contracts.dart --check
+      - name: Preserve official UI during the initialization migration PR
+        if: github.event_name == 'pull_request' && startsWith(github.head_ref, 'migration/')
+        run: dart run tool/check_safe_walk_baseline.dart --initialization
+      - name: Full Flutter analysis (reported separately; nonblocking)
+        id: full_analysis
+        continue-on-error: true
+        run: |
+          set +e
+          flutter analyze --no-pub 2>&1 | tee build/ci-reports/full-analyze.log
+          analysis_exit=${PIPESTATUS[0]}
+          set -e
+          printf '%s\n' "$analysis_exit" > build/ci-reports/full-analyze-exit.txt
+          exit "$analysis_exit"
+      - name: Strict analysis of Safe Walk, tools and new tests
+        id: scoped_analysis
+        run: flutter analyze --no-pub lib/features/safe_walk tool test/features/safe_walk
+      - name: Run the complete Flutter test suite
+        id: tests
+        run: flutter test --no-pub --reporter expanded 2>&1 | tee build/ci-reports/flutter-tests.log
+      - name: Report the actual analysis and test outcomes
+        if: always()
+        env:
+          FULL_ANALYSIS_OUTCOME: ${{ steps.full_analysis.outcome }}
+          SCOPED_ANALYSIS_OUTCOME: ${{ steps.scoped_analysis.outcome }}
+          TEST_OUTCOME: ${{ steps.tests.outcome }}
+        run: |
+          {
+            printf '## Safe Walk verification\n\n'
+            printf '| Check | Actual step outcome |\n|---|---|\n'
+            printf '| Full Flutter analysis (nonblocking) | %s |\n' "$FULL_ANALYSIS_OUTCOME"
+            printf '| Safe Walk scoped analysis (required) | %s |\n' "$SCOPED_ANALYSIS_OUTCOME"
+            printf '| Complete Flutter test suite (required) | %s |\n' "$TEST_OUTCOME"
+            printf '\nA successful job does not turn a failed or skipped full analysis into PASS. See the report artifact and step logs.\n'
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$FULL_ANALYSIS_OUTCOME" != 'success' ]]; then
+            printf '::warning title=Full Flutter analysis did not pass::Actual outcome: %s. Inspect full-analyze.log; the scoped checks remain required.\n' "$FULL_ANALYSIS_OUTCOME"
+          fi
+          if [[ -f build/ci-reports/full-analyze.log ]] && grep -Eq '^[[:space:]]*error[[:space:]]' build/ci-reports/full-analyze.log; then
+            printf '::error::Full Flutter analysis contains an error, not only inherited warnings/info.\n'
+            exit 1
+          fi
+      - name: Preserve SDK, full-analysis and test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: safe-walk-verification-reports
+          path: build/ci-reports/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  android-debug:
+    name: Optional Android debug APK
+    if: github.event_name == 'workflow_dispatch' && inputs.build_android_debug
+    needs: checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version-file: .fvmrc
+          channel: stable
+          cache: true
+      - run: flutter --version
+      - run: flutter pub get --enforce-lockfile
+      - run: dart run build_runner build
+      - run: dart run tool/generate_safe_walk_contracts.dart --check
+      - name: Build a debug APK without release credentials
+        run: flutter build apk --debug --no-pub
+      - name: Save the debug APK (no release or deployment)
+        uses: actions/upload-artifact@v4
+        with:
+          name: safe-walk-android-debug
+          path: build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
