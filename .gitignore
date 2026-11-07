@@ -89,3 +89,17 @@ app.*.map.json
 
 # FVM Version Cache
 .fvm/
+
+# Team-local configuration and private credentials (never commit).
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p8
+*.p12
+*.pfx
+*.jks
+*.keystore
+**/key.properties
+**/secrets/

@@ -1,0 +1,11 @@
+{
+  "schemaVersion": "1.0.0",
+  "id": "demo-incident-1",
+  "mode": "mock",
+  "category": "other",
+  "createdAt": "2026-11-07T11:30:00+08:00",
+  "location": null,
+  "note": "展示用草稿，不傳送",
+  "consentToShareLocation": false,
+  "transferState": "local_only"
+}

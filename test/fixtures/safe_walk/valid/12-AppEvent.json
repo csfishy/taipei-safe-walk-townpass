@@ -1,0 +1,6 @@
+{
+  "type": "emergency.opened",
+  "payload": {
+    "reason": "user"
+  }
+}

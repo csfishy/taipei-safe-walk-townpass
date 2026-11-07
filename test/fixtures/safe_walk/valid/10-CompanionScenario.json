@@ -1,0 +1,20 @@
+{
+  "schemaVersion": "1.0.0",
+  "id": "demo-companion-1",
+  "label": "朋友陪我走（文字預覽）",
+  "disclosure": "模擬通話，未聯絡任何人",
+  "steps": [
+    {
+      "id": "line-1",
+      "text": "我在，先保持聯繫。",
+      "audioSrc": null,
+      "pauseAfterMs": 2500
+    },
+    {
+      "id": "line-2",
+      "text": "你慢慢說，我聽得到。",
+      "audioSrc": null,
+      "pauseAfterMs": 2500
+    }
+  ]
+}

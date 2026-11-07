@@ -1,3 +1,11 @@
+# 臺北安心行 · TownPass 原生開發基底
+
+團隊 Repository：<https://github.com/csfishy/taipei-safe-walk-townpass>。安心行以官方 Flutter App 為主，原 React 專案保留為 Legacy；本次不建立新增 UI，完整設計交由 M3 莅紋後續負責。
+
+先讀 [初始化與驗證](docs/SAFE_WALK_INITIALIZATION.md)、[架構](docs/SAFE_WALK_ARCHITECTURE.md)、[Schema](docs/SAFE_WALK_SCHEMA.md)、[五人模組](docs/SAFE_WALK_MODULES.md)、[顏色規範](docs/SAFE_WALK_COLOR_SPEC.md)、[競賽與授權待確認](docs/SAFE_WALK_COMPETITION_LICENSE.md) 及 [AGENTS.md](AGENTS.md)。初始化 PR 尚待確認合併，五個模組分支須在合併後從同一個基線建立。
+
+下方保留官方 README；官方 Base 與完整歷史見 [來源紀錄](docs/SAFE_WALK_UPSTREAM.json)，原 GPLv3 LICENSE 保持不變。
+
 # What is Town Pass?
 
 Town Pass is an open-source project developed by the Taipei City Government. With the growth of smart cities, the demand for digitalization in city management and citizen services continues to rise. As we enter a new digital era, our goal is to involve citizens in the process, combining third-party expertise and innovation to make digital life in Taipei more convenient.

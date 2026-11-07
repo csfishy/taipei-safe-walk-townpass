@@ -1,0 +1,12 @@
+{
+  "schemaVersion": "1.0.0",
+  "requestId": "demo-request-1",
+  "mode": "live",
+  "generatedAt": "2026-11-07T11:30:00+08:00",
+  "status": "provider_unavailable",
+  "routes": [],
+  "reason": "尚未設定真實步行路線供應商",
+  "warnings": [
+    "不以直線或示範資料冒充真實導航"
+  ]
+}

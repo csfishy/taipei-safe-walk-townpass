@@ -1,0 +1,35 @@
+{
+  "schemaVersion": "1.0.0",
+  "id": "demo-point-1",
+  "name": "示範求助據點 A（非真實機關）",
+  "kind": "public_facility",
+  "coordinates": {
+    "lat": 25.001,
+    "lng": 121.501
+  },
+  "address": null,
+  "publicPhone": null,
+  "recognition": {
+    "status": "confirmed",
+    "evidenceUrl": null,
+    "checkedAt": null
+  },
+  "availability": "unknown",
+  "availabilityCheckedAt": null,
+  "capabilities": [
+    "unknown"
+  ],
+  "source": {
+    "datasetId": "demo-only",
+    "title": "人工示範資料（非政府資料）",
+    "dataMode": "mock",
+    "sourceUrl": null,
+    "retrievedAt": "2026-11-07T11:30:00+08:00",
+    "dataUpdatedAt": null,
+    "license": null,
+    "coverage": "虛構示範區域，禁止用於實地導航",
+    "limitations": [
+      "不代表實際據點、通行狀況、營業時間或犯罪狀況"
+    ]
+  }
+}

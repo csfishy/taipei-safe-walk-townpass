@@ -1,0 +1,13 @@
+{
+  "repository": "https://github.com/taipei-doit/TownPass",
+  "branch": "main",
+  "commit": "c8e5d4d3f8f699f3d9d6cd68e129ed4da12037b3",
+  "clonedAtDate": "2026-11-07",
+  "timezone": "Asia/Taipei",
+  "shallow": false,
+  "flutter": "3.47.6",
+  "dart": "3.13.5",
+  "legacyRepository": "https://github.com/csfishy/taipei-safe-walk",
+  "legacySchemaSourceCommit": "2b13a9f5d18ad35ec0855dc3f9d8ea73c054b723",
+  "legacySchemaGitBlob": "98d61b1fb387a979e1fddfac667769443f8525bb"
+}
