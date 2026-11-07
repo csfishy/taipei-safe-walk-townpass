@@ -1,47 +1,49 @@
-# 臺北安心行：TownPass 原生架構基線
+# 臺北安心行：TownPass Live MVP 架構
 
-2026-11-07，正式取代 React 主 App 方向；初始化 PR 待確認合併。本文件描述模組與接點，不定義 UI 版面或 Widget 架構。
+協作採 [Feature-First + Soft Ownership + Contract-Based Integration](SAFE_WALK_COLLABORATION.md)：五人皆可跨模組修改功能與測試，Owner 是主要聯絡人，不是作者限制。功能主責負責端到端接線；Level A 不需小魚事前批准，Level B 合併前找對應主責確認，真實外部作用／正式開關等 Level C 需隊長授權與安全驗收。以下技術資料流中的「M1 注入」「M3 呈現」指架構角色，任何成員可完成。
 
-## 官方基底與保留範圍
+現行目標是 [Live MVP](SAFE_WALK_LIVE_MVP.md)／Production Readiness；本次僅調整文件，不改執行期旗標。程式快照為團隊 main 03f98f2b7b5254db73774c4d097eb4d610499c2c（2026-11-07，Asia/Taipei）。初始化、五模組及原生入口均已存在；現況見 [Readiness](SAFE_WALK_LIVE_READINESS.md)，證據見 [規格審查](SAFE_WALK_SPEC_AUDIT.md)。
 
-- 官方來源：<https://github.com/taipei-doit/TownPass>，完整 Git 歷史，Base `c8e5d4d3f8f699f3d9d6cd68e129ed4da12037b3`，版本記錄見 `SAFE_WALK_UPSTREAM.json`。
-- Flutter 3.47.6／Dart 3.13.5，依 `.fvmrc` 與官方 lock；GetX、json_serializable、geolocator、url_launcher 沿用官方依賴，不自行全量升級。
-- `lib/main.dart` 的原始 MyApp／Theme／initServices、`lib/page/` 的官方畫面、`TPRoute`、`TPColors`、登入會員、原生 branding、iOS／Android 與 LICENSE 保留。
-- `origin` 是團隊 Public Repo（2026-11-07 使用者確認保留 Public）；`upstream` 保留官方，只讀同步。新 Repo 的 main 先是官方基底，安心行變更經 migration PR 審查後才成為共同基線。
+## 官方基底與模組
 
-## 新增模組邊界
+官方來源 [taipei-doit/TownPass](https://github.com/taipei-doit/TownPass)，歷史 base c8e5d4d3f8f699f3d9d6cd68e129ed4da12037b3，見 SAFE_WALK_UPSTREAM.json。保留 Git 歷史、GPLv3 LICENSE、品牌、登入、Theme、TPColors 與官方服務。Flutter 3.47.6／Dart 3.13.5 沿用 .fvmrc／lock，不全量升級。React Repo 是 Legacy 參考。
 
-`lib/features/safe_walk/` 下的 platform／navigation／presentation／safety_data／companion／shared 為同一個 Flutter App 內的模組；不新增五個 App、後端或資料庫。
+lib/features/safe_walk/ 是同一 Flutter App 內的五模組及 shared。既有 Supabase 連線不代表通知安全已完成；初始化「不新增資料庫」不禁止必要的後續工程。
 
-| 模組 | 交付接點 | 本次不包含 |
+| 模組／主要聯絡人 | 持續交付 | 架構與資料邊界（非作者限制） |
 |---|---|---|
-| M1 platform | PlatformService、TownPass 資料 Adapter、位置／求助服務契約 | SOS 畫面、官方案件發送 |
-| M2 navigation | RouteService、座標／路徑模型與測試 | 地圖頁、第二份 GPS 訂閱 |
-| M3 presentation | 設計權與交付邊界 README | 所有新畫面與預設 Widget Tree |
-| M4 safety_data | Parser、Repository、來源與正規化模型 | 自建資料服務、假即時資料 |
-| M5 companion | 無 UI Controller／Audio Adapter 契約與測試接點 | 通話頁、假報案／真人接聽 |
-| shared | 單一 JSON Schema、Dart models、validator／語意檢查、取消協定 | 第二套獨立欄位定義 |
+| M1 小魚 platform | 唯一原生位置入口、能力／同意協調、官方入口／route、組合、求助 handoff | 跨模組實作組合限 integration/；不越權派遣 |
+| M2 Steven navigation | OSRM、RouteService、RouteFollower、目的地／據點路線及外部導航 URI | navigation 不另取 GPS、不直接依賴 UI；成員可跨 UI 檔案接線，不保證安全 |
+| M3 莅紋 presentation | 既有畫面、Live 底圖／投影、路線／狀態呈現、同意操作 | 重大 UI 設計合併前確認；presentation 不直接取 GPS／呼叫其他模組實作 |
+| M4 信義 safety_data | 合法公共資料、來源、Parser、Repository、品質 | 不把統計當即時風險或一般據點當認證救援 |
+| M5 奶爸 companion | 控制器、裝置 TTS／本機音訊、清理與中斷 | 不錄音、不要求麥克風、不冒稱真人或警消 |
+| shared（M1 協調） | Schema／生成 models、程序內 scope／取消契約 | 不新增第二套 payload；Unavailable 不新增 wire enum |
 
-詳細輸入輸出、狀態與所有權見 `SAFE_WALK_MODULES.md`／`SAFE_WALK_SCHEMA.md`。
+跨模組檔案修改與直接 import 分開：實作組合仍集中 platform/integration/，業務模組只依賴自身與 shared，保留 M1 Composition Root／DI，禁止隨意循環及反向依賴。現有 baseline guard 只檢查依賴路徑與歷史，沒有 GitHub 作者／目錄修改權檢查，故本次不修改或關閉它。共用 Schema／模型不複製、生成型別不手改；相關變更由任何人開發，依 Level B 確認。
 
-## 官方接點與最小侵入計畫
+## 正式操作資料流
 
-1. **位置**：官方 `GeoLocatorService.position()` 已處理服務與權限；M1 的 Adapter 可以按明確使用者操作取得該服務並轉為安心行 Position。模組載入／測試不可自動取位置。M2 只接收 Position，處理座標不等於另外啟動 GPS。
-2. **GetX**：`TPRoute.page`／Bindings 仍由官方殼管理。本次不新增安全步行路由、不修改 `initServices()`；未來由 M1 在 M3 設計確認後協調 service 註冊與路由，不讓五人各改 main.dart。
-3. **城市服務入口**：官方 `MyServiceItem`／`PinnedServiceItemWidget` 最終交由 `TPRoute.openUri()`。本次只記錄接點，不新增服務圖示、卡片或條目。
-4. **WebView 相容方案**：保留 `TPWebView`／`TPInAppWebView` 與 `flutterObject` bridge。現有訊息封裝是 `{name, data}`，包括 `location`、`phone_call` 等；安心行 Schema payload 並不自動等於 bridge 封裝。若主辦要求以 WebView 交付，M1 應另外核對來源、使用者同意與回傳映射，再經審查增加 Adapter，不重做官方 WebView 或假稱已接通。
-5. **Theme／色彩**：只新增 `SAFE_WALK_COLOR_SPEC.md`，引用原有 TPColors。舊 React Design System 為 Legacy，不是本架構的強制 UI 規範。
+1. TownPass 首頁卡片／城市服務 → local://safe_walk → TPRoute.safeWalk → SafeWalkCompositionRoot。既有入口保留 M3 設計與返回行為。
+2. 使用者啟動導航／更新位置 → M1 TownPassPlatformAdapter → 既有 GeoLocatorService.position() → LocationResult。不在載入時自取 GPS，不新增第二份監聽；必要時使用者主動刷新。
+3. 使用者另同意起終點送至揭露的第三方 → M1 RouteRequest → M2 DefaultRouteService／OsrmWalkingRouteProvider → RouteResult。取消、改目的地、撤回同意、背景及離開使舊請求失效。
+4. M1 將 RouteResult／loading／error／callbacks 注入 M3；M3 用真實底圖／投影呈現 geometry、距離及可取得的時間。M1 將刷新位置交 RouteFollower，再交進度給 M3，不用 DemoGeo 補失敗。
+5. M4 資料經 Parser／語意驗證，由 M1 注入 M2 lookup／M3 列表；途經據點核對 ID、來源、認可／營業資訊。查詢失敗不偽裝無資料。
+6. M5 裝置 TTS 已有組合接線，按使用者操作播放，無語音則文字預覽。SOS 先停止語音，再由使用者主動交接系統撥號／官方入口；與附近協助者及官方派遣分開。
 
-## Schema 與獨立開發
+目前第 2–5 步尚未完整 Live 接線：組合根固定 Mock，雖有 OSRM 實例與 scope，未將路線參數傳給 Flow；RouteFollower／真實據點未接入。隨 #29 交付的底圖增量保留 `DemoMap` 類名，renderer 已接 flutter_map／OSM 真實圖磚及座標投影，底圖子能力為 WIRED_NOT_VERIFIED；路線／點位仍 Mock，Live gates 未開，不能當作完整導航已驗收。本段增量不改寫 `03f98f2` 原快照。TTS 已有真實引擎接線，也不代表 iPhone 已通過。
 
-保留 React Schema 1.0.0 原始欄位、nullable、strict unknown-field 拒絕、mock/live 及受理限制，改用 Dart Model／Adapter。原始 JSON Schema 為唯一來源，產出型別與 runtime schema bundle須可重產並檢查；fixtures 用於不啟動官方 UI 的資料／服務測試。失敗必須有明確狀態，未設定的 live provider 不回 mock 假成功。
+## 模式、服務與驗收
 
-## Legacy 成果保留與遷移順序
+Mock 僅供測試、離線開發及標示 Demo。Live 逐能力完成配置、同意、失敗處理與驗收；Unavailable 顯示未配置／服務失敗／資料不足及下一步，不回假成功。不以改 DataMode 或 readiness bool 代替工程，也不永久以全域 Mock 阻擋已驗證能力。
 
-<https://github.com/csfishy/taipei-safe-walk> 保留原 Git 歷史、React App、文件、M2 查詢及預發佈 PR，不覆蓋／關閉／刪分支。M5 `feat/m5-companion` 的 `4a4d259` 也保留；已發現的音訊暫停／遲到 Promise／callback 清理問題須在 Dart 控制器工作時用測試防止重現，不能機械搬移 React hooks。
+能力配置是 M1 程序內整合契約，不變更 wire DataMode；M3 可分別呈現 Live 導航、文字預覽、未配置據點。位置、路線、來源不可 mock/live 混用，既有 strict／nullable／語意驗證保留。
 
-先合併本初始化 PR，再由五位從相同 Commit 建分支，以模組 PR 分別移植資料、服務與邏輯。M3 決定所有新增畫面；本輪不移植 CSS、預設首頁、地圖、SOS 或陪伴版面。舊錄音／第三方資料若未交付或未驗證，不列為已移植。
+OSRM 程式預設 routing.openstreetmap.de/routed-foot 真實步行接點，並註明 fair-use、無可用性保證。MVP 記錄服務條款、負載及錯誤交接；Production Readiness 完成可維運 endpoint／容量方案。walkingNetworkVerified 僅表示步行路網，不代表治安、照明、無障礙或目前通行已查證。
 
-## 交件與授權
+## Schema、安全與部署
 
-官方 GPLv3 LICENSE 不更換。2026 競賽資料及 AGPL 要求的證據、原生／WebView 交付形式與待確認事項見 `SAFE_WALK_COMPETITION_LICENSE.md`；工程上能編譯不等於已通過主辦資格或法律審核。
+canonical payload 維持 schemas/safe_walk/v1/contracts.schema.json；strict unknown fields、nullable、來源／模式隔離、officialReceipt 固定 null 與語意檢查不弱化。進度／能力狀態優先使用程序內契約，必要新 wire 欄位另提 Schema PR。
+
+附近協助者維持 BLOCKED 至可信身分、接收資格、ownership、RLS/RPC、限流、保留刪除、同意及後端／裝置測試完成；匿名 UUID 不是授權。官方案件自動派送需官方授權。兩者不阻擋導航、查詢、TTS 與使用者主動求助入口。
+
+PR／CI 不等於實機、正式發行或競賽／授權核准；保留 [部署](BUILDS.md) 與 [競賽授權紀錄](SAFE_WALK_COMPETITION_LICENSE.md) 前提。origin 是團隊推送目標，upstream 只讀。初始化事實見 [歷史紀錄](SAFE_WALK_INITIALIZATION.md)，後續按 [工程計畫](SAFE_WALK_LIVE_PLAN.md) 逐能力完成。

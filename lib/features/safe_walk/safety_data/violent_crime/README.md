@@ -1,8 +1,12 @@
 # M4｜臺北市暴力犯罪月統計（live 來源，Dart）
 
+信義為資料主要聯絡人；所有成員均可跨來源、組合根及畫面開發完整功能與測試，依 [開放協作](../../../../../docs/SAFE_WALK_COLLABORATION.md) 說明目的、影響檔案及原負責人並避免檔案衝突。一般轉換／呈現屬 Level A，共用 Schema／Contracts／Models 變更屬 Level B；不以資料夾阻擋跨模組實作。
+
 讀取臺北市政府主計處「臺北市暴力犯罪案件按月別」，轉成**模組內型別** `CityMonthlyCrimeStatistics`（格式名 `m4.cityMonthlyCrimeStatistics/0.1`）。在 App 內執行，不新增後端、套件或資料庫。
 
-> **不是共用契約 `AreaStatistics`。** 來源只有全市數字；`AreaStatistics` 只允許行政區層級，把全市填進 district 會誤導。是否在 Schema 增加 city 層級由 M1 決定（見文末提案）。在那之前本 repository 不實作 `SafetyDataRepository`，也沒有接入任何畫面或 M1 組合。
+現行目標依 [Live MVP 規格](../../../../../docs/SAFE_WALK_LIVE_MVP.md) 與 [上線條件](../../../../../docs/SAFE_WALK_LIVE_READINESS.md)。截至 main `03f98f2b7b5254db73774c4d097eb4d610499c2c`，真實來源 Provider 已實作，狀態為 **IMPLEMENTED_NOT_WIRED**；此處「live 來源」描述讀取實作，不表示正式 App 已接線、通過 iPhone 驗收或可宣稱 LIVE_VERIFIED。
+
+> **不是共用契約 `AreaStatistics`。** 來源只有全市數字；`AreaStatistics` 只允許行政區層級，把全市填進 district 會誤導。任何成員可提出 city 層級 Schema 變更（見文末提案），合併前須依 Level B 由共用契約主要負責人確認。在那之前本 repository 不實作 `SafetyDataRepository`，也沒有接入任何畫面或 M1 組合。
 
 ## 檔案
 
@@ -46,12 +50,16 @@
 
 剔除（整列丟棄並列入 `lastReport.rejected`，不修補）：統計期無法解析、件數不是非負整數、總計 ≠ 三類相加、發生率超出有限數值範圍、期間重複。
 
-## 驗證紀錄（2026-11-07）
+## 既有驗證紀錄（2026-11-07）與現行驗收
 
 - 以舊 React repo 的 Node 版實際讀取：116 列（106/1–115/8），宣告 116 列 → 轉換 116、剔除 0；總計與三類相加全部一致。
 - 本 Dart 版：撰寫環境沒有 Flutter SDK，`flutter analyze`／`flutter test` **未在本機執行**，以 PR CI 結果為準。
 
-## 給 M1 的契約提案（未修改共用 Schema／模型）
+上述為原交付時的事實，沒有用本次文件審查改寫。現有 `test/features/safe_walk/safety_data/violent_crime/violent_crime_normalizer_test.dart` 與 `taipei_violent_crime_repository_test.dart` 涵蓋樣本轉換、來源錯誤、快取、篩選及取消；注入的 fetcher 與 CSV fixture 不能代替 Dart 真實來源測試。
+
+P2 由指定功能主責跨來源、組合根與資訊畫面完成交付，信義、小魚、莅紋分別是資料、共用契約、設計的主要聯絡人；普通轉換／呈現依 Level A，實際共用契約或重大 UI 變更依 Level B。接線前需確認 metadata／CSV 實際讀取、授權與來源更新時間缺值、服務不可用、格式改版、取消及 iPhone 顯示；明確標示全市／歷史／月份與限制，不產生安全路線分數。本次不修改共用 Schema；確有跨模組新欄位需求時另開 Schema PR。
+
+## 共用契約提案（Level B，未修改 Schema／模型）
 
 `AreaStatistics` 只允許 `geographicLevel: 'district'`，而臺北市公開的暴力犯罪統計目前只有全市層級。建議二擇一：
 

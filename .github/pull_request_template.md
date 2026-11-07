@@ -1,23 +1,42 @@
-## 指示
+## 使用者功能與完成定義
 
-在您提交 pull request 前請先閱讀並遵守以下指示：
+<!-- 依 repository 流程先建立 issue，並填寫關聯；以小型功能或可審查增量提交。 -->
+關聯 issue：
+完成的使用者功能：
+完成定義與接收審查者：
 
-- 創建一個 issue 來說明這個 pull request 解決了什麼事，以防我們覺得這項 pull request 不需要納入專案中。
+## 修改範圍與契約
 
-**⚠️👆 在您提交 pull request 前刪除這些指示 👆⚠️**
+- 主要修改檔案：
+- 影響模組、原主要負責人及同檔案並行協調：
+- 新增／修改的契約（無則填無）：
+- Stacked parent PR／base／head SHA（不適用則填無）：
 
-## pull request 類型
+## 審查層級
 
-- [ ] Feature
-- [ ] Bug Fix
+<!-- 依 docs/SAFE_WALK_COLLABORATION.md；跨目錄本身不提升層級。 -->
+- [ ] Level A：一般功能；一位具權限的非作者隊員 Review
+- [ ] Level B：共用契約／套件／route／原生／大型 UI／CI 等；對應主要負責人合併前確認
+- [ ] Level C：真實外部影響／身分權限／敏感位置／正式開關；隊長明確授權及安全／隱私驗收
 
-## Checklist
+需確認的主要負責人／隊長與證據：
 
-在提交 pull request 前請確認下列事項皆已確認。
+## 實際驗證
 
-- [ ] pull request 將會解決 issue 問題
-- [ ] pull request 只解決 issue 提到的問題，並沒有其他額外變更
+| 命令／檢查 | 實際結果（PASS／FAIL／未執行／skip） | 證據／限制 |
+|---|---|---|
+| 相關測試／必要 CI | | |
 
-## 受影響的 issue
+尚未驗證的部分、裝置／外部依賴與後續工作：
 
-## 額外說明
+## Live 與安全影響
+
+- Live 可用性／啟用開關是否變更：
+- 是否有真實外部作用、敏感位置、通知或安全／隱私影響：
+- 所需同意、授權與驗收；未完成時的隔離／Unavailable：
+
+## 提交確認
+
+- [ ] 修改符合 Live MVP 與協作規範，Schema／DI／import guard 仍有效
+- [ ] 未弱化既有功能／必要 CI，未把未驗證或 skip 寫成 PASS
+- [ ] 已列明適用 A/B/C 審查；不直接推 main、不自行 merge
