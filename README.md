@@ -3,7 +3,7 @@
 以官方 TownPass Flutter App 為基底的五人協作專案，參與「2026 臺北城市通微服務黑客松」。主要開發目標已轉為 **Live MVP／Production Readiness**：交付真實、可驗證、可部署的功能。保留 Mock／Fake／示範地圖供測試、離線開發及明確展示；正式驗收以 [Live MVP 規格](docs/SAFE_WALK_LIVE_MVP.md) 為準。
 
 - **Repository**：[csfishy/taipei-safe-walk-townpass](https://github.com/csfishy/taipei-safe-walk-townpass)；Public，預設分支 `main`。
-- **開發基線**：Flutter **3.47.6**／Dart **3.13.5**，依 [.fvmrc](.fvmrc) 與已提交的 [pubspec.lock](pubspec.lock)；同一個 Flutter App，以模組分支協作。
+- **開發基線**：Flutter **3.47.6**／Dart **3.13.5**，依 [.fvmrc](.fvmrc) 與已提交的 [pubspec.lock](pubspec.lock)；同一個 Flutter App，採 Feature-First／Soft Ownership／Contract-Based Integration。
 - **目前狀態**：以 main `03f98f2b7b5254db73774c4d097eb4d610499c2c` 盤點，已有原生入口、M3 畫面、OSRM Provider、RouteFollower、OSM 店家／外部導航工具、全市犯罪資料 Repository、裝置 TTS 與 Supabase 連線基礎。導航仍受 Mock／接線／真地圖及驗收缺口隔離；TTS 已接但缺 iPhone 證據。詳見 [Live Readiness](docs/SAFE_WALK_LIVE_READINESS.md)；[CI](https://github.com/csfishy/taipei-safe-walk-townpass/actions) 成功不等於真實功能或部署已驗收。
 
 ## 在 TownPass 開啟安心行
@@ -22,19 +22,21 @@ cd taipei-safe-walk-townpass
 git fetch origin
 ```
 
-五個模組遠端分支已建立，首次 checkout 使用下表指令；本機分支已存在時使用 `git switch 分支名稱`。
+五個模組分支仍保留供歷史與同步，但新任務優先從最新 main 建短期功能分支，依賴未合併成果時使用明列 parent 的 stacked PR。任何成員都能跨 M1–M5 修改功能及測試，不以資料夾分割完整操作流程。
 
-| 模組／負責人 | 首次 checkout | 可修改的模組目錄與責任 |
-|---|---|---|
-| M1 小魚 | `git switch --track origin/feat/m1-platform` | `lib/features/safe_walk/platform/`；平台、唯一定位入口、求助、跨模組、route／CI |
-| M2 Steven | `git switch --track origin/feat/m2-navigation` | `lib/features/safe_walk/navigation/`；座標與 RouteService，消費 M1 位置、不另監聽 GPS |
-| M3 莅紋 | `git switch --track origin/feat/m3-experience` | `lib/features/safe_walk/presentation/`；正式 UI/UX 唯一設計負責人 |
-| M4 信義 | `git switch --track origin/feat/m4-safety-data` | `lib/features/safe_walk/safety_data/`；資料來源、Parser、Repository 與 fixtures |
-| M5 奶爸 | `git switch --track origin/feat/m5-companion` | `lib/features/safe_walk/companion/`；無 UI 控制器、Audio adapter、取消與清理 |
+| 技術分區／主要負責人 | 主要諮詢範圍（不是獨占修改權） |
+|---|---|
+| M1 小魚 | platform／shared、平台定位入口、composition、套件、route、原生設定及 CI |
+| M2 Steven | navigation、OSRM、RouteFollower、目的地及據點路線 |
+| M3 莅紋 | presentation、正式 UI/UX 設計方向與重大改版 |
+| M4 信義 | safety_data、來源、Parser、Repository 與資料品質 |
+| M5 奶爸 | companion、本機 TTS／音訊、清理及中斷 |
 
-正式開工前同步已合併的共同基線：`git fetch origin` 後，在自己的分支執行 `git merge origin/main`。有衝突時與 M1 協調，不 force push 或重設隊友歷史。main 已包含下列開發與預覽流程，無須切到 PR #2；其他待審模組 PR 的成果仍須合併後才會進入共同基線。
+功能主責可自行完成 GPS→OSRM→地圖等端到端接線。修改前說明目的、檔案、影響模組及原主責，同檔案並行時直接協調實作者，不強制所有普通修改先等小魚批准或代工。
 
-共用 Schema、Dart models／contracts、套件／lock、CI、官方 route 與跨模組修改由 M1 統一協調。模組透過共用型別及依賴注入整合，不直接 import 其他模組實作。詳細輸入／輸出、狀態與持續交付見 [五人模組契約](docs/SAFE_WALK_MODULES.md) 及各模組 README。
+Level A 一般功能／UI callback／測試，一位具權限非作者隊員 Review；Level B 共用 Schema／Contracts／Models、依賴／route／原生／CI 及重大 UI，任何人可開發、合併前對應主責確認；Level C 真實外部作用、位置通知、Supabase 權限、敏感位置及正式開關，需隊長授權與安全／隱私驗收。預設經 PR／必要 CI，不直接推 main。
+
+程式架構仍以共用型別及依賴注入整合，業務模組不直接 import 其他模組實作，具體組合限 platform/integration/；這限制依賴，不限制作者。完整規則、功能工作包與檔案／審查協調見 [開放式平行協作](docs/SAFE_WALK_COLLABORATION.md) 與 [模組契約](docs/SAFE_WALK_MODULES.md)。
 
 ## 首次安裝與產生檔案
 
@@ -125,7 +127,8 @@ GitHub Pages 僅從最新 main 部署：Web／Android／iOS 三個建置成功�
 | [Live Readiness](docs/SAFE_WALK_LIVE_READINESS.md) | 逐能力現況、接線／測試／實機缺口與旗標解除條件 |
 | [規格逐項審查](docs/SAFE_WALK_SPEC_AUDIT.md)、[P0–P2 工程計畫](docs/SAFE_WALK_LIVE_PLAN.md) | Markdown／程式對照、五人分工與第一個實作提示詞 |
 | [架構基線](docs/SAFE_WALK_ARCHITECTURE.md) | 官方接點、模組邊界與整合方向 |
-| [五人模組契約](docs/SAFE_WALK_MODULES.md) | 輸入／輸出、所有權、狀態與持續開發交付 |
+| [五人模組契約](docs/SAFE_WALK_MODULES.md) | 輸入／輸出、主要聯絡人、狀態與持續交付 |
+| [開放式平行協作](docs/SAFE_WALK_COLLABORATION.md) | 跨模組開發、A/B/C 審查、功能工作包與 PR 流程 |
 | [導航呈現契約](docs/SAFE_WALK_NAVIGATION_PRESENTATION_CONTRACT.md) | M1／M2／M3 正式流程、同意、路線與 UI 接線 |
 | [Schema 與 Dart 模型](docs/SAFE_WALK_SCHEMA.md) | 單一來源、strict 欄位、nullable、語意與取消 |
 | [顏色規範](docs/SAFE_WALK_COLOR_SPEC.md) | 官方 TPColors 語意；不預先定義 UI 版型 |

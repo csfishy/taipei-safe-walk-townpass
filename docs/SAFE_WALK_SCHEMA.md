@@ -117,4 +117,4 @@ flutter test test/features/safe_walk/contracts --no-pub
 
 命令與案例清單不是 PASS 宣告；初始化結果留在 `SAFE_WALK_INITIALIZATION.md`，後續結果以各 PR／CI 與 [Readiness](SAFE_WALK_LIVE_READINESS.md) 為準。這些純資料測試不啟動官方登入、GPS、電話、音訊或任何新 UI。
 
-Schema 改動仍由 M1 統一協調；必須同步 generator 映射、validator 支援、fixtures、語意測試與接收模組，再重產並執行 `--check`。不先手改生成 Dart 來暫時繞過契約。
+依 [協作規範](SAFE_WALK_COLLABORATION.md)，任何成員可開發 Schema／契約變更，合併前由主要負責人 M1 確認（Level B），不要求小魚親自撰寫。必須同步 generator 映射、validator 支援、fixtures、語意測試與接收模組，再重產並執行 `--check`；不先手改生成 Dart 繞過契約，涉及敏感外部作用另依 Level C。

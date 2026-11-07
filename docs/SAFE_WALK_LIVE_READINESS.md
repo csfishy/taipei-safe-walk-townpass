@@ -4,6 +4,8 @@
 
 審查更新（2026-11-07）：main `65ee6f7dd9c07710ecf18084b1975b6998287b3e` 已合併 PR #26 的統一 speaker lifecycle 修正與回歸測試，R9 依此增量更新，仍為 WIRED_NOT_VERIFIED，缺少實際 iPhone 驗收。其他文件明列 `03f98f2` 的盤點及 #26 待審敘述是原始快照，不應據此重做已合併工作；#28／#29 仍未合併，不預先計入完成。
 
+協作權限依 [開放協作規範](SAFE_WALK_COLLABORATION.md)。本表的 Owner 是主要聯絡人／證據確認角色，不限制檔案作者；所有成員可在維持 Schema、依賴注入及 Guard 下跨模組修改與測試，功能主責對完整流程負責。一般接線採 Level A，Level B 變更合併前由對應主要負責人確認；正式部署開關、敏感位置／通知、Supabase 身分／RPC／RLS 及其他高風險真實外部操作仍需 Level C 隊長明確授權與安全／隱私驗收。以下程式與測試仍是原盤點 SHA 的快照，不因協作政策變更而宣稱 Live 驗證完成。#26 在本次協作盤點時已合併最新 main；本 stacked 分支已承接 #31 納入 #26 的更新，以下「盤點時未合併」保留原快照，後續工程以最新 main 核對，不視為仍待合併的阻塞。
+
 ## 狀態與證據規則
 
 | 狀態 | 意義 |
@@ -62,15 +64,17 @@ Mock unit test、建構 provider、API 可達、截圖或 CI 綠燈都不足以�
 
 ## SafeWalkCompositionRoot 的解除條件
 
-以下設定是當前隔離，不是永久不可修改規則。本文件 PR 保留程式值；後續工程 PR 須附以下證據並經 Owner 審查，不能只改常數。
+以下設定是當前隔離，不是永久不可修改規則。本文件 PR 保留程式值；後續工程 PR 須附以下證據並依 Level A／B／C 完成審查，不能只改常數；正式部署開關採 Level C。
 
-| 現行設定／位置 | 何時可解除 | 必要測試證據 | 決策與實作 Owner |
+功能主責可直接完成下列接線及測試；表內主要負責人提供技術／證據確認，不是唯一實作者。一般 composition 接線採 Level A；如改 shared 契約採 Level B；正式啟用依 Level C。
+
+| 現行設定／位置 | 何時可解除 | 必要測試證據 | 主要聯絡人／驗收角色 |
 |---|---|---|---|
 | 導航 controller `mode: sw.DataMode.mock`；`_locate()`、`_loadPoints()`、Flow、SOS 也各固定 Mock | 導航有獨立 Live session/capability 配置；R1/R2/R3/R5 模式/同意/provider/UI 一致；據點/求助可各 Unavailable，不需全產品共用 Mock 開關 | 模式隔離、無偷偷 fallback、真 GPS、route request/result、換目的地、取消/背景/SOS、Live 無 DemoGeo/假 ETA 的整合及 iPhone 證據；未開能力狀態誠實 | M1 小魚主責；M2 Steven 路線、M3 莅紋 UI 審查；M4 信義供真據點 |
-| `livePresentationReady: false` | M3 真底圖/投影完成，Flow 消費 scope 或由 M1 adapter 傳入，真 RouteResult/距離/可得 ETA、同意及 loading/cancel/error/Live-Demo 區別完成 R5 | widget/投影/可及性、M1→M3 真 request/result 端到端及 iPhone 操作；Live 無虛構避險件數/地標/ETA | M3 莅紋驗收 UI；M1 小魚更新 composition |
-| `liveProviderReady: false` | 已合併 consent/cancellation 修正經回歸；foot endpoint/使用條件、真 geometry/距離/時間、逾時/取消/撤同意完成 R2，M1 配置 provider | 真 OSRM 成功/失敗/斷網/取消、單元與整合、requestId/模式保護、iPhone 正式路線；有途經點時加來源/ID/有效性 | M2 Steven 驗 provider；M1 小魚配置/啟用；M4 信義確認據點 |
-| `_loadPoints()` Mock 與拒絕 Live snapshot | R6 來源/同模式查詢完成，按能力注入 Live repository；Demo 保留獨立 Mock repository | parser/來源追溯、失敗/空/未配置、取消/模式隔離、M2 lookup 與 iPhone 顯示 | M4 信義供資料；M1 小魚接線；M2/M3 消費 |
-| `allowRealCalls: false`／無 handoff adapter | R11 使用者主動系統交接完成，不需等 R13/R14 | URI/launcher 單元/整合、不可用/取消文案、iPhone 只開撥號/官方入口；無真緊急通話 | M1 小魚實作；M3 莅紋 UI；不授權官方派遣 |
+| `livePresentationReady: false` | M3 真底圖/投影完成，Flow 消費 scope 或由 M1 adapter 傳入，真 RouteResult/距離/可得 ETA、同意及 loading/cancel/error/Live-Demo 區別完成 R5 | widget/投影/可及性、M1→M3 真 request/result 端到端及 iPhone 操作；Live 無虛構避險件數/地標/ETA | M3 莅紋確認 UI 證據；功能主責更新 composition，M1 小魚為平台聯絡人 |
+| `liveProviderReady: false` | 已合併 consent/cancellation 修正經回歸；foot endpoint/使用條件、真 geometry/距離/時間、逾時/取消/撤同意完成 R2，由功能主責在組合層配置 provider | 真 OSRM 成功/失敗/斷網/取消、單元與整合、requestId/模式保護、iPhone 正式路線；有途經點時加來源/ID/有效性 | M2 Steven 確認 provider；功能主責配置、隊長授權正式啟用；M1 小魚為平台聯絡人；M4 信義確認據點 |
+| `_loadPoints()` Mock 與拒絕 Live snapshot | R6 來源/同模式查詢完成，按能力注入 Live repository；Demo 保留獨立 Mock repository | parser/來源追溯、失敗/空/未配置、取消/模式隔離、M2 lookup 與 iPhone 顯示 | M4 信義確認資料；功能主責完成跨模組接線；M1/M2/M3 為技術聯絡人 |
+| `allowRealCalls: false`／無 handoff adapter | R11 使用者主動系統交接完成，不需等 R13/R14 | URI/launcher 單元/整合、不可用/取消文案、iPhone 只開撥號/官方入口；無真緊急通話 | 功能主責可跨 platform／UI 實作；M1 小魚／M3 莅紋為技術聯絡人；真實外部操作依 Level C，不授權官方派遣 |
 
 controller 的 mode 存活期間固定；切換須新 session 並取消/清理舊結果。不能只把 controller 換 Live，讓 `_locate()`、M4 snapshot 或 Flow 留 Demo。TTS、查詢、撥號交接按能力獨立驗收/可用性；未完成回 Unavailable，不回 Mock 假成功。
 
