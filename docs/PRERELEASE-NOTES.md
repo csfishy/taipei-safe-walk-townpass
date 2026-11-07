@@ -1,5 +1,7 @@
 Town Pass 開發預覽，從本 release 記錄的 source commit 建立；實際功能以該版本的程式與驗證結果為準。這不是正式市政服務、政府受理或完整導航產品。
 
+現行開發目標為 [Live MVP](SAFE_WALK_LIVE_MVP.md)，能力是否完成以 [Readiness](SAFE_WALK_LIVE_READINESS.md) 與相同 build SHA 的實際證據為準。保留 Demo 預覽不代表產品永久預設 Mock；安裝包／網站可開啟不等於 Live 已驗收。
+
 - Android APK：Flutter Release build，使用可拋棄的 Android Debug 測試金鑰簽署；不是正式商店簽章。不同 CI build 的金鑰可能不同，更新前可能需要移除舊預覽版。
 - iOS IPA：真實 iPhone arm64 Release build，封裝 `Payload/Runner.app`，沒有簽章／provisioning profile；安裝前需要適當簽署，不能直接用 TestFlight 安裝。
 - Web ZIP：Flutter Web build，base href 為 `/taipei-safe-walk-townpass/`，提供給 GitHub Pages 專案網址。其他主機需掛在同一路徑，或以正確 `--base-href` 重新建置。
