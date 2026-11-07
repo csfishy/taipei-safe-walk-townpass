@@ -2,13 +2,17 @@
 
 The `check-and-build` workflow runs on main pushes, pull requests, matching `v*-pre.*` tags, and manual dispatch. Flutter is pinned to `.fvmrc`'s 3.47.6 and dependencies are installed with `--enforce-lockfile`; code generation runs on every clean checkout.
 
-Runs for the same ref are serialized without canceling the active native builds when another commit is pushed.
+Each run has its own concurrency group, so a newer push does not cancel active builds or replace queued prerelease builds. Only website deployment is serialized; stale builds skip deployment so they cannot replace a newer main website.
 
 The check job runs the analyzer with errors/warnings fatal and existing style-level infos advisory, the real start-page preference tests, and Chrome tests of the browser guards with a typed device-plugin fixture. All three build jobs depend on this check. Android uses JDK 21 and the repository's Gradle/SDK settings. iOS uses macOS 15 and Xcode 26.1.1, required by the locked device_info_plus package. Native packaging requires no private signing credentials.
 
 The merged initialization's Safe Walk schemas, generator consistency, upstream history/module boundaries, strict scoped analysis and complete test suite are included. Its two route contract tests are preserved in `test/route_contract_test.dart`, alongside the added preference and browser tests. No Safe Walk payload, generated model or service contract is changed. Full analysis with fatal infos remains separately reported by the existing Safe Walk workflow; the build gate permits existing style infos while rejecting errors and warnings.
 
-Prerelease tags must match the pubspec version without `+BUILD`: for `0.0.12-pre.1+1`, push `v0.0.12-pre.1`. Only a **push event for a matching prerelease tag** publishes a GitHub prerelease, after all platform builds pass. The workflow run number is the native build number; iOS uses the numeric version (`0.0.12`) and the full prerelease version is preserved in build metadata. PR/main/manual runs retain downloadable artifacts without publishing a release, including manual dispatch against an existing tag. Never move a published tag.
+Every **push to main** automatically publishes a GitHub prerelease after the checks and all three platform builds pass. No version edit or manual tag is needed. For example, workflow run 42 at commit `31cb0ac12345…` builds version `0.0.12-pre.42.g31cb0ac12345` and creates tag `v0.0.12-pre.42.g31cb0ac12345` at that exact source commit. The numeric base comes from pubspec; the run number and commit identify the build. A push containing several commits builds its head commit once. Unpushed local commits and feature branches do not publish; a failed check/build prevents publication.
+
+Manual prerelease tag pushes remain supported: the tag must match the pubspec version without `+BUILD`, such as `v0.0.12-pre.1` for `0.0.12-pre.1+1`. PR and manual-dispatch runs only retain downloadable artifacts, including dispatch against a tag. The workflow run number is the native build number; iOS uses the numeric marketing version (`0.0.12`) and preserves the full prerelease version in embedded metadata. Never move a published tag.
+
+Publication stages all five assets in a draft before publishing. A rerun resumes an unfinished matching draft or keeps an already complete matching prerelease; it refuses a tag pointing to another commit or an incomplete published release. Releases are marked prerelease and do not replace a stable release's Latest designation. Automatic tags use the built-in `GITHUB_TOKEN`, whose tag pushes [do not recursively trigger another workflow](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow#triggering-a-workflow-from-a-workflow).
 
 ## Local checks and builds
 
@@ -32,10 +36,10 @@ The connected account may have Write access without permission to manage Pages. 
 
 1. Confirm Pages is available for this repository. This project is Public; if visibility changes later, check the plan and supported website audience. This workflow does not change repository visibility.
 2. In Settings → Pages, set Source to **GitHub Actions**.
-3. For deployment from prerelease tags, allow matching `v*-pre.*` tags in the `github-pages` environment's deployment rules. Deployments from main need that branch allowed. Approve any configured environment deployment gates.
+3. Allow `main` in the `github-pages` environment's deployment rules. Approve any configured environment deployment gates. Tag builds provide a web ZIP; the hosted website deploys from main.
 4. Run/re-run the workflow or its Pages settings job after the setting is enabled. Manual dispatch becomes available once the workflow exists on the default branch.
 
-On non-PR runs, the workflow checks the actual Pages configuration and deploys the checked web artifact only when `build_type` is `workflow`. Missing settings skip deployment with a summary; they do not falsely mark a website as published. The GitHub Pages job's returned URL is the deployment result. Private repository source does not automatically mean its Pages website is private; the owner must choose the supported audience.
+On main runs, the workflow checks the actual Pages configuration and deploys the checked web artifact only when `build_type` is `workflow` and its source is still the current main commit. Missing settings or stale source skip deployment with a summary; they do not falsely mark a website as published. Release publication does not depend on Pages deployment. The GitHub Pages job's returned URL is the deployment result. Private repository source does not automatically mean its Pages website is private; the owner must choose the supported audience.
 
 The expected default project URL is `https://csfishy.github.io/taipei-safe-walk-townpass/`; it is only a target until deployment has succeeded. The web ZIP includes `.nojekyll` and uses hash routes. A GitHub release download is not a hosted website.
 

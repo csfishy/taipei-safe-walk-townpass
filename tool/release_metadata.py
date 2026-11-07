@@ -16,9 +16,16 @@ if ref.startswith('refs/tags/') and ref != f'refs/tags/v{version}':
 commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
 if os.environ.get('GITHUB_SHA', commit) != commit:
     raise SystemExit('Checkout does not match the workflow source commit')
+build_number = os.environ.get('GITHUB_RUN_NUMBER', match[2] or '1')
+if not re.fullmatch(r'[1-9]\d*', build_number):
+    raise SystemExit('Expected a positive integer build number')
+if os.environ.get('COMMIT_PRERELEASE') == 'true':
+    if os.environ.get('GITHUB_EVENT_NAME') != 'push' or ref != 'refs/heads/main':
+        raise SystemExit('Automatic prereleases require a push to main')
+    version = f'{version.split("-")[0]}-pre.{build_number}.g{commit[:12]}'
 metadata = {
     'version': version,
-    'buildNumber': os.environ.get('GITHUB_RUN_NUMBER', match[2] or '1'),
+    'buildNumber': build_number,
     'commit': commit,
     'flutterVersion': json.loads(Path('.fvmrc').read_text())['flutter'],
     'preview': True,
@@ -27,5 +34,5 @@ metadata = {
 Path('assets/build-info.json').write_text(json.dumps(metadata, indent=2) + '\n', encoding='utf-8')
 if output := os.environ.get('GITHUB_OUTPUT'):
     with open(output, 'a', encoding='utf-8') as file:
-        file.write(f'version={version}\nbuild_name={version.split("-")[0]}\n')
+        file.write(f'version={version}\nbuild_name={version.split("-")[0]}\nrelease_tag=v{version}\n')
 print(json.dumps(metadata))

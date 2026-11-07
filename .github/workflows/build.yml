@@ -11,12 +11,13 @@ permissions:
   contents: read
 
 concurrency:
-  group: build-${{ github.ref }}
-  # Native builds are expensive; documentation pushes must not cancel them.
+  # Each push must finish; a shared ref group can discard pending runs.
+  group: build-${{ github.run_id }}
   cancel-in-progress: false
 
 env:
   FLUTTER_VERSION: '3.47.6'
+  COMMIT_PRERELEASE: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
 
 jobs:
   check:
@@ -25,6 +26,7 @@ jobs:
     outputs:
       version: ${{ steps.metadata.outputs.version }}
       build_name: ${{ steps.metadata.outputs.build_name }}
+      release_tag: ${{ steps.metadata.outputs.release_tag }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -32,6 +34,8 @@ jobs:
       - name: Validate source and release version
         id: metadata
         run: python3 tool/release_metadata.py
+      - name: Test release versioning and publication safeguards
+        run: python3 -m unittest discover -s tool -p 'test_*release*.py' -v
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
@@ -172,8 +176,8 @@ jobs:
           retention-days: 30
 
   publish:
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    needs: [web, android, ios]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    needs: [check, web, android, ios]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -197,13 +201,12 @@ jobs:
       - name: Publish prerelease
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release create "$GITHUB_REF_NAME" artifacts/* --verify-tag --prerelease \
-            --target "$GITHUB_SHA" --title "Town Pass Preview $GITHUB_REF_NAME" \
-            --notes-file docs/PRERELEASE-NOTES.md
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ needs.check.outputs.release_tag }}
+        run: python3 tool/publish_prerelease.py --tag "$RELEASE_TAG"
 
   pages-settings:
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     needs: [web, android, ios]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -233,6 +236,9 @@ jobs:
     if: needs.pages-settings.outputs.configured == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    concurrency:
+      group: github-pages
+      cancel-in-progress: false
     permissions:
       contents: read
       pages: write
@@ -241,14 +247,31 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - name: Skip stale website builds
+        id: current
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          CURRENT_SHA=$(gh api "repos/$GH_REPO/commits/main" --jq '.sha')
+          if [ "$CURRENT_SHA" = "$GITHUB_SHA" ]; then
+            echo 'deploy=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'deploy=false' >> "$GITHUB_OUTPUT"
+            echo 'Skipped website deployment: a newer main commit exists. Prerelease downloads are retained.' >> "$GITHUB_STEP_SUMMARY"
+          fi
       - uses: actions/download-artifact@v4
+        if: steps.current.outputs.deploy == 'true'
         with:
           name: website
           path: website
       - uses: actions/configure-pages@v5
+        if: steps.current.outputs.deploy == 'true'
       - uses: actions/upload-pages-artifact@v3
+        if: steps.current.outputs.deploy == 'true'
         with:
           path: website
       - name: Deploy GitHub Pages
+        if: steps.current.outputs.deploy == 'true'
         id: deployment
         uses: actions/deploy-pages@v4
