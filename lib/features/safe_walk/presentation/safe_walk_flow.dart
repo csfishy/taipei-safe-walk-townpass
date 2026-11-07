@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:town_pass/features/safe_walk/presentation/mock/safe_walk_demo_data.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_call_view.dart';
@@ -355,6 +356,22 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> with WidgetsBindingObserver
     });
   }
 
+  /// Same agree/decline dialog as the route and crime query settings.
+  Future<void> _askMapTileConsent() async {
+    final agreed = await showDialog<bool>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        title: const Text('地圖載入設定'),
+        content: const Text('載入地圖會向 OpenStreetMap（tile.openstreetmap.org）請求目前檢視範圍的圖磚，對方會看到檢視範圍與 IP。'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(dialog).pop(false), child: const Text('不載入')),
+          TextButton(onPressed: () => Navigator.of(dialog).pop(true), child: const Text('同意載入')),
+        ],
+      ),
+    );
+    if (agreed != null && mounted) setState(() => _mapTileConsent = agreed);
+  }
+
   @override
   Widget build(BuildContext context) {
     Widget map({MapStartView start = MapStartView.route}) => SafeWalkMapView(
@@ -364,7 +381,7 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> with WidgetsBindingObserver
           widget.showMapTiles &&
           (widget.mode == sw.DataMode.mock || _mapTileConsent),
       onMapTileConsent: widget.showMapTiles && widget.mode == sw.DataMode.live
-          ? () => setState(() => _mapTileConsent = !_mapTileConsent)
+          ? () => unawaited(_askMapTileConsent())
           : null,
       pointsState: _pointsState,
       routeState: _routeState,

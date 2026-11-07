@@ -1100,12 +1100,22 @@ void main() {
         expect(db.calls, isEmpty);
         expect(map(t).showMapTiles, isFalse);
         expect(find.byType(TileLayer), findsNothing);
-        await t.tap(find.byKey(const Key('m3-map-tiles')));
-        await t.pumpAndSettle();
+        // Map loading is a setting in 資料來源與授權, like the query settings.
+        Future<void> tileSetting(String choice) async {
+          final link = find.text('資料來源與授權').last;
+          await t.ensureVisible(link);
+          await t.tap(link);
+          await t.pumpAndSettle();
+          await t.tap(find.text('地圖載入設定'));
+          await t.pumpAndSettle();
+          await t.tap(find.text(choice));
+          await t.pumpAndSettle();
+        }
+
+        await tileSetting('同意載入');
         expect(map(t).showMapTiles, isTrue);
         expect(find.byType(TileLayer), findsOneWidget);
-        await t.tap(find.byKey(const Key('m3-map-tiles')));
-        await t.pumpAndSettle();
+        await tileSetting('不載入');
         expect(find.byType(TileLayer), findsNothing);
         expect(platform.calls, 1);
         expect(routes.requests, hasLength(1));

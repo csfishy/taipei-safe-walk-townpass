@@ -493,33 +493,6 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                         : null,
                   ),
                 ),
-                if (widget.onMapTileConsent != null)
-                  Positioned(
-                    top: MediaQuery.paddingOf(context).top + 64,
-                    left: 12,
-                    right: 12,
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: Material(
-                        color: SwColors.surface,
-                        borderRadius: BorderRadius.circular(12),
-                        child: TextButton.icon(
-                          key: const Key('m3-map-tiles'),
-                          onPressed: widget.onMapTileConsent,
-                          icon: Icon(
-                            widget.showMapTiles
-                                ? Icons.layers_clear_outlined
-                                : Icons.map_outlined,
-                          ),
-                          label: Text(
-                            widget.showMapTiles
-                                ? '停止載入 OSM 圖磚'
-                                : '同意載入 OSM 圖磚（分享檢視範圍）',
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
                 SafeArea(
                   bottom: false,
                   child: Padding(
@@ -651,7 +624,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                             pointsView: _pointsView,
                             showShortcut: atHome && demoHome && !_pointsView,
                             live: rs.live,
-                            crime: widget.crimeSpots.isNotEmpty,
+                            crime: rs.live || widget.crimeSpots.isNotEmpty,
                           )
                         : const SizedBox.shrink(),
                   ),
@@ -905,6 +878,8 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                 (icon: Icons.alt_route_rounded, label: '路線查詢設定', onTap: widget.onManageRoutingConsent!),
               if (widget.onManageCrimeConsent != null)
                 (icon: Icons.policy_outlined, label: '犯罪資料查詢設定', onTap: widget.onManageCrimeConsent!),
+              if (widget.onMapTileConsent != null)
+                (icon: Icons.map_outlined, label: '地圖載入設定', onTap: widget.onMapTileConsent!),
             ],
           ),
         ),
