@@ -184,7 +184,7 @@ final class _Db {
   final calls = <Map<String, Object?>>[];
 
   CrimeReferenceRepository get repository => CrimeReferenceRepository(
-    transport: (args) {
+    transport: (args, {cancellation}) {
       calls.add(args);
       return (answer ??
           () async => CrimeReferenceHttpResponse(200, jsonEncode(_body())))();
