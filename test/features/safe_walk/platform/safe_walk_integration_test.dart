@@ -166,27 +166,21 @@ void main() {
   tearDown(() => Get.reset());
 
   testWidgets(
-    'real city service and registered route open the default M3 flow',
+    'real city service and registered route open the Live M3 flow',
     (t) async {
       await cityApp(t, null);
       await enter(t);
       final flow = t.widget<SafeWalkFlow>(find.byType(SafeWalkFlow));
-      expect(flow.mode, sw.DataMode.mock);
+      expect(flow.mode, sw.DataMode.live);
       expect(flow.allowRealCalls, isFalse);
       expect(flow.speaker.available, isFalse);
-      expect(flow.points, hasLength(3));
-      expect(
-        flow.points!.every(
-          (point) => point.source.dataMode == sw.DataMode.mock,
-        ),
-        isTrue,
-      );
-      expect(
-        flow.points!.every(
-          (point) => point.availability == sw.OpeningStatus.unknown,
-        ),
-        isTrue,
-      );
+      expect(flow.points, isEmpty);
+      expect(flow.pointsLoading, isFalse);
+      expect(flow.pointsError, contains('尚未接線'));
+      expect(flow.liveMapBuilder, isNotNull);
+      expect(flow.reportBuilder, isNotNull);
+      expect(flow.onSendSms, isNull);
+      expect(find.text('目前為示範資料，未連線真實服務'), findsNothing);
       await back(t);
       expect(find.byType(CityServiceView), findsOneWidget);
       expect(t.takeException(), isNull);
