@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart' show TileLayer;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
 import 'package:town_pass/features/safe_walk/companion/companion_service.dart';
@@ -181,6 +182,12 @@ void main() {
       expect(flow.route, isNull);
       await t.tap(find.text('安心行'));
       await t.pumpAndSettle();
+      // The official entry asks for the separate OSM tile consent; declining
+      // keeps the map blank.
+      expect(find.text('地圖載入設定'), findsOneWidget);
+      await t.tap(find.text('不載入'));
+      await t.pumpAndSettle();
+      expect(find.byType(TileLayer), findsNothing);
       expect(find.text('請先返回首頁設定「家」的位置，再規劃回家路線。'), findsWidgets);
       expect(find.text('規劃路線需要你的位置'), findsNothing);
       await back(t);
