@@ -40,6 +40,9 @@ M1 將完整據點 lookup／provider 注入本模組；不得直接 import M4 �
 | `google_maps_link.dart` | `googleMapsWalkingUri()`：Google 地圖「步行＋開始導航」連結 |
 | `route_follower.dart` | `RouteFollower`：把 M1 提供的位置對到路線上，算出已走／剩餘距離、剩餘時間、行進方向、偏離路線、抵達；純計算，不讀 GPS |
 | `coordinate_math.dart` | 純 Dart：haversine 距離、折線長度、lat/lng ⇄ GeoJSON `[lng, lat]`、座標範圍檢查 |
+| `route_reference_area_check.dart` | `compareRoutesWithReferenceAreas()`：只讀比對未改動的候選路線 geometry 與「經核對邊界」的參考範圍（多邊形），回 `noReliableArea`／`noCandidateCrosses`／`noAlternativeRoute`／`alternativeAvailable`；單一參考座標不能轉成範圍，不改寫 geometry、不評「安全」（issue #48 P0-2） |
+
+`OsrmWalkingRouteProvider(requestAlternatives: true)` 會向 OSRM 要求伺服器自己的替代路線（`osrm-alt-N`，原樣保留）；預設關閉，伺服器可能不回任何替代路線。
 
 ## 接線方式（給 M1）
 
