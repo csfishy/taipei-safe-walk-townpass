@@ -6,6 +6,7 @@ import 'package:town_pass/features/safe_walk/presentation/safe_walk_home_setting
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_home_view.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_map_view.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_nearby_broadcast.dart';
+import 'package:town_pass/features/safe_walk/presentation/safe_walk_nearby_helper.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_speaker.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_ui.dart';
 import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart'
@@ -49,6 +50,7 @@ class SafeWalkFlow extends StatefulWidget {
     this.onEmergency,
     this.onSendSms,
     this.nearbyBroadcast,
+    this.nearbyHelper,
     this.homeLocation,
     this.onHomeChanged,
     this.onExit,
@@ -122,6 +124,9 @@ class SafeWalkFlow extends StatefulWidget {
 
   /// M1：緊急求助頁的「通知附近的人」；null 時不顯示。
   final SafeWalkNearbyBroadcast? nearbyBroadcast;
+
+  /// M1：附近協助者（加入／退出、收到求助的橫幅）；null 時不顯示。
+  final SafeWalkNearbyHelper? nearbyHelper;
   final VoidCallback? onExit;
 
   /// M1：使用者已儲存在裝置上的「家」。null＝尚未設定；只有 Mock 可沿用示範的家。
@@ -513,6 +518,7 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
     final child = switch (_screen) {
       _Screen.home => SafeWalkHomeView(
         isLive: widget.mode == sw.DataMode.live,
+        nearbyHelper: widget.nearbyHelper,
         destination: _place.label,
         homeSet: widget.homeLocation != null,
         onEditHome: widget.onHomeChanged == null
@@ -570,7 +576,7 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
         onClose: () => _go(_back),
       ),
     };
-    return PopScope(
+    final screen = PopScope(
       canPop: _screen == _Screen.home,
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) {
@@ -600,6 +606,23 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
         },
         child: KeyedSubtree(key: ValueKey(_screen), child: child),
       ),
+    );
+    final helper = widget.nearbyHelper;
+    if (helper == null) return screen;
+    // Alerts from nearby people appear over whichever screen is open.
+    return Stack(
+      children: [
+        screen,
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          child: SafeWalkNearbyAlertBanner(
+            helper: helper,
+            onOpenEmergency: _openEmergency,
+          ),
+        ),
+      ],
     );
   }
 }

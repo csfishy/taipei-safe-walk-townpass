@@ -244,6 +244,30 @@ begin
     'a new report replaces the previous row');
 end $t$;
 
+-- Repeating opt-in (a position refresh) keeps the original consent time; rejoining
+-- after opting out records a new one.
+do $t$
+declare
+  u uuid := (select uid from pts where name = 'same');
+  before_ts timestamptz;
+begin
+  update safe_walk_nearby.helper_profiles
+    set consented_at = now() - interval '1 hour' where user_id = u;
+  select consented_at into before_ts from safe_walk_nearby.helper_profiles where user_id = u;
+  perform pg_temp.as_user(u);
+  perform public.nearby_helper_opt_in('test.v1');
+  reset role;
+  perform pg_temp.check(
+    (select consented_at from safe_walk_nearby.helper_profiles where user_id = u) = before_ts,
+    'repeating opt-in keeps the original consent time');
+  perform pg_temp.as_user(u);
+  perform public.nearby_helper_opt_in('test.v2');
+  reset role;
+  perform pg_temp.check(
+    (select consented_at from safe_walk_nearby.helper_profiles where user_id = u) > before_ts,
+    'a new consent version records a new consent time');
+end $t$;
+
 -- 4. SOS: only opted-in helpers inside 500 m with a fresh position ---------
 do $t$
 declare

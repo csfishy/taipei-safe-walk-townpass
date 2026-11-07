@@ -4,7 +4,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show rootBundle;
+import 'package:flutter/services.dart' show HapticFeedback, rootBundle;
 import 'package:town_pass/features/safe_walk/navigation/avoid_area.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/crime_reference_wiring.dart';
 import 'package:town_pass/features/safe_walk/platform/supabase/safe_walk_supabase_config.dart';
@@ -28,6 +28,7 @@ import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_rout
 import 'package:town_pass/features/safe_walk/platform/integration/tts_safe_walk_speaker.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_navigation_controller.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_live_loop_controller.dart';
+import 'package:town_pass/features/safe_walk/platform/integration/nearby_helper_controller.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_live_loop_pages.dart';
 import 'package:town_pass/features/safe_walk/platform/nearby_emergency/nearby_alert_transport.dart';
 import 'package:town_pass/features/safe_walk/platform/nearby_emergency/nearby_emergency_service.dart';
@@ -139,6 +140,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
   _RouteCancellation? _locationRequest;
   late final PlatformService _platform;
   late final NearbyEmergencyService _nearbyService;
+  NearbyHelperController? _helper;
   SafetyDataRepository? _safetyData;
   late final SafeWalkRouteSpeaker _speaker;
   late final SafeWalkNavigationController _navigation;
@@ -421,6 +423,13 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
       platform: _platform,
       transport: widget.nearbyAlerts ?? const UnavailableNearbyAlertTransport(),
     );
+    // Demo never joins or polls; Live shows the real backend state.
+    _helper = widget.liveRoutes
+        ? NearbyHelperController(
+            service: _nearbyService,
+            onAlertArrived: () => unawaited(HapticFeedback.heavyImpact()),
+          )
+        : null;
     _safetyData = widget.liveRoutes
         ? null
         : widget.safetyData ??
@@ -1013,6 +1022,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     final active = state == AppLifecycleState.resumed;
     _speaker.setLifecycleActive(active);
     _report?.setForeground(active);
+    _helper?.setForeground(active);
     // `inactive` is transient (a system dialog, or the browser window losing
     // focus on web); only really leaving the app clears the route.
     if (state == AppLifecycleState.paused ||
@@ -1302,6 +1312,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
         onLocate: _locate,
         onEmergency: _emergency,
         nearbyBroadcast: _nearbyBroadcast,
+        nearbyHelper: _helper,
         homeLocation: _home,
         onHomeChanged: _changeHome,
         onExit: _exit,
@@ -1320,6 +1331,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     _lifetime.cancel();
     _pointsRequest?.cancel();
     _navigation.dispose();
+    _helper?.dispose();
     _report?.dispose();
     unawaited(_speaker.dispose());
     super.dispose();
