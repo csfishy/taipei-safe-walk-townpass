@@ -58,6 +58,7 @@ dependencies:
   cupertino_icons: ^2.0.0
 
 dev_dependencies:
+  device_info_plus_platform_interface: 8.1.0
   build_runner: ^2.16.1
   flutter_gen_runner: ^5.15.0
   flutter_test:
