@@ -30,6 +30,7 @@ import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_navi
 import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_live_loop_controller.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_live_loop_pages.dart';
 import 'package:town_pass/features/safe_walk/platform/platform_service.dart';
+import 'package:town_pass/features/safe_walk/platform/device_heading.dart';
 import 'package:town_pass/features/safe_walk/platform/position_watch.dart';
 import 'package:town_pass/features/safe_walk/platform/townpass_platform_adapter.dart';
 import 'package:town_pass/features/safe_walk/presentation/mock/safe_walk_demo_data.dart';
@@ -58,6 +59,7 @@ class SafeWalkCompositionRoot extends StatefulWidget {
     this.onExit,
     this.liveRoutes = false,
     this.watchPosition,
+    this.watchHeading,
     this.reviewedAreas = const [],
     this.showLiveMap = true,
     this.findStores,
@@ -76,6 +78,10 @@ class SafeWalkCompositionRoot extends StatefulWidget {
 
   /// Continuous positions while the map is open; defaults to the device GPS.
   final Stream<sw.Position> Function()? watchPosition;
+
+  /// Phone heading (degrees from north) while following; defaults to the
+  /// device compass. Tests pass an empty stream.
+  final Stream<double> Function()? watchHeading;
 
   /// Real walking routes: opening the map reads the device position (after the
   /// user agrees to share it with the routing service). Unconfigured points
@@ -364,6 +370,10 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
   List<RouteFollower> _followers = const [];
   StreamSubscription<sw.Position>? _watch;
   sw.Position? _livePosition;
+  StreamSubscription<double>? _headingSub;
+
+  /// Which way the phone points (degrees from north) for the map arrow.
+  double? _heading;
   DateTime? _lastReplan;
   static const _replanGap = Duration(seconds: 15);
 
@@ -482,6 +492,19 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
       _onPosition,
       onError: (_) => _stopFollowing(),
     );
+    _headingSub ??= (widget.watchHeading ?? watchDeviceHeading)().listen(
+      (h) {
+        // Redraw only for a visible turn; the sensors report ~15 times/s.
+        final old = _heading;
+        if (!mounted ||
+            (old != null && ((h - old + 540) % 360 - 180).abs() < 3)) {
+          return;
+        }
+        setState(() => _heading = h);
+      },
+      // No compass on this device: keep the plain dot.
+      onError: (_) {},
+    );
   }
 
   void _onPosition(sw.Position position) {
@@ -515,6 +538,9 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
   void _stopFollowing() {
     unawaited(_watch?.cancel());
     _watch = null;
+    unawaited(_headingSub?.cancel());
+    _headingSub = null;
+    _heading = null;
     _followers = const [];
     _livePosition = null;
   }
@@ -1185,6 +1211,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
         onLeaveReport: () => _report?.cancel(),
         route: widget.liveRoutes ? _navigation.routeResult : null,
         livePosition: _livePosition,
+        liveHeading: _livePosition == null ? null : _heading,
         onLeaveMap: _closeNavigation,
         onStartNavigation: _startGuidance,
         onEndNavigation: _endGuidance,

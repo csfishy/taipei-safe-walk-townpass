@@ -40,6 +40,7 @@ class DemoMap extends StatelessWidget {
     super.key,
     required this.start,
     required this.points,
+    this.heading,
     this.follow,
     required this.anomalies,
     required this.path,
@@ -64,6 +65,9 @@ class DemoMap extends StatelessWidget {
   });
   final LatLng start;
   final List<sw.AssistancePoint> points;
+
+  /// 手機朝向（度，從北方順時針）；有值時起點畫成指向箭頭（地圖固定北方朝上）。
+  final double? heading;
 
   /// 導覽中：鏡頭以目前位置為中心（約 10 公尺移動才重新置中）。
   final LatLng? follow;
@@ -185,7 +189,7 @@ class DemoMap extends StatelessWidget {
         ),
       if (showDestination)
         marker(destination ?? DemoGeo.home, 32, _HomeMark(active: homeActive)),
-      if (showStart) marker(start, 34, const _StartMark()),
+      if (showStart) marker(start, 44, _StartMark(heading: heading)),
       if (pin != null)
         marker(
           pin!,
@@ -462,9 +466,23 @@ class _HomeMark extends StatelessWidget {
 }
 
 class _StartMark extends StatelessWidget {
-  const _StartMark();
+  const _StartMark({this.heading});
+  final double? heading;
   @override
-  Widget build(BuildContext context) => Container(
+  Widget build(BuildContext context) => Stack(
+    alignment: Alignment.center,
+    children: [
+      if (heading != null)
+        // 朝向的扇形光束（像 Google 地圖），圓點本身不轉。
+        Transform.rotate(
+          angle: heading! * math.pi / 180,
+          child: CustomPaint(size: const Size(44, 44), painter: _BeamPainter()),
+        ),
+      _dot(),
+    ],
+  );
+
+  Widget _dot() => Container(
     width: 30,
     height: 30,
     alignment: Alignment.center,
@@ -482,4 +500,26 @@ class _StartMark extends StatelessWidget {
       ),
     ),
   );
+}
+
+/// 從圓心往上（北方，旋轉前）張開約 70° 的漸層扇形。
+class _BeamPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final c = size.center(Offset.zero);
+    final r = size.width / 2;
+    final rect = Rect.fromCircle(center: c, radius: r);
+    final paint = Paint()
+      ..shader = RadialGradient(
+        colors: [
+          SwColors.brand.withValues(alpha: .55),
+          SwColors.brand.withValues(alpha: 0),
+        ],
+      ).createShader(rect);
+    const sweep = 70 * math.pi / 180;
+    canvas.drawArc(rect, -math.pi / 2 - sweep / 2, sweep, true, paint);
+  }
+
+  @override
+  bool shouldRepaint(_BeamPainter old) => false;
 }

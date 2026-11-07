@@ -39,6 +39,7 @@ class SafeWalkFlow extends StatefulWidget {
     this.routingConsent = false,
     this.crimeConsent = false,
     this.livePosition,
+    this.liveHeading,
     this.onLeaveMap,
     this.onStartNavigation,
     this.onEndNavigation,
@@ -98,6 +99,9 @@ class SafeWalkFlow extends StatefulWidget {
 
   /// 導航中持續更新的目前位置（只在地圖開著時由 M1 提供）。
   final sw.Position? livePosition;
+
+  /// 手機朝向（從北方順時針的度數），地圖上的位置點畫成箭頭；null＝只畫圓點。
+  final double? liveHeading;
 
   /// 離開地圖時呼叫，讓 M1 停止持續定位與路線請求。
   final VoidCallback? onLeaveMap;
@@ -455,6 +459,7 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
     Widget map({MapStartView start = MapStartView.route}) => SafeWalkMapView(
       key: ValueKey(start),
       position: widget.livePosition ?? _position,
+      heading: widget.liveHeading,
       showMapTiles: widget.showMapTiles,
       pointsState: _pointsState,
       routeState: _routeState,
