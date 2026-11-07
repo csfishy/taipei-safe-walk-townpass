@@ -58,6 +58,9 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
   String? _emergencyMessage;
   bool _emergencyError = false, _locating = false;
   final _callKey = GlobalKey<SafeWalkCallViewState>();
+  late final List<SavedPlace> _places = [...demoPlaces()];
+  String _placeId = 'home';
+  SavedPlace get _place => _places.firstWhere((p) => p.id == _placeId, orElse: () => _places.first);
   late final List<Anomaly> _anomalies = demoAnomalies();
   late final List<sw.AssistancePoint> _demoPoints = demoAssistancePoints();
 
@@ -136,13 +139,26 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
       anomalies: _anomalies,
       startView: start,
       onAnomaliesChanged: () => setState(() {}),
+      places: _places,
+      placeId: _placeId,
+      onSelectPlace: (id) => setState(() => _placeId = id),
+      onAddPlace: (name, at) => setState(() {
+        final p = SavedPlace('place-${DateTime.now().microsecondsSinceEpoch}', name, at);
+        _places.add(p);
+        _placeId = p.id;
+      }),
+      onDeletePlace: (id) => setState(() {
+        _places.removeWhere((p) => p.id == id);
+        if (_placeId == id) _placeId = 'home';
+      }),
       onBack: () => _go(_Screen.home),
       onCall: () => _go(_Screen.call),
       onEmergency: _openEmergency,
     );
     final child = switch (_screen) {
       _Screen.home => SafeWalkHomeView(
-        homeMinutes: walkMinutes(routeMeters(DemoGeo.homeRoute)),
+        homeMinutes: walkMinutes(routeMeters(placeRoute(DemoGeo.start, _place))),
+        destination: _place.label,
         avoided: avoidedCount(_anomalies),
         onBack: widget.onExit,
         onEmergency: _openEmergency,

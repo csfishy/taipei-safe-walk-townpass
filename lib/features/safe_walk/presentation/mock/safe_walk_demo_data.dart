@@ -76,6 +76,21 @@ List<RouteStep> routeSteps(List<LatLng> path) {
   return steps;
 }
 
+// ───────── 常用目的地（提案型別；只存在記憶體，不保存住家地址） ─────────
+
+class SavedPlace {
+  const SavedPlace(this.id, this.label, this.at);
+  final String id;
+  final String label;
+  final LatLng at;
+  bool get isHome => id == 'home';
+}
+
+List<SavedPlace> demoPlaces() => const [SavedPlace('home', '家', DemoGeo.home), SavedPlace('work', '公司', LatLng(25.0014, 121.4997))];
+
+/// 到某個常用地點的示範路線：家用繞開異常的路線，其他用沿街 L 形。
+List<LatLng> placeRoute(LatLng start, SavedPlace p) => p.isHome && start.lat == DemoGeo.start.lat && start.lng == DemoGeo.start.lng ? DemoGeo.homeRoute : DemoGeo.lRoute(start, p.at);
+
 // ───────── 求助據點（共用 AssistancePoint 型別，示範資料） ─────────
 
 sw.SourceMetadata _demoSource() => sw.SourceMetadata(

@@ -10,11 +10,12 @@ enum SafeWalkEntry { map, call, points, report }
 /// - 其他三個功能沿用臺北通「我的服務」的圓形圖示排列。
 /// - 最下方固定緊急求助。
 class SafeWalkHomeView extends StatelessWidget {
-  const SafeWalkHomeView({super.key, required this.onOpen, required this.onEmergency, required this.homeMinutes, required this.avoided, this.onBack, this.now});
+  const SafeWalkHomeView({super.key, required this.onOpen, required this.onEmergency, required this.homeMinutes, required this.avoided, this.destination = '家', this.onBack, this.now});
   final ValueChanged<SafeWalkEntry> onOpen;
   final VoidCallback onEmergency;
   final VoidCallback? onBack;
   final int homeMinutes, avoided;
+  final String destination;
 
   /// 測試可固定時間；正式由裝置時間決定。
   final DateTime? now;
@@ -47,7 +48,7 @@ class SafeWalkHomeView extends StatelessWidget {
               children: [
                 _ContextCard(now: t),
                 const SizedBox(height: 12),
-                _GoHomeCard(minutes: homeMinutes, avoided: avoided, onTap: () => onOpen(SafeWalkEntry.map)),
+                _GoHomeCard(destination: destination, minutes: homeMinutes, avoided: avoided, onTap: () => onOpen(SafeWalkEntry.map)),
                 const SizedBox(height: 20),
                 Semantics(header: true, child: Text('其他功能', style: SwText.heading)),
                 const SizedBox(height: 12),
@@ -85,7 +86,7 @@ class _ContextCard extends StatelessWidget {
     final hhmm = '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(color: night ? TPColors.primary800 : SwColors.surface, borderRadius: BorderRadius.circular(12), boxShadow: SwShadow.card),
+      decoration: BoxDecoration(color: night ? TPColors.primary800 : SwColors.surface, borderRadius: BorderRadius.circular(8), boxShadow: SwShadow.card),
       child: Row(
         children: [
           Icon(night ? Icons.nightlight_round : Icons.wb_sunny_rounded, color: night ? TPColors.secondary300 : TPColors.secondary600, size: 28),
@@ -105,75 +106,84 @@ class _ContextCard extends StatelessWidget {
   }
 }
 
-/// B 一鍵回家：本頁唯一的大區塊。顯示預估時間與「已繞開」數字，整張卡都可以點。
+/// B 一鍵回家：比照臺北通「市政服務」卡片的青色漸層與右下插圖。
+/// 依顏色規範，primary400／500 上的文字用深色（primary900），白字只放在白色按鈕以外的深色區。
 class _GoHomeCard extends StatelessWidget {
-  const _GoHomeCard({required this.minutes, required this.avoided, required this.onTap});
+  const _GoHomeCard({required this.destination, required this.minutes, required this.avoided, required this.onTap});
+  final String destination;
   final int minutes, avoided;
   final VoidCallback onTap;
   @override
   Widget build(BuildContext context) => DecoratedBox(
-    decoration: BoxDecoration(borderRadius: BorderRadius.circular(16), boxShadow: SwShadow.float),
+    decoration: BoxDecoration(
+      borderRadius: BorderRadius.circular(8),
+      gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [TPColors.primary400, TPColors.primary500]),
+      boxShadow: SwShadow.card,
+    ),
     child: SwPressable(
       onTap: onTap,
-      color: SwColors.brandDeep,
-      pressedColor: SwColors.brandDeeper,
-      radius: 16,
-      semanticsLabel: '安心回家，約 $minutes 分鐘，已繞開 $avoided 個異常回報，開始導航',
-      padding: const EdgeInsets.all(20),
+      pressedColor: TPColors.primary600.withValues(alpha: .25),
+      radius: 8,
+      semanticsLabel: '安心回家，到$destination約 $minutes 分鐘，已繞開 $avoided 個異常回報，開始導航',
       child: ExcludeSemantics(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Stack(
           children: [
-            Row(
-              children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: const BoxDecoration(color: SwColors.surface, shape: BoxShape.circle),
-                  child: const Icon(Icons.home_rounded, color: SwColors.brandDeep),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text('安心回家', style: SwText.title.copyWith(color: SwColors.onDeep)),
-                ),
-              ],
+            const Positioned(
+              right: 12,
+              top: 14,
+              child: SizedBox(width: 110, height: 88, child: CustomPaint(painter: _HomeIllustration())),
             ),
-            const SizedBox(height: 12),
-            Text.rich(
-              TextSpan(
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  TextSpan(
-                    text: '$minutes',
-                    style: SwText.title.copyWith(fontSize: 48, height: 1, color: SwColors.onDeep),
+                  Text('安心回家', style: SwText.title.copyWith(color: TPColors.primary900)),
+                  Text('Safe Walk Home', style: SwText.body.copyWith(color: TPColors.primary900)),
+                  const SizedBox(height: 12),
+                  Text.rich(
+                    TextSpan(
+                      children: [
+                        TextSpan(
+                          text: '$minutes',
+                          style: SwText.title.copyWith(fontSize: 48, height: 1, color: TPColors.primary900),
+                        ),
+                        TextSpan(
+                          text: ' 分鐘到$destination',
+                          style: SwText.heading.copyWith(color: TPColors.primary900),
+                        ),
+                      ],
+                    ),
                   ),
-                  TextSpan(
-                    text: ' 分鐘到家',
-                    style: SwText.heading.copyWith(color: SwColors.onDeep),
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(color: SwColors.surface.withValues(alpha: .9), borderRadius: BorderRadius.circular(20)),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.verified_outlined, size: 18, color: SwColors.brandDeep),
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Text('路線已繞開 $avoided 個異常回報（示範）', style: SwText.bodyStrong.copyWith(color: SwColors.brandDeep)),
+                        ),
+                      ],
+                    ),
                   ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                const Icon(Icons.verified_outlined, size: 18, color: TPColors.primary100),
-                const SizedBox(width: 6),
-                Flexible(
-                  child: Text('路線已繞開 $avoided 個異常回報（示範）', style: SwText.body.copyWith(color: TPColors.primary100)),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Container(
-              height: swTouch,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(color: SwColors.surface, borderRadius: BorderRadius.circular(10)),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.navigation_rounded, color: SwColors.brandDeep),
-                  const SizedBox(width: 8),
-                  Text('開始回家', style: SwText.heading.copyWith(color: SwColors.brandDeep)),
+                  const SizedBox(height: 16),
+                  Container(
+                    height: swTouch,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(color: SwColors.surface, borderRadius: BorderRadius.circular(8), boxShadow: SwShadow.card),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.navigation_rounded, color: SwColors.brandDeep),
+                        const SizedBox(width: 8),
+                        Text('開始回家', style: SwText.heading.copyWith(color: SwColors.brandDeep)),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -182,6 +192,40 @@ class _GoHomeCard extends StatelessWidget {
       ),
     ),
   );
+}
+
+/// 右下插圖：白色線條的房子＋小路，像臺北通服務卡右下的市政府插圖。
+class _HomeIllustration extends CustomPainter {
+  const _HomeIllustration();
+  @override
+  void paint(Canvas canvas, Size size) {
+    final line = Paint()
+      ..color = TPColors.white.withValues(alpha: .7)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    final fill = Paint()..color = TPColors.white.withValues(alpha: .35);
+    final w = size.width, h = size.height;
+    final house = Path()
+      ..moveTo(w * .55, h * .42)
+      ..lineTo(w * .78, h * .18)
+      ..lineTo(w * 1.0, h * .42)
+      ..moveTo(w * .6, h * .38)
+      ..lineTo(w * .6, h * .8)
+      ..lineTo(w * .96, h * .8)
+      ..lineTo(w * .96, h * .38);
+    canvas.drawRect(Rect.fromLTWH(w * .72, h * .58, w * .12, h * .22), fill);
+    canvas.drawPath(house, line);
+    final path = Path()
+      ..moveTo(0, h)
+      ..quadraticBezierTo(w * .25, h * .7, w * .45, h * .86)
+      ..quadraticBezierTo(w * .55, h * .94, w * .66, h * .82);
+    canvas.drawPath(path, line..strokeWidth = 4);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 /// 臺北通「我的服務」樣式：白色圓形圖示＋名稱，另加一行短說明給長輩看懂用途。
@@ -203,7 +247,7 @@ class _ServiceIcon extends StatelessWidget {
             width: 64,
             height: 64,
             decoration: BoxDecoration(color: SwColors.surface, shape: BoxShape.circle, boxShadow: SwShadow.card),
-            child: Icon(icon, size: 30, color: SwColors.brandDeep),
+            child: Icon(icon, size: 30, color: TPColors.primary600),
           ),
           const SizedBox(height: 8),
           Text(name, textAlign: TextAlign.center, style: SwText.bodyStrong),

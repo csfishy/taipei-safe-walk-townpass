@@ -98,6 +98,14 @@ void main() {
     await _shot(t, '10-points-error');
   }, skip: _skip);
 
+  testWidgets('11 目的地選單', (t) async {
+    await _app(t);
+    await _tap(t, '安心回家');
+    await t.tap(find.textContaining('→ 家'));
+    await t.pumpAndSettle();
+    await _shot(t, '11-places');
+  }, skip: _skip);
+
   testWidgets('05 附近求助地點', (t) async {
     await _app(t);
     await _tap(t, '附近求助地點');

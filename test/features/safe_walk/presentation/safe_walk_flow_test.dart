@@ -216,4 +216,45 @@ void main() {
     await t.pumpAndSettle();
     expect(find.text('要回報哪裡？'), findsOneWidget);
   });
+
+  testWidgets('目的地：可切換到公司、新增地點（在地圖上點位置）', (t) async {
+    await _pump(t, const SafeWalkFlow());
+    await t.tap(find.text('安心回家'));
+    await t.pumpAndSettle();
+    await t.tap(find.textContaining('→ 家'));
+    await t.pumpAndSettle();
+    expect(find.text('要去哪裡？'), findsOneWidget);
+    await t.tap(find.text('公司'));
+    await t.pumpAndSettle();
+    expect(find.textContaining('→ 公司'), findsOneWidget);
+    expect(find.text('去公司'), findsOneWidget);
+
+    await t.tap(find.textContaining('→ 公司'));
+    await t.pumpAndSettle();
+    await t.tap(find.text('新增地點'));
+    await t.pumpAndSettle();
+    await t.enterText(find.byType(TextField), '學校');
+    await t.pump();
+    await t.tap(find.text('在地圖上選位置'));
+    await t.pumpAndSettle();
+    expect(find.text('新增「學校」'), findsOneWidget);
+    await t.tapAt(const Offset(200, 400));
+    await t.pumpAndSettle();
+    expect(find.textContaining('→ 學校'), findsOneWidget);
+  });
+
+  testWidgets('圖例與回報一次只開一個', (t) async {
+    await _pump(t, const SafeWalkFlow());
+    await t.tap(find.text('安心回家'));
+    await t.pumpAndSettle();
+    await t.tap(find.bySemanticsLabel('顯示圖例'));
+    await t.pumpAndSettle();
+    expect(find.text('圖例'), findsWidgets);
+    await t.tap(find.bySemanticsLabel('回報狀況，在地圖上標出異常'));
+    await t.pumpAndSettle();
+    expect(find.bySemanticsLabel('關閉圖例'), findsNothing, reason: '開回報時圖例自動關閉');
+    await t.tap(find.bySemanticsLabel('顯示圖例'));
+    await t.pumpAndSettle();
+    expect(find.text('要回報哪裡？'), findsNothing, reason: '開圖例時回報模式自動關閉');
+  });
 }
