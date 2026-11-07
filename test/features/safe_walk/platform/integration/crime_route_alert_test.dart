@@ -272,16 +272,37 @@ void main() {
   });
 
   group('CrimeRouteAlertLiveCheckPage', () {
+    void background(WidgetTester tester) {
+      for (final state in [
+        AppLifecycleState.inactive,
+        AppLifecycleState.hidden,
+        AppLifecycleState.paused,
+      ]) {
+        tester.binding.handleAppLifecycleStateChanged(state);
+      }
+    }
+
+    void resume(WidgetTester tester) {
+      for (final state in [
+        AppLifecycleState.hidden,
+        AppLifecycleState.inactive,
+        AppLifecycleState.resumed,
+      ]) {
+        tester.binding.handleAppLifecycleStateChanged(state);
+      }
+    }
+
     Future<void> pumpPage(
       WidgetTester tester, {
       required _FakeRoutes routes,
       CrimeRouteAlertService? alerts,
       sw.LocationResult? location,
+      _FakePlatform? platform,
     }) async {
       await tester.pumpWidget(
         MaterialApp(
           home: CrimeRouteAlertLiveCheckPage(
-            platform: _FakePlatform(location ?? _gps()),
+            platform: platform ?? _FakePlatform(location ?? _gps()),
             createRouteService: (hasConsent) => routes..hasConsent = hasConsent,
             alertService:
                 alerts ?? CrimeRouteAlertService(repository: okRepo()),
@@ -295,6 +316,7 @@ void main() {
     Future<void> fillAndPlan(
       WidgetTester tester, {
       bool referenceConsent = true,
+      bool settle = true,
     }) async {
       await tester.tap(find.byKey(const Key('crime-route-locate')));
       await tester.pumpAndSettle();
@@ -314,7 +336,11 @@ void main() {
       }
       await tester.pump();
       await tester.tap(find.byKey(const Key('crime-route-plan')));
-      await tester.pumpAndSettle();
+      if (settle) {
+        await tester.pumpAndSettle();
+      } else {
+        await tester.pump();
+      }
     }
 
     testWidgets('real route -> query -> explicit no-reliable-area notice', (
@@ -401,6 +427,135 @@ void main() {
       expect(find.text('定位權限未允許'), findsOneWidget);
       expect(find.text('尚未取得起點。'), findsOneWidget);
     });
+
+    testWidgets('background cancels GPS and ignores its late position', (
+      tester,
+    ) async {
+      final pending = Completer<sw.LocationResult>();
+      final platform = _FakePlatform(_gps())..answer = () => pending.future;
+      await pumpPage(
+        tester,
+        routes: _FakeRoutes(success([through])),
+        platform: platform,
+      );
+      await tester.tap(find.byKey(const Key('crime-route-locate')));
+      await tester.pump();
+      background(tester);
+      expect(platform.lastCancellation!.isCancelled, isTrue);
+      pending.complete(_gps());
+      await tester.pump();
+      resume(tester);
+      await tester.pumpAndSettle();
+      expect(find.text('尚未取得起點。'), findsOneWidget);
+      expect(find.byType(LinearProgressIndicator), findsNothing);
+      expect(platform.calls, 1);
+    });
+
+    testWidgets('background cancels routing before any reference query', (
+      tester,
+    ) async {
+      final pending = Completer<sw.RouteResult>();
+      final routes = _FakeRoutes(success([through]))
+        ..answer = () => pending.future;
+      final seen = <Map<String, Object?>>[];
+      await pumpPage(
+        tester,
+        routes: routes,
+        alerts: CrimeRouteAlertService(repository: okRepo(seen)),
+      );
+      await fillAndPlan(tester, settle: false);
+      background(tester);
+      expect(routes.lastCancellation!.isCancelled, isTrue);
+      expect(routes.hasConsent!(), isFalse);
+      pending.complete(success([through]));
+      await tester.pump();
+      resume(tester);
+      await tester.pumpAndSettle();
+      expect(seen, isEmpty);
+      expect(find.textContaining('osrm-direct'), findsNothing);
+      expect(find.text('尚未取得起點。'), findsOneWidget);
+      expect(find.byType(LinearProgressIndicator), findsNothing);
+    });
+
+    testWidgets('background discards an already pending reference response', (
+      tester,
+    ) async {
+      final pending = Completer<CrimeReferenceHttpResponse>();
+      var queries = 0;
+      await pumpPage(
+        tester,
+        routes: _FakeRoutes(success([through])),
+        alerts: CrimeRouteAlertService(
+          repository: repo((_) {
+            queries++;
+            return pending.future;
+          }),
+        ),
+      );
+      await fillAndPlan(tester, settle: false);
+      expect(queries, 1);
+      background(tester);
+      pending.complete(CrimeReferenceHttpResponse(200, jsonEncode(body())));
+      await tester.pump();
+      resume(tester);
+      await tester.pumpAndSettle();
+      expect(find.textContaining('犯罪參考紀錄'), findsNothing);
+      expect(find.textContaining('osrm-direct'), findsNothing);
+      expect(find.byType(LinearProgressIndicator), findsNothing);
+      expect(queries, 1);
+    });
+
+    for (final consent in ['routing', 'reference']) {
+      testWidgets('$consent consent revocation cancels pending routing', (
+        tester,
+      ) async {
+        final pending = Completer<sw.RouteResult>();
+        final routes = _FakeRoutes(success([through]))
+          ..answer = () => pending.future;
+        final seen = <Map<String, Object?>>[];
+        await pumpPage(
+          tester,
+          routes: routes,
+          alerts: CrimeRouteAlertService(repository: okRepo(seen)),
+        );
+        await fillAndPlan(tester, settle: false);
+        await tester.tap(find.byKey(Key('crime-route-$consent-consent')));
+        expect(routes.lastCancellation!.isCancelled, isTrue);
+        pending.complete(success([through]));
+        await tester.pumpAndSettle();
+        expect(seen, isEmpty);
+        expect(find.textContaining('osrm-direct'), findsNothing);
+        expect(find.byType(LinearProgressIndicator), findsNothing);
+      });
+    }
+
+    for (final failure in [
+      StateError('private provider error'),
+      const SafeWalkCancelledException(),
+    ]) {
+      testWidgets('thrown $failure ends progress and permits retry', (
+        tester,
+      ) async {
+        final routes = _FakeRoutes(success([through]))
+          ..answer = () => Future.error(failure);
+        final seen = <Map<String, Object?>>[];
+        await pumpPage(
+          tester,
+          routes: routes,
+          alerts: CrimeRouteAlertService(repository: okRepo(seen)),
+        );
+        await fillAndPlan(tester);
+        expect(tester.takeException(), isNull);
+        expect(seen, isEmpty);
+        expect(find.textContaining('private provider error'), findsNothing);
+        expect(find.byType(LinearProgressIndicator), findsNothing);
+        routes.answer = null;
+        await tester.tap(find.byKey(const Key('crime-route-plan')));
+        await tester.pumpAndSettle();
+        expect(seen, hasLength(1));
+        expect(find.textContaining('osrm-direct'), findsOneWidget);
+      });
+    }
   });
 }
 
@@ -418,6 +573,9 @@ final class _FakePlatform implements PlatformService {
   _FakePlatform(this.result);
 
   final sw.LocationResult result;
+  Future<sw.LocationResult> Function()? answer;
+  SafeWalkCancellation? lastCancellation;
+  int calls = 0;
 
   @override
   Future<sw.LocationResult> getCurrentPosition({
@@ -427,7 +585,9 @@ final class _FakePlatform implements PlatformService {
   }) async {
     expect(mode, sw.DataMode.live);
     expect(userInitiated, isTrue);
-    return result;
+    calls++;
+    lastCancellation = cancellation;
+    return answer == null ? result : await answer!();
   }
 
   @override
@@ -444,6 +604,8 @@ final class _FakeRoutes implements RouteService {
   _FakeRoutes(this.result);
 
   final sw.RouteResult result;
+  Future<sw.RouteResult> Function()? answer;
+  SafeWalkCancellation? lastCancellation;
   bool Function()? hasConsent;
   bool? consentAtCall;
   sw.RouteRequest? lastRequest;
@@ -455,6 +617,7 @@ final class _FakeRoutes implements RouteService {
   }) async {
     lastRequest = request;
     consentAtCall = hasConsent?.call();
-    return result;
+    lastCancellation = cancellation;
+    return answer == null ? result : await answer!();
   }
 }

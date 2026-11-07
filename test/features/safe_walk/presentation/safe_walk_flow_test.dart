@@ -101,26 +101,26 @@ void main() {
     expect(find.text('附近還沒有求助地點資料'), findsOneWidget);
   });
 
-  testWidgets('模擬來電：只朗讀對方台詞；自己輸入是讓對方說的話', (t) async {
+  testWidgets('模擬來電：英文由 TTS 朗讀，繁中只顯示供使用者照讀', (t) async {
     final speaker = _SpySpeaker();
     await _pump(t, SafeWalkFlow(speaker: speaker));
     await t.tap(find.text('模擬來電'));
     await t.pump(const Duration(milliseconds: 300));
     await t.tap(find.text('接聽'));
     await t.pump(const Duration(milliseconds: 300));
-    expect(speaker.spoken, ['喂，你到哪了？']);
-    await t.tap(find.text('我在大馬路上，快到了。'));
+    expect(speaker.spoken.single, startsWith('Damn it, babe'));
+    await t.tap(find.text('我快到了，但我後面好像有人一直跟著我。'));
     await t.pump(const Duration(milliseconds: 100));
     expect(speaker.spoken.length, 1, reason: '自己的回應不朗讀');
     await t.pump(const Duration(seconds: 1));
     expect(speaker.spoken.length, 2);
-    await t.tap(find.text('自己輸入'));
-    await t.pump(const Duration(milliseconds: 300));
-    await t.enterText(find.byType(TextField), '我在巷口等你');
-    await t.pump();
-    await t.tap(find.text('讓對方說'));
-    await t.pump(const Duration(milliseconds: 300));
-    expect(speaker.spoken.last, '我在巷口等你');
+    expect(speaker.spoken.last, startsWith("What? Don't turn around"));
+    await t.tap(find.text('好，我看到你了，我現在直接走過去。電話先不要掛。'));
+    await t.pump(const Duration(seconds: 1));
+    expect(speaker.spoken.length, 3);
+    expect(speaker.spoken.last, startsWith('I see you.'));
+    expect(find.textContaining('已到劇本最後一句'), findsOneWidget);
+    expect(find.textContaining('已播放完畢'), findsNothing);
     await t.tap(find.text('緊急求助').first);
     await t.pump(const Duration(milliseconds: 300));
     expect(speaker.stops, greaterThan(0));
@@ -176,7 +176,7 @@ void main() {
     await t.pump(const Duration(milliseconds: 300));
     await t.tap(find.text('接聽'));
     await t.pump(const Duration(milliseconds: 300));
-    await t.tap(find.text('我在大馬路上，快到了。'));
+    await t.tap(find.text('我快到了，但我後面好像有人一直跟著我。'));
     await t.pump(const Duration(milliseconds: 800));
     await t.tap(find.text('緊急求助').first);
     await t.pump(const Duration(milliseconds: 100));
@@ -332,7 +332,31 @@ void main() {
       await _pump(t, const SafeWalkFlow(routeLoading: true));
       await t.tap(find.text('安心行'));
       await t.pump(const Duration(milliseconds: 600));
-      expect(find.text('正在計算避開異常回報的路線…'), findsOneWidget);
+      expect(find.text('正在計算步行路線…'), findsOneWidget);
+      expect(find.textContaining('已繞開'), findsNothing);
+    });
+
+    testWidgets('Live 模式不出現示範異常回報、示範求助地點或「已繞開」數字', (t) async {
+      await _pump(t, SafeWalkFlow(mode: sw.DataMode.live, homeLocation: sw.Coordinates(lat: 0.5, lng: 0.75)));
+      await t.tap(find.text('安心行'));
+      await t.pumpAndSettle();
+      expect(find.bySemanticsLabel(RegExp('照明不足|道路施工|打架衝突|可疑人士')), findsNothing);
+      expect(find.textContaining('示範求助據點'), findsNothing);
+      expect(find.textContaining('已繞開'), findsNothing);
+      expect(find.text('路線服務尚未配置'), findsWidgets);
+      expect(t.widget<SafeWalkMapView>(find.byType(SafeWalkMapView)).routeState.path, isNull);
+    });
+
+    testWidgets('同一個 flow 切換 Live 時清除已初始化的示範資料', (t) async {
+      await _pump(t, const SafeWalkFlow());
+      await t.tap(find.text('安心行'));
+      await t.pumpAndSettle();
+      expect(t.widget<SafeWalkMapView>(find.byType(SafeWalkMapView)).anomalies, isNotEmpty);
+      await t.pumpWidget(const MaterialApp(home: SafeWalkFlow(mode: sw.DataMode.live)));
+      await t.pumpAndSettle();
+      final map = t.widget<SafeWalkMapView>(find.byType(SafeWalkMapView));
+      expect(map.anomalies, isEmpty);
+      expect(map.pointsState.points, isEmpty);
       expect(find.textContaining('已繞開'), findsNothing);
     });
 

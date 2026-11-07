@@ -2,13 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:town_pass/features/safe_walk/presentation/mock/safe_walk_demo_data.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_call_view.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_emergency_view.dart';
+import 'package:town_pass/features/safe_walk/presentation/safe_walk_home_setting_view.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_home_view.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_map_view.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_speaker.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_ui.dart';
 import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart' as sw;
 
-enum _Screen { home, map, points, report, call, emergency }
+enum _Screen { home, map, points, report, call, emergency, homeSetting }
 
 /// 安心行入口（M3）。所有對外動作經由 callback 交給 M1 接線；M3 不取 GPS、不撥號、不 import 其他模組。
 class SafeWalkFlow extends StatefulWidget {
@@ -27,6 +28,8 @@ class SafeWalkFlow extends StatefulWidget {
     this.onLocate,
     this.onEmergency,
     this.onSendSms,
+    this.homeLocation,
+    this.onHomeChanged,
     this.onExit,
     this.liveMapBuilder,
     this.reportBuilder,
@@ -34,18 +37,18 @@ class SafeWalkFlow extends StatefulWidget {
   final sw.DataMode mode;
   final bool allowRealCalls;
 
-  /// 求助地點（M4 → M1 提供）。null 且沒有載入中／錯誤時，使用 M3 示範資料。
+  /// 求助地點（M4 → M1 提供）。未配置時只有 Mock 使用 M3 示範資料。
   final List<sw.AssistancePoint>? points;
   final bool pointsLoading;
   final String? pointsError;
   final VoidCallback? onRetryPoints;
 
-  /// 前往目前目的地的路線（M2 RouteService → M1 提供）。null 且不在計算中＝尚未配置，使用示範路線並標示。
+  /// 前往目前目的地的路線（M2 RouteService → M1 提供）。未配置時只有 Mock 使用示範路線；Live 顯示 unavailable。
   final sw.RouteResult? route;
   final bool routeLoading;
 
   /// M1：使用者打開地圖、換目的地、按「再試一次」時呼叫（不會在一進安心行時自動呼叫），請依此目的地呼叫 RouteService.planRoute，
-  /// 再把結果傳回 [route]。null 時畫面一律用示範路線。
+  /// 再把結果傳回 [route]。
   final ValueChanged<sw.Coordinates>? onPlanRoute;
   final SafeWalkSpeaker speaker;
 
@@ -65,6 +68,12 @@ class SafeWalkFlow extends StatefulWidget {
 
   /// M1：正式入口的「回報狀況」畫面（進入時查詢資料庫現況，只顯示有證據的警示區域）。null 時沿用示範回報。
   final Widget Function(BuildContext context, VoidCallback onBack)? reportBuilder;
+  /// M1：使用者已儲存在裝置上的「家」。null＝尚未設定；只有 Mock 可沿用示範的家。
+  final sw.Coordinates? homeLocation;
+
+  /// M1：使用者在「設定家」按儲存（帶座標）或移除（null）時呼叫，由 M1 寫入裝置儲存。
+  /// null 時不顯示「設定家」入口。
+  final Future<void> Function(sw.Coordinates? home)? onHomeChanged;
 
   @override
   State<SafeWalkFlow> createState() => _SafeWalkFlowState();
@@ -83,9 +92,37 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
   SafeWalkCallSession? _call;
   late final List<SavedPlace> _places = [...demoPlaces()];
   String _placeId = 'home';
+
+  @override
+  void initState() {
+    super.initState();
+    _applyHome();
+  }
+
+  @override
+  void didUpdateWidget(SafeWalkFlow old) {
+    super.didUpdateWidget(old);
+    if (old.homeLocation != widget.homeLocation) _applyHome();
+    if (old.mode != widget.mode) {
+      _anomalies = widget.mode == sw.DataMode.mock ? demoAnomalies() : <Anomaly>[];
+      _demoPoints = widget.mode == sw.DataMode.mock ? demoAssistancePoints() : const <sw.AssistancePoint>[];
+    }
+  }
+
+  /// 已儲存的家取代示範的家；缺值保留 Mock 展示資料，Live 由規劃入口阻擋。
+  void _applyHome() {
+    final i = _places.indexWhere((p) => p.isHome);
+    final h = widget.homeLocation;
+    final next = h == null ? demoPlaces().first : SavedPlace('home', '家', LatLng(h.lat, h.lng));
+    if (i >= 0) {
+      _places[i] = next;
+    }
+  }
+
   SavedPlace get _place => _places.firstWhere((p) => p.id == _placeId, orElse: () => _places.first);
-  late final List<Anomaly> _anomalies = demoAnomalies();
-  late final List<sw.AssistancePoint> _demoPoints = demoAssistancePoints();
+  // Live mode never shows invented danger points or stand-in assistance points.
+  late List<Anomaly> _anomalies = widget.mode == sw.DataMode.mock ? demoAnomalies() : <Anomaly>[];
+  late List<sw.AssistancePoint> _demoPoints = widget.mode == sw.DataMode.mock ? demoAssistancePoints() : const <sw.AssistancePoint>[];
 
   String? get _nearestPointName {
     final pts = _pointsState.points;
@@ -95,9 +132,29 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
     return sorted.first.name;
   }
 
-  RouteState get _routeState => RouteState(result: widget.route, loading: widget.routeLoading, onRetry: widget.onPlanRoute == null ? null : _planRoute);
+  bool get _missingLiveHome => widget.mode == sw.DataMode.live && _place.isHome && widget.homeLocation == null;
 
-  void _planRoute() => widget.onPlanRoute?.call(sw.Coordinates(lat: _place.at.lat, lng: _place.at.lng));
+  RouteState get _routeState {
+    if (_missingLiveHome) {
+      return RouteState(
+        result: sw.RouteFailure(
+          requestId: 'home-not-set',
+          mode: widget.mode,
+          generatedAt: DateTime.now().toUtc().toIso8601String(),
+          status: sw.RouteFailureStatus.invalidInput,
+          reason: '請先返回首頁設定「家」的位置，再規劃回家路線。',
+          warnings: const ['尚未設定家的位置；未送出路線查詢。'],
+        ),
+        allowDemoFallback: false,
+      );
+    }
+    return RouteState(result: widget.route, loading: widget.routeLoading, allowDemoFallback: widget.mode == sw.DataMode.mock, onRetry: widget.onPlanRoute == null ? null : _planRoute);
+  }
+
+  void _planRoute() {
+    if (_missingLiveHome) return;
+    widget.onPlanRoute?.call(sw.Coordinates(lat: _place.at.lat, lng: _place.at.lng));
+  }
 
   void _selectPlace(String id) {
     if (id == _placeId) return;
@@ -197,6 +254,8 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
     final child = switch (_screen) {
       _Screen.home => SafeWalkHomeView(
         destination: _place.label,
+        homeSet: widget.homeLocation != null,
+        onEditHome: widget.onHomeChanged == null ? null : () => _go(_Screen.homeSetting),
         avoided: avoidedCount(_anomalies),
         onBack: widget.onExit,
         onEmergency: _openEmergency,
@@ -206,6 +265,12 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
           SafeWalkEntry.points => _Screen.points,
           SafeWalkEntry.report => _Screen.report,
         }),
+      ),
+      _Screen.homeSetting => SafeWalkHomeSettingView(
+        initial: widget.homeLocation == null ? null : LatLng(widget.homeLocation!.lat, widget.homeLocation!.lng),
+        onSave: (at) => widget.onHomeChanged!(sw.Coordinates(lat: at.lat, lng: at.lng)),
+        onClear: widget.homeLocation == null ? null : () => widget.onHomeChanged!(null),
+        onBack: () => _go(_Screen.home),
       ),
       _Screen.map => widget.liveMapBuilder?.call(context, () => _go(_Screen.home), _openEmergency) ?? map(),
       _Screen.points => map(start: MapStartView.points),

@@ -2,6 +2,8 @@
 
 2026-11-07。只規範新增功能的色彩語意及可讀配對；不包含版面、Widget 架構、尺寸、形狀或操作流程。正式新增 UI/UX 由 M3 莅紋設計。
 
+現行操作流程依 [LIVE-FIRST／NO PRODUCTION MOCK](SAFE_WALK_LIVE_FIRST.md)；一般 UI／callback 可由任何成員修改，大型設計變更依 Level B 由莅紋確認。下文 Mock 的顏色語意僅供隔離測試／歷史證據，不使 Production Mock 合格；正式能力缺值為 Unavailable＋真實原因＋下一步，不能只改顏色或 live 標籤宣稱完成。本次不更改色值或 Theme。
+
 唯一現有色值來源為官方 `lib/util/tp_colors.dart`（Base `c8e5d4d3f8f699f3d9d6cd68e129ed4da12037b3`）。新增功能優先直接引用 TPColors，不修改官方全域 Theme，也不另外建立 CSS Design System。
 
 | 官方名稱 | 色碼 | 使用語意 |
