@@ -67,7 +67,9 @@ jobs:
         run: flutter analyze --no-fatal-infos
       - run: flutter test --reporter expanded
       - name: Test browser guards in Chrome (device plugin boundary stubbed)
-        run: flutter test --platform chrome test/web_startup_test.dart --reporter expanded
+        run: |
+          flutter test --platform chrome test/web_startup_test.dart test/features/safe_walk/navigation/json_post_web_test.dart --reporter expanded
+          flutter test --platform chrome --dart-define=SAFE_WALK_WEB_ROUTES=true test/features/safe_walk/navigation/json_post_web_test.dart --reporter expanded
       - name: Require unchanged dependency lock
         run: git diff --exit-code -- pubspec.lock
 
