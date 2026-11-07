@@ -142,11 +142,15 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state != AppLifecycleState.resumed) {
-      _closeNavigation();
-      // M5: hiding the app stops companion speech.
+    final foreground = state == AppLifecycleState.resumed;
+    final speaker = _speaker;
+    if (speaker is TtsSafeWalkSpeaker) {
+      speaker.setForeground(foreground);
+    } else if (!foreground) {
       _speaker.stop();
     }
+    if (!foreground) _closeNavigation();
+    if (mounted) setState(() {});
   }
 
   SafeWalkRouteSpeaker _deviceSpeaker() {

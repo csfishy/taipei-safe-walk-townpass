@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 
 /// Device text-to-speech used to read companion lines aloud.
@@ -68,6 +69,7 @@ final class CompanionTtsSpeaker {
       await _engine.speak(text);
     } catch (_) {
       // A failed utterance ends like a finished one; nothing claims playback.
+      if (_isCurrent(generation)) _ready = false;
     }
     if (_isCurrent(generation)) onDone?.call();
   }
@@ -89,7 +91,9 @@ final class CompanionTtsSpeaker {
   Future<void> _stopQuietly() async {
     try {
       await _engine.stop();
-    } catch (_) {}
+    } catch (_) {
+      _ready = false;
+    }
   }
 
   bool _isCurrent(int generation) => !_disposed && generation == _generation;
@@ -101,14 +105,54 @@ final class CompanionTtsSpeaker {
 /// utterance never completes that future. Completion, cancel and error
 /// callbacks, plus [stop] itself, release the pending utterance instead.
 final class FlutterTtsEngine implements CompanionSpeechEngine {
-  FlutterTtsEngine([FlutterTts? tts]) : _tts = tts ?? FlutterTts() {
-    _tts.setCompletionHandler(_release);
-    _tts.setCancelHandler(_release);
-    _tts.setErrorHandler((_) => _release());
+  FlutterTtsEngine([FlutterTts? tts])
+    : _driver = tts == null
+          ? (_deviceDriver ??= _FlutterTtsDriver(FlutterTts()))
+          : _FlutterTtsDriver(tts);
+
+  // flutter_tts owns a static channel. Keep one handler across route handoffs;
+  // each facade's owner prevents a late old-route stop from stopping a new one.
+  static _FlutterTtsDriver? _deviceDriver;
+  final _FlutterTtsDriver _driver;
+  final Object _owner = Object();
+  int _generation = 0;
+
+  @override
+  Future<bool> prepare(List<String> languages) => _driver.prepare(languages);
+
+  @override
+  Future<void> speak(String text) {
+    final generation = ++_generation;
+    return _driver.speak(text, _owner, () => generation == _generation);
+  }
+
+  @override
+  Future<void> stop() {
+    _generation++;
+    return _driver.stop(_owner);
+  }
+}
+
+final class _FlutterTtsDriver {
+  _FlutterTtsDriver(this._tts) {
+    _tts.setCompletionHandler(_terminalReceived);
+    _tts.setCancelHandler(_terminalReceived);
+    _tts.setErrorHandler((_) => _terminalReceived());
   }
 
   final FlutterTts _tts;
   Completer<void>? _pending;
+  Completer<void>? _terminal;
+  Future<void>? _stopFuture;
+  Object? _owner;
+  bool _blocked = false;
+
+  void _terminalReceived() {
+    final terminal = _terminal;
+    _terminal = null;
+    if (terminal != null && !terminal.isCompleted) terminal.complete();
+    _release();
+  }
 
   void _release() {
     final pending = _pending;
@@ -116,30 +160,104 @@ final class FlutterTtsEngine implements CompanionSpeechEngine {
     if (pending != null && !pending.isCompleted) pending.complete();
   }
 
-  @override
   Future<bool> prepare(List<String> languages) async {
+    final stopping = _stopFuture;
+    if (stopping != null) await stopping;
+    if (_blocked) return false;
+    if (kIsWeb ||
+        (defaultTargetPlatform != TargetPlatform.android &&
+            defaultTargetPlatform != TargetPlatform.iOS)) {
+      return false;
+    }
+    final voices = await _tts.getVoices;
+    if (voices is! List) return false;
     for (final language in languages) {
-      if (await _tts.isLanguageAvailable(language) == true) {
-        await _tts.setLanguage(language);
-        return true;
+      for (final voice in voices) {
+        if (voice is! Map || voice['locale'] != language) continue;
+        final name = voice['name'];
+        if (name is! String || name.isEmpty) continue;
+        final selected = <String, String>{'name': name, 'locale': language};
+        if (defaultTargetPlatform == TargetPlatform.android) {
+          // flutter_tts 4.2.5 exposes Android Voice's offline/install flags.
+          final features = voice['features'];
+          if (voice['network_required'] != '0' ||
+              features is! String ||
+              features.split('\t').contains('notInstalled')) {
+            continue;
+          }
+        } else {
+          // iOS getVoices enumerates installed AVSpeechSynthesisVoice objects;
+          // AVSpeechSynthesizer generates speech on device (Apple's contract).
+          final identifier = voice['identifier'];
+          if (identifier is! String || identifier.isEmpty) continue;
+          selected['identifier'] = identifier;
+        }
+        if (await _tts.setVoice(selected) == 1) return true;
       }
     }
     return false;
   }
 
-  @override
-  Future<void> speak(String text) async {
-    _release();
+  Future<void> speak(
+    String text,
+    Object owner,
+    bool Function() isCurrent,
+  ) async {
+    while (true) {
+      if (!isCurrent()) return;
+      final stopping = _stopFuture;
+      if (stopping != null) {
+        await stopping;
+        continue;
+      }
+      if (_blocked) throw StateError('TTS stop was not acknowledged');
+      if (_terminal != null) {
+        await _stopNative();
+        continue;
+      }
+      break;
+    }
+    _owner = owner;
     final pending = _pending = Completer<void>();
-    final result = await _tts.speak(text);
+    final terminal = _terminal = Completer<void>();
+    final Object? result;
+    try {
+      result = await _tts.speak(text);
+    } catch (_) {
+      if (identical(_terminal, terminal)) _terminalReceived();
+      rethrow;
+    }
     // flutter_tts reports 1 when the utterance was accepted.
-    if (result != 1) _release();
+    if (result != 1 && identical(_terminal, terminal)) _terminalReceived();
     return pending.future;
   }
 
-  @override
-  Future<void> stop() async {
+  Future<void> stop(Object owner) {
+    if (_owner != null && !identical(owner, _owner)) {
+      return Future<void>.value();
+    }
+    return _stopNative();
+  }
+
+  Future<void> _stopNative() => _stopFuture ??= _stopOnce().whenComplete(() {
+    _stopFuture = null;
+  });
+
+  Future<void> _stopOnce() async {
+    final terminal = _terminal;
     _release();
-    await _tts.stop();
+    try {
+      // Callbacks have no utterance ID. Do not submit another utterance until
+      // the old one has terminated; an idle stop needs only its native reply.
+      await Future.wait<void>([
+        _tts.stop().then<void>((_) {}),
+        if (!_blocked && terminal != null) terminal.future,
+      ]).timeout(const Duration(seconds: 1));
+    } catch (_) {
+      // Missing/failed acknowledgement cannot be guessed away with a delay.
+      // This device driver stays text-only until the app restarts.
+      _blocked = true;
+      rethrow;
+    }
   }
 }

@@ -1,7 +1,9 @@
 import 'dart:async';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:town_pass/features/safe_walk/companion/companion_tts.dart';
+import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_composition_root.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_route_speaker.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/tts_safe_walk_speaker.dart';
 
@@ -61,6 +63,37 @@ void main() {
     await speaker.dispose();
     await speaker.dispose();
     expect(speaker.available, isFalse);
+  });
+
+  testWidgets('background blocks delayed speech without replay on resume', (
+    tester,
+  ) async {
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    final (speaker, engine) = await ready();
+    await tester.pumpWidget(
+      MaterialApp(home: SafeWalkCompositionRoot(speaker: speaker)),
+    );
+    await tester.pumpAndSettle();
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    speaker.speak('背景中才到的回覆');
+    await tester.pump();
+    expect(engine.spoken, isEmpty);
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
+    expect(engine.spoken, isEmpty, reason: 'resume must not replay old speech');
+    speaker.speak('使用者回來後的新要求');
+    await tester.pump();
+    expect(engine.spoken, ['使用者回來後的新要求']);
+
+    await speaker.stopForEmergency();
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    speaker.speak('SOS 後不會重啟');
+    await tester.pump();
+    expect(engine.spoken, ['使用者回來後的新要求']);
+    await tester.pumpWidget(const SizedBox.shrink());
   });
 
   test(
