@@ -58,6 +58,24 @@ void main() {
     expect(engine.spoken, ['第一句']);
   });
 
+  test('lifecycle suspension blocks delayed speech until resumed', () async {
+    final (speaker, engine) = await ready();
+    speaker.setLifecycleActive(false);
+    expect(speaker.available, isFalse);
+
+    var done = 0;
+    speaker.speak('背景期間不會唸', onDone: () => done++);
+    await pumpEventQueue();
+    expect(done, 1);
+    expect(engine.spoken, isEmpty);
+
+    speaker.setLifecycleActive(true);
+    expect(speaker.available, isTrue);
+    speaker.speak('回到前景後可以唸');
+    await pumpEventQueue();
+    expect(engine.spoken, ['回到前景後可以唸']);
+  });
+
   test('dispose is repeatable', () async {
     final (speaker, _) = await ready();
     await speaker.dispose();
