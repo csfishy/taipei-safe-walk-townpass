@@ -114,26 +114,11 @@ class SwStateMessage extends StatelessWidget {
 
 /// 按下回饋：縮小 + 換色；系統關閉動畫時只換色。
 class SwPressable extends StatefulWidget {
-  const SwPressable({
-    super.key,
-    required this.child,
-    required this.onTap,
-    this.color,
-    this.pressedColor,
-    this.hoverColor,
-    this.border,
-    this.radius = 12,
-    this.padding,
-    this.semanticsLabel,
-    this.selected,
-  });
+  const SwPressable({super.key, required this.child, required this.onTap, this.color, this.pressedColor, this.border, this.radius = 12, this.padding, this.semanticsLabel, this.selected});
   final Widget child;
   final VoidCallback? onTap;
   final Color? color;
   final Color? pressedColor;
-
-  /// 滑鼠移上去時的底色；預設是淡淡的品牌色。
-  final Color? hoverColor;
   final BorderSide? border;
   final double radius;
   final EdgeInsetsGeometry? padding;
@@ -166,7 +151,7 @@ class _SwPressableState extends State<SwPressable> {
           child: InkWell(
             onTap: widget.onTap,
             highlightColor: Colors.transparent,
-            hoverColor: widget.hoverColor ?? SwColors.brand.withValues(alpha: .08),
+            hoverColor: SwColors.brand.withValues(alpha: .08),
             splashColor: SwColors.brand.withValues(alpha: .16),
             onHighlightChanged: (v) => setState(() => _down = v),
             child: Padding(padding: widget.padding ?? EdgeInsets.zero, child: widget.child),

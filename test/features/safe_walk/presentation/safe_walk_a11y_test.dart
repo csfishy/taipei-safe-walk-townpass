@@ -17,7 +17,7 @@ Future<void> _open(WidgetTester t, String? entry) async {
 }
 
 void main() {
-  for (final entry in [null, '安心回家', '附近求助地點', '模擬來電', '緊急求助']) {
+  for (final entry in [null, '安心行', '附近求助地點', '模擬來電', '緊急求助']) {
     final name = entry ?? '首頁';
     testWidgets('$name：點擊區域 ≥ 48、可點元件都有讀屏名稱、文字對比足夠', (t) async {
       final handle = t.ensureSemantics();

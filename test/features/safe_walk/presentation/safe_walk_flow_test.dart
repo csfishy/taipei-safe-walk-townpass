@@ -26,7 +26,7 @@ Future<void> _pump(WidgetTester t, Widget w) async {
 void main() {
   testWidgets('首頁只有四個入口、示範標示與緊急求助', (t) async {
     await _pump(t, const SafeWalkFlow());
-    for (final name in ['安心回家', '開始回家', '模擬來電', '附近求助地點', '回報狀況', '緊急求助', '示範模式（Mock）']) {
+    for (final name in ['安心行', '點擊開始', '模擬來電', '附近求助地點', '回報狀況', '緊急求助', '示範模式（Mock）']) {
       expect(find.text(name), findsWidgets, reason: name);
     }
   });
@@ -43,13 +43,13 @@ void main() {
     expect(find.textContaining('示範模式：不會撥號'), findsOneWidget);
     await t.tap(find.text('我現在安全，關閉'));
     await t.pumpAndSettle();
-    expect(find.text('安心回家'), findsOneWidget);
+    expect(find.text('安心行'), findsOneWidget);
     expect(calls, isEmpty);
   });
 
   testWidgets('地圖預設回家路線並顯示已繞開的異常回報；可展開文字路線', (t) async {
     await _pump(t, const SafeWalkFlow());
-    await t.tap(find.text('安心回家'));
+    await t.tap(find.text('安心行'));
     await t.pumpAndSettle();
     expect(find.textContaining('已繞開'), findsOneWidget);
     expect(find.text('示範路線／非即時導航'), findsOneWidget);
@@ -60,7 +60,7 @@ void main() {
 
   testWidgets('最近求助地點是中性目的地，可切換下一個；資訊框可收合', (t) async {
     await _pump(t, const SafeWalkFlow());
-    await t.tap(find.text('安心回家'));
+    await t.tap(find.text('安心行'));
     await t.pumpAndSettle();
     expect(find.textContaining('7-ELEVEN'), findsNothing);
     await t.tap(find.text('最近求助地點'));
@@ -187,7 +187,7 @@ void main() {
       }
 
       await open('');
-      await open('安心回家');
+      await open('安心行');
       expect(find.text('緊急求助'), findsWidgets);
       await open('模擬來電');
       await open('緊急求助');
@@ -196,7 +196,7 @@ void main() {
 
   testWidgets('資訊框三段：往上滑變滿版、往下滑縮回、點把手收合', (t) async {
     await _pump(t, const SafeWalkFlow());
-    await t.tap(find.text('安心回家'));
+    await t.tap(find.text('安心行'));
     await t.pumpAndSettle();
     await t.fling(find.bySemanticsLabel('收合資訊框'), const Offset(0, -200), 1000);
     await t.pumpAndSettle();
@@ -210,7 +210,7 @@ void main() {
 
   testWidgets('右上「回報」工具進入選位置模式', (t) async {
     await _pump(t, const SafeWalkFlow());
-    await t.tap(find.text('安心回家'));
+    await t.tap(find.text('安心行'));
     await t.pumpAndSettle();
     await t.tap(find.bySemanticsLabel('回報狀況，在地圖上標出異常'));
     await t.pumpAndSettle();
@@ -219,7 +219,7 @@ void main() {
 
   testWidgets('目的地：可切換到公司、新增地點（在地圖上點位置）', (t) async {
     await _pump(t, const SafeWalkFlow());
-    await t.tap(find.text('安心回家'));
+    await t.tap(find.text('安心行'));
     await t.pumpAndSettle();
     await t.tap(find.textContaining('→ 家'));
     await t.pumpAndSettle();
@@ -245,7 +245,7 @@ void main() {
 
   testWidgets('圖例與回報一次只開一個', (t) async {
     await _pump(t, const SafeWalkFlow());
-    await t.tap(find.text('安心回家'));
+    await t.tap(find.text('安心行'));
     await t.pumpAndSettle();
     await t.tap(find.bySemanticsLabel('顯示圖例'));
     await t.pumpAndSettle();

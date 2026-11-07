@@ -187,7 +187,7 @@ extension MyServiceIdExt on MyServiceItemId {
       MyServiceItemId.safeWalk => MyServiceItem(
           title: '臺北安心行',
           description: '安心步行、模擬陪伴與求助入口',
-          icon: Assets.svg.iconSafeWalk24.svg(),
+          icon: Assets.svg.iconSafeWalk24.svg(width: 28, height: 28),
           category: MyServiceCategory.cityService,
           destinationUrl: 'local://safe_walk',
         ),
