@@ -40,7 +40,7 @@
 
 求助不等待定位成功。求助接線先中斷陪伴及路線，再執行使用者選擇的系統交接；不以介面成功或受理編號暗示已接通、警方已接案或派遣。未獲官方授權不得自動送警消案件。
 
-附近協助者不是官方警消通報。`supabase/nearby_emergency.sql` 的 security-definer RPC 目前接受呼叫者 UUID 並授權 anon，沒有身分與資料所有權核對；表級 RLS 本身不能補上缺口。不得僅憑匿名 UUID、公開 key、按下同意或增加 Live 旗標就公開傳送陌生人的精確位置。部署前提與既有唯讀連線證據見 [Supabase](../../../../docs/SAFE_WALK_SUPABASE.md)。
+附近協助者不是官方警消通報。舊 security-definer RPC 接受呼叫者 UUID 並授權 anon，缺少身分與資料所有權核對；表級 RLS 不能補上缺口。PR #41 已停用匿名 transport 的全部網路呼叫，`supabase/nearby_emergency.sql` 改為手動撤權腳本，尚未在遠端執行。附近通知維持 BLOCKED，不能由 UUID、key、同意或 Live 旗標開啟。隔離簡訊入口與重新啟用條件見[附近通知安全狀態](../../../../docs/SAFE_WALK_NEARBY_SECURITY.md)。
 
 ## 驗證與後續交付
 
