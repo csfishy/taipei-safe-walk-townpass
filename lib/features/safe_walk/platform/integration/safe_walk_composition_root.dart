@@ -69,6 +69,8 @@ class SafeWalkCompositionRoot extends StatefulWidget {
     this.findStores,
     this.consentGranted = false,
     this.nearbyAlerts,
+    this.allowEmergencyDialer = false,
+    this.onOpenOfficialReport,
   });
 
   /// Official entry (2026-11-08 team decision): route and crime queries run
@@ -81,6 +83,17 @@ class SafeWalkCompositionRoot extends StatefulWidget {
   /// used. Supplying an authenticated transport (a verified session) is the
   /// Level C step that turns the feature on; nothing else here does.
   final NearbyAlertTransport? nearbyAlerts;
+
+  /// When true (and live), choosing 110 or 119 on the emergency page opens the
+  /// phone's dialer with the number filled in. Only the person's own tap does
+  /// this and they still press call; nothing is dialled, reported or
+  /// dispatched by the app. Defaults to false so tests and previews never reach
+  /// a phone; the official entry turns it on.
+  final bool allowEmergencyDialer;
+
+  /// Opens TownPass's own online reporting service from the emergency page.
+  /// Null hides the button. Opening it is not a report and not acceptance.
+  final VoidCallback? onOpenOfficialReport;
 
   /// Nearby help points; defaults to the bundled OpenStreetMap snapshot of
   /// convenience stores and police (opening hours read at lookup time).
@@ -1160,6 +1173,14 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     message: message,
   );
 
+  bool get _dialerEnabled => widget.liveRoutes && widget.allowEmergencyDialer;
+
+  Future<void> _openOfficialReport() async {
+    await _stopForEmergency();
+    if (!mounted || _lifetime.isCancelled) return;
+    widget.onOpenOfficialReport?.call();
+  }
+
   /// Navigation and speech stop first, so an emergency action never competes
   /// with them. A broken audio adapter cannot keep the page waiting.
   Future<void> _stopForEmergency() async {
@@ -1216,7 +1237,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
         mode: widget.liveRoutes ? sw.DataMode.live : sw.DataMode.mock,
         channel: channel,
         userInitiated: true,
-        allowRealCalls: false,
+        allowRealCalls: _dialerEnabled,
       );
     } catch (_) {
       return sw.EmergencyActionResult.fromJson({
@@ -1252,7 +1273,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
       // Built here so route results, loading and live position reach the map.
       child: SafeWalkFlow(
         mode: widget.liveRoutes ? sw.DataMode.live : sw.DataMode.mock,
-        allowRealCalls: false,
+        allowRealCalls: _dialerEnabled,
         // Live: real open stores, only after the walker asks for them.
         points: widget.liveRoutes
             ? [for (final o in _nearby) o.point]
@@ -1311,6 +1332,10 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
         speaker: _speaker,
         onLocate: _locate,
         onEmergency: _emergency,
+        onOfficialReport:
+            widget.liveRoutes && widget.onOpenOfficialReport != null
+            ? () => unawaited(_openOfficialReport())
+            : null,
         nearbyBroadcast: _nearbyBroadcast,
         nearbyHelper: _helper,
         homeLocation: _home,

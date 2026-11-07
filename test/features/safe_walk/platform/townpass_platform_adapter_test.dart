@@ -263,29 +263,143 @@ void main() {
     native.complete(_native());
     await Future<void>.delayed(Duration.zero);
   });
-  test(
-    'all emergency channels remain local and have no official receipt',
-    () async {
-      final adapter = TownPassPlatformAdapter();
+  group('emergency handoff (the phone dialer only)', () {
+    // A fake launcher: nothing is ever dialled, sent or opened for real.
+    late List<Uri> launched;
+    late bool accepts;
+    Object? launchError;
+
+    TownPassPlatformAdapter adapter() => TownPassPlatformAdapter(
+      launchUri: (uri) async {
+        launched.add(uri);
+        if (launchError != null) throw launchError!;
+        return accepts;
+      },
+    );
+
+    Future<sw.EmergencyActionResult> ask(
+      TownPassPlatformAdapter a, {
+      sw.DataMode mode = sw.DataMode.live,
+      sw.EmergencyChannel channel = sw.EmergencyChannel.police,
+      bool userInitiated = true,
+      bool allowRealCalls = true,
+    }) => a.requestEmergency(
+      mode: mode,
+      channel: channel,
+      userInitiated: userInitiated,
+      allowRealCalls: allowRealCalls,
+    );
+
+    setUp(() {
+      launched = [];
+      accepts = true;
+      launchError = null;
+    });
+
+    test(
+      'Live, user tap, dialer on: opens the dialer for 110 and 119',
+      () async {
+        final police = await ask(adapter());
+        expect(launched.last.toString(), 'tel:110');
+        expect(police.toJson()['action'], 'dial_link_activated');
+        expect(police.toJson()['channel'], '110');
+        expect(police.toJson()['officialReceipt'], isNull);
+
+        final fire = await ask(adapter(), channel: sw.EmergencyChannel.fire);
+        expect(launched.last.toString(), 'tel:119');
+        expect(fire.toJson()['action'], 'dial_link_activated');
+        expect(fire.toJson()['channel'], '119');
+        expect(launched, hasLength(2));
+      },
+    );
+
+    test('the message never claims a connected call or acceptance', () async {
+      final result = await ask(adapter());
+      final message = result.toJson()['message'] as String;
+      expect(message, contains('撥號畫面'));
+      expect(message, contains('不代表電話已接通或已受理'));
+      for (final claim in ['已報警', '已通報', '已派遣', '警方已']) {
+        expect(message, isNot(contains(claim)), reason: claim);
+      }
+    });
+
+    test('nothing opens without the person: no tap means cancelled', () async {
+      final result = await ask(adapter(), userInitiated: false);
+      expect(result.toJson()['action'], 'cancelled');
+      expect(launched, isEmpty);
+    });
+
+    test('demo mode never reaches the phone', () async {
+      for (final channel in sw.EmergencyChannel.values) {
+        final result = await ask(
+          adapter(),
+          mode: sw.DataMode.mock,
+          channel: channel,
+        );
+        expect(result.toJson()['action'], 'not_configured');
+        expect(result.toJson()['officialReceipt'], isNull);
+      }
+      expect(launched, isEmpty);
+    });
+
+    test('with the dialer switched off, Live still opens nothing', () async {
+      final result = await ask(adapter(), allowRealCalls: false);
+      expect(result.toJson()['action'], 'not_configured');
+      expect(result.toJson()['message'], contains('真實撥號未啟用'));
+      expect(launched, isEmpty);
+    });
+
+    test('a trusted contact has no number here, so nothing opens', () async {
+      final result = await ask(
+        adapter(),
+        channel: sw.EmergencyChannel.trustedContact,
+      );
+      expect(result.toJson()['action'], 'not_configured');
+      expect(result.toJson()['channel'], 'trusted_contact');
+      expect(launched, isEmpty);
+    });
+
+    test(
+      'a phone that cannot open a dialer reports failure honestly',
+      () async {
+        accepts = false;
+        final result = await ask(adapter());
+        expect(result.toJson()['action'], 'failed');
+        final message = result.toJson()['message'] as String;
+        expect(message, contains('沒有撥號、沒有通報'));
+        expect(message, contains('110'));
+        expect(result.toJson()['officialReceipt'], isNull);
+      },
+    );
+
+    test(
+      'a launcher error is contained and its details are not shown',
+      () async {
+        launchError = StateError('SECRET-DETAIL');
+        final result = await ask(adapter(), channel: sw.EmergencyChannel.fire);
+        expect(result.toJson()['action'], 'failed');
+        final message = result.toJson()['message'] as String;
+        expect(message, isNot(contains('SECRET-DETAIL')));
+        expect(message, contains('119'));
+      },
+    );
+
+    test('every result is a valid contract payload with no receipt', () async {
       for (final mode in sw.DataMode.values) {
         for (final channel in sw.EmergencyChannel.values) {
-          final result = await adapter.requestEmergency(
-            mode: mode,
-            channel: channel,
-            userInitiated: true,
-            allowRealCalls: true,
-          );
-          expect(result.toJson()['action'], 'not_configured');
-          expect(result.toJson()['officialReceipt'], isNull);
+          for (final tap in [true, false]) {
+            final result = await ask(
+              adapter(),
+              mode: mode,
+              channel: channel,
+              userInitiated: tap,
+            );
+            // fromJson validates against the shared schema; re-read it too.
+            final again = sw.EmergencyActionResult.fromJson(result.toJson());
+            expect(again.toJson()['officialReceipt'], isNull);
+          }
         }
       }
-      final cancelled = await adapter.requestEmergency(
-        mode: sw.DataMode.live,
-        channel: sw.EmergencyChannel.police,
-        userInitiated: false,
-        allowRealCalls: true,
-      );
-      expect(cancelled.toJson()['action'], 'cancelled');
-    },
-  );
+    });
+  });
 }

@@ -174,7 +174,10 @@ void main() {
       await enter(t);
       final flow = t.widget<SafeWalkFlow>(find.byType(SafeWalkFlow));
       expect(flow.mode, sw.DataMode.live);
-      expect(flow.allowRealCalls, isFalse);
+      // Deliberate (was false): the official entry hands 110/119 to the phone's
+      // dialer on the person's own tap. The app never dials or reports itself.
+      expect(flow.allowRealCalls, isTrue);
+      expect(flow.onOfficialReport, isNotNull);
       expect(flow.speaker.available, isFalse);
       // Live entry shows no demo help points (real nearby places come later).
       expect(flow.points, isEmpty);
