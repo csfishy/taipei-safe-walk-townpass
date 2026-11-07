@@ -29,7 +29,17 @@ class SafeWalkCallView extends StatefulWidget {
     required this.onMap,
     required this.onEnd,
     required this.onEmergency,
+    this.routePath = DemoGeo.homeRoute,
+    this.routeMinutes,
+    this.destination = '家',
+    this.routeStatus,
   });
+
+  /// 目前目的地的路線（null＝計算中或失敗，顯示 [routeStatus]）。預設為示範回家路線。
+  final List<LatLng>? routePath;
+  final int? routeMinutes;
+  final String destination;
+  final String? routeStatus;
   final sw.Position? position;
   final List<sw.AssistancePoint> points;
   final List<Anomaly> anomalies;
@@ -234,7 +244,16 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
           ),
           const Divider(height: 1, color: SwColors.border),
           // 邊聊邊看路：上方固定一條「下一步」導航（小地圖＋下一步怎麼走），對話在下面捲動，互不遮擋。
-          _NextStep(start: start, points: widget.points, anomalies: widget.anomalies, onTap: () => _leaveThen(widget.onMap)),
+          _NextStep(
+            start: widget.routePath?.firstOrNull ?? start,
+            path: widget.routePath,
+            minutes: widget.routeMinutes,
+            destination: widget.destination,
+            status: widget.routeStatus,
+            points: widget.points,
+            anomalies: widget.anomalies,
+            onTap: () => _leaveThen(widget.onMap),
+          ),
           const Divider(height: 1, color: SwColors.border),
           Expanded(
             child: ListView.separated(
@@ -428,8 +447,21 @@ class _Bubble extends StatelessWidget {
 
 /// 上方導航條：左邊小地圖（點了回到地圖），右邊寫下一步怎麼走與剩餘時間。示範路線，非即時導航。
 class _NextStep extends StatelessWidget {
-  const _NextStep({required this.start, required this.points, required this.anomalies, required this.onTap});
+  const _NextStep({
+    required this.start,
+    required this.path,
+    required this.minutes,
+    required this.destination,
+    required this.status,
+    required this.points,
+    required this.anomalies,
+    required this.onTap,
+  });
   final LatLng start;
+  final List<LatLng>? path;
+  final int? minutes;
+  final String destination;
+  final String? status;
   final List<sw.AssistancePoint> points;
   final List<Anomaly> anomalies;
   final VoidCallback onTap;
@@ -437,17 +469,21 @@ class _NextStep extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final steps = routeSteps(DemoGeo.homeRoute);
-    final now = steps.first;
-    final then = steps.length > 1 ? '接著往${stepDirLabel[steps[1].dir]}' : '接著抵達家';
-    final minutes = walkMinutes(routeMeters(DemoGeo.homeRoute));
+    final route = path ?? const <LatLng>[];
+    final steps = route.length < 2 ? <RouteStep>[] : routeSteps(route);
+    final now = steps.firstOrNull;
+    final dest = destination == '家' ? '回家' : '到$destination';
+    final then = steps.length > 1 ? '接著往${stepDirLabel[steps[1].dir]}' : '接著抵達$destination';
+    final mins = minutes ?? walkMinutes(routeMeters(route));
+    final headline = now == null ? (status ?? '還沒有路線') : '往${stepDirLabel[now.dir]}走 ${now.meters} 公尺';
+    final sub = now == null ? '點一下打開地圖看詳情' : '$then・$dest約 $mins 分';
     return Material(
       color: SwColors.surface,
       child: InkWell(
         onTap: onTap,
         child: Semantics(
           button: true,
-          label: '下一步：往${stepDirLabel[now.dir]}走約 ${now.meters} 公尺，$then。回家約 $minutes 分鐘。點一下打開地圖',
+          label: now == null ? '$headline，點一下打開地圖' : '下一步：$headline，$then。$dest約 $mins 分鐘。點一下打開地圖',
           child: ExcludeSemantics(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(12, 10, 16, 10),
@@ -465,7 +501,7 @@ class _NextStep extends StatelessWidget {
                       children: [
                         Positioned.fill(
                           child: IgnorePointer(
-                            child: DemoMap(start: start, points: points, anomalies: anomalies, path: DemoGeo.homeRoute, compact: true),
+                            child: DemoMap(start: start, points: points, anomalies: anomalies, path: route, compact: true),
                           ),
                         ),
                         Positioned(
@@ -486,10 +522,12 @@ class _NextStep extends StatelessWidget {
                     width: 44,
                     height: 44,
                     decoration: const BoxDecoration(color: SwColors.brandDeep, shape: BoxShape.circle),
-                    child: RotationTransition(
-                      turns: AlwaysStoppedAnimation(_turn[now.dir]!),
-                      child: const Icon(Icons.arrow_upward_rounded, color: SwColors.onDeep, size: 26),
-                    ),
+                    child: now == null
+                        ? const Icon(Icons.route_outlined, color: SwColors.onDeep, size: 24)
+                        : RotationTransition(
+                            turns: AlwaysStoppedAnimation(_turn[now.dir]!),
+                            child: const Icon(Icons.arrow_upward_rounded, color: SwColors.onDeep, size: 26),
+                          ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -497,8 +535,8 @@ class _NextStep extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text('往${stepDirLabel[now.dir]}走 ${now.meters} 公尺', style: SwText.heading.copyWith(fontSize: 20)),
-                        Text('$then・回家約 $minutes 分', style: SwText.secondary),
+                        Text(headline, style: SwText.heading.copyWith(fontSize: 20)),
+                        Text(sub, style: SwText.secondary),
                       ],
                     ),
                   ),
@@ -562,7 +600,11 @@ class _IncomingState extends State<_Incoming> with SingleTickerProviderStateMixi
       ),
       const SizedBox(height: 8),
       ExcludeSemantics(
-        child: GestureDetector(onTap: onTap, behavior: HitTestBehavior.opaque, child: Text(label, style: SwText.bodyStrong.copyWith(color: SwColors.onDeep))),
+        child: GestureDetector(
+          onTap: onTap,
+          behavior: HitTestBehavior.opaque,
+          child: Text(label, style: SwText.bodyStrong.copyWith(color: SwColors.onDeep)),
+        ),
       ),
     ],
   );

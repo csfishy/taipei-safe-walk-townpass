@@ -20,6 +20,44 @@ class PointsState {
   final VoidCallback? onRetry;
 }
 
+/// 前往目前目的地的路線狀態（M2 RouteService → M1 提供）。
+/// [result] 為 null 且不在計算中＝尚未配置：畫面改用示範路線與示範起點，並標示「示範路線」，不與真實位置混用。
+class RouteState {
+  const RouteState({this.result, this.loading = false, this.onRetry});
+  final sw.RouteResult? result;
+  final bool loading;
+  final VoidCallback? onRetry;
+
+  bool get configured => loading || result != null;
+  sw.RouteCandidate? get best => switch (result) {
+    sw.RouteSuccess(:final routes) when routes.isNotEmpty => routes.first,
+    _ => null,
+  };
+
+  /// 計算失敗，或成功但沒有任何路線。
+  bool get failed => !loading && result != null && best == null;
+  String get failReason => switch (result) {
+    sw.RouteFailure(:final reason) when reason.trim().isNotEmpty => reason,
+    _ => '目前找不到可步行的路線。',
+  };
+  String get failTitle => switch (result) {
+    sw.RouteFailure(status: sw.RouteFailureStatus.providerUnavailable) => '路線服務暫時無法使用',
+    sw.RouteFailure(status: sw.RouteFailureStatus.invalidInput) => '起點或目的地有問題',
+    sw.RouteFailure(status: sw.RouteFailureStatus.cancelled) => '路線計算已取消',
+    _ => '找不到回家路線',
+  };
+  List<LatLng>? get path => best?.geometry.coordinates.map((c) => LatLng(c.latitude, c.longitude)).toList(growable: false);
+  int? get meters => best?.distanceMeters.round();
+  int? get minutes {
+    final b = best;
+    if (b == null) return null;
+    final sec = b.durationSeconds;
+    return sec == null ? walkMinutes(b.distanceMeters.round()) : (sec / 60).ceil().clamp(1, 999);
+  }
+
+  bool get live => result?.mode == sw.DataMode.live;
+}
+
 /// 地圖：預設回家路線（繞開異常回報）；「最近求助地點」為中性的第二個目的地；回報狀況直接在地圖上操作。
 /// 底部資訊框可收合，讓地圖露出更多。
 class SafeWalkMapView extends StatefulWidget {
@@ -39,7 +77,11 @@ class SafeWalkMapView extends StatefulWidget {
     required this.onDeletePlace,
     this.onSms,
     this.startView = MapStartView.route,
+    this.routeState = const RouteState(),
   });
+
+  /// 前往目前目的地（回家／常用地點）的路線；求助地點的路線仍是示範。
+  final RouteState routeState;
   final List<SavedPlace> places;
   final String placeId;
   final ValueChanged<String> onSelectPlace, onDeletePlace;
@@ -123,12 +165,16 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
     final isHome = _pointIndex == null;
     final place = widget.places.firstWhere((p) => p.id == widget.placeId, orElse: () => widget.places.first);
     final atHome = isHome && place.isHome;
-    final path = point != null ? DemoGeo.lRoute(_start, _at(point)) : (isHome ? placeRoute(_start, place) : <LatLng>[]);
+    final rs = widget.routeState;
+    // 尚未配置路線時用示範起點畫示範路線；計算中或失敗時不畫線。
+    final demoHome = isHome && !rs.configured;
+    final path = point != null ? DemoGeo.lRoute(_start, _at(point)) : (!isHome ? <LatLng>[] : (rs.path ?? (demoHome ? placeRoute(DemoGeo.start, place) : const <LatLng>[])));
     final avoided = avoidedCount(widget.anomalies);
     final detail = _detailId == null ? null : widget.anomalies.where((a) => a.id == _detailId).firstOrNull;
     final picked = points.where((p) => p.id == _pickedPointId).firstOrNull ?? points.firstOrNull;
-    final title = _pointsView ? '附近求助地點' : '${widget.position == null ? '示範起點' : '目前位置'} → ${isHome ? place.label : '求助地點'}';
-    final meters = routeMeters(path);
+    final title = _pointsView ? '附近求助地點' : '${widget.position == null || demoHome ? '示範起點' : '目前位置'} → ${isHome ? place.label : '求助地點'}';
+    final meters = (isHome ? rs.meters : null) ?? routeMeters(path);
+    final minutes = (isHome ? rs.minutes : null) ?? walkMinutes(meters);
 
     final (String summary, Widget body) = switch (true) {
       _ when _newPlaceName != null => ('新增地點', _newPlaceSheet()),
@@ -136,8 +182,13 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
       _ when detail != null => ('${anomalyCategoryLabel[detail.category]}・${anomalyStatusLabel[detail.status]}', _detailSheet(detail)),
       _ when _pointsView => ('附近求助地點', _pointsSheet(points, picked)),
       _ => (
-        path.isEmpty ? '最近求助地點' : '${walkMinutes(meters)} 分鐘・${isHome ? (atHome ? '回家・已繞開 $avoided 個異常回報' : '到${place.label}') : point!.name}',
-        _routeSheet(path, meters, isHome, point, avoided, place),
+        switch (true) {
+          _ when isHome && rs.loading => '路線計算中…',
+          _ when isHome && rs.failed => rs.failTitle,
+          _ when path.isEmpty => '最近求助地點',
+          _ => '$minutes 分鐘・${isHome ? (atHome && demoHome ? '回家・已繞開 $avoided 個異常回報' : (place.isHome ? '回家' : '到${place.label}')) : point!.name}',
+        },
+        _routeSheet(path, meters, minutes, isHome, point, avoided, place),
       ),
     };
 
@@ -154,7 +205,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                     points: points,
                     anomalies: widget.anomalies,
                     path: _pointsView ? const [] : path,
-                    showShortcut: atHome && !_pointsView,
+                    showShortcut: atHome && demoHome && !_pointsView,
                     homeActive: isHome || _pointsView,
                     selectedPointId: _pointsView ? picked?.id : point?.id,
                     selectedAnomalyId: detail?.id,
@@ -226,7 +277,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                                 ),
                               ),
                               const SizedBox(height: 6),
-                              const SwMockBadge(text: '示範路線／非即時導航'),
+                              SwMockBadge(text: rs.best != null && rs.live ? '路線僅供參考・請留意實際路況' : '示範路線／非即時導航'),
                             ],
                           ),
                         ),
@@ -279,7 +330,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                       opacity: a,
                       child: ScaleTransition(scale: a, alignment: Alignment.topRight, child: c),
                     ),
-                    child: _legend ? _Legend(pointsView: _pointsView, showShortcut: atHome && !_pointsView) : const SizedBox.shrink(),
+                    child: _legend ? _Legend(pointsView: _pointsView, showShortcut: atHome && demoHome && !_pointsView) : const SizedBox.shrink(),
                   ),
                 ),
                 if (_picking && _pin == null)
@@ -336,8 +387,9 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
     );
   }
 
-  Widget _routeSheet(List<LatLng> path, int meters, bool isHome, sw.AssistancePoint? point, int avoided, SavedPlace place) {
+  Widget _routeSheet(List<LatLng> path, int meters, int minutes, bool isHome, sw.AssistancePoint? point, int avoided, SavedPlace place) {
     final ps = widget.pointsState;
+    final rs = widget.routeState;
     final destName = isHome ? place.label : point?.name ?? '求助地點';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -350,7 +402,23 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
           onPoint: () => setState(() => _pointIndex = 0),
         ),
         const SizedBox(height: 12),
-        if (!isHome && ps.loading)
+        if (isHome && rs.loading)
+          Semantics(
+            liveRegion: true,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('正在計算避開異常回報的路線…', style: SwText.bodyStrong),
+                const SizedBox(height: 8),
+                const ExcludeSemantics(child: SwSkeleton(rows: 2)),
+              ],
+            ),
+          )
+        else if (isHome && rs.failed) ...[
+          SwStateMessage(icon: Icons.wrong_location_outlined, title: rs.failTitle, message: rs.failReason, actionLabel: rs.onRetry == null ? null : '再試一次', onAction: rs.onRetry, error: true),
+          const SizedBox(height: 8),
+          SwChip(label: '改去最近求助地點', icon: Icons.local_police_outlined, onTap: () => setState(() => _pointIndex = 0)),
+        ] else if (!isHome && ps.loading)
           const SwSkeleton(rows: 2)
         else if (!isHome && ps.error != null)
           SwStateMessage(icon: Icons.cloud_off_rounded, title: '求助地點暫時載入失敗', message: ps.error!, actionLabel: '再試一次', onAction: ps.onRetry, error: true)
@@ -370,7 +438,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                   TextSpan(
                     children: [
                       TextSpan(
-                        text: '${walkMinutes(meters)}',
+                        text: '$minutes',
                         style: SwText.title.copyWith(fontSize: 44, height: 1, color: SwColors.brandDeep),
                       ),
                       TextSpan(text: ' 分鐘', style: SwText.heading),
@@ -384,7 +452,9 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('${isHome ? (place.isHome ? '回家' : '到${place.label}') : destName}・約 $meters 公尺', style: SwText.secondary, overflow: TextOverflow.ellipsis),
-                    if (isHome && place.isHome)
+                    if (isHome && rs.best != null)
+                      Text(rs.best!.explanations.firstOrNull ?? (rs.best!.walkingNetworkVerified ? '已規劃步行路線' : '路線未經步行路網驗證'), style: SwText.secondary, maxLines: 2, overflow: TextOverflow.ellipsis)
+                    else if (isHome && place.isHome)
                       _AvoidBadge(count: avoided)
                     else if (isHome)
                       Text('示範路線・未驗證道路', style: SwText.secondary)

@@ -37,10 +37,15 @@ void main() {
 
   testWidgets('緊急求助是單獨一頁；mock 不撥號，選 110 只回報示範訊息', (t) async {
     final calls = <sw.EmergencyChannel>[];
-    await _pump(t, SafeWalkFlow(onEmergency: (c) async {
-      calls.add(c);
-      throw UnimplementedError('mock 測試不應真的取得結果');
-    }));
+    await _pump(
+      t,
+      SafeWalkFlow(
+        onEmergency: (c) async {
+          calls.add(c);
+          throw UnimplementedError('mock 測試不應真的取得結果');
+        },
+      ),
+    );
     await t.tap(find.text('緊急求助').first);
     await t.pumpAndSettle();
     expect(find.text('撥打 110 報警'), findsOneWidget);
@@ -142,10 +147,15 @@ void main() {
 
   testWidgets('[P2] Mock 模式即使注入 sender 也不呼叫外部簡訊', (t) async {
     var sent = 0;
-    await _pump(t, SafeWalkFlow(onSendSms: (body) async {
-      sent++;
-      return true;
-    }));
+    await _pump(
+      t,
+      SafeWalkFlow(
+        onSendSms: (body) async {
+          sent++;
+          return true;
+        },
+      ),
+    );
     await t.tap(find.text('緊急求助').first);
     await t.pumpAndSettle();
     await t.scrollUntilVisible(find.text('傳送簡訊'), 200, scrollable: find.byType(Scrollable).first);
@@ -181,10 +191,15 @@ void main() {
       t.view.devicePixelRatio = 3;
       addTearDown(t.view.reset);
       Future<void> open(String entry) async {
-        await t.pumpWidget(MaterialApp(
-          builder: (c, child) => MediaQuery(data: MediaQuery.of(c).copyWith(textScaler: TextScaler.linear(scale)), child: child!),
-          home: SafeWalkFlow(key: UniqueKey()),
-        ));
+        await t.pumpWidget(
+          MaterialApp(
+            builder: (c, child) => MediaQuery(
+              data: MediaQuery.of(c).copyWith(textScaler: TextScaler.linear(scale)),
+              child: child!,
+            ),
+            home: SafeWalkFlow(key: UniqueKey()),
+          ),
+        );
         await t.pumpAndSettle();
         if (entry.isNotEmpty) {
           if (find.text(entry).evaluate().isEmpty) await t.scrollUntilVisible(find.text(entry), 200, scrollable: find.byType(Scrollable).first);
@@ -274,5 +289,89 @@ void main() {
     await t.tap(find.bySemanticsLabel('顯示圖例'));
     await t.pumpAndSettle();
     expect(find.text('要回報哪裡？'), findsNothing, reason: '開圖例時回報模式自動關閉');
+  });
+
+  group('路線接口（M2 → M1 → M3）', () {
+    sw.RouteSuccess ok({sw.DataMode mode = sw.DataMode.live}) => sw.RouteSuccess(
+      requestId: 'r1',
+      mode: mode,
+      generatedAt: '2026-11-07T18:00:00+08:00',
+      warnings: const ['測試資料'],
+      routes: [
+        sw.RouteCandidate(
+          id: 'c1',
+          kind: sw.RouteKind.direct,
+          geometry: sw.LineString(coordinates: const [(longitude: 121.5, latitude: 25.0), (longitude: 121.502, latitude: 25.0), (longitude: 121.502, latitude: 25.002)]),
+          distanceMeters: 420,
+          durationSeconds: 360,
+          viaPointIds: const [],
+          provider: 'test',
+          walkingNetworkVerified: true,
+          explanations: const ['沿大路走，避開 2 個回報點'],
+          warnings: const ['測試資料'],
+        ),
+      ],
+    );
+
+    testWidgets('進入時與換目的地時都請 M1 重新規劃', (t) async {
+      final asked = <sw.Coordinates>[];
+      await _pump(t, SafeWalkFlow(onPlanRoute: asked.add));
+      expect(asked, hasLength(1), reason: '第一次進入就要求回家路線');
+      await t.tap(find.text('安心行'));
+      await t.pumpAndSettle();
+      await t.tap(find.textContaining('→ 家'));
+      await t.pumpAndSettle();
+      await t.tap(find.text('公司'));
+      await t.pumpAndSettle();
+      expect(asked, hasLength(2));
+      expect(asked.last.lat, closeTo(25.0014, 1e-6));
+    });
+
+    testWidgets('計算中：不畫示範路線，資訊框寫「路線計算中」', (t) async {
+      await _pump(t, const SafeWalkFlow(routeLoading: true));
+      await t.tap(find.text('安心行'));
+      await t.pump(const Duration(milliseconds: 600));
+      expect(find.text('正在計算避開異常回報的路線…'), findsOneWidget);
+      expect(find.textContaining('已繞開'), findsNothing);
+    });
+
+    testWidgets('失敗：顯示原因、再試一次會重新要求，也能改去求助地點', (t) async {
+      final asked = <sw.Coordinates>[];
+      await _pump(
+        t,
+        SafeWalkFlow(
+          onPlanRoute: asked.add,
+          route: sw.RouteFailure(
+            requestId: 'r1',
+            mode: sw.DataMode.live,
+            generatedAt: '2026-11-07T18:00:00+08:00',
+            status: sw.RouteFailureStatus.noRoute,
+            reason: '附近道路資料不足。',
+            warnings: const ['測試資料'],
+          ),
+        ),
+      );
+      await t.tap(find.text('安心行'));
+      await t.pumpAndSettle();
+      expect(find.text('找不到回家路線'), findsWidgets);
+      expect(find.text('附近道路資料不足。'), findsOneWidget);
+      await t.tap(find.text('再試一次'));
+      await t.pumpAndSettle();
+      expect(asked, hasLength(2));
+      await t.tap(find.text('改去最近求助地點'));
+      await t.pumpAndSettle();
+      expect(find.text('找不到回家路線'), findsNothing);
+    });
+
+    testWidgets('成功：用 M2 的距離與時間，標示「僅供參考」而非示範', (t) async {
+      await _pump(t, SafeWalkFlow(route: ok()));
+      await t.tap(find.text('安心行'));
+      await t.pumpAndSettle();
+      expect(find.text('路線僅供參考・請留意實際路況'), findsOneWidget);
+      expect(find.text('示範路線／非即時導航'), findsNothing);
+      expect(find.textContaining('約 420 公尺'), findsOneWidget);
+      expect(find.text('沿大路走，避開 2 個回報點'), findsOneWidget);
+      expect(find.textContaining('6 分鐘'), findsWidgets);
+    });
   });
 }
