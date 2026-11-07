@@ -31,6 +31,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Guard persistent crime reference data isolation
+        run: |
+          python3 tool/check_crime_database_isolation.py
+          python3 -m unittest discover -s tool -p 'test_crime_database_isolation.py' -v
       - name: Validate source and release version
         id: metadata
         run: python3 tool/release_metadata.py
@@ -78,6 +82,8 @@ jobs:
           mkdir -p artifacts
           cd build/web
           zip -qr ../../artifacts/taipei-safe-walk-townpass-web.zip .
+      - name: Verify website excludes reference database binaries
+        run: python3 tool/check_crime_database_isolation.py --archive artifacts/taipei-safe-walk-townpass-web.zip
       - uses: actions/upload-artifact@v4
         with:
           name: prerelease-web
@@ -126,6 +132,8 @@ jobs:
           cp build/app/outputs/flutter-apk/app-release.apk artifacts/taipei-safe-walk-townpass-android-prerelease.apk
       - name: Verify APK source metadata and compiled arm64 payload
         run: python3 tool/verify_native_release.py android artifacts/taipei-safe-walk-townpass-android-prerelease.apk
+      - name: Verify APK excludes reference database binaries
+        run: python3 tool/check_crime_database_isolation.py --archive artifacts/taipei-safe-walk-townpass-android-prerelease.apk
       - uses: actions/upload-artifact@v4
         with:
           name: prerelease-android
@@ -168,6 +176,8 @@ jobs:
           unzip -t artifacts/taipei-safe-walk-townpass-ios-unsigned.ipa
       - name: Verify unsigned IPA identity, version and arm64 payload
         run: python3 tool/verify_native_release.py ios artifacts/taipei-safe-walk-townpass-ios-unsigned.ipa
+      - name: Verify IPA excludes reference database binaries
+        run: python3 tool/check_crime_database_isolation.py --archive artifacts/taipei-safe-walk-townpass-ios-unsigned.ipa
       - uses: actions/upload-artifact@v4
         with:
           name: prerelease-ios

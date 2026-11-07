@@ -52,6 +52,10 @@ Mock／Live 是既有 wire DataMode；Unavailable 是能力／操作呈現語意
 
 ## Git、審查與驗證
 
+- **北北基犯罪參考資料庫是持久資料，不是 Demo seed。** 使用者指定既有 Supabase 專案的獨立 private `crime_reference` schema；保持 RLS 啟用、不授予 `anon`／`authenticated` 直接存取，不新增公開 RPC 或把憑證放進 App／CI。來源、原始位置文字、定位依據與精度必須保留；參考位置不等於精確犯罪發生點。
+- **build、CI、App 啟動、測試資料初始化及 Demo reset 絕不得 import、seed、update、delete、truncate、drop 或重建 `crime_reference`。** PR #40 的 `safe_walk_demo` 與此資料隔離，不擴大 Demo reset 範圍。任何資料更新只准明確授權的可信手動匯入，以新 snapshot version 新增並驗證，不能覆蓋或重置既有版本。受控 SQL 僅放 `supabase/crime_reference/`，不能由 workflow 呼叫；資料庫權限／匯入仍依 Level C 審查。
+- 本機 SQLite 僅供唯讀離線備份與匯出，實體檔放在所有 Git checkout／worktree **之外**，不可加入 assets、Git、Web ZIP、APK、IPA 或 release。新增版本只准明確 `import-new --allow-write`，不得覆寫既有檔；CI 禁止匯入。讀取／匯出使用 `mode=ro`，不得將 guard 接到真資料庫。操作與驗證見 [犯罪資料庫隔離](docs/SAFE_WALK_CRIME_DATABASE.md)。
+
 - 先 fetch 最新團隊 origin/main，核對工作樹、未合併 PR 與 CI；新功能預設短期任務分支，依賴未合併成果時從 parent 最新 head 建 stacked 分支並明列 base／SHA，不把它寫成 main 成果、不覆寫 parent。
 - upstream 只讀；push 明確指定團隊 origin。不 force push、不刪／重設隊員分支、不 reset／clean 他人工作、不擅自關 PR、移動 tag、自動 merge 或發布。
 - 保留 Legacy Repo／歷史成果；五模組分支已建立，不再要求重跑初始化或等待「五分支建立」。
