@@ -192,4 +192,27 @@ void main() {
       await open('緊急求助');
     });
   }
+
+  testWidgets('資訊框三段：往上滑變滿版、往下滑縮回、點把手收合', (t) async {
+    await _pump(t, const SafeWalkFlow());
+    await t.tap(find.text('安心回家'));
+    await t.pumpAndSettle();
+    await t.fling(find.bySemanticsLabel('收合資訊框'), const Offset(0, -200), 1000);
+    await t.pumpAndSettle();
+    expect(find.bySemanticsLabel('資訊框縮回一般大小'), findsOneWidget);
+    await t.fling(find.bySemanticsLabel('資訊框縮回一般大小'), const Offset(0, 200), 1000);
+    await t.pumpAndSettle();
+    await t.tap(find.bySemanticsLabel('收合資訊框'));
+    await t.pumpAndSettle();
+    expect(find.bySemanticsLabel(RegExp('展開資訊框')), findsOneWidget);
+  });
+
+  testWidgets('右上「回報」工具進入選位置模式', (t) async {
+    await _pump(t, const SafeWalkFlow());
+    await t.tap(find.text('安心回家'));
+    await t.pumpAndSettle();
+    await t.tap(find.bySemanticsLabel('回報狀況，在地圖上標出異常'));
+    await t.pumpAndSettle();
+    expect(find.text('要回報哪裡？'), findsOneWidget);
+  });
 }

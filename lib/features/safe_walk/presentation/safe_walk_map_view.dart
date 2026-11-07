@@ -51,7 +51,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
   int? _pointIndex;
   late bool _pointsView = widget.startView == MapStartView.points;
   late bool _picking = widget.startView == MapStartView.report;
-  bool _expanded = true;
+  _SheetSize _size = _SheetSize.normal;
   bool _legend = false;
   LatLng? _pin;
   String? _detailId, _pickedPointId, _toast;
@@ -99,7 +99,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
       _pin = null;
       _picking = false;
       _detailId = a.id;
-      _expanded = true;
+      if (_size == _SheetSize.collapsed) _size = _SheetSize.normal;
       _toast = '已標示在地圖上（示範，未傳送）';
     });
   }
@@ -147,13 +147,13 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                       _toast = null;
                       _picking = false;
                       _pin = null;
-                      _expanded = true;
+                      if (_size == _SheetSize.collapsed) _size = _SheetSize.normal;
                     }),
                     onPoint: _pointsView ? (id) => setState(() => _pickedPointId = id) : null,
                     onPick: _picking
                         ? (at) => setState(() {
                             _pin = at;
-                            _expanded = true;
+                            if (_size == _SheetSize.collapsed) _size = _SheetSize.normal;
                           })
                         : null,
                   ),
@@ -198,14 +198,40 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                           ),
                         ),
                         const SizedBox(width: 8),
-                        SwRoundButton(icon: _legend ? Icons.close_rounded : Icons.layers_outlined, label: _legend ? '關閉圖例' : '顯示圖例', onTap: () => setState(() => _legend = !_legend)),
+                        if (_size != _SheetSize.full)
+                          Column(
+                            children: [
+                              _MapTool(
+                                icon: _legend ? Icons.close_rounded : Icons.layers_outlined,
+                                caption: '圖例',
+                                semantics: _legend ? '關閉圖例' : '顯示圖例',
+                                selected: _legend,
+                                onTap: () => setState(() => _legend = !_legend),
+                              ),
+                              const SizedBox(height: 8),
+                              _MapTool(
+                                icon: Icons.campaign_rounded,
+                                caption: '回報',
+                                semantics: '回報狀況，在地圖上標出異常',
+                                selected: _picking,
+                                warn: true,
+                                onTap: () => setState(() {
+                                  _picking = !_picking;
+                                  _pin = null;
+                                  _detailId = null;
+                                  _toast = null;
+                                  if (_size == _SheetSize.collapsed) _size = _SheetSize.normal;
+                                }),
+                              ),
+                            ],
+                          ),
                       ],
                     ),
                   ),
                 ),
                 Positioned(
-                  right: 12,
-                  top: MediaQuery.paddingOf(context).top + 64,
+                  right: 76,
+                  top: MediaQuery.paddingOf(context).top + 8,
                   child: AnimatedSwitcher(
                     duration: SwMotion.of(context, 180),
                     transitionBuilder: (c, a) => FadeTransition(
@@ -215,18 +241,6 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                     child: _legend ? _Legend(pointsView: _pointsView, showShortcut: isHome && !_pointsView) : const SizedBox.shrink(),
                   ),
                 ),
-                if (!_picking && _pin == null && detail == null)
-                  Positioned(
-                    right: 12,
-                    bottom: 12,
-                    child: _ReportFab(
-                      onTap: () => setState(() {
-                        _picking = true;
-                        _toast = null;
-                        _expanded = true;
-                      }),
-                    ),
-                  ),
                 if (_picking && _pin == null)
                   Positioned(
                     left: 16,
@@ -250,7 +264,31 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
               ],
             ),
           ),
-          _Sheet(expanded: _expanded, summary: summary, onToggle: () => setState(() => _expanded = !_expanded), toast: _toast, child: body),
+          if (_size == _SheetSize.full)
+            Expanded(
+              flex: 4,
+              child: _Sheet(
+                size: _size,
+                summary: summary,
+                onSize: (v) => setState(() {
+                  _size = v;
+                  if (v == _SheetSize.full) _stepsOpen = true;
+                }),
+                toast: _toast,
+                child: body,
+              ),
+            )
+          else
+            _Sheet(
+              size: _size,
+              summary: summary,
+              onSize: (v) => setState(() {
+                _size = v;
+                if (v == _SheetSize.full) _stepsOpen = true;
+              }),
+              toast: _toast,
+              child: body,
+            ),
           _BottomBar(onCall: widget.onCall, onEmergency: widget.onEmergency),
         ],
       ),
@@ -495,98 +533,146 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
   }
 }
 
-/// 可收合的底部資訊框：點把手或摘要列切換；收合時只留一行摘要，地圖露出更多。
+enum _SheetSize { collapsed, normal, full }
+
+/// 底部資訊框三段：收合（只留一行摘要）、一般、滿版。
+/// 點把手：收合↔一般（滿版時點一下回到一般）；往上滑放大一段、往下滑縮小一段。
 class _Sheet extends StatelessWidget {
-  const _Sheet({required this.expanded, required this.summary, required this.onToggle, required this.toast, required this.child});
-  final bool expanded;
+  const _Sheet({required this.size, required this.summary, required this.onSize, required this.toast, required this.child});
+  final _SheetSize size;
   final String summary;
-  final VoidCallback onToggle;
+  final ValueChanged<_SheetSize> onSize;
   final String? toast;
   final Widget child;
+
+  void _tap() => onSize(size == _SheetSize.normal ? _SheetSize.collapsed : _SheetSize.normal);
+
+  void _drag(double v) {
+    if (v < -200) onSize(size == _SheetSize.collapsed ? _SheetSize.normal : _SheetSize.full);
+    if (v > 200) onSize(size == _SheetSize.full ? _SheetSize.normal : _SheetSize.collapsed);
+  }
+
   @override
-  Widget build(BuildContext context) => Container(
-    width: double.infinity,
-    decoration: BoxDecoration(
-      color: SwColors.surface,
-      borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-      boxShadow: SwShadow.sheet,
-    ),
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Semantics(
-          button: true,
-          expanded: expanded,
-          label: expanded ? '收合資訊框' : '展開資訊框：$summary',
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: onToggle,
-            onVerticalDragEnd: (d) {
-              final v = d.primaryVelocity ?? 0;
-              if ((v > 200 && expanded) || (v < -200 && !expanded)) onToggle();
-            },
-            child: ExcludeSemantics(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-                child: Column(
-                  children: [
-                    Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(color: SwColors.border, borderRadius: BorderRadius.circular(2)),
-                    ),
-                    AnimatedSize(
-                      duration: SwMotion.of(context, 200),
-                      child: expanded
-                          ? const SizedBox(height: 8, width: double.infinity)
-                          : SizedBox(
-                              height: swTouch,
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(summary, style: SwText.bodyStrong, overflow: TextOverflow.ellipsis),
-                                  ),
-                                  const Icon(Icons.expand_less_rounded, color: SwColors.brandDeep),
-                                ],
-                              ),
+  Widget build(BuildContext context) {
+    final h = MediaQuery.sizeOf(context).height;
+    final label = switch (size) {
+      _SheetSize.collapsed => '展開資訊框：$summary',
+      _SheetSize.normal => '收合資訊框',
+      _SheetSize.full => '資訊框縮回一般大小',
+    };
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: SwColors.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        boxShadow: SwShadow.sheet,
+      ),
+      child: Column(
+        mainAxisSize: size == _SheetSize.full ? MainAxisSize.max : MainAxisSize.min,
+        children: [
+          Semantics(
+            button: true,
+            expanded: size != _SheetSize.collapsed,
+            label: label,
+            onIncrease: size == _SheetSize.full ? null : () => _drag(-300),
+            onDecrease: size == _SheetSize.collapsed ? null : () => _drag(300),
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: _tap,
+              onVerticalDragEnd: (d) => _drag(d.primaryVelocity ?? 0),
+              child: ExcludeSemantics(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                  child: Column(
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(color: SwColors.border, borderRadius: BorderRadius.circular(2)),
+                      ),
+                      AnimatedSize(
+                        duration: SwMotion.of(context, 200),
+                        child: switch (size) {
+                          _SheetSize.collapsed => SizedBox(
+                            height: swTouch,
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(summary, style: SwText.bodyStrong, overflow: TextOverflow.ellipsis),
+                                ),
+                                const Icon(Icons.expand_less_rounded, color: SwColors.brandDeep),
+                              ],
                             ),
-                    ),
-                  ],
+                          ),
+                          _SheetSize.normal => const SizedBox(height: 8, width: double.infinity),
+                          _SheetSize.full => const SizedBox(
+                            height: 28,
+                            width: double.infinity,
+                            child: Align(
+                              alignment: Alignment.centerRight,
+                              child: Icon(Icons.expand_more_rounded, color: SwColors.brandDeep),
+                            ),
+                          ),
+                        },
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
-        ),
-        AnimatedSize(
-          duration: SwMotion.of(context, 260),
-          curve: SwMotion.curve,
-          alignment: Alignment.topCenter,
-          child: !expanded
-              ? const SizedBox(width: double.infinity)
-              : ConstrainedBox(
-                  constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * .5),
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        AnimatedSwitcher(
-                          duration: SwMotion.of(context, 220),
-                          transitionBuilder: (c, a) => SizeTransition(
-                            sizeFactor: a,
-                            child: FadeTransition(opacity: a, child: c),
-                          ),
-                          child: toast == null ? const SizedBox(width: double.infinity) : Padding(key: ValueKey(toast), padding: const EdgeInsets.only(bottom: 8), child: _Toast(toast!)),
-                        ),
-                        child,
-                      ],
+          if (size == _SheetSize.full)
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    AnimatedSwitcher(
+                      duration: SwMotion.of(context, 220),
+                      transitionBuilder: (c, a) => SizeTransition(
+                        sizeFactor: a,
+                        child: FadeTransition(opacity: a, child: c),
+                      ),
+                      child: toast == null ? const SizedBox(width: double.infinity) : Padding(key: ValueKey(toast), padding: const EdgeInsets.only(bottom: 8), child: _Toast(toast!)),
                     ),
-                  ),
+                    child,
+                  ],
                 ),
-        ),
-      ],
-    ),
-  );
+              ),
+            )
+          else
+            AnimatedSize(
+              duration: SwMotion.of(context, 280),
+              curve: SwMotion.curve,
+              alignment: Alignment.topCenter,
+              child: size == _SheetSize.collapsed
+                  ? const SizedBox(width: double.infinity)
+                  : ConstrainedBox(
+                      constraints: BoxConstraints(maxHeight: h * .5),
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            AnimatedSwitcher(
+                              duration: SwMotion.of(context, 220),
+                              transitionBuilder: (c, a) => SizeTransition(
+                                sizeFactor: a,
+                                child: FadeTransition(opacity: a, child: c),
+                              ),
+                              child: toast == null ? const SizedBox(width: double.infinity) : Padding(key: ValueKey(toast), padding: const EdgeInsets.only(bottom: 8), child: _Toast(toast!)),
+                            ),
+                            child,
+                          ],
+                        ),
+                      ),
+                    ),
+            ),
+        ],
+      ),
+    );
+  }
 }
 
 /// 回家／最近求助地點：選取底塊會滑動到選到的那一邊。
@@ -705,11 +791,13 @@ class _StepsToggle extends StatelessWidget {
         children: [
           const Icon(Icons.format_list_numbered_rounded, color: SwColors.brandDeep),
           const SizedBox(width: 8),
-          Flexible(
+          // 標題佔滿左側，「N 個步驟／收合」與箭頭固定靠右。
+          Expanded(
             child: Text('文字路線', maxLines: 1, softWrap: false, overflow: TextOverflow.fade, style: SwText.bodyStrong),
           ),
-          const Spacer(),
+          const SizedBox(width: 8),
           Flexible(
+            flex: 0,
             child: Text(
               open ? '收合' : '$count 個步驟',
               maxLines: 1,
@@ -1050,33 +1138,44 @@ class _SwapButton extends StatelessWidget {
   );
 }
 
-/// 地圖上的「回報狀況」浮動按鈕：白底膠囊＋陰影，靠近拇指，點了就進入「在地圖上選位置」。
-class _ReportFab extends StatelessWidget {
-  const _ReportFab({required this.onTap});
+/// 地圖右上工具（像地圖 App 的圖層鈕）：圖示＋兩字說明，56×56，選取時換底色。
+class _MapTool extends StatelessWidget {
+  const _MapTool({required this.icon, required this.caption, required this.semantics, required this.onTap, this.selected = false, this.warn = false});
+  final IconData icon;
+  final String caption, semantics;
   final VoidCallback onTap;
+  final bool selected, warn;
   @override
-  Widget build(BuildContext context) => DecoratedBox(
-    decoration: BoxDecoration(borderRadius: BorderRadius.circular(24), boxShadow: SwShadow.float),
-    child: SwPressable(
-      onTap: onTap,
-      color: SwColors.surface,
-      pressedColor: SwColors.warnBg,
-      radius: 24,
-      semanticsLabel: '回報狀況，在地圖上標出異常',
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: SizedBox(
-        height: swTouch,
-        child: ExcludeSemantics(
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.campaign_rounded, color: SwColors.warnText),
-              const SizedBox(width: 6),
-              Text('回報狀況', maxLines: 1, softWrap: false, style: SwText.bodyStrong),
-            ],
+  Widget build(BuildContext context) {
+    final fg = warn ? SwColors.warnText : SwColors.brandDeep;
+    return DecoratedBox(
+      decoration: BoxDecoration(borderRadius: BorderRadius.circular(14), boxShadow: SwShadow.float),
+      child: SwPressable(
+        onTap: onTap,
+        selected: selected,
+        color: selected ? (warn ? SwColors.warnBg : SwColors.brandSoft) : SwColors.surface,
+        pressedColor: warn ? SwColors.warnBg : SwColors.brandSoft,
+        border: selected ? BorderSide(color: fg, width: 2) : null,
+        radius: 14,
+        semanticsLabel: semantics,
+        child: SizedBox(
+          width: 56,
+          height: 56,
+          child: ExcludeSemantics(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, color: fg, size: 24),
+                Text(
+                  caption,
+                  maxLines: 1,
+                  style: SwText.small.copyWith(color: fg, fontWeight: FontWeight.w700, fontSize: 12, height: 1.2),
+                ),
+              ],
+            ),
           ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }

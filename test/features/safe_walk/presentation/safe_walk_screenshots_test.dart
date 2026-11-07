@@ -81,6 +81,11 @@ void main() {
     await t.tap(find.bySemanticsLabel('收合資訊框'));
     await t.pumpAndSettle();
     await _shot(t, '04b-sheet-collapsed');
+    await t.tap(find.bySemanticsLabel(RegExp('展開資訊框')));
+    await t.pumpAndSettle();
+    await t.fling(find.bySemanticsLabel('收合資訊框'), const Offset(0, -200), 1000);
+    await t.pumpAndSettle();
+    await _shot(t, '04c-sheet-full');
   }, skip: _skip);
 
   testWidgets('10 求助地點載入失敗', (t) async {
