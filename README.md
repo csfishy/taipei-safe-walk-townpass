@@ -118,7 +118,7 @@ GitHub Pages 僅從最新 main 部署：必要資料庫測試、分析及 Web／
 - 正式入口只使用 Live，無 Mock／Demo 資料或成功 fallback；新功能直接完成真實 Provider 到 UI 的完整操作，不以 Demo 為前置。測試可保留 Fake／Mock 與 DataMode.mock 相容值，但正式入口不能選用。Unavailable 說明原因／下一步，不以文案或 readiness 旗標冒充完成。`officialReceipt` 保持 null，不宣稱警方受理或已派遣。
 - 定位權限與第三方路線／據點查詢同意分開；不補示範座標或路線。附近協助者通知因身分、ownership、RPC/RLS、防濫用與保留刪除等條件未完成維持 BLOCKED；官方案件自動派送須正式授權。兩者不阻擋導航、查詢、TTS、主動系統撥號及官方通報入口。
 - 行政區歷史犯罪統計不能直接等同即時道路安全評分，也不構成路段安全保證。來源、時間、認可及未知狀態各自保留。
-- 犯罪參考資料以持久 Supabase 與 CI／Demo reset 隔離；App 不持有管理者憑證，只接經授權審查的受限唯讀介面。參考座標不能冒充精確案發點，無可信地理範圍不得宣稱犯罪路段避讓。競賽導航使用 App 內 OSM／OSRM，不依賴 Google Maps；不新增 AED。
+- 犯罪參考資料以持久 Supabase 與 CI／Demo reset 隔離；App 不持有管理者憑證，只接經授權審查的受限唯讀介面。保留回報點與有座標犯罪參考點的 [50 公尺產品避讓緩衝](docs/SAFE_WALK_LIVE_MVP.md#50-公尺避讓規格)；參考座標不能冒充精確案發點，緩衝不是官方犯罪範圍或安全保證。競賽導航使用 App 內 OSM／合法步行路網，不依賴 Google Maps；不新增 AED。
 - 官方 `main.dart`、GetX route、Theme、`TPColors`、品牌與原生功能沿用官方架構。安心行 UI/UX 由 **M3 莅紋**設計，M1 在 TownPass 首頁與城市服務接入同一個功能頁；不套用其他技術棧的 CSS 設計。
 - 色值沿用官方 [TPColors](lib/util/tp_colors.dart)，語意與對比參考 [顏色規範](docs/SAFE_WALK_COLOR_SPEC.md)；色彩配對不等於整個 App 已通過 WCAG。
 - 定位權限、原生／WebView、相機、通知、音訊、撥號與裝置無障礙仍需實機驗收。保留官方來源、分析／測試或產出安裝包，都不能替代這些驗收。

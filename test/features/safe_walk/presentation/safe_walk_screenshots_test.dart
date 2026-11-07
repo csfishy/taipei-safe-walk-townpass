@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_flow.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_speaker.dart';
+import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart' as sw;
 
 final _skip = Platform.environment['M3_SCREENSHOTS'] == null;
 
@@ -36,7 +37,7 @@ class _Speaking implements SafeWalkSpeaker {
   void stop() {}
 }
 
-Future<void> _app(WidgetTester t, {SafeWalkSpeaker speaker = const UnavailableSpeaker()}) async {
+Future<void> _app(WidgetTester t, {SafeWalkSpeaker speaker = const UnavailableSpeaker(), sw.RouteResult? route}) async {
   t.view.physicalSize = const Size(390 * 2, 844 * 2);
   t.view.devicePixelRatio = 2;
   addTearDown(t.view.reset);
@@ -44,7 +45,7 @@ Future<void> _app(WidgetTester t, {SafeWalkSpeaker speaker = const UnavailableSp
     MaterialApp(
       debugShowCheckedModeBanner: false,
       theme: ThemeData(fontFamily: 'PingFangTC'),
-      home: SafeWalkFlow(speaker: speaker, onExit: () {}),
+      home: SafeWalkFlow(speaker: speaker, onExit: () {}, route: route),
     ),
   );
   // 首頁卡片的 SVG（含內嵌 101 圖片）在測試時脈之外解碼；截圖前先等它載完。
@@ -69,6 +70,34 @@ void main() {
   setUpAll(() async {
     if (!_skip) await _fonts();
   });
+
+  testWidgets('12 避讓：三條路線可選', (t) async {
+    sw.RouteCandidate r(String id, String why, List<(double, double)> pts) => sw.RouteCandidate(
+      id: id,
+      kind: sw.RouteKind.direct,
+      geometry: sw.LineString(coordinates: [for (final (lat, lng) in pts) (longitude: lng, latitude: lat)]),
+      distanceMeters: id == 'full' ? 560 : 330,
+      durationSeconds: id == 'full' ? 430 : 250,
+      viaPointIds: const [],
+      provider: 'valhalla-pedestrian',
+      walkingNetworkVerified: true,
+      explanations: [why],
+      warnings: const ['依 OpenStreetMap 步行路網計算，不保證沿途安全或目前可通行'],
+    );
+    final route = sw.RouteSuccess(
+      requestId: 'shot',
+      mode: sw.DataMode.live,
+      generatedAt: DateTime.now().toUtc().toIso8601String(),
+      routes: [
+        r('full', '避開 2 個回報點範圍', [(24.9995, 121.5003), (24.9995, 121.5015), (25.0015, 121.5015), (25.0015, 121.5009)]),
+        r('none', '最短步行路線', [(24.9995, 121.5003), (24.9995, 121.5), (25.0015, 121.5), (25.0015, 121.5009)]),
+      ],
+      warnings: const ['依 OpenStreetMap 步行路網計算，不保證沿途安全或目前可通行'],
+    );
+    await _app(t, route: route);
+    await _tap(t, '安心行');
+    await _shot(t, '12-avoid-routes');
+  }, skip: _skip);
 
   testWidgets('01 首頁', (t) async {
     await _app(t);

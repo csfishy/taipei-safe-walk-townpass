@@ -45,30 +45,75 @@ int routeMeters(List<LatLng> path) {
 /// 以每分鐘 70 公尺估算（示範值）。
 int walkMinutes(int meters) => math.max(1, (meters / 70).round());
 
-enum StepDir { east, west, north, south }
+/// 路線（GeoJSON 座標）是否有一段離 [at] 不到 [radius] 公尺（點到線段距離）。
+bool routePassesWithin(List<sw.GeoJsonCoordinate> line, LatLng at, double radius) {
+  final k = 111320 * math.cos(at.lat * math.pi / 180);
+  for (var i = 0; i + 1 < line.length; i++) {
+    final ax = (line[i].longitude - at.lng) * k, ay = (line[i].latitude - at.lat) * 110540;
+    final bx = (line[i + 1].longitude - at.lng) * k, by = (line[i + 1].latitude - at.lat) * 110540;
+    final dx = bx - ax, dy = by - ay, len = dx * dx + dy * dy;
+    final t = len == 0 ? 0.0 : (-(ax * dx + ay * dy) / len).clamp(0.0, 1.0);
+    final x = ax + t * dx, y = ay + t * dy;
+    if (x * x + y * y < radius * radius) return true;
+  }
+  return false;
+}
 
-const stepDirLabel = {StepDir.east: '東', StepDir.west: '西', StepDir.north: '北', StepDir.south: '南'};
+/// 相對於前進方向的轉彎（像導航 App 的「左轉／右轉」，不是東西南北）。
+enum StepTurn { start, straight, slightLeft, left, sharpLeft, slightRight, right, sharpRight, uTurn }
+
+const stepTurnLabel = {
+  StepTurn.start: '出發，沿路直走',
+  StepTurn.straight: '繼續直走',
+  StepTurn.slightLeft: '稍微靠左',
+  StepTurn.left: '左轉',
+  StepTurn.sharpLeft: '向左急轉',
+  StepTurn.slightRight: '稍微靠右',
+  StepTurn.right: '右轉',
+  StepTurn.sharpRight: '向右急轉',
+  StepTurn.uTurn: '迴轉',
+};
 
 class RouteStep {
-  RouteStep(this.dir, this.meters);
-  final StepDir dir;
+  RouteStep(this.turn, this.meters);
+  final StepTurn turn;
   int meters;
 }
 
-/// 把路線轉成白話步驟（同方向合併、四捨五入到 10 公尺）。
+double _bearing(LatLng a, LatLng b) {
+  final dLng = (b.lng - a.lng) * math.cos(a.lat * math.pi / 180);
+  return (math.atan2(dLng, b.lat - a.lat) * 180 / math.pi + 360) % 360;
+}
+
+/// 把路線轉成白話步驟：每次方向改變超過 25° 算一個轉彎，左右依前進方向判斷；
+/// 距離四捨五入到 10 公尺。路名要等路線服務提供逐路口指示才有。
 List<RouteStep> routeSteps(List<LatLng> path) {
   final steps = <RouteStep>[];
+  double? heading;
   for (var i = 1; i < path.length; i++) {
     final a = path[i - 1], b = path[i];
-    final dLat = b.lat - a.lat, dLng = b.lng - a.lng;
-    final dir = (dLng.abs() * math.cos(a.lat * math.pi / 180) > dLat.abs()) ? (dLng > 0 ? StepDir.east : StepDir.west) : (dLat > 0 ? StepDir.north : StepDir.south);
     final m = metersBetween(a, b).round();
     if (m < 3) continue;
-    if (steps.isNotEmpty && steps.last.dir == dir) {
-      steps.last.meters += m;
+    final h = _bearing(a, b);
+    if (heading == null) {
+      steps.add(RouteStep(StepTurn.start, m));
     } else {
-      steps.add(RouteStep(dir, m));
+      final d = ((h - heading + 540) % 360) - 180; // -180..180，正值＝往右
+      final a2 = d.abs();
+      final turn = a2 < 25
+          ? null
+          : a2 >= 155
+          ? StepTurn.uTurn
+          : d < 0
+          ? (a2 < 60 ? StepTurn.slightLeft : a2 < 120 ? StepTurn.left : StepTurn.sharpLeft)
+          : (a2 < 60 ? StepTurn.slightRight : a2 < 120 ? StepTurn.right : StepTurn.sharpRight);
+      if (turn == null || m < 8 && steps.last.meters < 8) {
+        steps.last.meters += m;
+      } else {
+        steps.add(RouteStep(turn, m));
+      }
     }
+    heading = h;
   }
   for (final s in steps) {
     s.meters = math.max(10, (s.meters / 10).round() * 10);
@@ -82,14 +127,17 @@ class SavedPlace {
   const SavedPlace(this.id, this.label, this.at);
   final String id;
   final String label;
-  final LatLng at;
+  /// An unset Live home has no location; it cannot produce a route or marker.
+  final LatLng? at;
   bool get isHome => id == 'home';
 }
 
-List<SavedPlace> demoPlaces() => const [SavedPlace('home', '家', DemoGeo.home), SavedPlace('work', '公司', LatLng(25.0014, 121.4997))];
+/// 預設常用地點（可在目的地選單編輯）。座標取自 OpenStreetMap：
+/// 家＝臺北市立大學天母校區體育館，公司＝臺北市立大學天母校區（忠誠路二段 101 號）。
+List<SavedPlace> demoPlaces() => const [SavedPlace('home', '家', LatLng(25.1160, 121.535083)), SavedPlace('work', '公司', LatLng(25.114604, 121.537019))];
 
 /// 到某個常用地點的示範路線：家用繞開異常的路線，其他用沿街 L 形。
-List<LatLng> placeRoute(LatLng start, SavedPlace p) => p.isHome && start.lat == DemoGeo.start.lat && start.lng == DemoGeo.start.lng ? DemoGeo.homeRoute : DemoGeo.lRoute(start, p.at);
+List<LatLng> placeRoute(LatLng start, SavedPlace p) => p.at == null ? const [] : p.isHome && start.lat == DemoGeo.start.lat && start.lng == DemoGeo.start.lng ? DemoGeo.homeRoute : DemoGeo.lRoute(start, p.at!);
 
 // ───────── 求助據點（共用 AssistancePoint 型別，示範資料） ─────────
 
@@ -134,7 +182,13 @@ const anomalyCategoryLabel = {AnomalyCategory.fight: '打架衝突', AnomalyCate
 /// 待確認 → 多人回報 → 已協助轉通報（示範）→ 已解除（警方確認後移除）。
 enum AnomalyStatus { pending, multiReported, forwardedDemo, cleared }
 
-const anomalyStatusLabel = {AnomalyStatus.pending: '待確認', AnomalyStatus.multiReported: '多人回報', AnomalyStatus.forwardedDemo: '已協助轉通報', AnomalyStatus.cleared: '已解除'};
+const anomalyStatusLabel = {AnomalyStatus.pending: '待確認', AnomalyStatus.multiReported: '多人回報', AnomalyStatus.forwardedDemo: '示範轉通報（未送出）', AnomalyStatus.cleared: '已解除'};
+
+/// 犯罪紀錄區：官方犯罪紀錄的參考位置（地址或捷運出口比對，非精確案發地點）。
+typedef CrimeSpot = ({String id, LatLng at, String label});
+
+/// 系統內回報的避讓半徑（公尺），與路線規劃一致。
+const reportAvoidRadiusMeters = 50.0;
 
 class Anomaly {
   Anomaly({required this.id, required this.category, required this.at, required this.firstReportedAt, required this.reportCount, required this.status, List<String>? updates})

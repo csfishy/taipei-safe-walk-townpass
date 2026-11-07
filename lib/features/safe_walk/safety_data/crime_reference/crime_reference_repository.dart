@@ -21,10 +21,15 @@ final class CrimeReferenceHttpResponse {
 }
 
 /// Calls `POST /rest/v1/rpc/<crimeReferenceRpcFunction>` with the JSON
-/// [arguments]. Throwing [TimeoutException] means the call timed out; any other
-/// throw means the network failed. Injected by M1 composition.
+/// [arguments]. [TimeoutException] means timeout; [SafeWalkCancelledException]
+/// preserves cancellation. Other throws mean network failure. Injected by M1.
+/// Transports must check cancellation after connecting, before writing the
+/// potentially location-bearing body, and abort their request when cancelled.
 typedef CrimeReferenceRpcTransport =
-    Future<CrimeReferenceHttpResponse> Function(Map<String, Object?> arguments);
+    Future<CrimeReferenceHttpResponse> Function(
+      Map<String, Object?> arguments, {
+      SafeWalkCancellation? cancellation,
+    });
 
 enum CrimeReferenceFailure {
   /// Network error before an HTTP answer.
@@ -72,10 +77,8 @@ final class CrimeReferenceQueryException implements Exception {
 /// [CrimeReferenceQueryException]; cancellation throws
 /// [SafeWalkCancelledException]. An empty `records` list is a real answer.
 final class CrimeReferenceRepository {
-  CrimeReferenceRepository({
-    required this.transport,
-    DateTime Function()? now,
-  }) : _now = now ?? DateTime.now;
+  CrimeReferenceRepository({required this.transport, DateTime Function()? now})
+    : _now = now ?? DateTime.now;
 
   /// Null when live access is not configured.
   final CrimeReferenceRpcTransport? transport;
@@ -96,7 +99,20 @@ final class CrimeReferenceRepository {
     }
     final CrimeReferenceHttpResponse response;
     try {
-      response = await transport(query.toRpcArguments());
+      final pending = transport(
+        query.toRpcArguments(),
+        cancellation: cancellation,
+      );
+      response = await (cancellation == null
+          ? pending
+          : Future.any<CrimeReferenceHttpResponse>([
+              pending,
+              cancellation.whenCancelled.then<CrimeReferenceHttpResponse>(
+                (_) => throw const SafeWalkCancelledException(),
+              ),
+            ]));
+    } on SafeWalkCancelledException {
+      rethrow;
     } on TimeoutException {
       cancellation?.throwIfCancelled();
       throw const CrimeReferenceQueryException(CrimeReferenceFailure.timeout);

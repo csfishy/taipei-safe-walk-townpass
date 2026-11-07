@@ -19,6 +19,12 @@ void main() {
     await t.tap(link);
     await t.pumpAndSettle();
     expect(find.textContaining('OpenStreetMap'), findsWidgets);
+    expect(find.textContaining('MIT License'), findsOneWidget, reason: 'Valhalla 路線引擎授權');
+    await t.scrollUntilVisible(
+      find.textContaining('政府資料開放授權條款'),
+      200,
+      scrollable: find.descendant(of: find.byType(BottomSheet), matching: find.byType(Scrollable)).first,
+    );
     expect(find.textContaining('政府資料開放授權條款'), findsOneWidget);
     expect(find.textContaining('示範'), findsNothing, reason: '正式畫面不顯示示範字樣');
   });

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart' show TileLayer;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
 import 'package:town_pass/features/safe_walk/companion/companion_service.dart';
@@ -166,27 +167,30 @@ void main() {
   tearDown(() => Get.reset());
 
   testWidgets(
-    'real city service and registered route open the default M3 flow',
+    'real city service and registered route open the Live M3 flow without demo destinations',
     (t) async {
       await cityApp(t, null);
       await enter(t);
       final flow = t.widget<SafeWalkFlow>(find.byType(SafeWalkFlow));
-      expect(flow.mode, sw.DataMode.mock);
+      expect(flow.mode, sw.DataMode.live);
       expect(flow.allowRealCalls, isFalse);
       expect(flow.speaker.available, isFalse);
-      expect(flow.points, hasLength(3));
-      expect(
-        flow.points!.every(
-          (point) => point.source.dataMode == sw.DataMode.mock,
-        ),
-        isTrue,
-      );
-      expect(
-        flow.points!.every(
-          (point) => point.availability == sw.OpeningStatus.unknown,
-        ),
-        isTrue,
-      );
+      // Live entry shows no demo help points (real nearby places come later).
+      expect(flow.points, isEmpty);
+      expect(flow.onPlanRoute, isNotNull);
+      expect(flow.homeLocation, isNull);
+      expect(flow.route, isNull);
+      await t.tap(find.text('安心行'));
+      await t.pumpAndSettle();
+      // The official entry asks for the separate OSM tile consent; declining
+      // keeps the map blank.
+      expect(find.text('地圖載入設定'), findsOneWidget);
+      await t.tap(find.text('不載入'));
+      await t.pumpAndSettle();
+      expect(find.byType(TileLayer), findsNothing);
+      expect(find.text('請先返回首頁設定「家」的位置，再規劃回家路線。'), findsWidgets);
+      expect(find.text('規劃路線需要你的位置'), findsNothing);
+      await back(t);
       await back(t);
       expect(find.byType(CityServiceView), findsOneWidget);
       expect(t.takeException(), isNull);
@@ -213,7 +217,7 @@ void main() {
       expect(platform.emergencies, 0);
       await t.tap(find.text('安心行'));
       await t.pumpAndSettle();
-      expect(find.text('路線僅供參考・請留意實際路況'), findsOneWidget);
+      expect(find.text('路線僅供參考・請留意實際路況'), findsNothing);
       await t.tap(find.text('文字路線'));
       await t.pumpAndSettle();
       expect(find.text('抵達家'), findsOneWidget);
@@ -226,7 +230,6 @@ void main() {
       await t.pumpAndSettle();
       await t.tap(find.text('接聽'));
       await t.pumpAndSettle();
-      expect(find.text('語音尚未配置，播放為無聲示範'), findsNothing);
       expect(companion.starts, 0);
       await t.tap(find.text('緊急求助').first);
       await t.pumpAndSettle();
@@ -238,12 +241,12 @@ void main() {
       );
       expect(platform.emergencies, 1);
       await t.scrollUntilVisible(
-        find.text('目前沒有撥號設定，未實際串接警方。'),
+        find.text('示範：未撥號、未通知任何人。'),
         200,
         scrollable: find.byType(Scrollable).first,
       );
       await t.pumpAndSettle();
-      expect(find.text('目前沒有撥號設定，未實際串接警方。'), findsOneWidget);
+      expect(find.text('示範：未撥號、未通知任何人。'), findsOneWidget);
       await t.scrollUntilVisible(
         find.text('我現在安全，關閉'),
         200,

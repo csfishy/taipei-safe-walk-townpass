@@ -62,7 +62,7 @@ void main() {
     await t.tap(find.text('安心行'));
     await t.pumpAndSettle();
     expect(find.textContaining('已繞開'), findsOneWidget);
-    expect(find.text('路線僅供參考・請留意實際路況'), findsOneWidget);
+    expect(find.text('路線僅供參考・請留意實際路況'), findsNothing, reason: '上方提示已拿掉，資訊框內已有說明');
     await t.tap(find.text('文字路線'));
     await t.pumpAndSettle();
     expect(find.text('抵達家'), findsOneWidget);
@@ -261,7 +261,7 @@ void main() {
     await t.tap(find.text('公司'));
     await t.pumpAndSettle();
     expect(find.textContaining('→ 公司'), findsOneWidget);
-    expect(find.text('去公司'), findsOneWidget);
+    expect(find.text('目的地'), findsOneWidget);
 
     await t.tap(find.textContaining('→ 公司'));
     await t.pumpAndSettle();
@@ -272,7 +272,8 @@ void main() {
     await t.tap(find.text('在地圖上選位置'));
     await t.pumpAndSettle();
     expect(find.text('新增「學校」'), findsOneWidget);
-    await t.tapAt(const Offset(200, 400));
+    // 點地圖上沒有標記的空白處（家與公司在天母，示範標記在南邊）。
+    await t.tapAt(const Offset(40, 330));
     await t.pumpAndSettle();
     expect(find.textContaining('→ 學校'), findsOneWidget);
   });
@@ -326,7 +327,7 @@ void main() {
       await t.tap(find.text('公司'));
       await t.pumpAndSettle();
       expect(asked, hasLength(2));
-      expect(asked.last.lat, closeTo(25.0014, 1e-6));
+      expect(asked.last.lat, closeTo(25.114604, 1e-6), reason: '公司＝北市大天母校區');
     });
 
     testWidgets('計算中：不畫示範路線，資訊框寫「路線計算中」', (t) async {
@@ -393,10 +394,9 @@ void main() {
       await _pump(t, SafeWalkFlow(route: ok()));
       await t.tap(find.text('安心行'));
       await t.pumpAndSettle();
-      expect(find.text('路線僅供參考・請留意實際路況'), findsOneWidget);
       expect(find.textContaining('示範'), findsNothing);
       expect(find.textContaining('約 420 公尺'), findsOneWidget);
-      expect(find.text('沿大路走，避開 2 個回報點'), findsOneWidget);
+      expect(find.text('沿大路走，避開 2 個回報點'), findsWidgets, reason: '摘要與路線卡片都會顯示');
       expect(find.textContaining('6 分鐘'), findsWidgets);
     });
   });

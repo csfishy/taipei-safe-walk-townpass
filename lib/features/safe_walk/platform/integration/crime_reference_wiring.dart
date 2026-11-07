@@ -41,10 +41,11 @@ final class CrimeReferenceWiring {
 
   /// Adapts the generic RPC client to the M4 transport contract.
   static CrimeReferenceRpcTransport rpcTransport(SupabaseRpcClient client) =>
-      (arguments) async {
+      (arguments, {cancellation}) async {
         final response = await client.call(
           crimeReferenceRpcFunction,
           arguments,
+          cancellation: cancellation,
         );
         return CrimeReferenceHttpResponse(response.statusCode, response.body);
       };
