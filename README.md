@@ -89,8 +89,6 @@ Android／iOS 開發使用 `flutter run -d 裝置ID`，先安裝對應 SDK、模
 
 ## CI、預覽包與網站
 
-CI／Demo 資料庫採隔離重設：PR 僅 runner 本機 PostGIS；main 所有檢查及三平台建置成功後，才由單一 job 重設白名單中的專用 Demo，再放行發布／部署。缺白名單或環境 Secrets 會停止；不清除 Auth、public 或正式資料。設定與 Level C 審查見 [資料庫重設](docs/SAFE_WALK_DATABASE_RESET.md)。
-
 下列兩份工作流均已在 main；執行規則與實際結果分開看，預覽產物、Release 與 Pages 以對應 run 為準：
 
 | 工作流 | 觸發與用途 |
