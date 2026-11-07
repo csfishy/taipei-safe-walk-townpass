@@ -1,10 +1,12 @@
 # M3｜莅紋：安心行 UI/UX
 
-先讀根目錄 AGENTS、[Live MVP](../../../../docs/SAFE_WALK_LIVE_MVP.md)、[Live Readiness](../../../../docs/SAFE_WALK_LIVE_READINESS.md)、[五人模組契約](../../../../docs/SAFE_WALK_MODULES.md)、[導航接線契約](../../../../docs/SAFE_WALK_NAVIGATION_PRESENTATION_CONTRACT.md) 與 [顏色規範](../../../../docs/SAFE_WALK_COLOR_SPEC.md)。初始化文件是歷史紀錄，不再以「不得建立 UI」阻擋正式功能。既有 UI/UX 由莅紋維護，本次只改文件，不改版面或色彩。
+所有成員均可跨 M1～M5 修改功能與相應測試，自行 AI Coding、除錯及建立 PR。修改其他模組時說明目的、影響檔案及原主要負責人，先核對進行中的 PR 避免同時改同一檔；普通 Level A 變更不需小魚事前批准，Level B 合併前確認、Level C 啟用前須隊長明確授權與安全驗收。完整規則見 [開放協作](../../../../docs/SAFE_WALK_COLLABORATION.md)。
+
+先讀根目錄 AGENTS、[Live MVP](../../../../docs/SAFE_WALK_LIVE_MVP.md)、[Live Readiness](../../../../docs/SAFE_WALK_LIVE_READINESS.md)、[五人模組契約](../../../../docs/SAFE_WALK_MODULES.md)、[導航接線契約](../../../../docs/SAFE_WALK_NAVIGATION_PRESENTATION_CONTRACT.md) 與 [顏色規範](../../../../docs/SAFE_WALK_COLOR_SPEC.md)。初始化文件是歷史紀錄，不再以「不得建立 UI」阻擋正式功能。莅紋是正式 UI/UX 設計主要負責人；任何成員可維護一般 UI／callback／狀態及測試，正式 UI 大型改版須在合併前由莅紋確認。本次只改文件，不改版面或色彩。
 
 ## 畫面（2026-11-07）
 
-稽核基線 `03f98f2b7b5254db73774c4d097eb4d610499c2c`。已由 M1 從臺北通「服務 > 臺北安心行」與首頁入口卡進入（`SafeWalkCompositionRoot` → `SafeWalkFlow`），畫面與 route API 已合併。M3 只改 `presentation/` 與 `test/features/safe_walk/presentation/`，跨模組接線交 M1。以下為目前 Mock 畫面盤點，虛構街區、避讓件數及示範 ETA 不是 Live 驗收標準。
+稽核基線 `03f98f2b7b5254db73774c4d097eb4d610499c2c`。已由 M1 從臺北通「服務 > 臺北安心行」與首頁入口卡進入（`SafeWalkCompositionRoot` → `SafeWalkFlow`），畫面與 route API 已合併。`presentation/` 與 `test/features/safe_walk/presentation/` 是主要路徑，功能主責可同一 PR 跨 platform／navigation／資料／音訊完成接線與測試，不再受目錄獨占限制。以下為目前 Mock 畫面盤點，虛構街區、避讓件數及示範 ETA 不是 Live 驗收標準。
 
 | 畫面 | 檔案 | 重點 |
 |---|---|---|
@@ -15,7 +17,7 @@
 | 模擬來電 | `safe_walk_call_view.dart` | 先出現**響鈴畫面**（光圈、手機震動約 18 秒後停止、拒絕／接聽；沒有鈴聲）；接聽前可選 M5 的六個劇本。接聽後為 **M5 劇本一問一答**：對方一句、自己回一句，對方才接下一句；沒有上方地圖條，回覆區（快速回覆／完整句子／自己輸入）可收合。只朗讀對方台詞（點泡泡重播／停止），自己的回應只顯示文字；「自己輸入」是輸入**對方要說的話**。劇本 `mock/companion_scenarios.dart` 由 M5 JSON 產生，`safe_walk_companion_sync_test.dart` 檢查同步。語音未配置時以**無聲示範**呈現並註明；不要求麥克風。 |
 | 緊急求助 | `safe_walk_emergency_view.dart` | 單獨一頁：110／119 紅色大按鈕（圖示＋使用時機）、**簡訊報警區塊**（選情況→預覽含時間／GPS／情況／附近據點的內容→勾選附上位置→傳送；示範模式顯示「示範完成／未傳送簡訊」，不會真的傳送）、告訴對方你在哪裡（取得位置中的載入狀態、失敗可重試）、安全提醒、「我現在安全，關閉」 |
 | 共用樣式 | `safe_walk_ui.dart` | 全部引用 TPColors／TPTextStyles；陰影沿用官方 TPCard 的柔和投影；按下縮小＋換色、滑鼠移入變色；載入骨架、空值／錯誤訊息元件；系統關閉動畫時所有動畫為 0 |
-| 示範資料 | `mock/safe_walk_demo_data.dart` | 虛構街區、示範據點（共用 `AssistancePoint`）；異常回報與簡訊範本為呈現層提案型別，需要跨模組持久 payload 時另提 Schema 變更。來電劇本已沿用共用 `CompanionScenario`，不屬待定 Schema |
+| 示範資料 | `mock/safe_walk_demo_data.dart` | 虛構街區、示範據點（共用 `AssistancePoint`）；異常回報與簡訊範本為呈現層提案型別，需要跨模組持久 payload 時另提 Level B Schema 變更。來電劇本已沿用共用 `CompanionScenario`，不屬待定 Schema |
 | 語音介面 | `safe_walk_speaker.dart` | `SafeWalkSpeaker`；`available == false` 時來電畫面寫「語音尚未配置，播放為無聲示範」，不呼叫 M1／M5 的喇叭 |
 | 路線狀態 | `safe_walk_map_view.dart` 的 `RouteState` | 尚未配置（示範路線＋示範起點，不與真實位置混用）、計算中、失敗（原因＋再試一次＋改去最近求助地點）、成功（用 M2 的距離／時間／說明，標示「僅供參考」） |
 
@@ -35,7 +37,7 @@
 
 ### 為什麼沒有「最近 7-ELEVEN」
 
-第二個目的地沿用中性的「最近求助地點」，由 M1 注入 M4 據點；目前組合根仍供 Mock。M2 已有不限品牌的 OSM 便利商店來源與 NearestStorePlanner，尚未接 App，不應再描述成未改名的 7-ELEVEN 查詢。來源、營業與認可資訊須如實呈現，便利商店／AED 不直接等於政府認證救援據點；第三方查詢要另取得使用者同意。
+第二個目的地沿用中性的「最近求助地點」，由組合根注入 safety_data 據點；目前組合根仍供 Mock。M2 已有不限品牌的 OSM 便利商店來源與 NearestStorePlanner，尚未接 App，不應再描述成未改名的 7-ELEVEN 查詢。來源、營業與認可資訊須如實呈現，便利商店／AED 不直接等於政府認證救援據點；第三方查詢要另取得使用者同意。
 
 ## 既有 constructor 與目前接線
 
@@ -62,19 +64,19 @@ SafeWalkFlow(
 - 路線 API 已存在；M1 組合根也已建立 M2 OSRM service 與 shared scope，但尚未把 route／routeLoading／onPlanRoute 傳給 Flow，Flow 也未消費 scope。這不是「接一個 service 即完成 Live」：仍需真實 GPS、同意、lifecycle、真實底圖與完整模式分流。據點路線目前仍是 DemoGeo.lRoute。
 - 異常回報與簡訊範本目前是呈現層提案型別；需要跨模組持久 payload 時才提出獨立 Schema 變更。來電劇本已有共用 CompanionScenario／M5 JSON 同步測試，不因接線重建第二套 Schema。
 - M1 已預設注入 `TtsSafeWalkSpeaker.device()`，M5 本機 TTS 與離線語音檢查已合併；可用聲音確認後才朗讀，否則文字／無聲預覽。不再把「完全沒有音訊實作」當現況；真實 iPhone 播放與中斷仍須驗收。響鈴目前只有震動，未交付鈴聲音檔。TTS 不需麥克風權限。
-- 簡訊報警的收件號碼由 M1 決定；開啟簡訊 App 不代表警方已收到或受理。
+- 簡訊報警需核對官方管道／收件號碼；涉及真實發送依 Level C 取得隊長明確授權及安全驗收。開啟簡訊 App 不代表警方已收到或受理。
 
 ## Live MVP 交付條件
 
 - Mock 僅供開發、測試及清楚標示的展示。正式功能完成相應驗收後必須由正式操作使用 Live；目前固定 Mock 與 readiness false 是未驗收隔離，不是永久禁令，各能力可分別啟用。
-- 使用者主動開始導航／更新位置才由 M1 取 TownPass 真實 GPS；定位權限與第三方路線查詢同意分開，提供拒絕及撤回。Flow 目前只在使用者進入地圖／換常用目的地／重試時呼叫既有 callback，無初始化自動規劃，但尚無完整 Live 同意／取消操作。
+- 使用者主動開始導航／更新位置才由平台入口取 TownPass 真實 GPS；定位權限與第三方路線查詢同意分開，提供拒絕及撤回。Flow 目前只在使用者進入地圖／換常用目的地／重試時呼叫既有 callback，無初始化自動規劃，但尚無完整 Live 同意／取消操作。
 - 沿用既有 TownPass 介面接上真實地圖底圖、正確投影與 viewport，顯示 M2 RouteResult geometry、距離及可取得時間。GeoJSON 為 `[longitude, latitude]`，DemoMap 固定投影不可直接用於任意真實座標。
 - durationSeconds null 顯示未知；目前 RouteState.minutes 與據點卡會呼叫 walkMinutes，Live 必須移除這些示範 ETA。完整呈現 result／candidate warnings、explanations、provider、loading、cancel、error 與下一步。
 - Live 不補 DemoGeo 起點、demoPlaces、demoPoints、demoAnomalies、L 形路線、虛構避險件數或示範地標。網路失敗提供重試或使用者選擇外部導航，不偷偷換 Mock；OSRM 路線不宣稱已驗證安全。
-- 保留 Flow 已有座標 callback，由 M1 adapter 建立 canonical request；最近據點／下一據點／帶我去也必須通知目的地變更及重新規劃。取消、換目的地、離開導航、切至通話、SOS、背景或撤回同意立即取消舊意圖；等待定位的 Future 需 generation 檢查，防止遲到重啟。
-- RouteFollower 由 M1 接入並把結果交 M3，M3 不另開 GPS；目前尚未接 App。OSRM steps=false，現有幾何方向步驟不等於正式逐路口導航。
+- 保留 Flow 已有座標 callback，由平台 adapter 建立 canonical request；最近據點／下一據點／帶我去也必須通知目的地變更及重新規劃。取消、換目的地、離開導航、切至通話、SOS、背景或撤回同意立即取消舊意圖；等待定位的 Future 需 generation 檢查，防止遲到重啟。
+- 功能主責可直接在組合根接 RouteFollower 並把結果交 presentation，畫面不另開 GPS；目前尚未接 App。OSRM steps=false，現有幾何方向步驟不等於正式逐路口導航。
 - Live 的撥號、簡訊／官方通報入口明示 handoff 狀態，開啟不等於接通、送達、受理或派遣；附近協助者與官方派遣的 BLOCKED 條件不阻擋合法導航、TTS 或使用者主動開啟求助管道。
-- 新功能維持 M3 設計所有權，色彩仍依既有規範及下列已記錄例外；本次文件轉向不授權重設介面。
+- 莅紋持續負責設計方向與大型正式 UI 改版的 Level B 確認；一般 UI／callback 修正由任何成員開發並經 Level A Review。色彩依既有規範及下列已記錄例外，本次文件轉向不改版面。
 
 ## 臺北通入口（M1 已完成）
 

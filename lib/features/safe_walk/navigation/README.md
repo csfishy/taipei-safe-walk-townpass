@@ -1,12 +1,14 @@
 # M2｜Steven：座標運算與 RouteService
 
-先讀根目錄 AGENTS、[Live MVP](../../../../docs/SAFE_WALK_LIVE_MVP.md)、[Live Readiness](../../../../docs/SAFE_WALK_LIVE_READINESS.md)、[五人模組契約](../../../../docs/SAFE_WALK_MODULES.md) 與 [導航接線契約](../../../../docs/SAFE_WALK_NAVIGATION_PRESENTATION_CONTRACT.md)。初始化文件是歷史紀錄。M2 負責路線及跟隨計算，地圖 Widget 由 M3、官方 route 與 GPS 入口由 M1 管理。
+所有成員均可跨 M1～M5 修改功能與相應測試，自行 AI Coding、除錯及建立 PR。修改其他模組時說明目的、影響檔案及原主要負責人，先核對進行中的 PR 避免同時改同一檔；普通 Level A 變更不需小魚事前批准，Level B 合併前確認、Level C 啟用前須隊長明確授權與安全驗收。完整規則見 [開放協作](../../../../docs/SAFE_WALK_COLLABORATION.md)。
+
+先讀根目錄 AGENTS、[Live MVP](../../../../docs/SAFE_WALK_LIVE_MVP.md)、[Live Readiness](../../../../docs/SAFE_WALK_LIVE_READINESS.md)、[五人模組契約](../../../../docs/SAFE_WALK_MODULES.md) 與 [導航接線契約](../../../../docs/SAFE_WALK_NAVIGATION_PRESENTATION_CONTRACT.md)。初始化文件是歷史紀錄。Steven 是路線／跟隨的主要聯絡人，莅紋是正式 UI/UX 設計主要負責人，小魚是平台／共用契約主要聯絡人；這些分工不限制誰能編寫跨模組功能。
 
 2026-11-07 稽核基線 `03f98f2b7b5254db73774c4d097eb4d610499c2c`：OSRM、RouteFollower、最近便利商店與外部導航連結已有實作；正式操作尚未接線，不是只允許抽象介面的初始化階段。本次文件調整不啟用 Live。
 
-## 所有權與輸入輸出
+## 主要負責人與輸入輸出
 
-- 可改 `lib/features/safe_walk/navigation/`；測試使用 `test/features/safe_walk/navigation/`。共用契約、套件與官方 route 需求交 M1，不直接修改其他模組。
+- `lib/features/safe_walk/navigation/` 與 `test/features/safe_walk/navigation/` 是主要路徑；任何成員也可為完整功能修改 platform／presentation／資料／音訊與相應測試。一般邏輯與 callback 屬 Level A，不需先由小魚批准；實際改共用契約、套件、TownPass route 或重大 UI 設計時，依 Level B 在合併前取得對應主要負責人確認。
 - `RouteService.planRoute(RouteRequest request, {SafeWalkCancellation? cancellation})` 回 `Future<RouteResult>`。
 - request 含 M1 提供的 origin、destination、requestId、mode、departAt、preference、繞行上限與 assistancePointIds；只消費定位，不再次要求或監聽 GPS。
 - 結果為 RouteSuccess 或 RouteFailure，保留同一 requestId／mode。失敗 no_route／provider_unavailable／invalid_input／cancelled 時 routes 為空。
@@ -104,11 +106,11 @@ switch (result.status) {
 - 偏離門檻預設 40 m；GPS 誤差更大時改用 2×精度，避免訊號飄移就誤判。抵達半徑預設 30 m，抵達後維持到 `reset()`。
 - 過期、不合規或精度超過 100 m 的定位會被忽略（`positionRejected`，數值沿用上一筆），不會把進度拉走。
 - 路線有重疊（來回、繞圈）時優先往前匹配，進度不會倒退跳回去。
-- **不自己取得位置**：這個類別只吃 M1 給的值。目前 `PlatformService` 只有單次 `getCurrentPosition`；Live MVP 可先由使用者主動更新位置。若需連續定位，由 M1 沿用 TownPass 服務另定同意、啟停、背景／SOS 清理與實機驗收，不在 M2 新增第二份 GPS watcher。
+- **不自己取得位置**：這個類別只消費平台入口提供的位置。目前 `PlatformService` 只有單次 `getCurrentPosition`；Live MVP 可先由使用者主動更新位置。若需連續定位，功能主責可在平台入口沿用 TownPass 服務，明確定義同意、啟停、背景／SOS 清理與實機驗收，不在 navigation 新增第二份 GPS watcher。
 
 ### 「真的地圖」還缺什麼（不在 M2）
 
-- 目前 M3 的 `DemoMap` 是手繪的示意圖（虛構區域），不是真實地圖；要顯示真實底圖需 M1 同意並加入地圖套件（`pubspec.yaml` 由 M1 管理），再由 M3 在 `presentation/` 做地圖 Widget。底圖用 OpenStreetMap 圖磚時須顯示 © OpenStreetMap contributors，且公共圖磚伺服器不適合正式大量使用。
+- 目前 M3 的 `DemoMap` 是手繪的示意圖（虛構區域），不是真實地圖；任何成員可開發真實底圖與 `presentation/` 的地圖接線；新增地圖套件／變更 `pubspec.yaml` 屬 Level B，合併前由小魚確認，正式 UI 大型改版由莅紋確認，一般 callback／狀態修正不需事前批准。底圖用 OpenStreetMap 圖磚時須顯示 © OpenStreetMap contributors，且公共圖磚伺服器不適合正式大量使用。
 - M3 的地圖把 `cameraCenter` 當中心、`bearingDegrees` 當朝向，用 `snapped` 以後的路線段畫「剩餘路線」即可跟隨。
 
 ## 行為
@@ -141,11 +143,11 @@ switch (result.status) {
 
 該檔的 planner 使用 stand-in 店家、follower 使用沿 geometry 合成的位置，Overpass 案例允許 transport error；通過不等於資料來源或裝置 GPS 已驗證。一般測試的 fake transport／本機測試伺服器也不構成 LIVE_VERIFIED。需記錄測試 SHA、endpoint、日期、實際結果及限制，另完成整合與 iPhone 驗收；本次文件盤點不代表重新執行上述測試。
 
-## 尚未完成／待 M1 協調
+## 尚未完成／功能主責可直接接線
 
 - M1 組合根已建立 `DefaultRouteService`／OSRM 並注入同一 `pointLookup`，scope 與控制器也已存在；但仍固定 Mock、兩個 readiness gates 為 false，Flow 尚未消費 scope，且沒有收到 route／routeLoading／onPlanRoute。須接上真實 GPS、明確第三方同意與 M3 真實地圖，不能只改旗標。
 - M3 路線 API 已合併，DemoMap 的固定投影、據點 L 形線、Live 缺值 fallback 及虛構避讓資料仍待按模式分流；正式 UI/UX 由莅紋維護。
 - RouteFollower、Overpass、NearestStorePlanner、外部導航 URI 尚未接入正式操作。實機／TownPass 與真實 provider 證據不足；既往 Overpass 逾時紀錄不構成成功證據。
 - pointLookup 目前只查已驗證的記憶體 Mock snapshot；Live 途經需 M4 真實來源、認可／營業與同模式檢查。便利商店／AED 不直接等於政府認證救援據點。
 
-P0 先由 M1／M2／M3 接 GPS、OSRM、RouteFollower、真實地圖、同意與 Live 狀態；P1 接真實據點與外部導航。任務 Owner、前置依賴與驗收以 Live MVP／Readiness 為準，從最新 main 建工作分支並經 PR／CI，保留既有 Mock 測試與展示。
+P0 由指定功能主責跨 platform／navigation／presentation 完成 GPS、OSRM、RouteFollower、真實地圖、同意與 Live 狀態，不必為細小接線等待另一人開 PR；P1 以同樣方式接真實據點與外部導航。任務 Owner、前置依賴與驗收以 Live MVP／Readiness 為準，從最新 main 建工作分支並經 PR／CI，保留既有 Mock 測試與展示。
