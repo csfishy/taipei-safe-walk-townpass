@@ -37,7 +37,7 @@ Future<void> _app(WidgetTester t, {SafeWalkSpeaker speaker = const UnavailableSp
   await t.pumpWidget(MaterialApp(
     debugShowCheckedModeBanner: false,
     theme: ThemeData(fontFamily: 'PingFangTC'),
-    home: SafeWalkFlow(speaker: speaker),
+    home: SafeWalkFlow(speaker: speaker, onExit: () {}),
   ));
   await t.pumpAndSettle();
 }
@@ -65,7 +65,7 @@ void main() {
 
   testWidgets('02 地圖：回家路線', (t) async {
     await _app(t);
-    await _tap(t, '安心回家');
+    await _tap(t, '安心行');
     await _shot(t, '02-map-home');
     await _tap(t, '文字路線');
     await t.drag(find.byType(SingleChildScrollView).last, const Offset(0, -400));
@@ -75,12 +75,17 @@ void main() {
 
   testWidgets('04 最近求助地點與收合資訊框', (t) async {
     await _app(t);
-    await _tap(t, '安心回家');
+    await _tap(t, '安心行');
     await _tap(t, '最近求助地點');
     await _shot(t, '04-nearest-point');
     await t.tap(find.bySemanticsLabel('收合資訊框'));
     await t.pumpAndSettle();
     await _shot(t, '04b-sheet-collapsed');
+    await t.tap(find.bySemanticsLabel(RegExp('展開資訊框')));
+    await t.pumpAndSettle();
+    await t.fling(find.bySemanticsLabel('收合資訊框'), const Offset(0, -200), 1000);
+    await t.pumpAndSettle();
+    await _shot(t, '04c-sheet-full');
   }, skip: _skip);
 
   testWidgets('10 求助地點載入失敗', (t) async {
@@ -91,6 +96,14 @@ void main() {
     await t.pumpAndSettle();
     await _tap(t, '附近求助地點');
     await _shot(t, '10-points-error');
+  }, skip: _skip);
+
+  testWidgets('11 目的地選單', (t) async {
+    await _app(t);
+    await _tap(t, '安心行');
+    await t.tap(find.textContaining('→ 家'));
+    await t.pumpAndSettle();
+    await _shot(t, '11-places');
   }, skip: _skip);
 
   testWidgets('05 附近求助地點', (t) async {
@@ -108,7 +121,7 @@ void main() {
 
   testWidgets('07 異常詳情', (t) async {
     await _app(t);
-    await _tap(t, '安心回家');
+    await _tap(t, '安心行');
     await t.tap(find.bySemanticsLabel(RegExp('打架衝突')).first);
     await t.pumpAndSettle();
     await _shot(t, '07-anomaly-detail');

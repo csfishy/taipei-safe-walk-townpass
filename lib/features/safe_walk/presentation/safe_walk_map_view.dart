@@ -32,9 +32,18 @@ class SafeWalkMapView extends StatefulWidget {
     required this.onBack,
     required this.onCall,
     required this.onEmergency,
+    required this.places,
+    required this.placeId,
+    required this.onSelectPlace,
+    required this.onAddPlace,
+    required this.onDeletePlace,
     this.onSms,
     this.startView = MapStartView.route,
   });
+  final List<SavedPlace> places;
+  final String placeId;
+  final ValueChanged<String> onSelectPlace, onDeletePlace;
+  final void Function(String name, LatLng at) onAddPlace;
   final sw.Position? position;
   final PointsState pointsState;
   final List<Anomaly> anomalies;
@@ -51,11 +60,14 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
   int? _pointIndex;
   late bool _pointsView = widget.startView == MapStartView.points;
   late bool _picking = widget.startView == MapStartView.report;
-  bool _expanded = true;
+  _SheetSize _size = _SheetSize.normal;
   bool _legend = false;
   LatLng? _pin;
   String? _detailId, _pickedPointId, _toast;
   bool _stepsOpen = false;
+
+  /// 正在新增的地點名稱；不為 null 時，點地圖是選這個地點的位置。
+  String? _newPlaceName;
   AnomalyCategory _category = AnomalyCategory.suspicious;
   final _note = TextEditingController();
 
@@ -99,7 +111,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
       _pin = null;
       _picking = false;
       _detailId = a.id;
-      _expanded = true;
+      if (_size == _SheetSize.collapsed) _size = _SheetSize.normal;
       _toast = '已標示在地圖上（示範，未傳送）';
     });
   }
@@ -109,19 +121,24 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
     final points = _sorted;
     final point = _pointIndex != null && points.isNotEmpty ? points[_pointIndex! % points.length] : null;
     final isHome = _pointIndex == null;
-    final path = point != null ? DemoGeo.lRoute(_start, _at(point)) : (isHome ? DemoGeo.homeRoute : <LatLng>[]);
-    final active = widget.anomalies.where((a) => a.status != AnomalyStatus.cleared).toList();
-    final avoided = active.where((a) => (a.at.lng - 121.5).abs() < .00005 || ((a.at.lat - 25.001).abs() < .00005 && a.at.lng < 121.5006)).length;
+    final place = widget.places.firstWhere((p) => p.id == widget.placeId, orElse: () => widget.places.first);
+    final atHome = isHome && place.isHome;
+    final path = point != null ? DemoGeo.lRoute(_start, _at(point)) : (isHome ? placeRoute(_start, place) : <LatLng>[]);
+    final avoided = avoidedCount(widget.anomalies);
     final detail = _detailId == null ? null : widget.anomalies.where((a) => a.id == _detailId).firstOrNull;
     final picked = points.where((p) => p.id == _pickedPointId).firstOrNull ?? points.firstOrNull;
-    final title = _pointsView ? '附近求助地點' : '${widget.position == null ? '示範起點' : '目前位置'} → ${isHome ? '家' : '求助地點'}';
+    final title = _pointsView ? '附近求助地點' : '${widget.position == null ? '示範起點' : '目前位置'} → ${isHome ? place.label : '求助地點'}';
     final meters = routeMeters(path);
 
     final (String summary, Widget body) = switch (true) {
+      _ when _newPlaceName != null => ('新增地點', _newPlaceSheet()),
       _ when _picking || _pin != null => ('回報狀況', _pin == null ? _pickSheet() : _formSheet()),
       _ when detail != null => ('${anomalyCategoryLabel[detail.category]}・${anomalyStatusLabel[detail.status]}', _detailSheet(detail)),
       _ when _pointsView => ('附近求助地點', _pointsSheet(points, picked)),
-      _ => (path.isEmpty ? '最近求助地點' : '${walkMinutes(meters)} 分鐘・${isHome ? '回家・已繞開 $avoided 個異常回報' : point!.name}', _routeSheet(path, meters, isHome, point, avoided)),
+      _ => (
+        path.isEmpty ? '最近求助地點' : '${walkMinutes(meters)} 分鐘・${isHome ? (atHome ? '回家・已繞開 $avoided 個異常回報' : '到${place.label}') : point!.name}',
+        _routeSheet(path, meters, isHome, point, avoided, place),
+      ),
     };
 
     return Scaffold(
@@ -137,7 +154,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                     points: points,
                     anomalies: widget.anomalies,
                     path: _pointsView ? const [] : path,
-                    showShortcut: isHome && !_pointsView,
+                    showShortcut: atHome && !_pointsView,
                     homeActive: isHome || _pointsView,
                     selectedPointId: _pointsView ? picked?.id : point?.id,
                     selectedAnomalyId: detail?.id,
@@ -147,13 +164,22 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                       _toast = null;
                       _picking = false;
                       _pin = null;
-                      _expanded = true;
+                      if (_size == _SheetSize.collapsed) _size = _SheetSize.normal;
                     }),
                     onPoint: _pointsView ? (id) => setState(() => _pickedPointId = id) : null,
-                    onPick: _picking
+                    onPick: _newPlaceName != null
+                        ? (at) {
+                            widget.onAddPlace(_newPlaceName!, at);
+                            setState(() {
+                              _toast = '已新增「$_newPlaceName」（只存在這支手機，示範）';
+                              _newPlaceName = null;
+                              _pointIndex = null;
+                            });
+                          }
+                        : _picking
                         ? (at) => setState(() {
                             _pin = at;
-                            _expanded = true;
+                            if (_size == _SheetSize.collapsed) _size = _SheetSize.normal;
                           })
                         : null,
                   ),
@@ -167,28 +193,35 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                       children: [
                         SwRoundButton(icon: Icons.arrow_back_ios_new_rounded, label: '返回', onTap: widget.onBack),
                         const SizedBox(width: 8),
-                        Flexible(
+                        // 標題區佔滿中間，圖例／回報固定貼齊右邊。
+                        Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Semantics(
-                                header: true,
-                                child: Container(
-                                  height: swTouch,
-                                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                                  decoration: BoxDecoration(color: SwColors.surface, borderRadius: BorderRadius.circular(24), boxShadow: SwShadow.float),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const Icon(Icons.place_outlined, size: 20, color: SwColors.brandDeep),
-                                      const SizedBox(width: 4),
-                                      Flexible(
-                                        child: AnimatedSwitcher(
-                                          duration: SwMotion.of(context, 200),
-                                          child: Text(title, key: ValueKey(title), style: SwText.bodyStrong, overflow: TextOverflow.ellipsis),
+                              GestureDetector(
+                                onTap: _pointsView ? null : () => _openPlaces(context),
+                                child: Semantics(
+                                  header: true,
+                                  button: !_pointsView,
+                                  hint: _pointsView ? null : '點兩下更換目的地',
+                                  child: Container(
+                                    height: swTouch,
+                                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                                    decoration: BoxDecoration(color: SwColors.surface, borderRadius: BorderRadius.circular(24), boxShadow: SwShadow.float),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Icon(Icons.place_outlined, size: 20, color: SwColors.brandDeep),
+                                        const SizedBox(width: 4),
+                                        Flexible(
+                                          child: AnimatedSwitcher(
+                                            duration: SwMotion.of(context, 200),
+                                            child: Text(title, key: ValueKey(title), style: SwText.bodyStrong, overflow: TextOverflow.ellipsis),
+                                          ),
                                         ),
-                                      ),
-                                    ],
+                                        if (!_pointsView) const Icon(Icons.expand_more_rounded, color: SwColors.brandDeep),
+                                      ],
+                                    ),
                                   ),
                                 ),
                               ),
@@ -198,21 +231,55 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                           ),
                         ),
                         const SizedBox(width: 8),
-                        SwRoundButton(icon: _legend ? Icons.close_rounded : Icons.layers_outlined, label: _legend ? '關閉圖例' : '顯示圖例', onTap: () => setState(() => _legend = !_legend)),
+                        if (_size != _SheetSize.full)
+                          Row(
+                            children: [
+                              _MapTool(
+                                icon: _legend ? Icons.close_rounded : Icons.layers_outlined,
+                                caption: '圖例',
+                                semantics: _legend ? '關閉圖例' : '顯示圖例',
+                                selected: _legend,
+                                onTap: () => setState(() {
+                                  // 圖例與回報一次只開一個，避免疊在一起。
+                                  _legend = !_legend;
+                                  if (_legend) {
+                                    _picking = false;
+                                    _pin = null;
+                                  }
+                                }),
+                              ),
+                              const SizedBox(width: 8),
+                              _MapTool(
+                                icon: Icons.campaign_rounded,
+                                caption: '回報',
+                                semantics: '回報狀況，在地圖上標出異常',
+                                selected: _picking,
+                                warn: true,
+                                onTap: () => setState(() {
+                                  _picking = !_picking;
+                                  _legend = false;
+                                  _pin = null;
+                                  _detailId = null;
+                                  _toast = null;
+                                  if (_size == _SheetSize.collapsed) _size = _SheetSize.normal;
+                                }),
+                              ),
+                            ],
+                          ),
                       ],
                     ),
                   ),
                 ),
                 Positioned(
                   right: 12,
-                  top: MediaQuery.paddingOf(context).top + 64,
+                  top: MediaQuery.paddingOf(context).top + 72,
                   child: AnimatedSwitcher(
                     duration: SwMotion.of(context, 180),
                     transitionBuilder: (c, a) => FadeTransition(
                       opacity: a,
                       child: ScaleTransition(scale: a, alignment: Alignment.topRight, child: c),
                     ),
-                    child: _legend ? _Legend(pointsView: _pointsView, showShortcut: isHome && !_pointsView) : const SizedBox.shrink(),
+                    child: _legend ? _Legend(pointsView: _pointsView, showShortcut: atHome && !_pointsView) : const SizedBox.shrink(),
                   ),
                 ),
                 if (_picking && _pin == null)
@@ -229,7 +296,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                         boxShadow: SwShadow.float,
                       ),
                       child: Text(
-                        '點地圖選擇要回報的位置，或點 ⚠ 更新既有回報',
+                        _newPlaceName != null ? '點地圖選擇「$_newPlaceName」的位置' : '點地圖選擇要回報的位置，或點 ⚠ 更新既有回報',
                         textAlign: TextAlign.center,
                         style: SwText.bodyStrong.copyWith(color: SwColors.warnText),
                       ),
@@ -238,20 +305,50 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
               ],
             ),
           ),
-          _Sheet(expanded: _expanded, summary: summary, onToggle: () => setState(() => _expanded = !_expanded), toast: _toast, child: body),
+          if (_size == _SheetSize.full)
+            Expanded(
+              flex: 4,
+              child: _Sheet(
+                size: _size,
+                summary: summary,
+                onSize: (v) => setState(() {
+                  _size = v;
+                  if (v == _SheetSize.full) _stepsOpen = true;
+                }),
+                toast: _toast,
+                child: body,
+              ),
+            )
+          else
+            _Sheet(
+              size: _size,
+              summary: summary,
+              onSize: (v) => setState(() {
+                _size = v;
+                if (v == _SheetSize.full) _stepsOpen = true;
+              }),
+              toast: _toast,
+              child: body,
+            ),
           _BottomBar(onCall: widget.onCall, onEmergency: widget.onEmergency),
         ],
       ),
     );
   }
 
-  Widget _routeSheet(List<LatLng> path, int meters, bool isHome, sw.AssistancePoint? point, int avoided) {
+  Widget _routeSheet(List<LatLng> path, int meters, bool isHome, sw.AssistancePoint? point, int avoided, SavedPlace place) {
     final ps = widget.pointsState;
-    final destName = isHome ? '家' : point?.name ?? '求助地點';
+    final destName = isHome ? place.label : point?.name ?? '求助地點';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _Segmented(homeSelected: isHome, onHome: () => setState(() => _pointIndex = null), onPoint: () => setState(() => _pointIndex = 0)),
+        _Segmented(
+          firstLabel: place.isHome ? '回家' : '去${place.label}',
+          firstIcon: _placeIcon(place),
+          homeSelected: isHome,
+          onHome: () => setState(() => _pointIndex = null),
+          onPoint: () => setState(() => _pointIndex = 0),
+        ),
         const SizedBox(height: 12),
         if (!isHome && ps.loading)
           const SwSkeleton(rows: 2)
@@ -286,27 +383,23 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('${isHome ? '回家' : destName}・約 $meters 公尺', style: SwText.secondary, overflow: TextOverflow.ellipsis),
-                    if (isHome) _AvoidBadge(count: avoided) else Text('${_kind[point!.kind]}・${_openLong[point.availability]}', style: SwText.secondary),
+                    Text('${isHome ? (place.isHome ? '回家' : '到${place.label}') : destName}・約 $meters 公尺', style: SwText.secondary, overflow: TextOverflow.ellipsis),
+                    if (isHome && place.isHome)
+                      _AvoidBadge(count: avoided)
+                    else if (isHome)
+                      Text('示範路線・未驗證道路', style: SwText.secondary)
+                    else
+                      Text('${_kind[point!.kind]}・${_openLong[point.availability]}', style: SwText.secondary),
                   ],
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              if (!isHome) SwChip(label: '下一個求助地點', icon: Icons.swap_horiz_rounded, onTap: widget.pointsState.points.length < 2 ? null : () => setState(() => _pointIndex = _pointIndex! + 1)),
-              SwChip(
-                label: '回報狀況',
-                icon: Icons.campaign_outlined,
-                onTap: () => setState(() {
-                  _picking = true;
-                  _toast = null;
-                }),
-              ),
+              if (!isHome) ...[
+                const SizedBox(width: 8),
+                Tooltip(
+                  message: '換下一個求助地點',
+                  child: _SwapButton(onTap: widget.pointsState.points.length < 2 ? null : () => setState(() => _pointIndex = _pointIndex! + 1)),
+                ),
+              ],
             ],
           ),
           const SizedBox(height: 12),
@@ -321,6 +414,141 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
       ],
     );
   }
+
+  IconData _placeIcon(SavedPlace p) => switch (p.id) {
+    'home' => Icons.home_outlined,
+    'work' => Icons.work_outline_rounded,
+    _ => Icons.place_outlined,
+  };
+
+  /// 目的地選單：常用地點（家、公司…）可切換、刪除、新增（新增後在地圖上點位置）。只存在記憶體。
+  Future<void> _openPlaces(BuildContext context) async {
+    final name = TextEditingController();
+    var adding = false;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: SwColors.surface,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (sheetContext, setSheet) => Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(sheetContext).bottom),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(color: SwColors.border, borderRadius: BorderRadius.circular(2)),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Semantics(header: true, child: Text('要去哪裡？', style: SwText.heading)),
+                const SizedBox(height: 4),
+                Text('常用地點只存在這支手機，不會上傳（示範位置）。', style: SwText.small),
+                const SizedBox(height: 12),
+                for (final p in widget.places)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: SwPressable(
+                      onTap: () {
+                        widget.onSelectPlace(p.id);
+                        setState(() => _pointIndex = null);
+                        Navigator.of(sheetContext).pop();
+                      },
+                      selected: p.id == widget.placeId,
+                      color: p.id == widget.placeId ? SwColors.brandSoft : SwColors.bg,
+                      border: BorderSide(color: p.id == widget.placeId ? SwColors.brand : SwColors.border),
+                      radius: 10,
+                      semanticsLabel: '前往${p.label}${p.id == widget.placeId ? '，目前選擇' : ''}',
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: SizedBox(
+                        height: 56,
+                        child: Row(
+                          children: [
+                            Icon(_placeIcon(p), color: SwColors.brandDeep),
+                            const SizedBox(width: 12),
+                            Expanded(child: Text(p.label, style: SwText.bodyStrong)),
+                            if (p.id == widget.placeId) const Icon(Icons.check_rounded, color: SwColors.brandDeep),
+                            if (!p.isHome)
+                              IconButton(
+                                tooltip: '刪除${p.label}',
+                                icon: const Icon(Icons.delete_outline_rounded, color: SwColors.textSecondary),
+                                onPressed: () {
+                                  widget.onDeletePlace(p.id);
+                                  setSheet(() {});
+                                },
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                AnimatedSize(
+                  duration: SwMotion.of(sheetContext, 200),
+                  child: !adding
+                      ? SwChip(label: '新增地點', icon: Icons.add_location_alt_outlined, onTap: () => setSheet(() => adding = true))
+                      : Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            TextField(
+                              controller: name,
+                              autofocus: true,
+                              maxLength: 10,
+                              style: SwText.body,
+                              onChanged: (_) => setSheet(() {}),
+                              decoration: InputDecoration(
+                                labelText: '地點名稱（例如：學校、爸媽家）',
+                                labelStyle: SwText.secondary,
+                                counterText: '',
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            SwPrimaryButton(
+                              label: '在地圖上選位置',
+                              icon: Icons.touch_app_outlined,
+                              onTap: name.text.trim().isEmpty
+                                  ? null
+                                  : () {
+                                      setState(() {
+                                        _newPlaceName = name.text.trim();
+                                        _picking = false;
+                                        _legend = false;
+                                        _pin = null;
+                                        _detailId = null;
+                                        if (_size == _SheetSize.collapsed) _size = _SheetSize.normal;
+                                      });
+                                      Navigator.of(sheetContext).pop();
+                                    },
+                            ),
+                          ],
+                        ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    // 等關閉動畫結束（輸入框還在畫面上）再釋放。
+    Future.delayed(const Duration(milliseconds: 600), name.dispose);
+  }
+
+  Widget _newPlaceSheet() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text('新增「$_newPlaceName」', style: SwText.heading),
+      const SizedBox(height: 4),
+      Text('在地圖上點一下這個地點的位置。', style: SwText.secondary),
+      const SizedBox(height: 8),
+      SwChip(label: '取消新增', icon: Icons.close_rounded, onTap: () => setState(() => _newPlaceName = null)),
+    ],
+  );
 
   Widget _pickSheet() => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
@@ -492,103 +720,153 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
   }
 }
 
-/// 可收合的底部資訊框：點把手或摘要列切換；收合時只留一行摘要，地圖露出更多。
+enum _SheetSize { collapsed, normal, full }
+
+/// 底部資訊框三段：收合（只留一行摘要）、一般、滿版。
+/// 點把手：收合↔一般（滿版時點一下回到一般）；往上滑放大一段、往下滑縮小一段。
 class _Sheet extends StatelessWidget {
-  const _Sheet({required this.expanded, required this.summary, required this.onToggle, required this.toast, required this.child});
-  final bool expanded;
+  const _Sheet({required this.size, required this.summary, required this.onSize, required this.toast, required this.child});
+  final _SheetSize size;
   final String summary;
-  final VoidCallback onToggle;
+  final ValueChanged<_SheetSize> onSize;
   final String? toast;
   final Widget child;
+
+  void _tap() => onSize(size == _SheetSize.normal ? _SheetSize.collapsed : _SheetSize.normal);
+
+  void _drag(double v) {
+    if (v < -200) onSize(size == _SheetSize.collapsed ? _SheetSize.normal : _SheetSize.full);
+    if (v > 200) onSize(size == _SheetSize.full ? _SheetSize.normal : _SheetSize.collapsed);
+  }
+
   @override
-  Widget build(BuildContext context) => Container(
-    width: double.infinity,
-    decoration: BoxDecoration(
-      color: SwColors.surface,
-      borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-      boxShadow: SwShadow.sheet,
-    ),
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Semantics(
-          button: true,
-          expanded: expanded,
-          label: expanded ? '收合資訊框' : '展開資訊框：$summary',
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: onToggle,
-            onVerticalDragEnd: (d) {
-              final v = d.primaryVelocity ?? 0;
-              if ((v > 200 && expanded) || (v < -200 && !expanded)) onToggle();
-            },
-            child: ExcludeSemantics(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-                child: Column(
-                  children: [
-                    Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(color: SwColors.border, borderRadius: BorderRadius.circular(2)),
-                    ),
-                    AnimatedSize(
-                      duration: SwMotion.of(context, 200),
-                      child: expanded
-                          ? const SizedBox(height: 8, width: double.infinity)
-                          : SizedBox(
-                              height: swTouch,
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(summary, style: SwText.bodyStrong, overflow: TextOverflow.ellipsis),
-                                  ),
-                                  const Icon(Icons.expand_less_rounded, color: SwColors.brandDeep),
-                                ],
-                              ),
+  Widget build(BuildContext context) {
+    final h = MediaQuery.sizeOf(context).height;
+    final label = switch (size) {
+      _SheetSize.collapsed => '展開資訊框：$summary',
+      _SheetSize.normal => '收合資訊框',
+      _SheetSize.full => '資訊框縮回一般大小',
+    };
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: SwColors.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        boxShadow: SwShadow.sheet,
+      ),
+      child: Column(
+        mainAxisSize: size == _SheetSize.full ? MainAxisSize.max : MainAxisSize.min,
+        children: [
+          Semantics(
+            button: true,
+            expanded: size != _SheetSize.collapsed,
+            label: label,
+            onIncrease: size == _SheetSize.full ? null : () => _drag(-300),
+            onDecrease: size == _SheetSize.collapsed ? null : () => _drag(300),
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: _tap,
+              onVerticalDragEnd: (d) => _drag(d.primaryVelocity ?? 0),
+              child: ExcludeSemantics(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                  child: Column(
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(color: SwColors.border, borderRadius: BorderRadius.circular(2)),
+                      ),
+                      AnimatedSize(
+                        duration: SwMotion.of(context, 200),
+                        child: switch (size) {
+                          _SheetSize.collapsed => SizedBox(
+                            height: swTouch,
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(summary, style: SwText.bodyStrong, overflow: TextOverflow.ellipsis),
+                                ),
+                                const Icon(Icons.expand_less_rounded, color: SwColors.brandDeep),
+                              ],
                             ),
-                    ),
-                  ],
+                          ),
+                          _SheetSize.normal => const SizedBox(height: 8, width: double.infinity),
+                          _SheetSize.full => const SizedBox(
+                            height: 28,
+                            width: double.infinity,
+                            child: Align(
+                              alignment: Alignment.centerRight,
+                              child: Icon(Icons.expand_more_rounded, color: SwColors.brandDeep),
+                            ),
+                          ),
+                        },
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
-        ),
-        AnimatedSize(
-          duration: SwMotion.of(context, 260),
-          curve: SwMotion.curve,
-          alignment: Alignment.topCenter,
-          child: !expanded
-              ? const SizedBox(width: double.infinity)
-              : ConstrainedBox(
-                  constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * .5),
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        AnimatedSwitcher(
-                          duration: SwMotion.of(context, 220),
-                          transitionBuilder: (c, a) => SizeTransition(
-                            sizeFactor: a,
-                            child: FadeTransition(opacity: a, child: c),
-                          ),
-                          child: toast == null ? const SizedBox(width: double.infinity) : Padding(key: ValueKey(toast), padding: const EdgeInsets.only(bottom: 8), child: _Toast(toast!)),
-                        ),
-                        child,
-                      ],
+          if (size == _SheetSize.full)
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    AnimatedSwitcher(
+                      duration: SwMotion.of(context, 220),
+                      transitionBuilder: (c, a) => SizeTransition(
+                        sizeFactor: a,
+                        child: FadeTransition(opacity: a, child: c),
+                      ),
+                      child: toast == null ? const SizedBox(width: double.infinity) : Padding(key: ValueKey(toast), padding: const EdgeInsets.only(bottom: 8), child: _Toast(toast!)),
                     ),
-                  ),
+                    child,
+                  ],
                 ),
-        ),
-      ],
-    ),
-  );
+              ),
+            )
+          else
+            AnimatedSize(
+              duration: SwMotion.of(context, 280),
+              curve: SwMotion.curve,
+              alignment: Alignment.topCenter,
+              child: size == _SheetSize.collapsed
+                  ? const SizedBox(width: double.infinity)
+                  : ConstrainedBox(
+                      constraints: BoxConstraints(maxHeight: h * .5),
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            AnimatedSwitcher(
+                              duration: SwMotion.of(context, 220),
+                              transitionBuilder: (c, a) => SizeTransition(
+                                sizeFactor: a,
+                                child: FadeTransition(opacity: a, child: c),
+                              ),
+                              child: toast == null ? const SizedBox(width: double.infinity) : Padding(key: ValueKey(toast), padding: const EdgeInsets.only(bottom: 8), child: _Toast(toast!)),
+                            ),
+                            child,
+                          ],
+                        ),
+                      ),
+                    ),
+            ),
+        ],
+      ),
+    );
+  }
 }
 
 /// 回家／最近求助地點：選取底塊會滑動到選到的那一邊。
 class _Segmented extends StatelessWidget {
-  const _Segmented({required this.homeSelected, required this.onHome, required this.onPoint});
+  const _Segmented({required this.firstLabel, required this.firstIcon, required this.homeSelected, required this.onHome, required this.onPoint});
+  final String firstLabel;
+  final IconData firstIcon;
   final bool homeSelected;
   final VoidCallback onHome, onPoint;
   @override
@@ -643,7 +921,7 @@ class _Segmented extends StatelessWidget {
               ),
             ),
           ),
-          Row(children: [item('回家', Icons.home_outlined, homeSelected, onHome), item('最近求助地點', Icons.local_police_outlined, !homeSelected, onPoint)]),
+          Row(children: [item(firstLabel, firstIcon, homeSelected, onHome), item('最近求助地點', Icons.local_police_outlined, !homeSelected, onPoint)]),
         ],
       ),
     );
@@ -702,9 +980,21 @@ class _StepsToggle extends StatelessWidget {
         children: [
           const Icon(Icons.format_list_numbered_rounded, color: SwColors.brandDeep),
           const SizedBox(width: 8),
-          Text('文字路線', style: SwText.bodyStrong),
-          const Spacer(),
-          Text(open ? '收合' : '$count 個步驟', style: SwText.secondary.copyWith(color: SwColors.brandDeep)),
+          // 標題佔滿左側，「N 個步驟／收合」與箭頭固定靠右。
+          Expanded(
+            child: Text('文字路線', maxLines: 1, softWrap: false, overflow: TextOverflow.fade, style: SwText.bodyStrong),
+          ),
+          const SizedBox(width: 8),
+          Flexible(
+            flex: 0,
+            child: Text(
+              open ? '收合' : '$count 個步驟',
+              maxLines: 1,
+              softWrap: false,
+              overflow: TextOverflow.fade,
+              style: SwText.secondary.copyWith(color: SwColors.brandDeep),
+            ),
+          ),
           AnimatedRotation(
             turns: open ? .5 : 0,
             duration: SwMotion.of(context, 200),
@@ -1008,37 +1298,73 @@ class _BottomBar extends StatelessWidget {
   const _BottomBar({required this.onCall, required this.onEmergency});
   final VoidCallback onCall, onEmergency;
   @override
-  Widget build(BuildContext context) => Container(
-    decoration: const BoxDecoration(
-      color: SwColors.surface,
-      border: Border(top: BorderSide(color: SwColors.border)),
+  Widget build(BuildContext context) => SwActionBar(
+    secondary: SwSecondaryAction(icon: Icons.phone_in_talk_outlined, label: '模擬來電', onTap: onCall),
+    onEmergency: onEmergency,
+  );
+}
+
+/// 換下一個求助地點：圖示鈕（交換箭頭），旁邊就是地點名稱，語意清楚；讀屏與長按提示「換下一個求助地點」。
+class _SwapButton extends StatelessWidget {
+  const _SwapButton({required this.onTap});
+  final VoidCallback? onTap;
+  @override
+  Widget build(BuildContext context) => DecoratedBox(
+    decoration: BoxDecoration(shape: BoxShape.circle, boxShadow: onTap == null ? null : SwShadow.card),
+    child: SwPressable(
+      onTap: onTap,
+      color: onTap == null ? TPColors.grayscale100 : SwColors.brandSoft,
+      pressedColor: TPColors.primary100,
+      border: BorderSide(color: onTap == null ? SwColors.border : SwColors.brand),
+      radius: swTouch / 2,
+      semanticsLabel: '換下一個求助地點',
+      child: SizedBox(
+        width: swTouch,
+        height: swTouch,
+        child: Icon(Icons.swap_horiz_rounded, color: onTap == null ? SwColors.textSecondary : SwColors.brandDeep),
+      ),
     ),
-    padding: EdgeInsets.fromLTRB(16, 12, 16, 12 + MediaQuery.paddingOf(context).bottom),
-    child: Row(
-      children: [
-        SwPressable(
-          onTap: onCall,
-          color: SwColors.surface,
-          pressedColor: SwColors.brandSoft,
-          border: const BorderSide(color: SwColors.border),
-          radius: 12,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: SizedBox(
-            height: swTouchLarge,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
+  );
+}
+
+/// 地圖右上工具（像地圖 App 的圖層鈕）：圖示＋兩字說明，56×56，選取時換底色。
+class _MapTool extends StatelessWidget {
+  const _MapTool({required this.icon, required this.caption, required this.semantics, required this.onTap, this.selected = false, this.warn = false});
+  final IconData icon;
+  final String caption, semantics;
+  final VoidCallback onTap;
+  final bool selected, warn;
+  @override
+  Widget build(BuildContext context) {
+    final fg = warn ? SwColors.warnText : SwColors.brandDeep;
+    return DecoratedBox(
+      decoration: BoxDecoration(borderRadius: BorderRadius.circular(14), boxShadow: SwShadow.float),
+      child: SwPressable(
+        onTap: onTap,
+        selected: selected,
+        color: selected ? (warn ? SwColors.warnBg : SwColors.brandSoft) : SwColors.surface,
+        pressedColor: warn ? SwColors.warnBg : SwColors.brandSoft,
+        border: selected ? BorderSide(color: fg, width: 2) : null,
+        radius: 14,
+        semanticsLabel: semantics,
+        child: SizedBox(
+          width: 52,
+          height: 52,
+          child: ExcludeSemantics(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.phone_in_talk_outlined, color: SwColors.text),
-                const SizedBox(width: 8),
-                Text('模擬來電', style: SwText.bodyStrong),
+                Icon(icon, color: fg, size: 24),
+                Text(
+                  caption,
+                  maxLines: 1,
+                  style: SwText.small.copyWith(color: fg, fontWeight: FontWeight.w700, fontSize: 12, height: 1.2),
+                ),
               ],
             ),
           ),
         ),
-        const Spacer(),
-        const SizedBox(width: 24),
-        SwSosButton(onTap: onEmergency),
-      ],
-    ),
-  );
+      ),
+    );
+  }
 }

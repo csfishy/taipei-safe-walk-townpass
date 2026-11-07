@@ -211,7 +211,7 @@ void main() {
       await enter(t);
       expect(platform.locations, 0);
       expect(platform.emergencies, 0);
-      await t.tap(find.text('安心回家'));
+      await t.tap(find.text('安心行'));
       await t.pumpAndSettle();
       expect(find.text('示範路線／非即時導航'), findsOneWidget);
       await t.tap(find.text('文字路線'));
@@ -250,7 +250,7 @@ void main() {
       await t.pumpAndSettle();
       await t.tap(find.text('我現在安全，關閉'));
       await t.pumpAndSettle();
-      expect(find.text('安心回家'), findsOneWidget);
+      expect(find.text('安心行'), findsOneWidget);
       await back(t);
       expect(find.byType(CityServiceView), findsOneWidget);
       expect(companion.disposals, 1);

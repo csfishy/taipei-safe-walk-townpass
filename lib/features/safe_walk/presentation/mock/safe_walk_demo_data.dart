@@ -76,6 +76,21 @@ List<RouteStep> routeSteps(List<LatLng> path) {
   return steps;
 }
 
+// ───────── 常用目的地（提案型別；只存在記憶體，不保存住家地址） ─────────
+
+class SavedPlace {
+  const SavedPlace(this.id, this.label, this.at);
+  final String id;
+  final String label;
+  final LatLng at;
+  bool get isHome => id == 'home';
+}
+
+List<SavedPlace> demoPlaces() => const [SavedPlace('home', '家', DemoGeo.home), SavedPlace('work', '公司', LatLng(25.0014, 121.4997))];
+
+/// 到某個常用地點的示範路線：家用繞開異常的路線，其他用沿街 L 形。
+List<LatLng> placeRoute(LatLng start, SavedPlace p) => p.isHome && start.lat == DemoGeo.start.lat && start.lng == DemoGeo.start.lng ? DemoGeo.homeRoute : DemoGeo.lRoute(start, p.at);
+
 // ───────── 求助據點（共用 AssistancePoint 型別，示範資料） ─────────
 
 sw.SourceMetadata _demoSource() => sw.SourceMetadata(
@@ -133,6 +148,10 @@ class Anomaly {
   final List<String> updates;
   final sw.DataMode mode = sw.DataMode.mock;
 }
+
+/// 回家示範路線刻意不走西側 121.5000 那條街與北側西段；落在那裡、尚未解除的回報就是「已繞開」。
+int avoidedCount(List<Anomaly> list) =>
+    list.where((a) => a.status != AnomalyStatus.cleared && ((a.at.lng - 121.5).abs() < .00005 || ((a.at.lat - 25.001).abs() < .00005 && a.at.lng < 121.5006))).length;
 
 List<Anomaly> demoAnomalies() => [
   Anomaly(

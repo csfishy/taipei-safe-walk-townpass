@@ -9,7 +9,7 @@
 | 畫面 | 檔案 | 重點 |
 |---|---|---|
 | 入口 | `safe_walk_flow.dart` | `SafeWalkFlow`：切換以下畫面；對外動作全部經 callback 交給 M1 |
-| 首頁 | `safe_walk_home_view.dart` | 四個入口由上到下（安心回家、模擬來電、附近求助地點、回報狀況）＋最下方緊急求助；示範模式標示 |
+| 首頁 | `safe_walk_home_view.dart` | 「安心行」主卡（點擊開始）＋其他功能一項一行（模擬來電、附近求助地點、回報狀況）＋最下方緊急求助；示範模式標示 |
 | 地圖 | `safe_walk_map_view.dart`、`demo_map.dart` | 預設回家路線（繞開異常回報，較短但經過異常的路線以虛線對照）、「已繞開 N 個異常回報」標籤、回家／**最近求助地點**切換（中性，不指定任何品牌）、文字路線（方向箭頭逐步）、在地圖上回報狀況與更新既有回報、**可收合的底部資訊框**（點把手或上下滑）、可開關的圖例、最底列左模擬來電右緊急求助 |
 | 附近求助地點 | 同上（`MapStartView.points`） | 據點卡片由近到遠，點開看地址、電話、營業、合作認可、資料來源、更新時間，「帶我去這裡」；**載入中（骨架）、載入失敗（可重試）、沒有資料**三種狀態 |
 | 模擬來電 | `safe_walk_call_view.dart` | 只朗讀對方台詞（點泡泡重播／停止）；自己的回應只顯示文字；「自己輸入」是輸入**對方要說的話**；地圖縮成 **Google Maps 式子母畫面**（浮在對話上、顯示分鐘數、左右滑可換邊、點一下回地圖）；不要求麥克風 |
@@ -57,10 +57,33 @@ SafeWalkFlow(
 - 朗讀需要 TTS 套件（pubspec 由 M1 管理）或 M5 Adapter。
 - 簡訊報警的收件號碼由 M1 決定；開啟簡訊 App 不代表警方已收到或受理。
 
+## 接入臺北通「服務」頁（給 M1，M3 不改官方檔案）
+
+臺北通的服務入口由 `lib/page/city_service/model/my_service_model.dart` 定義：每個服務是 `MyServiceItemId` 的一個值，點擊後由 `TPRoute.openUri()` 開啟；`destinationUrl` 用 `local://<路由>` 會走 App 內頁（官方的警政報案就是 `local://online_police`），其他網址則用 WebView。安心行是原生 Flutter 畫面，建議：
+
+1. `my_service_model.dart`：`MyServiceItemId` 加 `safeWalk`，並在 `MyServiceIdExt` 加：
+   ```dart
+   MyServiceItemId.safeWalk => MyServiceItem(
+     title: '臺北安心行',
+     description: '回家路線避開回報狀況、模擬來電、緊急求助',
+     icon: Assets.svg.iconSafeWalk.svg(),
+     category: MyServiceCategory.cityLife,
+     destinationUrl: 'local://safe_walk',
+   ),
+   ```
+2. `tp_route.dart`：加 `static const String safeWalk = '/safe_walk';` 與對應 `GetPage`，頁面為 `SafeWalkFlow(...)`（callbacks 見上方「給 M1 的接線需求」；路由名稱須與 `local://` 的 host 寫法一致，請比照 `online_police` 實測）。
+3. 圖示：`presentation/assets_proposal/safe_walk_service_icon.svg`（線條＋品牌青色點綴，色值取自 TPColors），由 M1 移到 `assets/svg/icon_safe_walk.svg` 後重新產生 `Assets`。
+4. 曝光位置（評審第一眼看得到）：加進「我的服務」預設置頂清單第一個；若有官方服務卡版位，可放在「城市生活」。
+
+## 語言（中／英）
+
+臺北通設定頁已有「語言」選項（`LanguageViewController`：繁中、English），但官方目前 `onIndexChange` 仍是 TODO，**整個 App 尚未實作切換**，文字都寫死中文。建議安心行先做「跟隨 App 語系」：M3 把畫面文字集中成中英對照表，依 `Localizations.localeOf(context)` 顯示；等 M1 在語言頁呼叫 `Get.updateLocale()` 後，安心行會自動跟著切換，不需要另做一顆語言鈕。
+
 ## 驗證
 
 - `flutter analyze lib/features/safe_walk/presentation test/features/safe_walk/presentation`：無問題。
 - `flutter test test/features/safe_walk/presentation`：7 項流程測試通過（首頁、緊急求助不撥號、地圖已繞開與文字路線、最近求助地點與資訊框收合、求助地點載入／錯誤／空值、來電只朗讀對方、簡訊報警示範傳送）。
+- 無障礙自動檢查：`safe_walk_a11y_test.dart` 對首頁、地圖、附近求助地點、模擬來電、緊急求助檢查點擊區域 ≥ 48、可點元件有讀屏名稱、文字對比（Flutter 內建 guideline）。不等於 TalkBack／VoiceOver 實測。
 - 設計截圖：`M3_SCREENSHOTS=1 flutter test test/features/safe_walk/presentation/safe_walk_screenshots_test.dart --update-goldens`，產出 `screenshots/*.png`；CI 預設略過。
 - 本機預覽：`flutter create --platforms=web .` 後執行 `flutter run -d web-server -t lib/features/safe_walk/presentation/preview/safe_walk_preview_main.dart`（`web/` 只在本機，不提交）。
 - 未驗：實機、TownPass App 內接線、讀屏、真實朗讀。
