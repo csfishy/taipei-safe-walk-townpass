@@ -54,6 +54,11 @@ class SafeWalkHomeView extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
               children: [
                 Semantics(header: true, label: '臺北安心行', child: const SizedBox.shrink()),
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: SwMockBadge(text: '示範模式（Mock）'),
+                ),
+                const SizedBox(height: 12),
                 _ContextCard(now: t),
                 const SizedBox(height: 16),
                 _GoHomeCard(destination: destination, minutes: homeMinutes, avoided: avoided, onTap: () => onOpen(SafeWalkEntry.map)),
@@ -61,11 +66,6 @@ class SafeWalkHomeView extends StatelessWidget {
                 Semantics(header: true, child: Text('其他功能', style: SwText.heading)),
                 const SizedBox(height: 12),
                 for (final (id, icon, name, desc) in _more) ...[_FeatureRow(icon: icon, name: name, desc: desc, onTap: () => onOpen(id)), const SizedBox(height: 10)],
-                const SizedBox(height: 6),
-                const Align(
-                  alignment: Alignment.centerLeft,
-                  child: SwMockBadge(text: '示範模式（Mock）'),
-                ),
               ],
             ),
           ),

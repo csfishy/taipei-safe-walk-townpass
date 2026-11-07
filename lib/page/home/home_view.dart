@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:town_pass/gen/assets.gen.dart';
+import 'package:town_pass/page/city_service/model/my_service_model.dart';
 import 'package:town_pass/page/home/widget/activity_info/activity_info_widget.dart';
 import 'package:town_pass/page/home/widget/city_news/city_news_widget.dart';
 import 'package:town_pass/page/home/widget/news/news_banner_widget.dart';
@@ -19,10 +20,7 @@ class HomeView extends StatelessWidget {
         showLogo: true,
         title: '首頁',
         leading: IconButton(
-          icon: Semantics(
-            label: '帳戶',
-            child: Assets.svg.iconPerson.svg(),
-          ),
+          icon: Semantics(label: '帳戶', child: Assets.svg.iconPerson.svg()),
           onPressed: () => Get.toNamed(TPRoute.account),
         ),
         backgroundColor: TPColors.white,
@@ -30,6 +28,7 @@ class HomeView extends StatelessWidget {
       body: const CustomScrollView(
         slivers: [
           _SliverGap(20),
+          SliverToBoxAdapter(child: _SafeWalkEntry()),
           SliverToBoxAdapter(child: NewsBannerWidget()),
           _SliverGap(20),
           SliverToBoxAdapter(child: ActivityInfoWidget()),
@@ -39,6 +38,26 @@ class HomeView extends StatelessWidget {
           SliverToBoxAdapter(child: SubscriptionWidget()),
           _SliverGap(32),
         ],
+      ),
+    );
+  }
+}
+
+class _SafeWalkEntry extends StatelessWidget {
+  const _SafeWalkEntry();
+
+  @override
+  Widget build(BuildContext context) {
+    final item = MyServiceItemId.safeWalk.item;
+    return Card(
+      key: const ValueKey('safe-walk-home-entry'),
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+      child: ListTile(
+        leading: item.icon,
+        title: Text(item.title),
+        subtitle: Text(item.description),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => TPRoute.openUri(uri: item.destinationUrl),
       ),
     );
   }

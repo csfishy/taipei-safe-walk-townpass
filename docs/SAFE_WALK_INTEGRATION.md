@@ -9,13 +9,20 @@
 | 接點 | 本輪設定 |
 |---|---|
 | 城市服務 | `MyServiceItemId.safeWalk`，標題「臺北安心行」，`cityService` 類別；重用官方 location-search SVG，沒有新增入口 Widget 或圖示資產。 |
-| 入口顯示 | 官方 `PinnedServiceWidget` → `PinnedServiceItemWidget`；預設釘選清單保留原三項，加入安心行為第四項。官方編輯列表也從同一 enum 取得項目，沒有重複入口。現有 controller 釘選狀態只存記憶體，未新增儲存邏輯。 |
+| 城市服務入口顯示 | 官方 `PinnedServiceWidget` → `PinnedServiceItemWidget`；預設釘選清單保留原三項，加入安心行為第四項。官方編輯列表也從同一 enum 取得項目，沒有重複服務定義。現有 controller 釘選狀態只存記憶體，未新增儲存邏輯。 |
+| 首頁功能卡片 | `HomeView` 在新聞上方顯示「臺北安心行」卡片，包含服務圖示、標題、說明與向右箭頭；點按沿用同一個 `local://safe_walk`。與城市服務共用 `MyServiceItemId.safeWalk.item`，不另建第二個服務或 route。 |
 | URI／GetX route | `local://safe_walk` → `TPRoute.safeWalk`（`/safe_walk`）。官方 `openUri()` 取 URI 的 host；`local:///safe_walk` 的 host 為空，不是可用形式。真實入口 tap、GetX 導頁及 route builder 已有測試。 |
 | 組合根 | `SafeWalkCompositionRoot`，位於 `platform/integration/safe_walk_composition_root.dart`，注入 `PlatformService`、`SafetyDataRepository`、`CompanionSpeakerAdapter`。退出會取消請求、停止及 dispose 陪伴；測試涵蓋三次進出與遲到資料。App 背景沒有新增 lifecycle observer，仍列實機／後續項目。 |
 
 跨模組組合集中於 `lib/features/safe_walk/platform/integration/`，以共用 models／contracts 交換資料；M2、M3、M4、M5 不直接依賴彼此實作。M1 不改共用 Schema 來遷就畫面示範型別，也不重做官方登入、會員、Theme、TPColors 或 WebView。M3 仍管理正式 UI/UX 設計。
 
 本輪是同一個 TownPass Flutter App 內的原生模組與 route，**不是獨立 HTTPS 服務或已接妥的 TownPass WebView 微服務**。Flutter Web artifact 也不自動等於主辦核准的 WebView 交件；競賽交付形式及授權待確認項目仍見 [競賽與授權紀錄](SAFE_WALK_COMPETITION_LICENSE.md)。
+
+### TownPass-self 首頁入口對齊
+
+依使用者要求，首頁入口採用 [TownPass-self 的功能卡片排列](https://github.com/steventeng2022/TownPass-self/blob/feat/taipei-youbike-finder/lib/page/home/home_view.dart)：卡片放在新聞上方，點按開啟同一 App 內的功能頁，返回回到 TownPass 首頁。服務名稱、說明與圖示重用既有服務目錄，功能頁仍由 `SafeWalkCompositionRoot` 組合已合併的 M3 畫面；沒有搬入參考 Repo 的公共廁所或 YouBike 功能。原城市服務入口仍可使用。
+
+首頁卡片的導頁／返回及 320px、2 倍字體的操作由 focused widget tests 驗證；資料模式、定位與求助行為沿用下方已揭露的限制，不因入口移到首頁而開放 Live。
 
 ## 模組狀態與預設行為
 

@@ -1,10 +1,16 @@
 # 臺北安心行 · Taipei Safe Walk
 
-以官方 TownPass Flutter App 為基底的五人協作專案，參與「2026 臺北城市通微服務黑客松」。專案目前提供共用資料契約、無 UI 的服務接點、資料適配器與測試；完整安心行畫面、真實步行導航、官方求助介接與裝置驗收仍待各模組交付。
+以官方 TownPass Flutter App 為基底的五人協作專案，參與「2026 臺北城市通微服務黑客松」。專案目前提供安心行示範畫面、TownPass 內的原生功能入口、共用資料契約與模組測試；真實步行導航、官方求助介接與裝置驗收仍待交付。
 
 - **Repository**：[csfishy/taipei-safe-walk-townpass](https://github.com/csfishy/taipei-safe-walk-townpass)；Public，預設分支 `main`。
 - **開發基線**：Flutter **3.47.6**／Dart **3.13.5**，依 [.fvmrc](.fvmrc) 與已提交的 [pubspec.lock](pubspec.lock)；同一個 Flutter App，以模組分支協作。
-- **目前狀態**：五模組初始化及預覽建置設定均已合併至 `main`；[預覽建置與 CI 修正 PR #2](https://github.com/csfishy/taipei-safe-walk-townpass/pull/2) 為已合併的歷史紀錄。產物與部署狀態請查看 [GitHub Actions](https://github.com/csfishy/taipei-safe-walk-townpass/actions) 對應 commit 的實際結果，不能將設定已合併視為全部檢查或部署成功。
+- **目前狀態**：五模組初始化、M3 畫面、M5 控制器、M1 原生接線及自動預發佈設定已合併至 `main`。產物與部署狀態請查看 [GitHub Actions](https://github.com/csfishy/taipei-safe-walk-townpass/actions) 對應 commit 的實際結果，不能將設定已合併視為全部檢查或部署成功。
+
+## 在 TownPass 開啟安心行
+
+從 TownPass **首頁新聞上方的「臺北安心行」功能卡片**進入，卡片包含圖示、說明與向右箭頭，排列方式參考 TownPass-self。也可從「城市服務」的釘選項目開啟；兩處進入同一個原生功能頁，返回回到原本的 TownPass 畫面。
+
+目前為明確標示的示範模式，提供安心回家、模擬來電、附近求助地點、回報狀況與緊急求助示範。進入功能不會自動取 GPS、播放語音、撥號或傳送簡訊。實際模組狀態與未配置功能見 [入口整合說明](docs/SAFE_WALK_INTEGRATION.md)。
 
 ## Clone 與五人分工
 
@@ -86,7 +92,7 @@ Android／iOS 開發使用 `flutter run -d 裝置ID`，先安裝對應 SDK、模
 | [Safe Walk CI](https://github.com/csfishy/taipei-safe-walk-townpass/actions/workflows/safe_walk.yml) | PR、main／migration push、手動執行；Schema 一致性、模組／工具分析、完整測試與原始診斷報告；可手動選擇 Android debug build |
 | [check-and-build](https://github.com/csfishy/taipei-safe-walk-townpass/actions/workflows/build.yml) | PR、main push、`v*-pre.*` tag、手動執行；檢查後產生 Android APK／unsigned iOS IPA／Web 預覽產物 |
 
-PR／main／manual run 產生可下載 artifacts，不直接等於 GitHub Release。只有 **push 事件推送符合 pubspec 版本的預發佈 tag**，且全部必要平台建置通過後，才發布 GitHub prerelease；例如 `0.0.12-pre.1+1` 對應 `v0.0.12-pre.1`。手動對既有 tag 執行不會建立 Release；Pages 仍依下述網站部署條件判斷。不要覆寫已發布 tag。手動執行入口需工作流已存在於預設分支；完整規則見 [建置與部署](docs/BUILDS.md)。
+每次 **push 到 main**，檢查及三平台建置全部通過後會自動發布 GitHub prerelease，版本包含 run number 與 commit，例如 `v0.0.12-pre.42.g31cb0ac12345`；一次推送多個 commits 時只建置最後一個。符合 pubspec 版本的手動預發佈 tag 仍支援發布。PR／manual run 僅產生 artifacts，不建立 Release；不要覆寫已發布 tag。完整規則見 [建置與部署](docs/BUILDS.md)。
 
 本機可在完成相同 metadata／pub get／generation 後建置；以下 iOS 範例的純數字版本對應目前 pubspec：
 
@@ -98,14 +104,14 @@ flutter build web --release --no-pub --base-href /taipei-safe-walk-townpass/ --n
 
 iOS `--build-name` 使用 pubspec 版本的純數字部分，升版時需同步調整。這些命令需要對應平台工具；列出命令不是已完成建置的證明。預覽使用獨立身份 `Town Pass Preview`／`io.github.csfishy.taipeisafewalktownpass.preview`，不是正式市政服務發行版。Android APK 使用測試金鑰；unsigned IPA 沒有 provisioning profile／簽章，不能直接安裝或當作 TestFlight 版本，仍需適當簽署。下載與安裝限制見 [預發佈說明](docs/PRERELEASE-NOTES.md)。
 
-GitHub Pages 只在非 PR run、Web／Android／iOS 三個建置成功，且 owner／admin 已將 Settings → Pages 的 Source 設為 **GitHub Actions**、允許對應 main／tag environment 部署後才可能發布；未配置時保留 Web ZIP 並明確跳過部署。預期專案網址為 [csfishy.github.io/taipei-safe-walk-townpass](https://csfishy.github.io/taipei-safe-walk-townpass/)，**部署成功前僅是預期網址**，實際以 Pages deployment 回傳連結為準。Web ZIP 或 Release 下載頁不是已上線網站。
+GitHub Pages 僅從最新 main 部署：Web／Android／iOS 三個建置成功，且 owner／admin 已將 Source 設為 **GitHub Actions**、允許 main environment 部署後才發布；未配置或來源已過期時明確跳過。專案網址為 [csfishy.github.io/taipei-safe-walk-townpass](https://csfishy.github.io/taipei-safe-walk-townpass/)，實際部署結果以對應 run 為準。Web ZIP 或 Release 下載頁不是網站部署證明。
 
 ## 架構、資料與產品邊界
 
 - JSON payload 的唯一來源是 [contracts.schema.json](schemas/safe_walk/v1/contracts.schema.json)；Dart 模型／runtime schema 可由 `dart run tool/generate_safe_walk_contracts.dart` 重產，再執行 `--check`。不手改生成模型，也不在五模組各自定義資料型別。
 - 模組先以 mock／fixtures／fake adapters 獨立開發。mock 不是真實位置、正式機關資料或救援；live provider 未配置要明確失敗，不能用 mock 假成功。`officialReceipt` 保持 null，不宣稱警方已受理或救援已派遣。
 - 行政區歷史犯罪統計不能直接等同即時道路安全評分，也不構成路段安全保證。來源、時間、認可及未知狀態各自保留。
-- 官方 `main.dart`、GetX route、Theme、`TPColors`、品牌與原生功能沿用官方架構。新增 UI/UX 由 **M3 莅紋**設計，目前 presentation 只保留責任說明，不預建首頁、SOS、地圖、通話頁或 Widget Tree；不套用其他技術棧的 CSS 設計。
+- 官方 `main.dart`、GetX route、Theme、`TPColors`、品牌與原生功能沿用官方架構。安心行 UI/UX 由 **M3 莅紋**設計，M1 在 TownPass 首頁與城市服務接入同一個功能頁；不套用其他技術棧的 CSS 設計。
 - 色值沿用官方 [TPColors](lib/util/tp_colors.dart)，語意與對比參考 [顏色規範](docs/SAFE_WALK_COLOR_SPEC.md)；色彩配對不等於整個 App 已通過 WCAG。
 - 定位權限、原生／WebView、相機、通知、音訊、撥號與裝置無障礙仍需實機驗收。保留官方來源、分析／測試或產出安裝包，都不能替代這些驗收。
 
