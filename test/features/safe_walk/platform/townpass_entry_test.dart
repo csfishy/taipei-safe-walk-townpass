@@ -1,11 +1,20 @@
+import 'package:carousel_slider/carousel_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
+import 'package:town_pass/bean/activity.dart';
+import 'package:town_pass/bean/home_banner.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_composition_root.dart';
+import 'package:town_pass/features/safe_walk/presentation/safe_walk_flow.dart';
 import 'package:town_pass/page/city_service/model/my_service_model.dart';
 import 'package:town_pass/page/city_service/widget/pinned_service_widget.dart';
 import 'package:town_pass/page/city_service/widget/pinned_service_widget_controller.dart';
 import 'package:town_pass/page/city_service_edit/city_service_edit_view_controller.dart';
+import 'package:town_pass/page/home/home_view.dart';
+import 'package:town_pass/page/home/widget/activity_info/activity_banner_widget_controller.dart';
+import 'package:town_pass/page/home/widget/news/news_banner_widget.dart';
+import 'package:town_pass/page/home/widget/news/news_banner_widget_controller.dart';
+import 'package:town_pass/service/subscription_service.dart';
 import 'package:town_pass/util/tp_route.dart';
 
 void main() {
@@ -84,4 +93,142 @@ void main() {
     );
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'the homepage card precedes news and opens the real Safe Walk flow',
+    (tester) async {
+      await _homeApp(tester);
+      final item = MyServiceItemId.safeWalk.item;
+      final entry = find.ancestor(
+        of: find.text(item.title),
+        matching: find.byType(ListTile),
+      );
+
+      expect(entry, findsOneWidget);
+      expect(find.text(item.description), findsOneWidget);
+      expect(
+        tester.getBottomLeft(entry).dy,
+        lessThanOrEqualTo(tester.getTopLeft(find.byType(NewsBannerWidget)).dy),
+      );
+      expect(find.byType(SafeWalkCompositionRoot), findsNothing);
+
+      await tester.tap(entry);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(find.byType(SafeWalkCompositionRoot), findsOneWidget);
+      expect(find.byType(SafeWalkFlow), findsOneWidget);
+      expect(
+        Get.routeTree.matchRoute(Get.currentRoute).route?.name,
+        TPRoute.safeWalk,
+      );
+      final flow = tester.widget<SafeWalkFlow>(find.byType(SafeWalkFlow));
+      expect(flow.allowRealCalls, isFalse);
+
+      await tester.binding.handlePopRoute();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.byType(SafeWalkCompositionRoot), findsNothing);
+      expect(find.byType(HomeView), findsOneWidget);
+      expect(find.text(item.title), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+    },
+  );
+
+  testWidgets(
+    'the homepage card stays visible and tappable at 320px with large text',
+    (tester) async {
+      await _homeApp(
+        tester,
+        width: 320,
+        height: 400,
+        textScale: 2,
+        useRealRoute: false,
+      );
+      final item = MyServiceItemId.safeWalk.item;
+      final entry = find.ancestor(
+        of: find.text(item.title),
+        matching: find.byType(ListTile),
+      );
+      final bounds = tester.getRect(entry);
+
+      expect(entry, findsOneWidget);
+      expect(find.text(item.description), findsOneWidget);
+      expect(bounds.left, greaterThanOrEqualTo(0));
+      expect(bounds.right, lessThanOrEqualTo(320));
+      expect(bounds.bottom, lessThan(400));
+      expect(tester.takeException(), isNull);
+
+      await tester.tap(entry);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.text('safe-walk-large-text-target'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+    },
+  );
+}
+
+Future<void> _homeApp(
+  WidgetTester tester, {
+  double width = 390,
+  double height = 844,
+  double textScale = 1,
+  bool useRealRoute = true,
+}) async {
+  tester.view.physicalSize = Size(width, height);
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.reset);
+  Get.put<NewsBannerWidgetController>(_NewsWithoutTimer());
+  Get.put<ActivityBannerWidgetController>(_ActivityWithoutTimer());
+  Get.put(SubscriptionService()..addSubscription(title: '測試訂閱'));
+  await tester.pumpWidget(
+    GetMaterialApp(
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context)
+            .copyWith(textScaler: TextScaler.linear(textScale)),
+        child: child!,
+      ),
+      home: const HomeView(),
+      getPages: [
+        useRealRoute
+            ? TPRoute.page.singleWhere((page) => page.name == TPRoute.safeWalk)
+            : GetPage(
+                name: TPRoute.safeWalk,
+                page: () =>
+                    const Scaffold(body: Text('safe-walk-large-text-target')),
+              ),
+      ],
+    ),
+  );
+  // Home's loading placeholders animate continuously. Pump a finite frame;
+  // neither test needs to initialize the official app or load remote banners.
+  await tester.pump();
+}
+
+class _NewsWithoutTimer extends GetxController
+    implements NewsBannerWidgetController {
+  @override
+  final controller = CarouselSliderController();
+
+  @override
+  int carouselIndex = 0;
+
+  @override
+  bool isLoading = true;
+
+  @override
+  HomeBannerList? list;
+}
+
+class _ActivityWithoutTimer extends GetxController
+    implements ActivityBannerWidgetController {
+  @override
+  bool isLoading = true;
+
+  @override
+  ActivityList? list;
 }
