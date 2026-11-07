@@ -130,5 +130,137 @@
         "pauseAfterMs": 2500
       }
     ]
+  },
+  {
+    "schemaVersion": "1.0.0",
+    "id": "cannot-move-safely",
+    "label": "沒辦法安全移動時",
+    "disclosure": "模擬通話，未聯絡任何人",
+    "steps": [
+      {
+        "id": "line-1",
+        "text": "喂，先不要急著走。",
+        "audioSrc": null,
+        "pauseAfterMs": 2500
+      },
+      {
+        "id": "line-2",
+        "text": "走不了的話，就先留在原地，不用勉強。",
+        "audioSrc": null,
+        "pauseAfterMs": 3500
+      },
+      {
+        "id": "line-3",
+        "text": "能的話，靠近燈下或店家門口。",
+        "audioSrc": null,
+        "pauseAfterMs": 3500
+      },
+      {
+        "id": "line-4",
+        "text": "如果覺得危險，馬上用求助，不用等。",
+        "audioSrc": null,
+        "pauseAfterMs": 3000
+      },
+      {
+        "id": "line-5",
+        "text": "不方便說話的話，求助畫面也可以用文字。",
+        "audioSrc": null,
+        "pauseAfterMs": 3000
+      },
+      {
+        "id": "line-6",
+        "text": "等到覺得安全了，再慢慢走。",
+        "audioSrc": null,
+        "pauseAfterMs": 2500
+      }
+    ]
+  },
+  {
+    "schemaVersion": "1.0.0",
+    "id": "rideshare-mismatch",
+    "label": "車號或司機不符時",
+    "disclosure": "模擬通話，未聯絡任何人",
+    "steps": [
+      {
+        "id": "line-1",
+        "text": "喂，車到了嗎？",
+        "audioSrc": null,
+        "pauseAfterMs": 2500
+      },
+      {
+        "id": "line-2",
+        "text": "先別急著上車，對一下車牌號碼。",
+        "audioSrc": null,
+        "pauseAfterMs": 3500
+      },
+      {
+        "id": "line-3",
+        "text": "司機名字和車型也看一下，跟叫車資料一樣嗎？",
+        "audioSrc": null,
+        "pauseAfterMs": 4000
+      },
+      {
+        "id": "line-4",
+        "text": "如果不一樣，就不要上車，先待在人多的地方。",
+        "audioSrc": null,
+        "pauseAfterMs": 3500
+      },
+      {
+        "id": "line-5",
+        "text": "已經在車上的話，覺得路線不對就先用求助。",
+        "audioSrc": null,
+        "pauseAfterMs": 3000
+      },
+      {
+        "id": "line-6",
+        "text": "確認沒問題再上車。",
+        "audioSrc": null,
+        "pauseAfterMs": 2000
+      }
+    ]
+  },
+  {
+    "schemaVersion": "1.0.0",
+    "id": "elder-short-walk",
+    "label": "長者版：走路回家（短句）",
+    "disclosure": "模擬通話，未聯絡任何人",
+    "steps": [
+      {
+        "id": "line-1",
+        "text": "喂，你在哪裡？",
+        "audioSrc": null,
+        "pauseAfterMs": 2500
+      },
+      {
+        "id": "line-2",
+        "text": "走大路，走亮的地方。",
+        "audioSrc": null,
+        "pauseAfterMs": 3000
+      },
+      {
+        "id": "line-3",
+        "text": "慢慢走，不要急。",
+        "audioSrc": null,
+        "pauseAfterMs": 3000
+      },
+      {
+        "id": "line-4",
+        "text": "累了就找店家坐一下。",
+        "audioSrc": null,
+        "pauseAfterMs": 3000
+      },
+      {
+        "id": "line-5",
+        "text": "怕的話，按求助。",
+        "audioSrc": null,
+        "pauseAfterMs": 2500
+      },
+      {
+        "id": "line-6",
+        "text": "到家記得關好門。",
+        "audioSrc": null,
+        "pauseAfterMs": 2000
+      }
+    ]
   }
 ]

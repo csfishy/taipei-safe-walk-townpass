@@ -4,6 +4,10 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:town_pass/features/safe_walk/shared/contracts/safe_walk_contracts.dart';
 
+/// Elder-oriented scenarios use this id prefix and must stay short and plain.
+const _elderPrefix = 'elder-';
+const _elderMaxLineCodePoints = 12;
+
 const _scenarioFile =
     'test/features/safe_walk/companion/fixtures/companion_scenarios.json';
 
@@ -83,4 +87,23 @@ void main() {
       },
     );
   }
+
+  test('elder scenarios keep every line short enough to follow', () {
+    final elder = scenarios
+        .cast<Map>()
+        .where((s) => (s['id'] as String).startsWith(_elderPrefix))
+        .toList();
+    expect(elder, isNotEmpty);
+    for (final scenario in elder) {
+      for (final step in (scenario['steps'] as List).cast<Map>()) {
+        final text = step['text'] as String;
+        expect(
+          text.runes.length,
+          lessThanOrEqualTo(_elderMaxLineCodePoints),
+          reason:
+              '${scenario['id']}: "$text" is too long for the elder variant',
+        );
+      }
+    }
+  });
 }
