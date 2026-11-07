@@ -2,11 +2,13 @@
 
 所有成員均可跨 M1～M5 修改功能與相應測試，自行 AI Coding、除錯及建立 PR。修改其他模組時說明目的、影響檔案及原主要負責人，先核對進行中的 PR 避免同時改同一檔；普通 Level A 變更不需小魚事前批准，Level B 合併前確認；Level C 合併前須隊長明確授權及安全／隱私審查，正式啟用前完成適用驗收。完整規則見 [開放協作](../../../../docs/SAFE_WALK_COLLABORATION.md)。
 
-先讀根目錄 AGENTS、[Live MVP](../../../../docs/SAFE_WALK_LIVE_MVP.md)、[Live Readiness](../../../../docs/SAFE_WALK_LIVE_READINESS.md)、[五人模組契約](../../../../docs/SAFE_WALK_MODULES.md)、[導航接線契約](../../../../docs/SAFE_WALK_NAVIGATION_PRESENTATION_CONTRACT.md) 與 [顏色規範](../../../../docs/SAFE_WALK_COLOR_SPEC.md)。初始化文件是歷史紀錄，不再以「不得建立 UI」阻擋正式功能。莅紋是正式 UI/UX 設計主要負責人；任何成員可維護一般 UI／callback／狀態及測試，正式 UI 大型改版須在合併前由莅紋確認。本次只改文件，不改版面或色彩。
+先讀根目錄 AGENTS、[Live MVP](../../../../docs/SAFE_WALK_LIVE_MVP.md)、[Live Readiness](../../../../docs/SAFE_WALK_LIVE_READINESS.md)、[五人模組契約](../../../../docs/SAFE_WALK_MODULES.md)、[導航接線契約](../../../../docs/SAFE_WALK_NAVIGATION_PRESENTATION_CONTRACT.md) 與 [顏色規範](../../../../docs/SAFE_WALK_COLOR_SPEC.md)。初始化文件是歷史紀錄，不再以「不得建立 UI」阻擋正式功能。莅紋是正式 UI/UX 設計主要負責人；任何成員可維護一般 UI／callback／狀態及測試，正式 UI 大型改版須在合併前由莅紋確認。
 
 ## 畫面（2026-11-07）
 
-稽核基線 `03f98f2b7b5254db73774c4d097eb4d610499c2c`。已由 M1 從臺北通「服務 > 臺北安心行」與首頁入口卡進入（`SafeWalkCompositionRoot` → `SafeWalkFlow`），畫面與 route API 已合併。`presentation/` 與 `test/features/safe_walk/presentation/` 是主要路徑，功能主責可同一 PR 跨 platform／navigation／資料／音訊完成接線與測試，不再受目錄獨占限制。以下為目前 Mock 畫面盤點，虛構街區、避讓件數及示範 ETA 不是 Live 驗收標準。
+P0 工作分支從 main `c4410706292ab008774e7b559c98ac59be08708e` 接續：原生入口預設受控 Live，`SafeWalkFlow` 透過 scope 進 `SafeWalkLiveMapView`；點地圖或輸入緯經度後按「設定目的地」，兩份獨立同意後按「開始或重試預覽」，才由 M1 取單次 GPS／查 OSRM。Live 只畫有效位置、所選目的地與真 geometry，nullable 時間顯示未知，據點與回報未配置不補 Demo。取消／撤回／背景／返回／SOS 清除且不自動恢復；Web 預設 Live 路由未配置。狀態為 WIRED_NOT_VERIFIED，證據／待驗見 [P0 預覽](../../../../docs/SAFE_WALK_P0_LIVE_PREVIEW.md)。
+
+已由 M1 從臺北通服務與首頁入口卡進入（`SafeWalkCompositionRoot` → `SafeWalkFlow`）。`presentation/` 與 `test/features/safe_walk/presentation/` 是主要路徑，功能主責可跨模組完成接線與測試。以下保留原 `03f98f2` 的 **Mock 畫面盤點**；虛構街區、避讓件數及示範 ETA 只屬顯式 Mock，不是 Live 行為或驗收證據。
 
 | 畫面 | 檔案 | 重點 |
 |---|---|---|
@@ -37,11 +39,11 @@
 
 ### 為什麼沒有「最近 7-ELEVEN」
 
-第二個目的地沿用中性的「最近求助地點」，由組合根注入 safety_data 據點；目前組合根仍供 Mock。M2 已有不限品牌的 OSM 便利商店來源與 NearestStorePlanner，尚未接 App，不應再描述成未改名的 7-ELEVEN 查詢。來源、營業與認可資訊須如實呈現，便利商店／AED 不直接等於政府認證救援據點；第三方查詢要另取得使用者同意。
+Mock 的第二個目的地沿用中性的「最近求助地點」，由組合根注入示範據點；Live 本輪顯示未配置，不用其補值。M2 已有不限品牌的 OSM 便利商店來源與 NearestStorePlanner，尚未接 App，不應再描述成未改名的 7-ELEVEN 查詢。來源、營業與認可資訊須如實呈現，便利商店／AED 不直接等於政府認證救援據點；第三方查詢要另取得使用者同意。
 
 ## 既有 constructor 與目前接線
 
-以下是介面示意，不是可直接貼用的程式；null 時補 Demo 是目前 Mock 行為，Live 必須改為明確未配置／缺值。DataMode wire 仍只有 mock／live，Unavailable 以既有 failure／reason 及程序內狀態呈現。
+以下是保留的 Mock constructor 介面示意，不是可直接貼用的程式；null 時補 Demo 僅限 Mock。Live 已改由 shared scope 消費 M1 位置／路線／同意狀態及目的地 callback，缺值明確未配置。DataMode wire 仍只有 mock／live，Unavailable 以既有 failure／reason 及程序內狀態呈現。
 
 ```dart
 SafeWalkFlow(
@@ -61,19 +63,19 @@ SafeWalkFlow(
 ```
 
 - 官方路由與服務入口已由 M1 完成（`local://safe_walk`）。
-- 路線 API 已存在；M1 組合根也已建立 M2 OSRM service 與 shared scope，但尚未把 route／routeLoading／onPlanRoute 傳給 Flow，Flow 也未消費 scope。隨 #29 交付的 `DemoMap` renderer 已接 flutter_map／OSM 底圖及投影，沿用類名而非固定 Demo 畫布；路線／點位仍 Mock，據點路線仍是 DemoGeo.lRoute。仍需真實 GPS、同意、lifecycle、Live 資料與完整模式分流，底圖子能力 WIRED_NOT_VERIFIED 不代表完整 Live UI 或裝置驗收。
+- Live Flow／`SafeWalkLiveMapView` 已消費 shared scope 的 position、locationLoading／Error、routeResult、routeLoading／Error、兩份同意與目的地 callbacks；使用者明確開始後由 M1 建立 request，presentation 不取 GPS。沿用 OSM renderer，Live 不補 DemoGeo；本輪最終整合測試／CI 與 iPhone 驗收分開記錄。
 - 異常回報與簡訊範本目前是呈現層提案型別；需要跨模組持久 payload 時才提出獨立 Schema 變更。來電劇本已有共用 CompanionScenario／M5 JSON 同步測試，不因接線重建第二套 Schema。
 - M1 已預設注入 `TtsSafeWalkSpeaker.device()`，M5 本機 TTS 與離線語音檢查已合併；可用聲音確認後才朗讀，否則文字／無聲預覽。不再把「完全沒有音訊實作」當現況；真實 iPhone 播放與中斷仍須驗收。響鈴目前只有震動，未交付鈴聲音檔。TTS 不需麥克風權限。
 - 簡訊報警需核對官方管道／收件號碼；涉及真實發送依 Level C 取得隊長明確授權及安全驗收。開啟簡訊 App 不代表警方已收到或受理。
 
 ## Live MVP 交付條件
 
-- Mock 僅供開發、測試及清楚標示的展示。正式功能完成相應驗收後必須由正式操作使用 Live；目前固定 Mock 與 readiness false 是未驗收隔離，不是永久禁令，各能力可分別啟用。
-- 使用者主動開始導航／更新位置才由平台入口取 TownPass 真實 GPS；定位權限與第三方路線查詢同意分開，提供拒絕及撤回。Flow 目前只在使用者進入地圖／換常用目的地／重試時呼叫既有 callback，無初始化自動規劃，但尚無完整 Live 同意／取消操作。
+- Mock 僅供開發、測試及清楚標示的展示。本輪正常原生入口已是受控 Live 預覽，仍為 WIRED_NOT_VERIFIED，各能力與裝置驗收分別計算，不能因 gates true 或 CI 綠燈宣稱正式上線。
+- 使用者按「開始或重試預覽」才由平台入口取 TownPass 單次 GPS；定位與第三方查詢同意獨立、預設 false，可撤回。進地圖、設定目的地、勾選同意或回前景都不自動定位／查路線。
 - 沿用既有 TownPass 介面與 #29 的 OSM 底圖 renderer，不因 `DemoMap` 類名重做底圖；接入並驗證正式 M2 RouteResult geometry、viewport、距離及可取得時間。GeoJSON 為 `[longitude, latitude]`；資料模式取決於來源與接線，真圖磚不會使 Mock 覆蓋物成為 Live，iPhone／底圖失敗呈現仍待驗。
-- durationSeconds null 顯示未知；目前 RouteState.minutes 與據點卡會呼叫 walkMinutes，Live 必須移除這些示範 ETA。完整呈現 result／candidate warnings、explanations、provider、loading、cancel、error 與下一步。
+- Live `durationSeconds` null 顯示未知，完整呈現 result／candidate warnings、explanations、provider、loading、cancel、error 與下一步；Mock 的 RouteState／據點卡示範步速不進 Live 畫面。
 - Live 不補 DemoGeo 起點、demoPlaces、demoPoints、demoAnomalies、L 形路線、虛構避險件數或示範地標。網路失敗提供重試或使用者選擇外部導航，不偷偷換 Mock；OSRM 路線不宣稱已驗證安全。
-- 保留 Flow 已有座標 callback，由平台 adapter 建立 canonical request；最近據點／下一據點／帶我去也必須通知目的地變更及重新規劃。取消、換目的地、離開導航、切至通話、SOS、背景或撤回同意立即取消舊意圖；等待定位的 Future 需 generation 檢查，防止遲到重啟。
+- Live 透過 `onPlanDestination` 只交使用者所選目的地，平台 coordinator 建 canonical request；最近據點／下一據點／帶我去仍待接入。取消、換目的地、離開導航、切至通話、SOS、背景或撤回任一同意立即取消舊意圖；等待定位與路線都有 generation／取消防止遲到重啟。
 - 功能主責可直接在組合根接 RouteFollower 並把結果交 presentation，畫面不另開 GPS；目前尚未接 App。OSRM steps=false，現有幾何方向步驟不等於正式逐路口導航。
 - Live 的撥號、簡訊／官方通報入口明示 handoff 狀態，開啟不等於接通、送達、受理或派遣；附近協助者與官方派遣的 BLOCKED 條件不阻擋合法導航、TTS 或使用者主動開啟求助管道。
 - 莅紋持續負責設計方向與大型正式 UI 改版的 Level B 確認；一般 UI／callback 修正由任何成員開發並經 Level A Review。色彩依既有規範及下列已記錄例外，本次文件轉向不改版面。
@@ -93,4 +95,4 @@ SafeWalkFlow(
 - 無障礙自動檢查（點擊區域、讀屏名稱、文字對比）不等於 TalkBack／VoiceOver 實測。
 - 設計截圖：`M3_SCREENSHOTS=1 flutter test test/features/safe_walk/presentation/safe_walk_screenshots_test.dart --update-goldens`（需 `FLUTTER_ROOT`），產出 `screenshots/*.png`；CI 預設略過。
 - 本機預覽完整臺北通：`flutter run -d web-server --web-port 5191 --web-hostname 127.0.0.1`（`web/` 只在本機）。
-- 未有充分完成證據：iPhone 實機／讀屏、真實路線服務與 Live 地圖全流程、裝置實際朗讀。Mock／fake transport 或 screenshot test 不等於 LIVE_VERIFIED；啟用條件見 Live Readiness。
+- 已有人工公開地標的 HTTP 與 Dart OSRM probe 紀錄，僅證服務可達／Provider 解析；真 GPS → Live 地圖的 iPhone 全流程、讀屏及裝置實際朗讀仍缺驗收。Mock／fake transport 或 screenshot test 不等於 LIVE_VERIFIED；本輪結果與限制見 P0 文件，啟用條件見 Live Readiness。

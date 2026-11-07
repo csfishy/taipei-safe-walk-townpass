@@ -73,6 +73,7 @@ Future<void> _mount(
   await tester.pumpWidget(
     MaterialApp(
       home: SafeWalkCompositionRoot(
+        mode: sw.DataMode.mock,
         routeService: routes,
         routeTransport: transport,
         platform: platform,
