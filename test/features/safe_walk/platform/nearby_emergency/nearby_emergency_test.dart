@@ -63,7 +63,8 @@ class _FakeTransport implements NearbyAlertTransport {
   sw.Coordinates? sentLocation;
   int? sentRadius;
   String? sentSender;
-  final optIns = <({String helperId, bool enabled, sw.Coordinates? location})>[];
+  final optIns =
+      <({String helperId, bool enabled, sw.Coordinates? location})>[];
 
   @override
   Future<void> setHelperOptIn({

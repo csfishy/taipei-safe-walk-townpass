@@ -38,7 +38,7 @@ fvm flutter run --dart-define-from-file=secrets/supabase.local.json
 fvm dart tool/check_supabase_connection.dart secrets/supabase.local.json
 ```
 
-App 程式可明確建立 `SafeWalkSupabaseConfig.fromEnvironment()`、`SupabaseConnection(config: config)`；既有原生 nearby transport 可用 `SupabaseNearbyAlertTransport.fromEnvironment()`。使用完畢呼叫 `close()`。只有明確呼叫的檢查或業務方法會發送網路請求。附近求助目前仍須先完成下節權限設計，不能因為有 factory 就啟用。
+App 程式可明確建立 `SafeWalkSupabaseConfig.fromEnvironment()`、`SupabaseConnection(config: config)`，使用完畢呼叫 `close()`。連線檢查只在明確呼叫時發送網路請求。`SupabaseNearbyAlertTransport` 已退役並封鎖全部 HTTP 呼叫；保留 factory 僅供相容，不能由 key 或旗標啟用。附近通知的安全阻塞、手動撤權與後續驗證見[安全狀態](SAFE_WALK_NEARBY_SECURITY.md)。
 
 採用 `SUPABASE_URL`、`SUPABASE_PUBLISHABLE_KEY`。相容變數 `SUPABASE_ANON_KEY` 只接受 legacy `anon` JWT；拒絕 `service_role`／`sb_secret_...`。公開 key 只放 `apikey` header，不把它當作 Bearer JWT。公開 key 可由 App 使用，資料存取仍須靠資料庫權限與 RLS；見 [Supabase API keys](https://supabase.com/docs/guides/getting-started/api-keys)。
 
@@ -50,7 +50,7 @@ App 程式可明確建立 `SafeWalkSupabaseConfig.fromEnvironment()`、`Supabase
 
 ## 附近通知 SQL：部署歷史與現行封鎖
 
-既有 `supabase/nearby_emergency.sql` 來自 PR #21。原連線設定未部署此 SQL，本次文件審查也不部署或推論遠端目前狀態：其 `security definer` RPC 開放給 `anon`，只相信呼叫者提供的 helper／sender UUID，沒有驗證資料所有者。已知其他 helper ID 的呼叫者可能改其 opt-in、座標，或讀取並標記其通知；開啟表級 RLS 不能補上這個函式內的缺口。
+舊 `supabase/nearby_emergency.sql` 來自 PR #21：其 `security definer` RPC 開放給 `anon`，只相信呼叫者提供的 helper／sender UUID，沒有驗證資料所有者。已知其他 helper ID 的呼叫者可能改其 opt-in、座標，或讀取並標記其通知；開啟表級 RLS 不能補上這個函式內的缺口。PR #41 已將此檔改為手動撤權腳本並封鎖 App 的匿名 nearby transport，但未執行遠端 SQL，不能推論實際部署或 ACL 狀態；見[安全修正與限制](SAFE_WALK_NEARBY_SECURITY.md)。
 
 正式啟用前需由 M1 完成可信身分、通知接收資格與 ownership 驗證、RLS／RPC 權限檢查、請求頻率及濫用限制、座標保留／到期及刪除策略，並測試跨使用者拒絕讀寫。還需要使用者清楚同意位置分享、M3 的真實狀態呈現，以及受控測試帳號的實際後端與裝置測試；在所有證據完成前維持 BLOCKED，不得以匿名 UUID 對陌生人開放位置通知。`fetch_pending_alerts` 會更新 `seen`，不可用作唯讀健康檢查。連線診斷不使用真實危難、聯絡人、GPS 或警消通報；後續位置驗收僅在明確同意、隔離的測試資料與保留政策下進行。
 
@@ -66,4 +66,4 @@ App 程式可明確建立 `SafeWalkSupabaseConfig.fromEnvironment()`、`Supabase
 | Flutter pub get／build_runner／完整 analyze／Flutter tests／build | **未執行**：本機 PATH 的 Flutter 為 3.47.7，與 `.fvmrc` 指定 3.47.6 不符，且沒有該版本的 FVM 安裝。沒有為此升級、降版或改動使用者 SDK；純 Dart 驗證不能代替 Flutter 驗證。Windows 沒有宣稱本機 iOS build。 |
 | 業務資料／裝置操作 | **未執行**：沒有部署既有通知 SQL、讀真位置、登入官方 App、撥號、送通知或做裝置驗收。 |
 
-原連線設定以 `codex/supabase-setup` 分支交 PR #25，已合併至本次核對的 main；本文件審查不自行合併其他 PR 或發布。PR #27 在審查期間合併：新增獨立 nearby_live_test_main／page 與 fake Widget tests，三項 dart-define 配置缺一即停用，不接正常 TownPass。它可觸發真位置外送，卻未補可信身分／ownership 等後端條件，不能繞過 BLOCKED，不能在公開版本啟用或對陌生人通知；本次不啟動該頁或部署 RPC。業務資料接線與通知部署仍須完成前述權限及產品流程，API 可達不是已上線。
+歷史：原連線設定以 `codex/supabase-setup` 分支交 PR #25；PR #27 新增獨立 nearby_live_test_main／page 與 fake Widget tests，當時以三項 dart-define 配置隔離，未接正常 TownPass，也未補可信身分／ownership。PR #41 現已移除該入口的匿名 UUID／Supabase 設定，附近通知固定不可用，僅保留明確旗標與分別同意後的隔離簡訊測試。業務資料接線與通知部署仍須完成前述權限及產品流程，API 可達不是已上線。
