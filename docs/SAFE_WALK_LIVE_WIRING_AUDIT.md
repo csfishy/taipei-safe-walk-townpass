@@ -26,6 +26,10 @@
 | R9 進度／偏離／抵達：[route_follower.dart:73–81][follower]、140–187；[root:92–112／295–323][root] | **IMPLEMENTED_NOT_WIRED**：Follower 已消費 Position／Stream 並計算 FollowUpdate，但 root／Flow 沒有建立或消費它。 | 由平台組合在真路線上建立 follower，把使用者更新的位置交入並注入 UI；取消、改目的地、背景、離開／SOS 清除舊 follower／結果，不另開 GPS。 | M2 Steven、M1 小魚、M3 莅紋。 | 純邏輯驗過期／精度／偏離／抵達與換線，整合驗更新按鈕到進度及取消清空；真裝置受控步行驗收。阻塞是未接線及裝置證據；下一步先完成使用者主動更新，不把幾何方向步驟說成已完成逐路口導航。 |
 | R10 真便利商店／附近據點：[osm_convenience_store_source.dart:25–35][osm-stores]、56–60、101–159、212–230；[nearest_store_planner.dart:85–129][store-planner]；[root:85–90／203][root] | OSM Source／NearestStorePlanner **IMPLEMENTED_NOT_WIRED**；一般 M4 真據點 Repository **NOT_IMPLEMENTED**。目前 root 仍供 Mock 據點，不能宣稱附近查詢已完成。 | 平台組合真 source／planner，另揭露並取得 Overpass 查詢用途同意；保留來源、日期、營業未知及未認可狀態，成功空結果／失敗／未配置分開；商店不能當政府認證救援點。 | M4 信義、M2 Steven；M1 小魚組合，M3 莅紋呈現。 | 真來源與語意／模式／取消測試，拒同意零請求、空結果／格式失敗、lookup／途經及 iPhone；不加入 AED 或 Google Maps。阻塞是來源到正式列表／路線未接及驗收不足；下一步先協調援助相關 PR 與 DTO，不能直接把 source 存在當整個 M4 完成。 |
 
+## 基線之後的已合併增量
+
+截至 main `752dd96`：#53 已新增附近真實場所服務；#55 已新增犯罪唯讀 Repository、Parser、RPC SQL 及獨立檢查入口，狀態為 IMPLEMENTED_NOT_WIRED，正式 UI／真後端／裝置驗收仍待完成；#47 已修正遠端 Demo 啟用 gate，未啟用時允許既有發布且保留必要隔離 CI。下方表格、行號及「尚待合併／NOT_IMPLEMENTED」屬 `7b99fea` 歷史盤點，不可用來重做這些已合併實作。
+
 ## M4／Supabase：來源、持久資料與只讀入口
 
 | 範圍／基線 | 五狀態與可證明內容 | 實際缺口、下一步及驗收 |

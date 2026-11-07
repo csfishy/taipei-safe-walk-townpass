@@ -14,9 +14,9 @@
 |---|---|---|
 | 真實求助據點 Repository | NOT_IMPLEMENTED | `SafetyDataRepository` 尚無 Live 實作；Parser／Mock 已接展示流程，App 仍注入 `demoAssistancePoints()`，不能標成真實據點。 |
 | 全市暴力犯罪月統計 | IMPLEMENTED_NOT_WIRED | 真實來源讀取及正規化已合併，尚未接入 M1／畫面；不能再籠統寫「所有真實來源尚未實作」。 |
-| 持久犯罪資料保護 | IMPLEMENTED_NOT_WIRED | #44 提供 crime_reference 隔離與私有儲存方案，尚未合 main；不得被 CI／Demo reset／seed 清除。 |
-| App 犯罪唯讀 API／正式接線 | NOT_IMPLEMENTED | 目前缺經審查的公開資料投影／受限 API 與 Repository→UI 接線；App 不得持有 service_role／管理金鑰／DB 密碼。 |
-| 犯罪查詢權限正式啟用 | BLOCKED | 缺公開投影範圍、角色權限與 Level C 隔離驗收；不能為趕 Live 直接開放私有表。 |
+| 持久犯罪資料保護 | IMPLEMENTED_NOT_WIRED | #44 的隔離與私有儲存方案另經審查；持久資料不得被 CI／Demo reset／seed 清除。 |
+| 北北基犯罪參考資料唯讀查詢 | IMPLEMENTED_NOT_WIRED | #55 已合併審查用 RPC SQL、Repository、Parser 與獨立 live check 入口，見 [crime_reference/README.md](crime_reference/README.md)；未接正式流程，遠端 SQL／權限及裝置驗收另列證據。 |
+| 犯罪查詢權限正式啟用 | BLOCKED | 未完成 Level C 隔離與真後端驗收前，不直接開放私有表；App 不持管理 key／service_role／DB 密碼。 |
 
 ## 主要負責人與輸入輸出
 

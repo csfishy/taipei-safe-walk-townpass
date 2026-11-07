@@ -1,15 +1,15 @@
 # TownPass Supabase 連線設定
 
-CI／專用 Demo 的初始化另見 [隔離資料庫重設](SAFE_WALK_DATABASE_RESET.md)。遠端白名單預設為空，不會把既有專案自動當成可清除的 Demo，也不執行舊匿名通知 RPC。
+CI／專用 Demo 的初始化另見 [隔離資料庫重設](SAFE_WALK_DATABASE_RESET.md)。兩份工作流必跑 runner-local PostGIS 測試；遠端另需 Repository Actions Variable `DEMO_DATABASE_RESET_ENABLED` 精確為 `true` 才啟用。未設定或 `false` 時不連遠端，Summary 明示未重設，既有不依賴 `safe_walk_demo` 的建置／發布可繼續；啟用後缺白名單／Secrets／marker／角色或重設失敗仍須停止。其他旗標值是配置錯誤，不代表未啟用。遠端白名單目前為空，既有 `gxofnhzkqcmzrftxqddi` 保護不變，不會自動當成可清除的 Demo，也不執行舊匿名通知 RPC。旗標必須最後經 Level C 審查後才設定，不能用公開 client key 代替受限 SQL role 憑證。
 
 現行規格依 [LIVE-FIRST／NO PRODUCTION MOCK](SAFE_WALK_LIVE_FIRST.md)、[Live MVP](SAFE_WALK_LIVE_MVP.md) 與 [上線條件](SAFE_WALK_LIVE_READINESS.md)。2026-11-08 的 main `7b99fea` 仍是 Mock 正式入口，#35 的 P0 接線已由 #49 restore 移除；#39 僅合入 feature branch，#44 仍開放，不能列為主線已完成。正式持久資料以 Supabase 主資料庫為整合方向，必須接到完整使用者查詢／更新流程，不能只交連線 probe 或 Parser。
 
-Production 不注入 Mock／fixtures、固定成功或失敗後模擬 fallback；未完成為 Unavailable＋真實原因＋下一步。Supabase client API 可達不等於已具業務授權。管理 key、service_role、資料庫密碼不得進 App；正式唯讀存取、身分／RPC／RLS、敏感位置儲存仍需適用 Level C 審查與驗收，不能為追求 Live 直接放寬權限。既有 `gxofnhzkqcmzrftxqddi` 不視為可清除 Demo。main 仍有 #40 的遠端重設強制 gate，#47 啟用修正尚待合併，本文件不配置或啟用任何遠端環境。
+Production 不注入 Mock／fixtures、固定成功或失敗後模擬 fallback；未完成為 Unavailable＋真實原因＋下一步。Supabase client API 可達不等於已具業務授權。管理 key、service_role、資料庫密碼不得進 App；正式唯讀存取、身分／RPC／RLS、敏感位置儲存仍需適用 Level C 審查與驗收，不能為追求 Live 直接放寬權限。既有 `gxofnhzkqcmzrftxqddi` 不視為可清除 Demo。main `752dd96` 已合併 #47，遠端重設須明確啟用，本文件不配置或啟用任何遠端環境。
 
 | 能力 | 狀態 | 現行結論 |
 |---|---|---|
 | Supabase client／唯讀連線診斷 | IMPLEMENTED_NOT_WIRED | Config、connection probe 與 transport factory 已存在；需明確呼叫，沒有自動接入產品通知流程。歷史唯讀連線成功只證明 Data API 可達。 |
-| M4／Supabase 正式持久資料 API 與 UI 流程 | NOT_IMPLEMENTED | #44 仍待合併；缺正式資料投影／查詢接線與完整驗收，不以 client 連通冒充完成。權限審查未完成部分維持 BLOCKED，不擅自新增匿名讀取。 |
+| M4／Supabase 正式持久資料 API 與 UI 流程 | IMPLEMENTED_NOT_WIRED | #55 已合併唯讀 Repository、Parser、RPC SQL 與獨立檢查入口；正式 UI、遠端權限套用與完整驗收仍待完成。#44 持久庫隔離另經審查；權限啟用未驗部分維持 BLOCKED。 |
 | 附近協助者位置通知 | BLOCKED | 匿名 UUID／anon security-definer RPC 缺可信身分、接收資格、ownership 與防濫用；不能因參數已設定就啟用。 |
 
 附近協助者通知與正式警消通報分別驗收。上述 BLOCKED 不阻擋合法的真實導航、資料查詢、裝置 TTS、使用者主動開啟 110／119 系統撥號器或官方通報管道；自動警消派遣仍須官方授權。各能力獨立啟用，不能以全域 Mock 長期鎖住已驗證功能。本次規格 PR 不部署 SQL、不開啟附近通知。

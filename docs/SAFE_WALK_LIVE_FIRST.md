@@ -8,6 +8,8 @@
 
 PR #39 合入 feature branch，並非目前 main；PR #44 仍開放。未合併分支、未來 Phase B 程式修改與本文件的完成定義都不能列為 main 已完成功能。正式持久資料以 Supabase 主資料庫為整合方向，#44 的資料方案須另完成審查、正式接線與驗收，不能以這項方向宣稱已有安全後端或擅自啟用權限。
 
+審查更新：#53 附近真實場所服務及 #55 犯罪唯讀 Repository／RPC SQL 已合併；仍未等同正式 UI／真後端或裝置驗收，不重新把已實作能力列為 NOT_IMPLEMENTED。
+
 本階段只修文件與規範，以獨立 PR 審查，不修改 flags、Provider、Schema、RPC/RLS、Secrets 或遠端資料。逐項程式缺口見 [正式接線盤點](SAFE_WALK_LIVE_WIRING_AUDIT.md)；實際程式修正另開 PR，分列預期行為、實測結果及 main 現況。
 
 ## 唯一正式完成定義
@@ -39,7 +41,7 @@ PR #39 合入 feature branch，並非目前 main；PR #44 仍開放。未合併�
 - 競賽正式功能不採 Google Maps，也不加入 AED 功能。舊 URI builder、測試、文件或歷史分支提及這些項目，不構成正式整合許可。
 - Supabase 管理 key、service_role、資料庫密碼不得進入 App；正式唯讀存取、身分／RPC／RLS 與持久資料權限仍需適用 Level C 審查及驗收。client API 可達不等於業務資料安全完成。
 - 真實 SMS／附近協助者通知未完成可信身分、接收資格、ownership、RLS/RPC、防濫用、保留刪除及後端／裝置送達驗收前保持 BLOCKED。不得自動報案／派遣，`officialReceipt` 保持 null；測試不撥真實緊急號碼、不送真實危難或警消案件。
-- main 仍有 PR #40 的遠端 Demo 強制 gate；PR #47 的明確啟用修正尚待合併，不能把它描述為 main 已有的行為。本文件不改 workflow、白名單、Secrets 或現有 `gxofnhzkqcmzrftxqddi` 保護。
+- PR #47 已合併至 main `752dd96`：遠端 Demo 須精確 `DEMO_DATABASE_RESET_ENABLED=true` 才重設，未啟用時允許既有不依賴 Demo 的發布；必要隔離 CI 仍保留。本文件不改 workflow、白名單、Secrets 或現有 `gxofnhzkqcmzrftxqddi` 保護。
 
 ## 規範衝突修正對照
 
