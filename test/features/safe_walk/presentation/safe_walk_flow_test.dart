@@ -97,6 +97,8 @@ void main() {
     await _pump(t, SafeWalkFlow(speaker: speaker));
     await t.tap(find.text('模擬來電'));
     await t.pump(const Duration(milliseconds: 300));
+    await t.tap(find.text('接聽'));
+    await t.pump(const Duration(milliseconds: 300));
     expect(speaker.spoken, ['喂，你走到哪裡啦？晚餐吃了沒？']);
     await t.tap(find.text('我正在回家路上，已經吃過了。'));
     await t.pump(const Duration(milliseconds: 100));
@@ -157,6 +159,8 @@ void main() {
     final speaker = _SpySpeaker();
     await _pump(t, SafeWalkFlow(speaker: speaker));
     await t.tap(find.text('模擬來電'));
+    await t.pump(const Duration(milliseconds: 300));
+    await t.tap(find.text('接聽'));
     await t.pump(const Duration(milliseconds: 300));
     await t.tap(find.text('我正在回家路上，已經吃過了。'));
     await t.pump(const Duration(milliseconds: 800));

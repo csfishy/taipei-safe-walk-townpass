@@ -1,11 +1,13 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:town_pass/features/safe_walk/presentation/demo_map.dart';
 import 'package:town_pass/features/safe_walk/presentation/mock/safe_walk_demo_data.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_speaker.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_ui.dart';
 import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart' as sw;
+import 'package:town_pass/util/tp_colors.dart';
 
 class _Entry {
   _Entry(this.key, this.caller, this.text);
@@ -47,7 +49,10 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
   int _seq = 0, _seconds = 0;
   final _draft = TextEditingController();
   final _scroll = ScrollController();
-  Timer? _clock, _reply;
+  Timer? _clock, _reply, _buzz;
+
+  /// 先響鈴：按「接聽」才開始對話與計時；「拒絕」直接離開。
+  bool _ringing = true;
 
   /// 臺北通尚未配置語音時，用無聲示範（依字數計時）呈現播放樣式；不呼叫 M1／M5 的喇叭。
   late final SafeWalkSpeaker _voice = widget.speaker.available ? widget.speaker : PreviewSpeaker();
@@ -65,6 +70,7 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
     _gen++;
     _reply?.cancel();
     _clock?.cancel();
+    _buzz?.cancel();
     _voice.stop();
     if (!identical(_voice, widget.speaker)) widget.speaker.stop();
   }
@@ -77,6 +83,15 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
   @override
   void initState() {
     super.initState();
+    // 響鈴時手機震動（網頁沒有震動）；鈴聲音檔需另外核准，先不播放。
+    HapticFeedback.vibrate();
+    _buzz = Timer.periodic(const Duration(milliseconds: 1500), (_) => HapticFeedback.vibrate());
+  }
+
+  void _answer() {
+    if (_left || !_ringing) return;
+    _buzz?.cancel();
+    setState(() => _ringing = false);
     _say(FakeCallScript.lines[0].text);
     _clock = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted && !_left) setState(() => _seconds++);
@@ -151,6 +166,9 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
 
   @override
   Widget build(BuildContext context) {
+    if (_ringing) {
+      return _Incoming(onAnswer: _answer, onDecline: () => _leaveThen(widget.onEnd), onEmergency: () => _leaveThen(widget.onEmergency));
+    }
     final mm = (_seconds ~/ 60).toString().padLeft(2, '0'), ss = (_seconds % 60).toString().padLeft(2, '0');
     final start = widget.position == null ? DemoGeo.start : LatLng(widget.position!.coordinates.lat, widget.position!.coordinates.lng);
     return Scaffold(
@@ -492,4 +510,172 @@ class _NextStep extends StatelessWidget {
       ),
     );
   }
+}
+
+/// 響鈴畫面：臺北通深青色底、頭像外一圈圈擴散的光圈，下方「拒絕」「接聽」。白字只放在 primary700／800 上。
+class _Incoming extends StatefulWidget {
+  const _Incoming({required this.onAnswer, required this.onDecline, required this.onEmergency});
+  final VoidCallback onAnswer, onDecline, onEmergency;
+  @override
+  State<_Incoming> createState() => _IncomingState();
+}
+
+class _IncomingState extends State<_Incoming> with SingleTickerProviderStateMixin {
+  // 響約 18 秒後光圈停住（真手機也不會無限響）；系統關閉動畫時不擴散。
+  late final _pulse = AnimationController(vsync: this, duration: const Duration(milliseconds: 1500));
+
+  @override
+  void initState() {
+    super.initState();
+    _ring(12);
+  }
+
+  Future<void> _ring(int times) async {
+    for (var i = 0; i < times && mounted; i++) {
+      await _pulse.forward(from: 0).orCancel.catchError((_) {});
+    }
+  }
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    super.dispose();
+  }
+
+  Widget _button({required IconData icon, required String label, required Color bg, required Color fg, required VoidCallback onTap, double size = 72}) => Column(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Semantics(
+        button: true,
+        label: label,
+        child: SwPressable(
+          onTap: onTap,
+          color: bg,
+          pressedColor: bg.withValues(alpha: .8),
+          radius: size / 2,
+          child: SizedBox(
+            width: size,
+            height: size,
+            child: Icon(icon, color: fg, size: size * .42),
+          ),
+        ),
+      ),
+      const SizedBox(height: 8),
+      ExcludeSemantics(
+        child: GestureDetector(onTap: onTap, behavior: HitTestBehavior.opaque, child: Text(label, style: SwText.bodyStrong.copyWith(color: SwColors.onDeep))),
+      ),
+    ],
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final still = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+    return Scaffold(
+      backgroundColor: TPColors.primary800,
+      body: Column(
+        children: [
+          Expanded(
+            child: DecoratedBox(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [TPColors.primary700, TPColors.primary800]),
+              ),
+              child: SafeArea(
+                bottom: false,
+                child: LayoutBuilder(
+                  builder: (context, box) => SingleChildScrollView(
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(minHeight: box.maxHeight),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              decoration: BoxDecoration(color: TPColors.white.withValues(alpha: .14), borderRadius: BorderRadius.circular(20)),
+                              child: Text(
+                                '模擬來電・不是真人通話，也沒有報警',
+                                textAlign: TextAlign.center,
+                                style: SwText.small.copyWith(color: SwColors.onDeep),
+                              ),
+                            ),
+                            const SizedBox(height: 32),
+                            Semantics(
+                              liveRegion: true,
+                              label: '家人來電中',
+                              child: ExcludeSemantics(
+                                child: Column(
+                                  children: [
+                                    SizedBox(
+                                      width: 200,
+                                      height: 200,
+                                      child: AnimatedBuilder(
+                                        animation: _pulse,
+                                        builder: (_, child) => CustomPaint(painter: _Rings(still ? 0 : _pulse.value), child: child),
+                                        child: Center(
+                                          child: Container(
+                                            width: 104,
+                                            height: 104,
+                                            alignment: Alignment.center,
+                                            decoration: BoxDecoration(color: TPColors.white, shape: BoxShape.circle, boxShadow: SwShadow.float),
+                                            child: Text('家', style: SwText.title.copyWith(fontSize: 44, color: TPColors.primary700)),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 16),
+                                    Text('家人', style: SwText.title.copyWith(fontSize: 34, color: SwColors.onDeep)),
+                                    const SizedBox(height: 4),
+                                    Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Icon(Icons.vibration_rounded, color: SwColors.onDeep, size: 20),
+                                        const SizedBox(width: 6),
+                                        Text('來電中…', style: SwText.body.copyWith(color: SwColors.onDeep)),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 40),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                _button(icon: Icons.call_end_rounded, label: '拒絕', bg: TPColors.white.withValues(alpha: .16), fg: SwColors.onDeep, onTap: widget.onDecline),
+                                _button(icon: Icons.call_rounded, label: '接聽', bg: TPColors.white, fg: TPColors.primary700, onTap: widget.onAnswer, size: 84),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          SwActionBar.single(onEmergency: widget.onEmergency),
+        ],
+      ),
+    );
+  }
+}
+
+/// 從頭像往外擴散、逐漸變淡的兩圈光圈。
+class _Rings extends CustomPainter {
+  const _Rings(this.t);
+  final double t;
+  @override
+  void paint(Canvas canvas, Size size) {
+    final c = size.center(Offset.zero);
+    for (final k in [0.0, .5]) {
+      final p = (t + k) % 1;
+      canvas.drawCircle(c, 52 + 48 * p, Paint()..color = TPColors.white.withValues(alpha: .28 * (1 - p)));
+    }
+  }
+
+  @override
+  bool shouldRepaint(_Rings old) => old.t != t;
 }
