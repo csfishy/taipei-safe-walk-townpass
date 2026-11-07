@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart' as ll;
@@ -6,6 +9,7 @@ import 'package:town_pass/features/safe_walk/presentation/safe_walk_ui.dart';
 import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart'
     as sw;
 import 'package:town_pass/util/tp_colors.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 const pointGlyph = {
   sw.AssistancePointKind.police: '警',
@@ -21,6 +25,13 @@ const _kUserAgentPackage = 'town_pass';
 ll.LatLng _ll(LatLng p) => ll.LatLng(p.lat, p.lng);
 
 class DemoMap extends StatelessWidget {
+  /// Tests supply a fresh, non-network provider without changing app defaults.
+  @visibleForTesting
+  static TileProvider Function()? tileProviderFactoryForTesting;
+
+  static TileProvider createTileProvider() =>
+      tileProviderFactoryForTesting?.call() ?? NetworkTileProvider();
+
   const DemoMap({
     super.key,
     required this.start,
@@ -48,12 +59,17 @@ class DemoMap extends StatelessWidget {
   final ValueChanged<LatLng>? onPick;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) => _buildMap(context, constraints.biggest),
+  );
+
+  Widget _buildMap(BuildContext context, Size viewport) {
     final interactive = !compact;
     // 初始視野：涵蓋起點、回家、所有求助地點與異常回報（避開上方標題與下方資訊框）。
     final fit = LatLngBounds.fromPoints([
       _ll(start),
       _ll(DemoGeo.home),
+      for (final at in path) _ll(at),
       for (final p in points) ll.LatLng(p.coordinates.lat, p.coordinates.lng),
       for (final a in anomalies) _ll(a.at),
     ]);
@@ -139,13 +155,32 @@ class DemoMap extends StatelessWidget {
       ],
     ];
 
+    // Keep fitted markers above the opaque attribution footer, including in a
+    // short viewport. Leave at least one logical pixel for the camera fit.
+    final bottomInset = math.min(
+      math.max(0.0, viewport.height - 1),
+      math.max(swTouch + 20, math.min(160.0, viewport.height * .28)),
+    );
+    final topInset = math.min(
+      math.min(140.0, viewport.height * .24),
+      math.max(0.0, viewport.height - bottomInset - 1),
+    );
+
     final map = FlutterMap(
+      // A changed destination gets a fresh fit. Unchanged route values retain
+      // the user's current pan/zoom through other view rebuilds.
+      key: ValueKey(path.map((at) => '${at.lat},${at.lng}').join('|')),
       options: MapOptions(
         initialCameraFit: CameraFit.bounds(
           bounds: fit,
           padding: compact
               ? const EdgeInsets.all(16)
-              : const EdgeInsets.fromLTRB(40, 140, 40, 160),
+              : EdgeInsets.fromLTRB(
+                  math.min(40, viewport.width * .1),
+                  topInset,
+                  math.min(40, viewport.width * .1),
+                  bottomInset,
+                ),
           maxZoom: 18,
         ),
         minZoom: 3,
@@ -167,10 +202,9 @@ class DemoMap extends StatelessWidget {
           urlTemplate: _kTileUrl,
           userAgentPackageName: _kUserAgentPackage,
           maxNativeZoom: 19,
-          // 示範用：不寫入磁碟快取，避免測試環境缺少 path_provider；正式版再接快取。
-          tileProvider: NetworkTileProvider(
-            cachingProvider: DisabledMapCachingProvider(),
-          ),
+          // Native uses flutter_map's HTTP-aware built-in cache; web uses the
+          // browser cache. Tests inject tiles without changing these defaults.
+          tileProvider: createTileProvider(),
         ),
         // 路線淡入（保留原本換路線時的過場動畫）。
         TweenAnimationBuilder<double>(
@@ -184,24 +218,41 @@ class DemoMap extends StatelessWidget {
         MarkerLayer(markers: markers),
       ],
     );
-    if (compact) return map;
     // 版權標示（OSM 使用條款要求）；獨立放在地圖上方，避免套件 Attribution 在窄寬度溢出。
     return Stack(
       children: [
         Positioned.fill(child: map),
-        const Positioned(
+        Positioned(
           left: 0,
           right: 0,
           bottom: 0,
-          child: IgnorePointer(
-            child: ColoredBox(
-              color: Color(0xB3FFFFFF),
-              child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                child: Text(
-                  '© OpenStreetMap contributors',
-                  textAlign: TextAlign.right,
-                  style: TextStyle(fontSize: 10, color: Color(0xFF555555)),
+          child: Semantics(
+            link: true,
+            label: 'OpenStreetMap 地圖來源與授權',
+            onTap: () => unawaited(_openAttribution(context)),
+            child: ExcludeSemantics(
+              child: Material(
+                color: SwColors.surface,
+                child: InkWell(
+                  onTap: () => unawaited(_openAttribution(context)),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(minHeight: swTouch),
+                    child: const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        heightFactor: 1,
+                        child: Text(
+                          '© OpenStreetMap contributors',
+                          textAlign: TextAlign.right,
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: TPColors.grayscale700,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -209,6 +260,24 @@ class DemoMap extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  Future<void> _openAttribution(BuildContext context) async {
+    const url = 'https://www.openstreetmap.org/copyright';
+    try {
+      if (await launchUrl(
+        Uri.parse(url),
+        mode: LaunchMode.externalApplication,
+      )) {
+        return;
+      }
+    } catch (_) {
+      // Missing/failed launchers must not escape an asynchronous tap handler.
+    }
+    if (context.mounted) {
+      ScaffoldMessenger.maybeOf(context)
+          ?.showSnackBar(const SnackBar(content: Text('無法開啟授權說明，請瀏覽 $url')));
+    }
   }
 }
 
