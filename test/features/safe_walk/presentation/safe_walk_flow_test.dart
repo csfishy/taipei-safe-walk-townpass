@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:town_pass/features/safe_walk/presentation/safe_walk_call_view.dart';
+import 'package:town_pass/features/safe_walk/presentation/safe_walk_emergency_view.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_flow.dart';
+import 'package:town_pass/features/safe_walk/presentation/safe_walk_home_view.dart';
+import 'package:town_pass/features/safe_walk/presentation/safe_walk_map_view.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_speaker.dart';
 import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart' as sw;
 
@@ -180,9 +184,19 @@ void main() {
         await t.pumpAndSettle();
         if (entry.isNotEmpty) {
           if (find.text(entry).evaluate().isEmpty) await t.scrollUntilVisible(find.text(entry), 200, scrollable: find.byType(Scrollable).first);
+          await t.ensureVisible(find.text(entry).first);
+          await t.pumpAndSettle();
           await t.tap(find.text(entry).first);
           await t.pump(const Duration(milliseconds: 400));
         }
+        final pageType = switch (entry) {
+          '' => SafeWalkHomeView,
+          '安心行' => SafeWalkMapView,
+          '模擬來電' => SafeWalkCallView,
+          '緊急求助' => SafeWalkEmergencyView,
+          _ => throw ArgumentError.value(entry, 'entry'),
+        };
+        expect(find.byType(pageType), findsOneWidget, reason: '$label $entry opened the expected page');
         expect(t.takeException(), isNull, reason: '$label $entry');
       }
 

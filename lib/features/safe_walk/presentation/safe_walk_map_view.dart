@@ -432,102 +432,105 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (sheetContext) => StatefulBuilder(
         builder: (sheetContext, setSheet) => Padding(
-          padding: EdgeInsets.fromLTRB(16, 12, 16, 16 + MediaQuery.viewInsetsOf(sheetContext).bottom),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(color: SwColors.border, borderRadius: BorderRadius.circular(2)),
+          padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(sheetContext).bottom),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(color: SwColors.border, borderRadius: BorderRadius.circular(2)),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              Semantics(header: true, child: Text('要去哪裡？', style: SwText.heading)),
-              const SizedBox(height: 4),
-              Text('常用地點只存在這支手機，不會上傳（示範位置）。', style: SwText.small),
-              const SizedBox(height: 12),
-              for (final p in widget.places)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: SwPressable(
-                    onTap: () {
-                      widget.onSelectPlace(p.id);
-                      setState(() => _pointIndex = null);
-                      Navigator.of(sheetContext).pop();
-                    },
-                    selected: p.id == widget.placeId,
-                    color: p.id == widget.placeId ? SwColors.brandSoft : SwColors.bg,
-                    border: BorderSide(color: p.id == widget.placeId ? SwColors.brand : SwColors.border),
-                    radius: 10,
-                    semanticsLabel: '前往${p.label}${p.id == widget.placeId ? '，目前選擇' : ''}',
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: SizedBox(
-                      height: 56,
-                      child: Row(
-                        children: [
-                          Icon(_placeIcon(p), color: SwColors.brandDeep),
-                          const SizedBox(width: 12),
-                          Expanded(child: Text(p.label, style: SwText.bodyStrong)),
-                          if (p.id == widget.placeId) const Icon(Icons.check_rounded, color: SwColors.brandDeep),
-                          if (!p.isHome)
-                            IconButton(
-                              tooltip: '刪除${p.label}',
-                              icon: const Icon(Icons.delete_outline_rounded, color: SwColors.textSecondary),
-                              onPressed: () {
-                                widget.onDeletePlace(p.id);
-                                setSheet(() {});
-                              },
-                            ),
-                        ],
+                const SizedBox(height: 12),
+                Semantics(header: true, child: Text('要去哪裡？', style: SwText.heading)),
+                const SizedBox(height: 4),
+                Text('常用地點只存在這支手機，不會上傳（示範位置）。', style: SwText.small),
+                const SizedBox(height: 12),
+                for (final p in widget.places)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: SwPressable(
+                      onTap: () {
+                        widget.onSelectPlace(p.id);
+                        setState(() => _pointIndex = null);
+                        Navigator.of(sheetContext).pop();
+                      },
+                      selected: p.id == widget.placeId,
+                      color: p.id == widget.placeId ? SwColors.brandSoft : SwColors.bg,
+                      border: BorderSide(color: p.id == widget.placeId ? SwColors.brand : SwColors.border),
+                      radius: 10,
+                      semanticsLabel: '前往${p.label}${p.id == widget.placeId ? '，目前選擇' : ''}',
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: SizedBox(
+                        height: 56,
+                        child: Row(
+                          children: [
+                            Icon(_placeIcon(p), color: SwColors.brandDeep),
+                            const SizedBox(width: 12),
+                            Expanded(child: Text(p.label, style: SwText.bodyStrong)),
+                            if (p.id == widget.placeId) const Icon(Icons.check_rounded, color: SwColors.brandDeep),
+                            if (!p.isHome)
+                              IconButton(
+                                tooltip: '刪除${p.label}',
+                                icon: const Icon(Icons.delete_outline_rounded, color: SwColors.textSecondary),
+                                onPressed: () {
+                                  widget.onDeletePlace(p.id);
+                                  setSheet(() {});
+                                },
+                              ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
-                ),
-              AnimatedSize(
-                duration: SwMotion.of(sheetContext, 200),
-                child: !adding
-                    ? SwChip(label: '新增地點', icon: Icons.add_location_alt_outlined, onTap: () => setSheet(() => adding = true))
-                    : Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          TextField(
-                            controller: name,
-                            autofocus: true,
-                            maxLength: 10,
-                            style: SwText.body,
-                            onChanged: (_) => setSheet(() {}),
-                            decoration: InputDecoration(
-                              labelText: '地點名稱（例如：學校、爸媽家）',
-                              labelStyle: SwText.secondary,
-                              counterText: '',
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                AnimatedSize(
+                  duration: SwMotion.of(sheetContext, 200),
+                  child: !adding
+                      ? SwChip(label: '新增地點', icon: Icons.add_location_alt_outlined, onTap: () => setSheet(() => adding = true))
+                      : Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            TextField(
+                              controller: name,
+                              autofocus: true,
+                              maxLength: 10,
+                              style: SwText.body,
+                              onChanged: (_) => setSheet(() {}),
+                              decoration: InputDecoration(
+                                labelText: '地點名稱（例如：學校、爸媽家）',
+                                labelStyle: SwText.secondary,
+                                counterText: '',
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 8),
-                          SwPrimaryButton(
-                            label: '在地圖上選位置',
-                            icon: Icons.touch_app_outlined,
-                            onTap: name.text.trim().isEmpty
-                                ? null
-                                : () {
-                                    setState(() {
-                                      _newPlaceName = name.text.trim();
-                                      _picking = false;
-                                      _legend = false;
-                                      _pin = null;
-                                      _detailId = null;
-                                      if (_size == _SheetSize.collapsed) _size = _SheetSize.normal;
-                                    });
-                                    Navigator.of(sheetContext).pop();
-                                  },
-                          ),
-                        ],
-                      ),
-              ),
-            ],
+                            const SizedBox(height: 8),
+                            SwPrimaryButton(
+                              label: '在地圖上選位置',
+                              icon: Icons.touch_app_outlined,
+                              onTap: name.text.trim().isEmpty
+                                  ? null
+                                  : () {
+                                      setState(() {
+                                        _newPlaceName = name.text.trim();
+                                        _picking = false;
+                                        _legend = false;
+                                        _pin = null;
+                                        _detailId = null;
+                                        if (_size == _SheetSize.collapsed) _size = _SheetSize.normal;
+                                      });
+                                      Navigator.of(sheetContext).pop();
+                                    },
+                            ),
+                          ],
+                        ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
