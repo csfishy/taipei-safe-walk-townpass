@@ -114,7 +114,7 @@ RouteReferenceArea area() => RouteReferenceArea(
 CrimeReferenceRepository repo(
   FutureOr<CrimeReferenceHttpResponse> Function(Map<String, Object?>) answer,
 ) => CrimeReferenceRepository(
-  transport: (args) async => answer(args),
+  transport: (args, {cancellation}) async => answer(args),
   now: () => DateTime.utc(2026, 11, 8),
 );
 

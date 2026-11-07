@@ -25,7 +25,7 @@ void main() {
     await tester.pumpWidget(
       page(
         CrimeReferenceRepository(
-          transport: (_) async => CrimeReferenceHttpResponse(
+          transport: (_, {cancellation}) async => CrimeReferenceHttpResponse(
             200,
             jsonEncode(crimeReferenceTestBody),
           ),
@@ -47,7 +47,7 @@ void main() {
     await tester.pumpWidget(
       page(
         CrimeReferenceRepository(
-          transport: (_) async => CrimeReferenceHttpResponse(
+          transport: (_, {cancellation}) async => CrimeReferenceHttpResponse(
             400,
             jsonEncode({
               'code': 'P0001',

@@ -91,6 +91,7 @@ void main() {
       await tester.ensureVisible(link);
       await tester.tap(link);
       await tester.pumpAndSettle();
+      expect(find.textContaining('尚未同意犯罪資料查詢；未送出座標。'), findsOneWidget);
       await tester.tap(find.text(name));
       await tester.pumpAndSettle();
     }
@@ -130,6 +131,60 @@ void main() {
     expect(find.text('50 公尺避讓緩衝區'), findsOneWidget);
     expect(find.textContaining('圓形不是官方認定的犯罪範圍'), findsOneWidget);
     expect(find.text('測試來源・2026-01-01・地址參考位置'), findsOneWidget);
+  });
+
+  for (final status in ['犯罪資料尚未配置', '犯罪資料查詢失敗', '附近沒有可定位的參考資料']) {
+    testWidgets('統一查詢設定保留狀態：$status', (tester) async {
+      await _pump(
+        tester,
+        SafeWalkFlow(
+          mode: sw.DataMode.live,
+          crimeQueryStatus: status,
+          onManageCrimeConsent: () {},
+          onManageRoutingConsent: () {},
+          routingConsent: true,
+        ),
+      );
+      await tester.tap(find.text('安心行'));
+      await tester.pumpAndSettle();
+      final link = find.text('資料來源與授權').last;
+      await tester.ensureVisible(link);
+      await tester.tap(link);
+      await tester.pumpAndSettle();
+      expect(find.textContaining(status), findsOneWidget);
+      expect(find.textContaining('已同意路線查詢'), findsOneWidget);
+      expect(find.textContaining('未同意行程範圍查詢'), findsOneWidget);
+    });
+  }
+
+  testWidgets('犯罪參考資料清除後不繼續顯示已開啟的舊詳情', (tester) async {
+    final spots = ValueNotifier<List<CrimeSpot>>(const [
+      (id: 'synthetic', at: LatLng(0.5005, 0.75), label: '人工舊詳情'),
+    ]);
+    addTearDown(spots.dispose);
+    final route = _routes();
+    await _pump(
+      tester,
+      ValueListenableBuilder<List<CrimeSpot>>(
+        valueListenable: spots,
+        builder: (_, value, _) => SafeWalkFlow(
+          mode: sw.DataMode.live,
+          homeLocation: sw.Coordinates(lat: 0.501, lng: 0.75),
+          route: route,
+          crimeSpots: value,
+        ),
+      ),
+    );
+    await tester.tap(find.text('安心行'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.bySemanticsLabel(RegExp('^50 公尺避讓緩衝區：人工舊詳情')));
+    await tester.pumpAndSettle();
+    expect(find.text('人工舊詳情'), findsOneWidget);
+    spots.value = const [];
+    await tester.pumpAndSettle();
+    expect(find.text('人工舊詳情'), findsNothing);
+    expect(find.text('犯罪參考位置'), findsNothing);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('地圖編輯家先等待裝置儲存，完成後才規劃已選座標', (tester) async {

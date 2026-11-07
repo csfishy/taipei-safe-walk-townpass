@@ -219,6 +219,12 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
   void didUpdateWidget(SafeWalkMapView old) {
     super.didUpdateWidget(old);
     if (old.routeState.result != widget.routeState.result) _routeChoice = 0;
+    final detail = _crimeDetail;
+    if (detail != null) {
+      _crimeDetail = widget.crimeSpots
+          .where((spot) => spot.id == detail.id)
+          .firstOrNull;
+    }
   }
 
   /// 正在新增的地點名稱；不為 null 時，點地圖是選這個地點的位置。
@@ -408,7 +414,9 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                       _picking = false;
                       _pin = null;
                       _toast = null;
-                      if (_size == _SheetSize.collapsed) _size = _SheetSize.normal;
+                      if (_size == _SheetSize.collapsed) {
+                        _size = _SheetSize.normal;
+                      }
                     }),
                     crimeSpots: rs.live
                         ? [
@@ -875,11 +883,34 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
           child: SwSourcesLink(
             settings: [
               if (widget.onManageRoutingConsent != null)
-                (icon: Icons.alt_route_rounded, label: '路線查詢設定', onTap: widget.onManageRoutingConsent!),
+                (
+                  icon: Icons.alt_route_rounded,
+                  label: '路線查詢設定',
+                  status: widget.routingConsent
+                      ? '已同意路線查詢；可在此撤回。系統定位權限與圖磚載入分別設定。'
+                      : '未同意路線查詢；不會傳送起點、目的地與避讓緩衝。',
+                  onTap: widget.onManageRoutingConsent!,
+                ),
               if (widget.onManageCrimeConsent != null)
-                (icon: Icons.policy_outlined, label: '犯罪資料查詢設定', onTap: widget.onManageCrimeConsent!),
+                (
+                  icon: Icons.policy_outlined,
+                  label: '犯罪資料查詢設定',
+                  status: [
+                    widget.crimeConsent ? '已同意行程範圍查詢；可在此撤回。' : '未同意行程範圍查詢。',
+                    if (widget.crimeQueryStatus != null)
+                      widget.crimeQueryStatus!,
+                  ].join('\n'),
+                  onTap: widget.onManageCrimeConsent!,
+                ),
               if (widget.onMapTileConsent != null)
-                (icon: Icons.map_outlined, label: '地圖載入設定', onTap: widget.onMapTileConsent!),
+                (
+                  icon: Icons.map_outlined,
+                  label: '地圖載入設定',
+                  status: widget.showMapTiles
+                      ? '已同意載入地圖圖磚；可在此撤回。'
+                      : '未同意載入地圖圖磚。',
+                  onTap: widget.onMapTileConsent!,
+                ),
             ],
           ),
         ),
@@ -970,7 +1001,10 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
             Container(
               width: 12,
               height: 12,
-              decoration: const BoxDecoration(shape: BoxShape.circle, color: crimeMarkColor),
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                color: crimeMarkColor,
+              ),
             ),
             const SizedBox(width: 8),
             Expanded(child: Text(lines.first, style: SwText.bodyStrong)),
