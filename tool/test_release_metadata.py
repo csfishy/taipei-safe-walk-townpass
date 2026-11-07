@@ -32,13 +32,28 @@ class ReleaseMetadataTest(unittest.TestCase):
         env = dict(COMMIT_PRERELEASE='true', GITHUB_EVENT_NAME='push',
                    GITHUB_REF='refs/heads/main', GITHUB_SHA=COMMIT, GITHUB_RUN_NUMBER='42')
         metadata, output = self.generate(**env)
-        self.assertEqual(metadata['version'], '0.0.12-pre.42.gaaaaaaaaaaaa')
+        self.assertEqual(metadata['version'], '0.0.12-pre.r0000000042.gaaaaaaaaaaaa')
         self.assertEqual(metadata['buildNumber'], '42')
         self.assertEqual(metadata['commit'], COMMIT)
         self.assertIn('build_name=0.0.12\n', output)
-        self.assertIn('release_tag=v0.0.12-pre.42.gaaaaaaaaaaaa\n', output)
+        self.assertIn('release_tag=v0.0.12-pre.r0000000042.gaaaaaaaaaaaa\n', output)
         self.assertEqual((metadata, output), self.generate(**env))
         self.assertNotEqual(metadata['version'], self.generate(**{**env, 'GITHUB_RUN_NUMBER': '43'})[0]['version'])
+
+    def test_release_list_order_survives_digit_boundaries_and_legacy_tags(self):
+        env = dict(COMMIT_PRERELEASE='true', GITHUB_EVENT_NAME='push',
+                   GITHUB_REF='refs/heads/main', GITHUB_SHA=COMMIT)
+        versions = [self.generate(**env, GITHUB_RUN_NUMBER=str(run))[0]['version']
+                    for run in (9, 10, 84, 99, 100, 135, 999, 1000, 9999999999)]
+        self.assertEqual(sorted(versions, reverse=True), versions[::-1])
+        legacy = ['0.0.12-pre.1', '0.0.12-pre.84.gaaaaaaaaaaaa',
+                  '0.0.12-pre.135.gaaaaaaaaaaaa', '0.0.12-pre.9999999999.gaaaaaaaaaaaa']
+        self.assertGreater(min(versions), max(legacy))
+
+    def test_automatic_counter_cannot_overflow_fixed_width(self):
+        with self.assertRaises(SystemExit):
+            self.generate(COMMIT_PRERELEASE='true', GITHUB_EVENT_NAME='push',
+                          GITHUB_REF='refs/heads/main', GITHUB_RUN_NUMBER='10000000000')
 
     def test_pr_and_local_builds_keep_pubspec_version(self):
         for env in ({}, {'GITHUB_EVENT_NAME': 'pull_request', 'GITHUB_REF': 'refs/pull/7/merge',

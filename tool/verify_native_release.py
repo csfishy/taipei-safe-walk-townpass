@@ -8,6 +8,10 @@ import struct
 import zipfile
 
 PREVIEW_ID = 'io.github.csfishy.taipeisafewalktownpass.preview'
+PRERELEASE_VERSION = re.compile(
+    r'\d+\.\d+\.\d+-pre\.'
+    r'(?:\d+(?:\.g[0-9a-f]{12})?|r[0-9]{10}\.g[0-9a-f]{12})'
+)
 
 
 def require(condition, message):
@@ -15,12 +19,16 @@ def require(condition, message):
         raise ValueError(message)
 
 
-def verify(platform, package_path, metadata_path):
-    expected = json.loads(Path(metadata_path).read_text(encoding='utf-8'))
+def validate_metadata(expected):
     require(expected.get('preview') is True, 'Expected preview build metadata')
     require(re.fullmatch(r'[0-9a-f]{40}', expected.get('commit', '')), 'Invalid source commit')
-    require(re.fullmatch(r'\d+\.\d+\.\d+-pre\.\d+(?:\.g[0-9a-f]{12})?', expected.get('version', '')), 'Expected prerelease version')
+    require(PRERELEASE_VERSION.fullmatch(expected.get('version', '')), 'Expected prerelease version')
     require(str(expected.get('buildNumber', '')).isdigit(), 'Invalid build number')
+
+
+def verify(platform, package_path, metadata_path):
+    expected = json.loads(Path(metadata_path).read_text(encoding='utf-8'))
+    validate_metadata(expected)
 
     with zipfile.ZipFile(package_path) as package:
         require(package.testzip() is None, 'Package ZIP integrity check failed')
