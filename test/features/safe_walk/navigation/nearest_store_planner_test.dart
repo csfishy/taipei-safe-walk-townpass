@@ -130,7 +130,7 @@ void main() {
 
   group('without a route service', () {
     test(
-      'picks the straight-line nearest open store and a Google link',
+      'picks the straight-line nearest open store and and no external map link',
       () async {
         final result = await run(planner([far, near, mid]));
 
@@ -141,26 +141,8 @@ void main() {
           result.store!.straightLineMeters,
           closeTo(distanceMeters(origin().coordinates, near.coordinates), 1e-6),
         );
-        expect(result.googleMapsUri!.host, 'www.google.com');
-        expect(
-          result.googleMapsUri!.queryParameters['destination'],
-          '25.048500,121.517500',
-        );
-        expect(result.googleMapsUri!.queryParameters['travelmode'], 'walking');
       },
     );
-
-    test('the link never contains the user location', () async {
-      final result = await run(planner([near]));
-
-      final text = result.googleMapsUri.toString();
-      expect(text, isNot(contains('25.0478')));
-      expect(text, isNot(contains('121.517000')));
-      expect(
-        result.googleMapsUri!.queryParameters.containsKey('origin'),
-        isFalse,
-      );
-    });
 
     test('closed, unknown and non-store points are never chosen', () async {
       final result = await run(
@@ -197,7 +179,6 @@ void main() {
 
       expect(result.status, NearestStoreStatus.noKnownStore);
       expect(result.store, isNull);
-      expect(result.googleMapsUri, isNull);
       expect(result.reason, contains('不代表附近沒有'));
     });
 
@@ -219,7 +200,6 @@ void main() {
       final result = await run(p);
 
       expect(result.status, NearestStoreStatus.consentRequired);
-      expect(result.googleMapsUri, isNull);
       expect(routes.requests, isEmpty);
     });
 
@@ -252,10 +232,6 @@ void main() {
 
         expect(result.store!.point.id, 'mid');
         expect(result.store!.walkingRoute!.distanceMeters, 400);
-        expect(
-          result.googleMapsUri!.queryParameters['destination'],
-          '25.040000,121.510000',
-        );
         expect(result.warnings, contains('路線警示'));
       },
     );
@@ -329,7 +305,6 @@ void main() {
         expect(result.status, NearestStoreStatus.found);
         expect(result.store!.point.id, 'near');
         expect(result.store!.walkingRoute, isNull);
-        expect(result.googleMapsUri, isNotNull);
         expect(result.warnings.join(), contains('直線距離'));
       },
     );
@@ -340,7 +315,6 @@ void main() {
       );
 
       expect(result.status, NearestStoreStatus.found);
-      expect(result.googleMapsUri, isNotNull);
     });
   });
 

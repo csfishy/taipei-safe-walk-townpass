@@ -1,14 +1,16 @@
 # M5｜奶爸：純控制器、Audio adapter 與取消清理
 
+**現行政策：LIVE-FIRST DEVELOPMENT + NO PRODUCTION MOCK。** 陪伴情境可明示為模擬，但聲音必須由真實裝置 TTS／核准音訊播放；Fake engine、PreviewSpeaker 計時器不是正式播放來源。無引擎時回語音 Unavailable 與文字預覽，不宣稱已播放／真人接通。直接完成操作、聲音、停止／背景／SOS 與 UI 的完整驗收，不須先交 Demo，見 [完成定義](../../../../docs/SAFE_WALK_LIVE_FIRST.md)。
+
 所有成員均可跨 M1～M5 修改功能與相應測試，自行 AI Coding、除錯及建立 PR。修改其他模組時說明目的、影響檔案及原主要負責人，先核對進行中的 PR 避免同時改同一檔；普通 Level A 變更不需小魚事前批准，Level B 合併前確認；Level C 合併前須隊長明確授權及安全／隱私審查，正式啟用前完成適用驗收。完整規則見 [開放協作](../../../../docs/SAFE_WALK_COLLABORATION.md)。
 
 先讀根目錄 AGENTS、[Live MVP 規格](../../../../docs/SAFE_WALK_LIVE_MVP.md)、[上線條件](../../../../docs/SAFE_WALK_LIVE_READINESS.md)及 [五人模組契約](../../../../docs/SAFE_WALK_MODULES.md)。初始化文件是歷史紀錄。奶爸是音訊主要負責人，莅紋是正式 UI/UX 設計主要負責人；任何成員可跨通話頁、speaker、控制器與測試完成完整陪伴功能，不索取麥克風／聯絡人／位置，不假扮警消或真人親友在線。
 
 ## 目前基線與 Live 目標
 
-截至 main `03f98f2b7b5254db73774c4d097eb4d610499c2c`，`LocalCompanionController`、裝置 TTS 與 M3 通話畫面均已合併。M1 的 `SafeWalkCompositionRoot` 已預設建立 `TtsSafeWalkSpeaker.device()`，準備裝置語音後交給正式入口的 Flow；不能再將全部音訊寫成「只有抽象介面／尚未接入」。裝置 TTS 為 **WIRED_NOT_VERIFIED**：已接線但缺 iPhone 實際播放、中斷及隱私驗收，並非 LIVE_VERIFIED。核准錄音的具體播放器與資產仍未完成。
+盤點 main `7b99fea`（#49 恢復 `3c433001` 快照）：Controller、裝置 TTS 與 M3 通話畫面存在。M1 預設建立 `TtsSafeWalkSpeaker.device()`，但仍須移除缺聲音時以 PreviewSpeaker 計時器替代播放的正式路徑。裝置 TTS 為 **WIRED_NOT_VERIFIED**，缺 iPhone 播放、中斷與隱私驗收；#37 的音質增量已被 restore 撤回，#46 為開放 PR，不能當成本基線已有。核准錄音的播放器、資產與鈴聲仍未完成。
 
-模擬的是陪伴情境；裝置真正朗讀與導航資料模式分別驗收。正式公開版本應提供已驗證的裝置語音，不因導航仍為 Mock 永久阻擋 TTS。沒有可用引擎或語音時清楚顯示文字預覽，不能以無聲計時器宣稱已播放。
+模擬的是陪伴情境；裝置朗讀與導航分別驗收。Live-only 不禁止誠實標示的陪伴劇本；它禁止以測試 speaker／假回呼冒稱真聲音。不因其他 BLOCKED 能力限制已驗收 TTS，無引擎時不啟動假播放時間。
 
 ## 主要負責人與接點
 
@@ -44,6 +46,10 @@ state 只有 idle／playing／paused／ended／error。audioSrc 為 null 表示�
 插件的完成／取消／錯誤事件沒有 utterance ID，因此共用裝置 driver 在停止中的舊語句收到 terminal 與 stop 回覆前，不送出新語句。等待上限一秒；若無法確認，driver 保持文字預覽直到 App 重啟。尚未開始發聲的語句可能沒有原生取消回呼，亦採此保守處理。每個路線的取消 ticket 及 owner 獨立，離開或 SOS 後的排隊朗讀不能重啟，舊路線的延遲 stop 不能停止新路線。
 
 回歸使用 fake engine、mock platform channel 與 Widget lifecycle，不是實機播放驗收。iPhone 靜音鍵、實際語音品質、OS 中斷與廠商 callback 順序仍需實機確認；不把單元測試視為所有裝置皆可朗讀。
+
+### 歷史分支與生命周期驗證說明
+
+以下保留先前 `03f98f2`／`65ee6f7` 與 stacked #31 時的記錄，不代表現在仍使用該分支或已完成裝置驗收。
 
 原 `03f98f2` 盤點時，`safe_walk_call_view.dart` 已有 `didUpdateWidget()` 更新語音選擇，以及背景取消待回覆、停止時鐘／震動；`TtsSafeWalkSpeaker` 也已有前景與 SOS 永久停止閘門。現在 main `65ee6f7` 及本 stacked 分支承接的 #31 最新 head 已納入 PR #26，統一所有 speaker 的 lifecycle 介面與回歸；不再將 #26 列為未合併阻塞。裝置實際中斷與語音驗收仍需完成。
 
