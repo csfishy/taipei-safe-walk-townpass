@@ -23,6 +23,10 @@ lib/features/safe_walk/ 是同一 Flutter App 內的五模組及 shared。既有
 
 跨模組檔案修改與直接 import 分開：實作組合仍集中 platform/integration/，業務模組只依賴自身與 shared，保留 M1 Composition Root／DI，禁止隨意循環及反向依賴。現有 baseline guard 只檢查依賴路徑與歷史，沒有 GitHub 作者／目錄修改權檢查，故本次不修改或關閉它。共用 Schema／模型不複製、生成型別不手改；相關變更由任何人開發，依 Level B 確認。
 
+## M4 犯罪警示增量
+
+本輪取消 AED 開發。官方文字警示經來源／日期／授權檢查與獨立地理證據，產出 shared 內部 CrimeWarningSnapshot（無 v1 Schema 修改）；平台 composition 注入導航的空間比對，完整路段交集後提供真正 OSRM 候選，UI 由使用者明確選擇繞行。全市月統計與模糊化歷史案件不進精確路段避讓；來源、定位覆蓋與限制見 [犯罪警示資料](SAFE_WALK_CRIME_WARNING_DATA.md)。既有 GPS、OSRM、OSM renderer 及 TownPass 入口沿用。
+
 ## 正式操作資料流
 
 1. TownPass 首頁卡片／城市服務 → local://safe_walk → TPRoute.safeWalk → SafeWalkCompositionRoot。既有入口保留 M3 設計與返回行為。

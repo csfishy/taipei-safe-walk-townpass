@@ -1,0 +1,72 @@
+{
+  "success": true,
+  "code": 200,
+  "payload": {
+    "pid": "985743f7-a33e-4ac1-ad2e-7ef5ffea02e2",
+    "title": "臺北市婦幼安全警示地點",
+    "description": "「婦幼安全警示地點」係指近三年來曾有民眾通報或曾發生兩造當事人為陌生關係婦幼被害案件（包括刑法妨害性自主罪、第234條公然猥褻罪、第315條之1妨害秘密罪、性騷擾防治法第25條性騷擾罪等性別暴力犯罪）於道路、公園及廣場之公共場所、路段，經警察機關依轄區特性評估確為應提醒婦女、兒童及少年等弱勢族群注意安全，防範被害之地點。",
+    "org_name": "警察局",
+    "sub_org_name": "婦幼隊",
+    "license_name": "依政府資料開放授權條款-第1版",
+    "publish_date": "2022-01-21",
+    "coverage_temporal_start": "",
+    "coverage_temporal_end": "",
+    "field_description": "編號、縣市別代碼、地點位置、管轄分局、郵遞區號、備註",
+    "number_of_data": 22,
+    "metadata_changed": "2026-07-27 10:40:38",
+    "resources": [
+      {
+        "rid": "f87ecf10-7379-49de-8945-cb50017ec838",
+        "url": "/api/dataset/985743f7-a33e-4ac1-ad2e-7ef5ffea02e2/resource/f87ecf10-7379-49de-8945-cb50017ec838/download",
+        "url_type": "upload",
+        "position": 0,
+        "name": "臺北市婦幼安全警示地點統計",
+        "description": "",
+        "encoding": "UTF-8",
+        "file_name": "資料大平台-115上半年婦幼安全警示地點.csv",
+        "mimetype": "text/csv",
+        "size": 1607,
+        "meta_url": "",
+        "amount": 0,
+        "field_desc": [
+          {
+            "name": "編號",
+            "desc": ""
+          },
+          {
+            "name": "縣市別代碼",
+            "desc": ""
+          },
+          {
+            "name": "地點位置",
+            "desc": ""
+          },
+          {
+            "name": "管轄分局",
+            "desc": ""
+          },
+          {
+            "name": "郵遞區號",
+            "desc": ""
+          },
+          {
+            "name": "備註",
+            "desc": ""
+          }
+        ],
+        "notes": "",
+        "file_format_tid": "32fe643b-f623-4770-9aae-cb49ccb6dcb8",
+        "file_format": "CSV",
+        "request_method": "",
+        "request_parameters": [],
+        "extras": {
+          "qc_level": ""
+        },
+        "resource_type": "",
+        "has_datastore": true,
+        "download_count": 1110,
+        "last_modified": "2026-07-27 10:40:10"
+      }
+    ]
+  }
+}

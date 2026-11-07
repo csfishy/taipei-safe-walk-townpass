@@ -1,0 +1,44 @@
+[
+  {
+    "file": "women_child.csv",
+    "rawFile": "women_child.csv",
+    "rawEncoding": "utf-8-sig",
+    "datasetId": "985743f7-a33e-4ac1-ad2e-7ef5ffea02e2",
+    "resourceId": "f87ecf10-7379-49de-8945-cb50017ec838",
+    "sourceUrl": "https://data.taipei/dataset/detail?id=985743f7-a33e-4ac1-ad2e-7ef5ffea02e2",
+    "downloadUrl": "https://data.taipei/api/frontstage/tpeod/dataset/resource.download?rid=f87ecf10-7379-49de-8945-cb50017ec838",
+    "rawSha256": "f09619990954b555ce79add0ea1b6e37fbabb7cc82228c780fe20252f62fe7cc",
+    "utf8Sha256": "f09619990954b555ce79add0ea1b6e37fbabb7cc82228c780fe20252f62fe7cc",
+    "retrievedAt": "2026-11-07T14:25:57.905092+00:00",
+    "rowCount": 22,
+    "coordinateColumns": []
+  },
+  {
+    "file": "snatching.csv",
+    "rawFile": "snatching.raw.big5",
+    "rawEncoding": "cp950",
+    "datasetId": "404ca667-bcc4-4f3b-9217-fdcc1da400b2",
+    "resourceId": "6ecb4c41-fbc9-4b04-b182-a7da6c780f8d",
+    "sourceUrl": "https://data.taipei/dataset/detail?id=404ca667-bcc4-4f3b-9217-fdcc1da400b2",
+    "downloadUrl": "https://data.taipei/api/frontstage/tpeod/dataset/resource.download?rid=6ecb4c41-fbc9-4b04-b182-a7da6c780f8d",
+    "rawSha256": "fd85626adbbce6738ee82d5d6b149f04e0fd4ddf6b1aa66836eee9dc66e9f520",
+    "utf8Sha256": "7615e39295a19188e80f186babb9bed79c10473a512106c850fd764023d3b744",
+    "retrievedAt": "2026-11-07T14:25:57.914009+00:00",
+    "rowCount": 54,
+    "coordinateColumns": []
+  },
+  {
+    "file": "robbery.csv",
+    "rawFile": "robbery.raw.big5",
+    "rawEncoding": "cp950",
+    "datasetId": "ea2819ff-c869-480e-b7a9-2e5f7906a696",
+    "resourceId": "37b75aab-e504-413a-911d-987651aacbfb",
+    "sourceUrl": "https://data.taipei/dataset/detail?id=ea2819ff-c869-480e-b7a9-2e5f7906a696",
+    "downloadUrl": "https://data.taipei/api/frontstage/tpeod/dataset/resource.download?rid=37b75aab-e504-413a-911d-987651aacbfb",
+    "rawSha256": "d9cceb8819b8804c3f87498c2ad84d2e42f556bbaf8cb23d20c397d49434c995",
+    "utf8Sha256": "b8a6ffe74475a621fff4c5191380fc3ad1d52c171cf710448f5753f7c80ebb8d",
+    "retrievedAt": "2026-11-07T14:25:57.923075+00:00",
+    "rowCount": 26,
+    "coordinateColumns": []
+  }
+]

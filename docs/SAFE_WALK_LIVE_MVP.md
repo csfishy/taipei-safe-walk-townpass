@@ -52,15 +52,17 @@ Development 可用 Mock；公開版本應優先提供已驗證 Live，不以單�
 
 驗收：widget 測試核對真正傳入 geometry／distance／nullable duration、同意及錯誤，不只測截圖；入口至 Controller／Provider seam 整合及實機地圖／投影／無障礙。
 
-## M4 公共安全資料｜信義
+## M4 犯罪警示資料與地理化｜信義
 
-- 使用合法來源真實開放資料；保留 datasetId、sourceUrl、retrievedAt、dataUpdatedAt、license、coverage、limitations，未知用契約 null，不編造更新日或授權。
-- Repository 可供 M1 查詢，由 M1 注入 M2／M3，明確區分查詢失敗、成功無資料、尚未配置及過期快取。
-- 據點座標／ID／查核資訊正確；AED 登錄、OSM 24/7 商店不等於政府認證救援、安全合作站、此刻有人或願意協助。認可需 evidenceUrl／checkedAt，營業資訊不能當現場保證。
-- 全市犯罪統計不能拆成行政區、道路或逐時風險；既有 violent_crime snapshot 與尚未符合 district-only AreaStatistics 的資料保持分離。歷史率不直接推算即時安全路線。
-- 真實來源 fetch／parse／更新及異常測試有證據，fixtures 不當成已連線證據。來源格式或範圍不符時清楚 Unavailable。
+- 本輪取消 AED 相關開發。主要使用臺北市婦幼安全警示地點，另評估街頭隨機搶奪／強盜；保留全市暴力犯罪月統計，僅作全市歷史趨勢，不推逐路段／即時安全分數。
+- 取得真實官方資料，保留 dataset/resource/sourceId、類型、原始地點、明示期間、發布／更新／取得日期、授權、sourceUrl、限制。缺少日期或精度保留未知，不補假值。
+- 內部 CrimeLocationRecord／CrimeWarningZone 支援經核對的公共場所多邊形、道路範圍、近似區域或無法定位文字；不破壞既有 AssistancePoint／AreaStatistics 或手改生成型別。
+- 只有可靠且符合行人用途的地理範圍可參與路線交集。模糊地址、精度不足／過期／分類不適用者排除，提供原因及文字參考；不大量查公共 Nominatim，不以歷史案件猜精確座標或道路封鎖。
+- M4 Repository 由平台 composition 注入 M2；M2 只對真正步行網路候選計算完整路段交集、額外距離與 nullable 時間，使用者明確接受繞行，不能移動 polyline 畫假路線。
+- Live 呈現官方警示區域、來源／更新、一般／避讓候選、額外繞行、定位覆蓋與無替代／不足狀態。只有完成交集且選擇合格替代後可稱「這條候選路線避開了目前資料中已標示的警示區域。」不稱絕對安全、避開所有熱點或警方即時確認。
+- 舊 Demo 異常點、固定 avoidedCount／ETA 保留在明確 Mock，不能混入 Live。
 
-驗收：Parser 正反例／Schema／語意、M1 lookup 與 M2 途經整合、真實來源與 provenance、iPhone 列表／斷網／空資料／錯誤及更新日期顯示。
+驗收：實際官方 CSV 欄位及可重現樣本；可定位／不可定位、模糊排除、GeoJSON 次序、完整線段／多邊形交集、雙候選與繞行、無有效替代、來源失效／過期／取消／空值、模式隔離與未同意不外送；M1/M2/M3 整合、另列真 Provider 及 iPhone 驗收。未取得真資料或未完成裝置證據不得標 LIVE_VERIFIED。資料證據見 [犯罪警示資料](SAFE_WALK_CRIME_WARNING_DATA.md)。
 
 ## M5 模擬陪伴通話｜奶爸（UI：莅紋）
 

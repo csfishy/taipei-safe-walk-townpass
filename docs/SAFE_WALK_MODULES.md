@@ -30,7 +30,11 @@ RouteFollower 已有程序內 FollowUpdate／FollowStatus，消費 M1 Position�
 
 現在 Flow 已有路線參數／callbacks，但組合根尚未完整傳入，DemoMap／ETA／DemoGeo 不可當成 Live 完成。M3 為真實底圖／投影、可空時間、實際距離、取消／錯誤與能力顯示的主要聯絡人；功能主責可跨 UI／平台實作。正式功能完成後可由正常流程操作，不能永久只留展示入口。一般 callback／參數接線屬 A，變更 shared 契約屬 B；大型 UI 改版合併前找莅紋確認，不任意改 Schema 或設計方向。
 
-## M4｜來源、Parser 與 Repository
+## M4｜官方犯罪警示、地理化與既有資料契約
+
+本輪取消 AED 開發。主要輸出為內部 CrimeLocationRecord／CrimeWarningZone／CrimeWarningSnapshot，保留來源、原文、期間、日期、授權、幾何／精度／可信度及限制；M1 注入 M2 比對 RouteCandidate 的完整 geometry，再由 M3 呈現。型別在 shared/models/crime_warning.dart，與 canonical AssistancePoint／AreaStatistics 分開，未變更 v1 Schema。只有定位可靠且用途／時效適合的區域進演算法，文字模糊案件與全市月統計不作精確避讓。來源與證據見 [犯罪警示資料](SAFE_WALK_CRIME_WARNING_DATA.md)。
+
+以下 Parser／AssistancePoint 等能力保留相容，不新增 AED 需求。
 
 SafetyDataParser.parseAssistancePoint／parseAreaStatistics 消費正規化 Map，回 shared models，先結構後語意驗證。SafetyDataRepository.getAssistancePoints／getAreaStatistics 接 required mode 與選用 cancellation，回 List；例外沿 Future 傳遞，空 List 只代表成功查詢無資料。
 
