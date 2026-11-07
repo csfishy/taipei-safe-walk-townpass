@@ -469,18 +469,25 @@ class _StartMark extends StatelessWidget {
   const _StartMark({this.heading});
   final double? heading;
   @override
-  Widget build(BuildContext context) => Stack(
-    alignment: Alignment.center,
-    children: [
-      if (heading != null)
-        // 朝向的扇形光束（像 Google 地圖），圓點本身不轉。
-        Transform.rotate(
-          angle: heading! * math.pi / 180,
-          child: CustomPaint(size: const Size(44, 44), painter: _BeamPainter()),
-        ),
-      _dot(),
-    ],
-  );
+  Widget build(BuildContext context) => heading == null
+      ? _dot()
+      // 導航箭頭（像 Google 地圖導航）：尖端指向使用者面對的方向。
+      : Container(
+          width: 44,
+          height: 44,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: SwColors.brand.withValues(alpha: .18),
+          ),
+          child: Transform.rotate(
+            angle: heading! * math.pi / 180,
+            child: CustomPaint(
+              size: const Size(30, 30),
+              painter: _ArrowPainter(),
+            ),
+          ),
+        );
 
   Widget _dot() => Container(
     width: 30,
@@ -502,24 +509,29 @@ class _StartMark extends StatelessWidget {
   );
 }
 
-/// 從圓心往上（北方，旋轉前）張開約 70° 的漸層扇形。
-class _BeamPainter extends CustomPainter {
+/// 朝上（北方，旋轉前）的導航箭頭：主色填滿、白色描邊、底部內凹。
+class _ArrowPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final c = size.center(Offset.zero);
-    final r = size.width / 2;
-    final rect = Rect.fromCircle(center: c, radius: r);
-    final paint = Paint()
-      ..shader = RadialGradient(
-        colors: [
-          SwColors.brand.withValues(alpha: .55),
-          SwColors.brand.withValues(alpha: 0),
-        ],
-      ).createShader(rect);
-    const sweep = 70 * math.pi / 180;
-    canvas.drawArc(rect, -math.pi / 2 - sweep / 2, sweep, true, paint);
+    final w = size.width, h = size.height;
+    final path = Path()
+      ..moveTo(w * .5, h * .06)
+      ..lineTo(w * .9, h * .9)
+      ..lineTo(w * .5, h * .7)
+      ..lineTo(w * .1, h * .9)
+      ..close();
+    canvas.drawShadow(path, Colors.black, 2, false);
+    canvas.drawPath(path, Paint()..color = SwColors.brand);
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = SwColors.surface
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.5
+        ..strokeJoin = StrokeJoin.round,
+    );
   }
 
   @override
-  bool shouldRepaint(_BeamPainter old) => false;
+  bool shouldRepaint(_ArrowPainter old) => false;
 }
