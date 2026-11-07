@@ -25,8 +25,9 @@ const List<String> defaultOverpassEndpoints = [
 /// * Nothing is sent unless [hasConsent] returns true. The exact position is
 ///   never sent: the query is centred on a [gridDegrees] grid cell and the
 ///   radius widened to still cover the real position.
-/// * The mirrors are asked at once and the first answer wins. Raw results are
-///   cached per grid cell and radius; failures are not cached.
+/// * The mirrors are asked at once and the first answer wins. Completed results
+///   retain their retrieval time and are cached per grid cell and radius for
+///   [cacheTtl]. Each lookup owns and cancels its unfinished requests.
 final class OsmConvenienceStoreSource {
   OsmConvenienceStoreSource({
     required this.transport,
@@ -40,13 +41,15 @@ final class OsmConvenienceStoreSource {
   /// About 1.1 km of latitude: coarse enough not to identify a street.
   static const double gridDegrees = 0.01;
 
+  static const Duration cacheTtl = Duration(minutes: 5);
+
   final JsonTransport transport;
   final bool Function() hasConsent;
   final List<String> endpoints;
   final List<double> radiiMeters;
   final bool only24Hours;
   final DateTime Function() _clock;
-  final Map<String, Future<List<Map<String, Object?>>>> _cache = {};
+  final Map<String, _CachedElements> _cache = {};
 
   /// Throws [ConsentRequiredException], [JsonTransportException] or
   /// [SafeWalkCancelledException]; it never returns invented stores.
@@ -57,35 +60,50 @@ final class OsmConvenienceStoreSource {
     if (!hasConsent()) throw const ConsentRequiredException();
     cancellation?.throwIfCancelled();
 
-    final radii = [...radiiMeters]..sort();
-    final jobs = [for (final r in radii) _elements(origin, r)];
-    for (final job in jobs) {
-      job.then<void>((_) {}, onError: (Object _) {}); // never unhandled
+    final stop = ManualCancellation();
+    if (cancellation != null) {
+      unawaited(cancellation.whenCancelled.then((_) => stop.cancel()));
     }
-    Object? lastError;
-    for (final job in jobs) {
-      try {
-        final elements = await raceCancellation(job, cancellation);
-        if (elements.isEmpty) continue;
-        final retrievedAt = _clock().toUtc().toIso8601String();
-        return [
-          for (final element in elements)
-            ?_toPoint(element, retrievedAt, only24Hours),
-        ];
-      } on SafeWalkCancelledException {
-        rethrow;
-      } catch (error) {
-        lastError = error;
+    try {
+      final radii = [...radiiMeters]..sort();
+      final jobs = [for (final r in radii) _elements(origin, r, stop)];
+      for (final job in jobs) {
+        job.then<void>((_) {}, onError: (Object _) {}); // never unhandled
       }
+      Object? lastError;
+      for (final job in jobs) {
+        try {
+          final result = await raceCancellation(job, stop);
+          cancellation?.throwIfCancelled();
+          stop.throwIfCancelled();
+          if (result.elements.isEmpty) continue;
+          return [
+            for (final element in result.elements)
+              ?_toPoint(
+                element,
+                result.retrievedAt.toIso8601String(),
+                only24Hours,
+              ),
+          ];
+        } on SafeWalkCancelledException {
+          rethrow;
+        } catch (error) {
+          lastError = error;
+        }
+      }
+      if (lastError != null) throw lastError;
+      return const [];
+    } finally {
+      stop.cancel();
     }
-    if (lastError != null) throw lastError;
-    return const [];
   }
 
-  Future<List<Map<String, Object?>>> _elements(
+  Future<_CachedElements> _elements(
     sw.Coordinates origin,
     double radius,
-  ) {
+    SafeWalkCancellation cancellation,
+  ) async {
+    cancellation.throwIfCancelled();
     final row = (origin.lat / gridDegrees).floor();
     final col = (origin.lng / gridDegrees).floor();
     final center = sw.Coordinates(
@@ -102,24 +120,30 @@ final class OsmConvenienceStoreSource {
     );
     final key = '$row:$col:$radius:$only24Hours';
     final cached = _cache[key];
-    if (cached != null) return cached;
-    final request = _request(center, (radius + margin).ceil());
-    _cache[key] = request;
-    // A block body: returning remove()'s value would hand back the failed
-    // future itself and re-raise its error as unhandled.
-    request.then<void>(
-      (_) {},
-      onError: (Object _) {
-        _cache.remove(key);
-      },
+    if (cached != null) {
+      final age = _clock().toUtc().difference(cached.retrievedAt);
+      if (!age.isNegative && age < cacheTtl) return cached;
+      _cache.remove(key);
+    }
+    // In-flight requests belong only to this lookup, so cancelling another
+    // lookup in the same cell cannot close this one's connections.
+    final elements = await _request(
+      center,
+      (radius + margin).ceil(),
+      cancellation,
     );
-    return request;
+    cancellation.throwIfCancelled();
+    final result = _CachedElements(elements, _clock().toUtc());
+    _cache[key] = result;
+    return result;
   }
 
   Future<List<Map<String, Object?>>> _request(
     sw.Coordinates center,
     int radius,
-  ) {
+    SafeWalkCancellation cancellation,
+  ) async {
+    cancellation.throwIfCancelled();
     final hours = only24Hours ? '["opening_hours"="24/7"]' : '';
     final query =
         '[out:json][timeout:10];'
@@ -127,15 +151,20 @@ final class OsmConvenienceStoreSource {
         '(around:$radius,${center.lat.toStringAsFixed(5)},${center.lng.toStringAsFixed(5)});'
         'out center tags;';
     final stop = ManualCancellation();
-    final attempts = [
-      for (final endpoint in endpoints)
-        transport
-            .postFormJson(Uri.parse(endpoint), {
-              'data': query,
-            }, cancellation: stop)
-            .then(_elementList),
-    ];
-    return firstSuccess(attempts).whenComplete(stop.cancel);
+    unawaited(cancellation.whenCancelled.then((_) => stop.cancel()));
+    try {
+      final attempts = [
+        for (final endpoint in endpoints)
+          transport
+              .postFormJson(Uri.parse(endpoint), {
+                'data': query,
+              }, cancellation: stop)
+              .then(_elementList),
+      ];
+      return await raceCancellation(firstSuccess(attempts), cancellation);
+    } finally {
+      stop.cancel();
+    }
   }
 
   List<Map<String, Object?>> _elementList(Object? json) {
@@ -209,4 +238,11 @@ final class OsmConvenienceStoreSource {
       return null;
     }
   }
+}
+
+final class _CachedElements {
+  const _CachedElements(this.elements, this.retrievedAt);
+
+  final List<Map<String, Object?>> elements;
+  final DateTime retrievedAt;
 }

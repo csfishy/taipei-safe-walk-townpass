@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -146,6 +147,35 @@ void main() {
         throwsA(isA<ConsentRequiredException>()),
       );
       expect(transport.urls, hasLength(1));
+    });
+
+    test('consent revoked during lookup prevents every request', () async {
+      var allowed = true;
+      final points = Completer<List<sw.AssistancePoint>>();
+      final started = Completer<void>();
+      final transport = FakeTransport((_, _) async => osrmOk());
+      final p = OsrmWalkingRouteProvider(
+        transport: transport,
+        hasConsent: () => allowed,
+        pointLookup: (ids, {cancellation}) {
+          started.complete();
+          return points.future;
+        },
+      );
+
+      final pending = p.findRoutes(
+        request(preference: 'via_assistance', ids: const ['demo-point-1']),
+      );
+      final outcome = expectLater(
+        pending,
+        throwsA(isA<ConsentRequiredException>()),
+      );
+      await started.future;
+      allowed = false;
+      points.complete([viaPoint()]);
+
+      await outcome;
+      expect(transport.urls, isEmpty);
     });
 
     test(
@@ -398,6 +428,68 @@ void main() {
       expect(routes.single.explanations.join(), contains('沒有可步行'));
     });
 
+    for (final (description, error) in [
+      ('no-route', null),
+      ('timeout', const JsonTransportException(TransportFailure.timeout)),
+      ('cancellation', const SafeWalkCancelledException()),
+    ]) {
+      test('early via $description is observed while direct is pending', () async {
+        final direct = Completer<Object?>();
+        final via = Completer<Object?>();
+        final started = Completer<void>();
+        var calls = 0;
+        final transport = FakeTransport((url, _) {
+          if (++calls == 2) started.complete();
+          return url.path.split(';').length == 3 ? via.future : direct.future;
+        });
+
+        final pending = provider(transport).findRoutes(viaRequest());
+        final outcome = expectLater(
+          pending,
+          error == null ? completion(hasLength(1)) : throwsA(same(error)),
+        );
+        await started.future;
+        if (error == null) {
+          via.complete({'code': 'NoRoute'});
+        } else {
+          via.completeError(error);
+        }
+        // Give an unobserved via error a full event turn before direct answers.
+        await Future<void>.delayed(Duration.zero);
+        direct.complete(osrmOk());
+
+        await outcome;
+        if (error == null) {
+          final routes = await pending;
+          expect(routes.single.kind, sw.RouteKind.direct);
+          expect(routes.single.explanations.join(), contains('沒有可步行'));
+        }
+        expect(transport.urls, hasLength(2));
+      });
+    }
+
+    test('late via error is observed after direct has failed', () async {
+      final direct = Completer<Object?>();
+      final via = Completer<Object?>();
+      final started = Completer<void>();
+      var calls = 0;
+      final transport = FakeTransport((url, _) {
+        if (++calls == 2) started.complete();
+        return url.path.split(';').length == 3 ? via.future : direct.future;
+      });
+      const directError = JsonTransportException(TransportFailure.network);
+
+      final pending = provider(transport).findRoutes(viaRequest());
+      final outcome = expectLater(pending, throwsA(same(directError)));
+      await started.future;
+      direct.completeError(directError);
+      await outcome;
+      via.completeError(const JsonTransportException(TransportFailure.timeout));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(transport.urls, hasLength(2));
+    });
+
     test('needs a lookup to know where the point is', () async {
       final transport = FakeTransport((url, _) => answer(url));
 
@@ -440,6 +532,35 @@ void main() {
         provider(transport).findRoutes(request(), cancellation: cancellation),
         throwsA(isA<SafeWalkCancelledException>()),
       );
+      expect(transport.urls, isEmpty);
+    });
+
+    test('cancellation during lookup prevents every request', () async {
+      final points = Completer<List<sw.AssistancePoint>>();
+      final started = Completer<void>();
+      final transport = FakeTransport((_, _) async => osrmOk());
+      final cancellation = ManualCancellation();
+      final p = provider(
+        transport,
+        pointLookup: (ids, {cancellation}) {
+          started.complete();
+          return points.future;
+        },
+      );
+
+      final pending = p.findRoutes(
+        request(preference: 'via_assistance', ids: const ['demo-point-1']),
+        cancellation: cancellation,
+      );
+      final outcome = expectLater(
+        pending,
+        throwsA(isA<SafeWalkCancelledException>()),
+      );
+      await started.future;
+      cancellation.cancel();
+      points.complete([viaPoint()]);
+
+      await outcome;
       expect(transport.urls, isEmpty);
     });
 

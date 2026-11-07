@@ -376,6 +376,84 @@ void main() {
   });
 
   group('cache', () {
+    test('a cache hit keeps the actual retrieval and check times', () async {
+      var clock = now;
+      final transport = FakeTransport(
+        (_) async => reply([node(1, 25.0485, 121.5175)]),
+      );
+      final s = OsmConvenienceStoreSource(
+        transport: transport,
+        hasConsent: () => true,
+        endpoints: const ['https://a.test/x'],
+        radiiMeters: const [1500],
+        clock: () => clock,
+      );
+
+      final first = (await s.findNear(origin)).single;
+      clock = now.add(const Duration(minutes: 2));
+      final cached = (await s.findNear(origin)).single;
+
+      expect(transport.calls, hasLength(1));
+      expect(cached.source.retrievedAt, first.source.retrievedAt);
+      expect(cached.availabilityCheckedAt, first.availabilityCheckedAt);
+    });
+
+    test(
+      'a cache entry expires after five minutes and is fetched again',
+      () async {
+        var clock = now;
+        var id = 0;
+        final transport = FakeTransport(
+          (_) async => reply([node(++id, 25.0485, 121.5175)]),
+        );
+        final s = OsmConvenienceStoreSource(
+          transport: transport,
+          hasConsent: () => true,
+          endpoints: const ['https://a.test/x'],
+          radiiMeters: const [1500],
+          clock: () => clock,
+        );
+
+        await s.findNear(origin);
+        clock = now.add(const Duration(minutes: 5));
+        final refreshed = (await s.findNear(origin)).single;
+
+        expect(transport.calls, hasLength(2));
+        expect(refreshed.id, 'osm-node-2');
+        expect(refreshed.source.retrievedAt, clock.toIso8601String());
+        expect(refreshed.availabilityCheckedAt, clock.toIso8601String());
+      },
+    );
+
+    test('an expired answer is not returned if its refresh fails', () async {
+      var clock = now;
+      var fail = false;
+      final transport = FakeTransport(
+        (_) => fail
+            ? Future.error(
+                const JsonTransportException(TransportFailure.network),
+              )
+            : Future.value(reply([node(1, 25.0485, 121.5175)])),
+      );
+      final s = OsmConvenienceStoreSource(
+        transport: transport,
+        hasConsent: () => true,
+        endpoints: const ['https://a.test/x'],
+        radiiMeters: const [1500],
+        clock: () => clock,
+      );
+
+      await s.findNear(origin);
+      clock = now.add(const Duration(hours: 2));
+      fail = true;
+
+      await expectLater(
+        s.findNear(origin),
+        throwsA(isA<JsonTransportException>()),
+      );
+      expect(transport.calls, hasLength(2));
+    });
+
     test('the same grid cell reuses the answer', () async {
       final transport = FakeTransport(
         (_) async => reply([node(1, 25.0485, 121.5175)]),
@@ -467,6 +545,70 @@ void main() {
       cancellation.cancel();
 
       await expectLater(pending, throwsA(isA<SafeWalkCancelledException>()));
+      expect(transport.calls, hasLength(4));
+      for (final call in transport.calls) {
+        expect(call.cancellation!.isCancelled, isTrue);
+      }
+    });
+
+    test(
+      'returning a small-radius answer stops unused large requests',
+      () async {
+        final transport = FakeTransport(
+          (call) => radiusOf(call) < 5000
+              ? Future.value(reply([node(1, 25.0485, 121.5175)]))
+              : Completer<Object?>().future,
+        );
+
+        expect(await source(transport).findNear(origin), hasLength(1));
+        await Future<void>.delayed(Duration.zero);
+
+        final unused = transport.calls.where((call) => radiusOf(call) > 5000);
+        expect(unused, hasLength(2));
+        for (final call in unused) {
+          expect(call.cancellation!.isCancelled, isTrue);
+        }
+      },
+    );
+
+    test('parallel lookups own their requests and cancellation', () async {
+      final gates = <Completer<Object?>>[];
+      final transport = FakeTransport((_) {
+        final gate = Completer<Object?>();
+        gates.add(gate);
+        return gate.future;
+      });
+      final s = source(
+        transport,
+        endpoints: const ['https://a.test/x'],
+        radii: const [1500],
+      );
+      final cancelled = ManualCancellation();
+      final first = s.findNear(origin, cancellation: cancelled);
+      final firstResult = expectLater(
+        first,
+        throwsA(isA<SafeWalkCancelledException>()),
+      );
+      final second = s.findNear(origin);
+      await Future<void>.delayed(Duration.zero);
+      cancelled.cancel();
+      await firstResult;
+      await Future<void>.delayed(Duration.zero);
+      final otherWasCancelled = transport.calls.length > 1
+          ? transport.calls[1].cancellation!.isCancelled
+          : null;
+
+      // Finish even the abandoned fake transport to expose any late cache write.
+      for (var index = 0; index < gates.length; index++) {
+        gates[index].complete(reply([node(index + 1, 25.0485, 121.5175)]));
+      }
+      final points = await second;
+
+      expect(transport.calls, hasLength(2));
+      expect(transport.calls.first.cancellation!.isCancelled, isTrue);
+      expect(otherWasCancelled, isFalse);
+      expect(points.single.id, 'osm-node-2');
+      expect((await s.findNear(origin)).single.id, 'osm-node-2');
     });
   });
 }
