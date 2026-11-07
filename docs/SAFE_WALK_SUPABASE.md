@@ -1,5 +1,7 @@
 # TownPass Supabase 連線設定
 
+CI／專用 Demo 的初始化另見 [隔離資料庫重設](SAFE_WALK_DATABASE_RESET.md)。兩份工作流必跑 runner-local PostGIS 測試；遠端另需 Repository Actions Variable `DEMO_DATABASE_RESET_ENABLED` 精確為 `true` 才啟用。未設定或 `false` 時不連遠端，Summary 明示未重設，既有不依賴 `safe_walk_demo` 的建置／發布可繼續；啟用後缺白名單／Secrets／marker／角色或重設失敗仍須停止。其他旗標值是配置錯誤，不代表未啟用。遠端白名單目前為空，既有 `gxofnhzkqcmzrftxqddi` 保護不變，不會自動當成可清除的 Demo，也不執行舊匿名通知 RPC。旗標必須最後經 Level C 審查後才設定，不能用公開 client key 代替受限 SQL role 憑證。
+
 現行規格以 [Live MVP](SAFE_WALK_LIVE_MVP.md) 與 [上線條件](SAFE_WALK_LIVE_READINESS.md) 為準。2026-11-07 核對 main `03f98f2b7b5254db73774c4d097eb4d610499c2c`：連線基礎已由 PR #25 合併；下文「本輪」及測試結果是當次設定的歷史事實，不表示目前仍待合併，也不代表附近通知已通過驗收。
 
 | 能力 | 狀態 | 現行結論 |
