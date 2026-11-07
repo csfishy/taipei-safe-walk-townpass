@@ -14,39 +14,33 @@ void main() {
     expect(m5CompanionScenarios.map((s) => s.toJson()).toList(), m5.map((s) => s.toJson()).toList());
   });
 
-  test('每個劇本的每一句都有回覆可選', () {
+  test('單一劇本在前兩句男性台詞後各提供一段女性照讀稿', () {
+    expect(m5CompanionScenarios, hasLength(1));
     for (final c in m5CompanionScenarios) {
       final replies = companionReplies[c.id];
       expect(replies, isNotNull, reason: c.id);
-      expect(replies!.length, c.steps.length, reason: c.id);
+      expect(replies!.length, c.steps.length - 1, reason: c.id);
       for (final r in replies) {
-        expect(r, isNotEmpty, reason: c.id);
+        expect(r, hasLength(1), reason: c.id);
       }
     }
   });
 
-  test('回覆與完整句子不含會讓旁人起疑或刺激對方的字眼', () {
-    const banned = ['不對勁', '跟著我', '跟蹤', '可疑', '報警', '求救', '危險'];
-    final all = [
-      for (final rs in companionReplies.values)
-        for (final r in rs) ...r,
-      ...callTemplates,
-    ];
-    for (final text in all) {
-      for (final w in banned) {
-        expect(text.contains(w), isFalse, reason: '「$text」含有「$w」');
-      }
-    }
+  test('女性照讀稿與五段嚇阻順序固定', () {
+    expect(companionReplies['stalker-deterrence'], [
+      ['我快到了，但我後面好像有人一直跟著我。'],
+      ['好，我看到你了，我現在直接走過去。電話先不要掛。'],
+    ]);
+    expect(callTemplates, isEmpty);
+    expect(callTemplateAcks, isEmpty);
   });
 
-  test('每個完整句子都有對方的回應，且不假裝真人在線', () {
-    const forbidden = ['陪你', '我在', '在線上', '在聽', '聽到', '看到你', '定位', '已通知', '報警'];
-    for (final t in callTemplates) {
-      final ack = callTemplateAcks[t];
-      expect(ack, isNotNull, reason: t);
-      for (final w in forbidden) {
-        expect(ack!.contains(w), isFalse, reason: '「$ack」含有「$w」');
-      }
+  test('所有男性台詞都是英文且最後一句不再要求女性回覆', () {
+    final scenario = m5CompanionScenarios.single;
+    expect(scenario.steps, hasLength(3));
+    for (final step in scenario.steps) {
+      expect(RegExp(r'[\u4e00-\u9fff]').hasMatch(step.text), isFalse);
     }
+    expect(scenario.steps.last.pauseAfterMs, 0);
   });
 }
