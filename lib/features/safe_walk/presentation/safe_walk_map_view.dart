@@ -166,6 +166,7 @@ class SafeWalkMapView extends StatefulWidget {
     this.routingConsent = false,
     this.crimeConsent = false,
     this.destinationConfigured = true,
+    this.canSetHome = false,
     this.showMapTiles = true,
     this.targetPointId,
     this.onTarget,
@@ -191,6 +192,9 @@ class SafeWalkMapView extends StatefulWidget {
   /// Whether the walker currently allows the crime reference query.
   final bool crimeConsent;
   final bool destinationConfigured;
+
+  /// 還沒設定家時，能不能直接在地圖上點選並儲存「家」。
+  final bool canSetHome;
   final bool showMapTiles;
 
   /// 使用者在地圖上指定的起點；null＝用目前位置（GPS）。
@@ -283,14 +287,34 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
     }
   }
 
+  /// 還沒設定家、而且可以在地圖上直接設定。
+  bool get _homeUnset =>
+      !widget.destinationConfigured &&
+      widget.canSetHome &&
+      widget.onEditPlace != null &&
+      widget.placeId == 'home';
+
   /// 正在新增的地點名稱；不為 null 時，點地圖是選這個地點的位置。
-  String? _newPlaceName;
+  /// 還沒設定家時，一進地圖就直接請使用者點選家的位置。
+  late String? _newPlaceName = _homeUnset ? '家' : null;
 
   /// 正在看的犯罪參考位置（點紫點）。
   CrimeSpot? _crimeDetail;
 
   /// 正在編輯的常用地點（null＝新增）。
-  String? _editingPlaceId;
+  late String? _editingPlaceId = _homeUnset ? 'home' : null;
+
+  bool get _settingHome => _editingPlaceId == 'home' && !widget.destinationConfigured;
+
+  void _startSetHome() => setState(() {
+    _newPlaceName = '家';
+    _editingPlaceId = 'home';
+    _picking = false;
+    _legend = false;
+    _pin = null;
+    _detailId = null;
+    if (_size == _SheetSize.collapsed) _size = _SheetSize.normal;
+  });
 
   /// 正在地圖上選起點。
   bool _pickingStart = false;
@@ -628,7 +652,10 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
     final int? minutes = routed && rs.live ? rs.minutes : walkMinutes(meters);
 
     final (String summary, Widget body) = switch (true) {
-      _ when _newPlaceName != null => ('新增地點', _newPlaceSheet()),
+      _ when _newPlaceName != null => (
+        _settingHome ? '設定「家」' : '新增地點',
+        _newPlaceSheet(),
+      ),
       _ when _pickingStart => ('設定起點', _startPickSheet()),
       _ when _crimeDetail != null => ('犯罪參考位置', _crimeSheet(_crimeDetail!)),
       _ when _picking || _pin != null => (
@@ -1056,6 +1083,14 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                 const ExcludeSemantics(child: SwSkeleton(rows: 2)),
               ],
             ),
+          )
+        else if (isHome && _homeUnset)
+          SwStateMessage(
+            icon: Icons.home_outlined,
+            title: '還沒設定「家」',
+            message: '在地圖上點一下家的位置，就會規劃回家路線。',
+            actionLabel: '在地圖上設定家',
+            onAction: _startSetHome,
           )
         else if (routed && rs.failed) ...[
           SwStateMessage(
@@ -1634,14 +1669,25 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       Text(
-        '${_editingPlaceId != null ? '編輯' : '新增'}「$_newPlaceName」',
+        _settingHome
+            ? '家在哪裡？'
+            : '${_editingPlaceId != null ? '編輯' : '新增'}「$_newPlaceName」',
         style: SwText.heading,
       ),
       const SizedBox(height: 4),
-      Text('在地圖上點一下這個地點的位置。', style: SwText.secondary),
+      Text(
+        _settingHome
+            ? '在地圖上點一下家的位置，就會規劃回家路線。位置只存在這支手機。'
+            : '在地圖上點一下這個地點的位置。',
+        style: SwText.secondary,
+      ),
       const SizedBox(height: 8),
       SwChip(
-        label: _editingPlaceId != null ? '取消編輯' : '取消新增',
+        label: _settingHome
+            ? '稍後再設定'
+            : _editingPlaceId != null
+            ? '取消編輯'
+            : '取消新增',
         icon: Icons.close_rounded,
         onTap: () => setState(() {
           _newPlaceName = null;
@@ -2527,11 +2573,10 @@ class _PlaceCard extends StatelessWidget {
                       shape: BoxShape.circle,
                       color: SwColors.brand,
                     ),
-                    child: Text(
-                      pointGlyph[p.kind]!,
-                      style: SwText.bodyStrong.copyWith(
-                        color: SwColors.onBrand,
-                      ),
+                    child: const Icon(
+                      helpPointIcon,
+                      size: 22,
+                      color: SwColors.onBrand,
                     ),
                   ),
                   const SizedBox(width: 12),

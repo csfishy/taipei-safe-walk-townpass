@@ -11,13 +11,9 @@ import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart
 import 'package:town_pass/util/tp_colors.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-/// 求助地點在地圖、圖例與清單上一律用「救」；種類（超商、派出所…）寫在文字裡。
-const pointGlyph = {
-  sw.AssistancePointKind.police: '救',
-  sw.AssistancePointKind.partnerStore: '救',
-  sw.AssistancePointKind.convenienceStore: '救',
-  sw.AssistancePointKind.publicFacility: '救',
-};
+/// 求助地點在地圖、圖例與清單上一律用同一個圖示（捧著愛心的手：這裡有人能幫你）；
+/// 種類（超商、派出所…）寫在文字裡。
+const helpPointIcon = Icons.volunteer_activism_rounded;
 
 /// OpenStreetMap 標準圖磚（不需 API Key）。使用條款要求標示來源並帶有可辨識的 User-Agent。
 const _kTileUrl = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
@@ -418,12 +414,11 @@ class _AnomalyMark extends StatelessWidget {
   }
 }
 
-/// 求助地點標記：主色圓底白字「救」；地圖與圖例共用。
+/// 求助地點標記：主色圓底白色求助圖示；地圖與圖例共用。
 class HelpPointMark extends StatelessWidget {
   const HelpPointMark({super.key, this.selected = false, this.size = 26});
   final bool selected;
   final double size;
-  String get glyph => '救';
   @override
   Widget build(BuildContext context) => Container(
     width: selected ? size + 10 : size,
@@ -438,10 +433,7 @@ class HelpPointMark extends StatelessWidget {
       ),
       boxShadow: SwShadow.float,
     ),
-    child: Text(
-      glyph,
-      style: SwText.caption.copyWith(color: SwColors.onBrand, height: 1),
-    ),
+    child: Icon(helpPointIcon, size: size * .55, color: SwColors.onBrand),
   );
 }
 

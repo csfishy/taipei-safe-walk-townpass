@@ -278,6 +278,7 @@ void main() {
     expect(find.byType(AlertDialog), findsNothing);
     await tester.tap(find.text('安心行'));
     await tester.pumpAndSettle();
+    await _skipSetHome(tester);
     expect(find.byKey(const Key('crime-query-status')), findsOneWidget);
   });
 
@@ -307,6 +308,7 @@ void main() {
     expect(routes.requests, isEmpty);
     await tester.tap(find.text('安心行'));
     await tester.pumpAndSettle();
+    await _skipSetHome(tester);
     expect(
       tester.widget<Text>(find.byKey(const Key('crime-query-status'))).data,
       contains('重新規劃路線時才會查詢'),
@@ -741,4 +743,11 @@ void main() {
       },
     );
   }
+}
+
+/// 還沒設定家時，地圖一打開會先請使用者點選家；這些測試只看查詢狀態，先跳過。
+Future<void> _skipSetHome(WidgetTester tester) async {
+  if (find.text('稍後再設定').evaluate().isEmpty) return;
+  await tester.tap(find.text('稍後再設定'));
+  await tester.pumpAndSettle();
 }

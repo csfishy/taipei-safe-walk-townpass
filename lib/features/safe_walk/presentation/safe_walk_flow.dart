@@ -485,6 +485,7 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
       routingConsent: widget.routingConsent,
       crimeConsent: widget.crimeConsent,
       destinationConfigured: !_missingLiveHome,
+      canSetHome: widget.onHomeChanged != null,
       onStartChanged: widget.onStartChanged == null ? null : _setStart,
       anomalies: _anomalies,
       startView: start,
