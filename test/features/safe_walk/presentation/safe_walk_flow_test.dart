@@ -313,12 +313,13 @@ void main() {
       ],
     );
 
-    testWidgets('進入時與換目的地時都請 M1 重新規劃', (t) async {
+    testWidgets('打開地圖與換目的地時才請 M1 規劃；一進安心行不自動送出', (t) async {
       final asked = <sw.Coordinates>[];
       await _pump(t, SafeWalkFlow(onPlanRoute: asked.add));
-      expect(asked, hasLength(1), reason: '第一次進入就要求回家路線');
+      expect(asked, isEmpty, reason: '還在首頁，使用者沒操作前不規劃');
       await t.tap(find.text('安心行'));
       await t.pumpAndSettle();
+      expect(asked, hasLength(1), reason: '點主卡打開地圖才規劃');
       await t.tap(find.textContaining('→ 家'));
       await t.pumpAndSettle();
       await t.tap(find.text('公司'));

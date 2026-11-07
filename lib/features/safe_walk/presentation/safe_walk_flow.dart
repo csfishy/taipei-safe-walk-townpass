@@ -42,7 +42,7 @@ class SafeWalkFlow extends StatefulWidget {
   final sw.RouteResult? route;
   final bool routeLoading;
 
-  /// M1：目的地改變（含第一次進入、按「再試一次」）時呼叫，請依此目的地呼叫 RouteService.planRoute，
+  /// M1：使用者打開地圖、換目的地、按「再試一次」時呼叫（不會在一進安心行時自動呼叫），請依此目的地呼叫 RouteService.planRoute，
   /// 再把結果傳回 [route]。null 時畫面一律用示範路線。
   final ValueChanged<sw.Coordinates>? onPlanRoute;
   final SafeWalkSpeaker speaker;
@@ -93,14 +93,6 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
   /// 目前目的地的路線：沒配置時用示範路線（示範起點）；計算中或失敗時為 null。
   List<LatLng>? get _placePath => _routeState.configured ? _routeState.path : placeRoute(DemoGeo.start, _place);
 
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _planRoute();
-    });
-  }
-
   void _selectPlace(String id) {
     if (id == _placeId) return;
     setState(() => _placeId = id);
@@ -116,6 +108,8 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
 
   void _go(_Screen s) {
     if (_screen == _Screen.call && s != _Screen.call) _callKey.currentState?.leave();
+    // 使用者明確打開地圖（點「安心行」主卡）時才請 M1 規劃路線；一進安心行不自動送出。
+    if (s == _Screen.map && _screen != _Screen.map) _planRoute();
     if (s == _Screen.home) _call = null;
     setState(() {
       _forward = s != _Screen.home && s != _back;
