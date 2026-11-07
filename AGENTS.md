@@ -24,7 +24,7 @@ Mock／Live 是既有 wire DataMode；Unavailable 是能力／操作呈現語意
 - **M1 小魚**：platform／shared、套件、官方 route、原生設定、CI 與 composition 的主要聯絡人。
 - **M2 Steven**：導航、OSRM、RouteFollower、目的地與據點路線的主要聯絡人；位置仍由平台入口取得，不另建 GPS watcher。
 - **M3 莅紋**：正式 UI/UX 設計方向與重大改版的主要負責人；一般 UI、callback、狀態與測試可由任何成員修改。
-- **M4 信義**：合法資料來源、Parser、Repository、品質／時效的主要聯絡人。
+- **M4 信義**：官方犯罪警示來源、地理化可信度、可參與避讓的警示範圍與資料品質／時效之主要聯絡人。本輪取消 AED 開發；全市暴力犯罪月統計只作歷史趨勢，不進逐路段避讓。
 - **M5 奶爸**：控制器、裝置 TTS／本機音訊、清理及中斷的主要聯絡人。
 - **修改檔案與直接 import 是兩件事**。任何成員可改 composition，但跨模組具體實作組合仍限 lib/features/safe_walk/platform/integration/；業務模組只依賴自身與 shared，保留 DI，不建立循環或反向依賴。M1 指架構分區，不是限定作者。
 - canonical JSON Schema 是 payload 單一來源，不手改生成 Dart Model／Schema bundle。必要新欄位另提 Schema PR，同步 generator、validator、fixtures、語意與消費模組。
