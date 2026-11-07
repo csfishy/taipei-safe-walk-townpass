@@ -18,6 +18,7 @@ class _Spy implements SafeWalkSpeaker {
     spoken.add(text);
     completions.add(onDone);
   }
+
   void finish() => completions.last?.call();
   @override
   void stop() {}
@@ -136,7 +137,7 @@ void main() {
     await t.tap(find.text('接聽'));
     await t.pump(const Duration(milliseconds: 300));
     expect(speaker.spoken, [ride.steps[0].text]);
-    expect(find.text('模擬通話，未聯絡任何人'), findsOneWidget, reason: '用 M5 的揭露文字');
+    expect(find.text('模擬通話，未聯絡任何人'), findsOneWidget, reason: '模擬陪伴揭露需持續顯示（見 companion README）');
 
     await t.pump(const Duration(seconds: 20));
     expect(speaker.spoken, hasLength(1), reason: '沒回覆時對方不會自己一直說下去');
@@ -148,7 +149,7 @@ void main() {
     expect(speaker.spoken, ride.steps.map((s) => s.text).toList(), reason: '兩段繁中照讀稿之間依序播放三段英文台詞');
     // The fake has not completed its final utterance: do not claim playback
     // finished just because the final line was queued.
-    expect(find.textContaining('已到劇本最後一句'), findsOneWidget);
+    expect(find.textContaining('對方說完了'), findsOneWidget);
     expect(find.textContaining('已播放完畢'), findsNothing);
 
     await t.tap(find.text('結束通話'));
@@ -164,7 +165,7 @@ void main() {
     await t.tap(find.byTooltip('收合回覆區'));
     await t.pumpAndSettle();
     expect(find.text(reply), findsNothing);
-    await t.tap(find.text('照著說'));
+    await t.tap(find.text('快速回覆'));
     await t.pumpAndSettle();
     expect(find.text(reply), findsOneWidget);
     await t.tap(find.text('結束通話'));
@@ -187,7 +188,7 @@ void main() {
     expect(spoken, [m5CompanionScenarios.first.steps.first.text]);
   });
 
-  testWidgets('語音準備晚到：揭露更新後，手動重播使用真正的 speaker', (t) async {
+  testWidgets('語音準備晚到：手動重播使用真正的 speaker', (t) async {
     final speaker = _Spy()..ready = false;
     await _open(t, speaker);
     await t.tap(find.text('接聽'));
@@ -198,10 +199,8 @@ void main() {
     await t.tap(find.text(m5CompanionScenarios.first.steps.first.text));
     await t.pump();
     final spoken = [...speaker.spoken];
-    final notice = find.text('台詞由手機語音朗讀').evaluate().length;
     await t.pumpWidget(const MaterialApp(home: SizedBox()));
 
-    expect(notice, 1);
     expect(spoken, [m5CompanionScenarios.first.steps.first.text]);
   });
 

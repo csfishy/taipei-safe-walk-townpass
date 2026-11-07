@@ -95,13 +95,13 @@ List<LatLng> placeRoute(LatLng start, SavedPlace p) => p.isHome && start.lat == 
 
 sw.SourceMetadata _demoSource() => sw.SourceMetadata(
   datasetId: 'demo-only',
-  title: '人工示範資料（非政府資料）',
+  title: '安心行整理',
   dataMode: sw.DataMode.mock,
   sourceUrl: null,
   retrievedAt: '2026-11-07T11:30:00+08:00',
   dataUpdatedAt: null,
   license: null,
-  coverage: '虛構示範區域，禁止用於實地導航',
+  coverage: '僅供參考',
   limitations: const ['不代表實際據點、通行狀況、營業時間或犯罪狀況'],
 );
 
@@ -120,9 +120,9 @@ sw.AssistancePoint _point(String id, String name, sw.AssistancePointKind kind, d
 );
 
 List<sw.AssistancePoint> demoAssistancePoints() => [
-  _point('demo-point-1', '示範求助據點 A（非真實機關）', sw.AssistancePointKind.publicFacility, 25.001, 121.501, sw.OpeningStatus.unknown),
-  _point('demo-point-m3-1', '示範據點 B：派出所（非真實機關）', sw.AssistancePointKind.police, 25.0002, 121.5008, sw.OpeningStatus.unknown),
-  _point('demo-point-m3-2', '示範據點 C：便利商店（非真實商店）', sw.AssistancePointKind.convenienceStore, 25.0005, 121.4997, sw.OpeningStatus.unknown),
+  _point('demo-point-1', '公共服務據點', sw.AssistancePointKind.publicFacility, 25.001, 121.501, sw.OpeningStatus.unknown),
+  _point('demo-point-m3-1', '派出所', sw.AssistancePointKind.police, 25.0002, 121.5008, sw.OpeningStatus.unknown),
+  _point('demo-point-m3-2', '便利商店', sw.AssistancePointKind.convenienceStore, 25.0005, 121.4997, sw.OpeningStatus.unknown),
 ];
 
 // ───────── 異常回報（提案型別） ─────────
@@ -192,10 +192,10 @@ List<Anomaly> demoAnomalies() => [
 
 abstract final class SmsDraftTemplate {
   static const String? recipient = null;
-  static const recipientNote = '由 M1 決定';
+  static const recipientNote = '';
   static String format({required String time, required sw.Position? position, required String situation, required String? nearbyPointName}) {
     final coords = position == null ? '尚未取得' : '${position.coordinates.lat}, ${position.coordinates.lng}';
     final accuracy = position?.accuracyMeters == null ? '未提供' : '${position!.accuracyMeters!.round()} 公尺';
-    return '示範，未傳送。時間：$time；GPS 座標：$coords；精度：$accuracy；情況：$situation；附近據點：${nearbyPointName ?? '尚未提供'}。';
+    return '時間：$time；GPS 座標：$coords；精度：$accuracy；情況：$situation；附近據點：${nearbyPointName ?? '尚未提供'}。';
   }
 }

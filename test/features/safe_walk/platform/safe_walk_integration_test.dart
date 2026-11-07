@@ -213,20 +213,20 @@ void main() {
       expect(platform.emergencies, 0);
       await t.tap(find.text('安心行'));
       await t.pumpAndSettle();
-      expect(find.text('示範路線／非即時導航'), findsOneWidget);
+      expect(find.text('路線僅供參考・請留意實際路況'), findsOneWidget);
       await t.tap(find.text('文字路線'));
       await t.pumpAndSettle();
       expect(find.text('抵達家'), findsOneWidget);
       await back(t);
       await t.tap(find.text('附近求助地點'));
       await t.pumpAndSettle();
-      expect(find.textContaining('示範據點 B'), findsWidgets);
+      expect(find.textContaining('派出所'), findsWidgets);
       await back(t);
       await t.tap(find.text('模擬來電'));
       await t.pumpAndSettle();
       await t.tap(find.text('接聽'));
       await t.pumpAndSettle();
-      expect(find.text('語音尚未配置，播放為無聲示範'), findsOneWidget);
+      expect(find.text('語音尚未配置，播放為無聲示範'), findsNothing);
       expect(companion.starts, 0);
       await t.tap(find.text('緊急求助').first);
       await t.pumpAndSettle();
@@ -238,12 +238,12 @@ void main() {
       );
       expect(platform.emergencies, 1);
       await t.scrollUntilVisible(
-        find.text('示範：未撥號、未通知任何人。'),
+        find.text('目前沒有撥號設定，未實際串接警方。'),
         200,
         scrollable: find.byType(Scrollable).first,
       );
       await t.pumpAndSettle();
-      expect(find.text('示範：未撥號、未通知任何人。'), findsOneWidget);
+      expect(find.text('目前沒有撥號設定，未實際串接警方。'), findsOneWidget);
       await t.scrollUntilVisible(
         find.text('我現在安全，關閉'),
         200,
@@ -419,7 +419,7 @@ void main() {
     await t.pump(const Duration(seconds: 1));
     await t.pumpAndSettle();
     expect(sent, 0);
-    expect(find.text('示範完成／未傳送簡訊'), findsOneWidget);
+    expect(find.text('簡訊內容已準備好'), findsOneWidget);
   });
 
   testWidgets('SOS cancels a reply before the outgoing call animation ends', (
