@@ -2,6 +2,8 @@
 
 2026-11-07（Asia/Taipei），稽核基線 `origin/main`：`03f98f2b7b5254db73774c4d097eb4d610499c2c`。現行目標為 [Live MVP](SAFE_WALK_LIVE_MVP.md)，啟用證據見 [Live Readiness](SAFE_WALK_LIVE_READINESS.md)。本次只改文件，不開啟 Live。正式 UI/UX、地圖與可讀性由 M3 莅紋維護；M1 負責組合及接線，M2 負責路線與跟隨計算。
 
+依 [開放協作規範](SAFE_WALK_COLLABORATION.md) 採 Feature-First、Soft Ownership、Contract-Based Integration。本文 M1／M2／M3 是技術模組及主要聯絡人，不是獨占修改權；指定功能主責可一次完成 platform、navigation、presentation 與相應測試的完整流程，不必等小魚親自接線或先批准普通修改。一般 callback／導航／UI 接線屬 Level A；共用 Contracts／Models／Schema、套件、TownPass route／原生設定、CI 及正式 UI 大型改版屬 Level B，合併前由對應主要負責人確認；正式部署開關及真實外部影響依 Level C 取得隊長明確授權與安全／隱私驗收。
+
 ## 已合併程式與缺口
 
 | 範圍 | main 實況 | 尚缺交付 |
@@ -9,10 +11,10 @@
 | TownPass 入口 | 城市服務／首頁已連到 `SafeWalkCompositionRoot` → `SafeWalkFlow`。 | 保留原生殼、GetX route、Theme 與品牌。 |
 | M2 路線 | `DefaultRouteService`、`OsrmWalkingRouteProvider`、座標驗證、取消及同意檢查已存在；組合根已建立 OSRM provider。 | 真實 provider 證據、GPS 與正式地圖操作接線；不是尚未實作 OSRM。 |
 | M1 控制 | `SafeWalkNavigationController`／`SafeWalkNavigationScope` 已提供結果、loading、同意、取消及 lifecycle callbacks；背景會取消並鎖 inactive。 | Flow 尚未消費 scope，組合根也未傳 `route`／`routeLoading`／`onPlanRoute`。scope tests 不等於 UI 操作端到端驗收。 |
-| M3 介面 | 已合併 `SafeWalkFlow(route: RouteResult?, routeLoading: bool, onPlanRoute: ValueChanged<Coordinates>?)`、`RouteState` loading／failure／success；`_go(map)` 在使用者進入地圖才呼叫 callback，目前沒有初始化 post-frame 規劃。 | 保留 API，由 M1 adapter 接線，補同意／撤回、取消及 lifecycle。舊「M3 尚未合併／無路線介面」已失效。 |
+| M3 介面 | 已合併 `SafeWalkFlow(route: RouteResult?, routeLoading: bool, onPlanRoute: ValueChanged<Coordinates>?)`、`RouteState` loading／failure／success；`_go(map)` 在使用者進入地圖才呼叫 callback，目前沒有初始化 post-frame 規劃。 | 保留 API，由功能主責在 platform/integration 的 adapter 接線，補同意／撤回、取消及 lifecycle。舊「M3 尚未合併／無路線介面」已失效。 |
 | 地圖與模式 | #29 底圖增量保留 `DemoMap` 類名，renderer 已改用 flutter_map／OSM 圖磚與座標投影；Flow 的路線/點位仍 Mock，缺位置／據點仍可補 Demo。據點切換只改 `_pointIndex`、畫 `DemoGeo.lRoute`。 | 沿用已接 renderer，補正式 geometry／viewport／標記整合、Live 缺值分流及所有目的地事件接線；底圖與 iPhone 驗收待完成。 |
 | 距離／時間 | 已能讀 route 距離、秒數與第一則 explanation；duration null 仍以 `walkMinutes` 補值，據點卡也用直線距離換算分鐘。 | Live 未知時間保留未知、完整 warnings／provider、直線距離明確標示；不顯示虛構避讓件數與地標。 |
-| 跟隨 | `RouteFollower` 已有進度、偏離、抵達與 remainingSeconds 計算及測試。 | 尚未接 App；先支援使用者主動更新位置。若需連續定位，由 M1 沿用 TownPass 服務定義啟停／同意，M2 不另開 GPS。 |
+| 跟隨 | `RouteFollower` 已有進度、偏離、抵達與 remainingSeconds 計算及測試。 | 尚未接 App；先支援使用者主動更新位置。若需連續定位，由功能主責在 platform 沿用 TownPass 服務定義啟停／同意，不在 navigation 另開 GPS。 |
 | 便利商店／外部導航 | `OsmConvenienceStoreSource`、`NearestStorePlanner`、`googleMapsWalkingUri` 已存在。 | 尚未接組合根或正式操作；便利商店不是政府認證救援據點。 |
 
 目前組合根固定 `DataMode.mock`、`livePresentationReady: false`、`liveProviderReady: false`，定位、據點讀取及 Flow 也各自固定 Mock。這是未驗收能力的暫時隔離；完成相應驗收後必須可由正式流程使用 Live，不能成為永久禁令。只改三個值不足以完成導航；解除條件、Owner 與證據依 Readiness 表逐項核對。
@@ -22,12 +24,12 @@
 - Mock 僅供測試、離線開發及明確展示。缺 scope 的 standalone preview 可保留 Mock；正式版本優先提供各自已驗證的 Live 能力，TTS、撥號、資料查詢不必與導航共用一個全域開關。
 - Live 使用真實平台／來源，具備權限、同意、provider 及必要測試；失敗、取消或未配置提供原因與下一步，不能落回 Mock、DemoGeo、虛構直線或「已送出」假成功。
 - `DataMode` wire enum 仍只有 mock／live；Unavailable 使用既有 failure／reason 及程序內可用性語意，本文件不新增 Schema enum。canonical JSON Schema 是唯一 payload 來源。
-- M3 僅依賴 presentation 與 shared，不 import M1 控制器、M2 provider 或 M4 repository；跨模組實作集中 M1 `platform/integration/`，以共用型別及 callbacks 注入。
+- presentation 程式僅依賴自身與 shared，不直接 import platform 控制器、navigation provider 或 safety_data repository；跨模組實作組合集中 `platform/integration/`，以共用型別及 callbacks 注入。任何成員可修改上述各目錄；這是 import／組合邊界，不是作者或檔案權限。
 - 位置許可、第三方查詢同意、SOS 附上位置與撥號是不同用途；官方受理／派遣授權及 `officialReceipt` 真實性限制繼續有效。
 
 ## 輸入與操作邊界
 
-scope 名稱以 `shared/contracts/safe_walk_navigation_scope.dart` 為準。保留 Flow 已有的 `route`／`routeLoading`／座標 callback，由 M1 adapter 映射；其餘為待 UI 接線需求，不表示畫面已提供。
+scope 名稱以 `shared/contracts/safe_walk_navigation_scope.dart` 為準。保留 Flow 已有的 `route`／`routeLoading`／座標 callback，由功能主責在 platform/integration adapter 映射；其餘為待 UI 接線需求，不表示畫面已提供。
 
 | 資料／操作 | 契約 |
 |---|---|
@@ -41,7 +43,7 @@ scope 名稱以 `shared/contracts/safe_walk_navigation_scope.dart` 為準。保�
 | `onCancelRoute`／`onDestinationChanged` | 取消／更換目的地當下同步取消，不等下一次規劃或動畫；遲到結果不得覆蓋新選擇。 |
 | `onNavigationOpened` | 僅使用者明確進入／重啟導航才解除 inactive，build、resumed、自動還原或定位完成不代替此操作。 |
 | `onNavigationClosed`／`onEmergencyOpened` | 返回首頁、離開導航、切至通話、開啟 SOS 當下取消並鎖 inactive，不等選 110／119。 |
-| `onExit`／dispose | M1 先取消路線、位置與非同步工作再退出；涵蓋系統返回與手勢，退出後同一 lifetime 永久拒絕遲到工作。 |
+| `onExit`／dispose | 組合層先取消路線、位置與非同步工作再退出；涵蓋系統返回與手勢，退出後同一 lifetime 永久拒絕遲到工作。 |
 
 request factory 現有預設為 direct、繞行上限 500 m、assistancePointIds 空陣列。途經操作須明確選 viaAssistance，傳入已查證且同模式 snapshot 可核對的據點 ID；未知／未載入 ID 回錯誤，不補示範點。M1 已將同一 lookup 注入 DefaultRouteService 與 OSRM，目前 snapshot 只有 Mock。
 
@@ -67,12 +69,14 @@ request factory 現有預設為 direct、繞行上限 500 m、assistancePointIds
 
 ## 檔案範圍與證據
 
-| Owner／範圍 | 後續交付與驗收 |
+下表列主要聯絡人與技術驗收範圍；功能主責可跨列修改並交付同一條使用者流程。PR 說明跨模組目的、影響檔案及原主要負責人，開始前確認沒有其他人同時修改同一檔案。
+
+| 主要聯絡人／技術範圍 | 後續交付與驗收 |
 |---|---|
 | M1 小魚：platform/integration、位置 adapter、shared scope | Live 能力注入及 Flow 接線；位置／外傳同意分開；操作端到端、取消／遲到／背景／SOS／撤回、無網路測試。不得只改 flags。 |
 | M2 Steven：navigation | 真實 OSRM 直達／途經 provider 測試、RouteFollower、外部導航；失敗、缺同意、取消及 null duration 保持誠實，公共 endpoint 正式容量與可用性有部署決策。 |
 | M3 莅紋：Flow、MapView、DemoMap、首頁／求助呈現與 presentation tests | 沿用既有設計接線；真實底圖、同意／撤回、loading／cancel／error、模式分流；320px／大字體／a11y 回歸，iPhone 地圖、定位、背景、SOS 實驗。 |
-| M4 信義，M1 接入：據點 repository／lookup | 合法來源、日期、限制、營業／認可可核對；失敗／空資料／未配置分開，便利商店及 AED 不冒稱認證救援據點。 |
+| M4 信義資料聯絡、M1 小魚平台聯絡：據點 repository／lookup | 合法來源、日期、限制、營業／認可可核對；失敗／空資料／未配置分開，便利商店及 AED 不冒稱認證救援據點。 |
 
 已有測試位於 `test/features/safe_walk/`：M2 的 `navigation/default_route_service_test.dart`、`osrm_walking_route_provider_test.dart`、`route_follower_test.dart`、`osm_convenience_store_source_test.dart`、`nearest_store_planner_test.dart`、`google_maps_link_test.dart`；M1 的 `platform/integration/safe_walk_navigation_controller_test.dart`／`safe_walk_navigation_wiring_test.dart`；M3 的流程、版面、無障礙與通話 lifecycle tests。本表盤點內容，不代表本次已執行 PASS。
 

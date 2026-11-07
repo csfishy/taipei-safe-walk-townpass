@@ -2,6 +2,8 @@
 
 2026-11-07（Asia/Taipei）。團隊主要交付目標由 Mock Demo／Prototype 轉為 **真實、可驗證、可部署的 Live MVP／Production Readiness**。本文件定義目標，現況／缺口見 [Readiness](SAFE_WALK_LIVE_READINESS.md)，不因規格已合併就視為功能已上線。本次僅文件 PR，不改旗標、不啟用未驗證 Live。
 
+依 [開放協作規範](SAFE_WALK_COLLABORATION.md)，以下模組／姓名是主要負責與技術驗收聯絡人，不是目錄獨占權。所有成員可跨模組修改合理的功能程式及測試，由指定功能主責交付完整操作流程。一般接線、導航、UI callback、資料轉換、音訊及測試採 Level A；共用契約／Schema／Models、套件、TownPass route／原生設定、重大 UI 及 CI 採 Level B 合併前確認；正式部署開關及高風險真實外部操作採 Level C 隊長授權與安全／隱私驗收。Live 驗收標準不因開放協作而降低。
+
 ## 模式與證據
 
 | 能力模式 | 必須滿足 |
@@ -41,7 +43,7 @@ Development 可用 Mock；公開版本應優先提供已驗證 Live，不以單�
 
 ## M3 Flutter UI/UX｜莅紋
 
-- 沿用 TownPass 原生介面、Theme、TPColors 與現有設計，由莅紋維護正式 UI/UX；不以文件調整重做版面。
+- 沿用 TownPass 原生介面、Theme、TPColors 與現有設計，莅紋是正式 UI/UX 主要負責人；一般 UI 功能／callback 可由任何成員修改，大型正式改版須 Level B 合併前確認，不以文件調整重做版面。
 - 使用真實地圖底圖及正確 WGS84／GeoJSON [lng, lat] 投影；授權、attribution、網路／底圖載入失敗均可處理。Live 不使用固定 DemoMap 畫布冒充地圖。
 - M1 注入 M2 RouteResult，呈現實際路線、距離、可取得的時間；loading、取消、錯誤、空結果、未知時間可區分。
 - 提供定位及獨立第三方查詢同意、撤回／重試／更新位置、目的地選擇與更換、路線／外部導航操作。
@@ -73,4 +75,4 @@ Development 可用 Mock；公開版本應優先提供已驗證 Live，不以單�
 
 附近協助者通知目前 BLOCKED：需可信身分、接收資格、資料 ownership、RLS／RPC、頻率及防濫用、定位保留／刪除、明確同意、實際後端與裝置測試。Supabase 連通或匿名 UUID 不足以啟用；不部署未完成授權的 anon security-definer 通知 RPC。官方警消案件自動派送另需官方授權。
 
-這些封鎖不阻擋導航、查詢、TTS、系統撥號器及官方通報入口。逐能力驗收由模組 Owner 提供證據，M1 協調配置，M3 核對顯示；PR 審查／CI 後由團隊決定合併，不自行 merge。正式部署還需 [建置](BUILDS.md) 與 [競賽／授權](SAFE_WALK_COMPETITION_LICENSE.md) 的適用條件。
+這些封鎖不阻擋導航、查詢、TTS、系統撥號器及官方通報入口。逐能力驗收由功能主責彙整完整流程證據，模組主要負責人依審查級別確認；普通配置接線不限定 M1 作者，正式部署開關與真實外部操作須 Level C 授權／安全驗收。PR 審查／CI 後由具備權限的隊員依規則決定合併，執行任務的代理不自行 merge。正式部署還需 [建置](BUILDS.md) 與 [競賽／授權](SAFE_WALK_COMPETITION_LICENSE.md) 的適用條件。

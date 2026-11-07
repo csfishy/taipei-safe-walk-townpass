@@ -1,5 +1,7 @@
 # 臺北安心行：TownPass Live MVP 架構
 
+協作採 [Feature-First + Soft Ownership + Contract-Based Integration](SAFE_WALK_COLLABORATION.md)：五人皆可跨模組修改功能與測試，Owner 是主要聯絡人，不是作者限制。功能主責負責端到端接線；Level A 不需小魚事前批准，Level B 合併前找對應主責確認，真實外部作用／正式開關等 Level C 需隊長授權與安全驗收。以下技術資料流中的「M1 注入」「M3 呈現」指架構角色，任何成員可完成。
+
 現行目標是 [Live MVP](SAFE_WALK_LIVE_MVP.md)／Production Readiness；本次僅調整文件，不改執行期旗標。程式快照為團隊 main 03f98f2b7b5254db73774c4d097eb4d610499c2c（2026-11-07，Asia/Taipei）。初始化、五模組及原生入口均已存在；現況見 [Readiness](SAFE_WALK_LIVE_READINESS.md)，證據見 [規格審查](SAFE_WALK_SPEC_AUDIT.md)。
 
 ## 官方基底與模組
@@ -8,14 +10,16 @@
 
 lib/features/safe_walk/ 是同一 Flutter App 內的五模組及 shared。既有 Supabase 連線不代表通知安全已完成；初始化「不新增資料庫」不禁止必要的後續工程。
 
-| 模組／Owner | 持續交付 | 邊界 |
+| 模組／主要聯絡人 | 持續交付 | 架構與資料邊界（非作者限制） |
 |---|---|---|
 | M1 小魚 platform | 唯一原生位置入口、能力／同意協調、官方入口／route、組合、求助 handoff | 跨模組實作組合限 integration/；不越權派遣 |
-| M2 Steven navigation | OSRM、RouteService、RouteFollower、目的地／據點路線及外部導航 URI | 不另取 GPS、不接管地圖 UI、不保證安全 |
-| M3 莅紋 presentation | 既有畫面、Live 底圖／投影、路線／狀態呈現、同意操作 | 正式 UI/UX 設計權；不直接取 GPS／呼叫其他模組實作 |
+| M2 Steven navigation | OSRM、RouteService、RouteFollower、目的地／據點路線及外部導航 URI | navigation 不另取 GPS、不直接依賴 UI；成員可跨 UI 檔案接線，不保證安全 |
+| M3 莅紋 presentation | 既有畫面、Live 底圖／投影、路線／狀態呈現、同意操作 | 重大 UI 設計合併前確認；presentation 不直接取 GPS／呼叫其他模組實作 |
 | M4 信義 safety_data | 合法公共資料、來源、Parser、Repository、品質 | 不把統計當即時風險或一般據點當認證救援 |
 | M5 奶爸 companion | 控制器、裝置 TTS／本機音訊、清理與中斷 | 不錄音、不要求麥克風、不冒稱真人或警消 |
 | shared（M1 協調） | Schema／生成 models、程序內 scope／取消契約 | 不新增第二套 payload；Unavailable 不新增 wire enum |
+
+跨模組檔案修改與直接 import 分開：實作組合仍集中 platform/integration/，業務模組只依賴自身與 shared，保留 M1 Composition Root／DI，禁止隨意循環及反向依賴。現有 baseline guard 只檢查依賴路徑與歷史，沒有 GitHub 作者／目錄修改權檢查，故本次不修改或關閉它。共用 Schema／模型不複製、生成型別不手改；相關變更由任何人開發，依 Level B 確認。
 
 ## 正式操作資料流
 

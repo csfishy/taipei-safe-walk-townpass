@@ -2,6 +2,8 @@
 
 快照：2026-11-07（Asia/Taipei），團隊 main 03f98f2b7b5254db73774c4d097eb4d610499c2c。現行驗收以 [Live MVP](SAFE_WALK_LIVE_MVP.md) 為準；本文件取代早期 M1 入口 PR 的「本輪只能 Mock」交付目標。初始化測試原始事實保留於 [歷史紀錄](SAFE_WALK_INITIALIZATION.md)，逐項文件變更見 [審查報告](SAFE_WALK_SPEC_AUDIT.md)。
 
+協作方式依 [開放協作規範](SAFE_WALK_COLLABORATION.md)：M1–M5 是主要聯絡人與技術位置，所有成員可跨模組修改功能及測試，由功能主責交付完整使用流程。一般接線／callback 不需小魚事先批准或親自寫；共用契約、套件、TownPass route／原生設定、CI／正式 UI 大改依 Level B 合併前確認，真實外部影響與正式部署開關依 Level C 授權／驗收。
+
 ## 既有入口與組合
 
 | 接點 | 現況 |
@@ -18,7 +20,9 @@
 
 ## 從目前接線到 Live
 
-| 能力 | 已有程式 | 後續交接／Owner |
+下表 Owner 是技術與驗收聯絡角色，不要求另等該成員開 PR；功能主責可在同一 PR 完成所需接線，維持非重疊檔案協調與相同契約。
+
+| 能力 | 已有程式 | 後續交接／主要聯絡人 |
 |---|---|---|
 | 真實 GPS | Adapter lazy 呼叫既有 GeoLocatorService，含錯誤／精度／時間檢查 | M1 接正常導航與主動刷新；M3 提供權限與失敗狀態；不得用 Demo 座標補失敗。 |
 | OSRM 路線 | Provider、RouteService、Controller、同意／取消邏輯 | M1 傳 RouteResult／loading／error／callbacks 到 Flow；M2 真實 endpoint 驗證；M3 Live 呈現。 |
@@ -33,7 +37,7 @@
 
 ## 共用契約與失敗
 
-M1 的程序內能力配置與依賴注入協調正式流程；shared 的 DataMode 仍為 mock/live。Unavailable 使用既有失敗／not_configured 語意，不改 Schema。資料、位置、路線來源模式必須相符；無資料、載入錯誤、未配置分開。網路失敗可重試或由使用者選外部導航，不能暗中轉 Demo。
+platform/integration 的程序內能力配置與依賴注入協調正式流程，任何功能主責皆可修改；shared 的 DataMode 仍為 mock/live。Unavailable 使用既有失敗／not_configured 語意，不改 Schema。資料、位置、路線來源模式必須相符；無資料、載入錯誤、未配置分開。網路失敗可重試或由使用者選外部導航，不能暗中轉 Demo。
 
 定位授權與第三方傳送座標同意分開；撤回、改目的地、背景、離開與 SOS 取消舊請求，遲到結果不得重啟。M2 不新增 GPS 訂閱，M3 不直接 import 其他業務模組實作。
 
