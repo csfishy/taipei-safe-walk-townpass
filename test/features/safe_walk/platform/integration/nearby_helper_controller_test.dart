@@ -81,6 +81,44 @@ class _Transport implements NearbyAlertTransport, NearbyAlertAvailability {
   }
 }
 
+class _AreasTransport extends _Transport implements NearbyHelperAreas {
+  List<NearbyGuardArea> areas = [];
+  final replaced = <List<NearbyGuardArea>>[];
+  Object? fetchError;
+  Object? replaceError;
+  int fetchAreaCalls = 0;
+  bool roundOnFetch = false;
+
+  @override
+  Future<List<NearbyGuardArea>> fetchGuardAreas() async {
+    fetchAreaCalls++;
+    if (fetchError != null) throw fetchError!;
+    if (!roundOnFetch) return areas;
+    return [
+      for (final a in areas)
+        NearbyGuardArea(
+          center: sw.Coordinates(
+            lat: (a.center.lat * 1000).round() / 1000,
+            lng: (a.center.lng * 1000).round() / 1000,
+          ),
+          radiusMeters: a.radiusMeters,
+        ),
+    ];
+  }
+
+  @override
+  Future<void> replaceGuardAreas(List<NearbyGuardArea> next) async {
+    if (replaceError != null) throw replaceError!;
+    replaced.add(next);
+    areas = next;
+  }
+}
+
+NearbyGuardArea _area(double lat, int radius) => NearbyGuardArea(
+  center: sw.Coordinates(lat: lat, lng: 121.566),
+  radiusMeters: radius,
+);
+
 NearbyAlert _alert(String id) => NearbyAlert(
   alertId: id,
   location: sw.Coordinates(lat: 25.034, lng: 121.566),
@@ -315,5 +353,191 @@ void main() {
     await helper.enable();
     expect(platform.calls, shares);
     expect(transport.optIns.where((e) => e).length, 1);
+  });
+
+  group('guard areas', () {
+    late _AreasTransport areasTransport;
+    late NearbyHelperController areasHelper;
+
+    setUp(() {
+      areasTransport = _AreasTransport();
+      areasHelper = NearbyHelperController(
+        service: NearbyEmergencyService(
+          platform: platform,
+          transport: areasTransport,
+        ),
+        pollInterval: _fast,
+        refreshInterval: const Duration(minutes: 30),
+      );
+    });
+    tearDown(() => areasHelper.dispose());
+
+    test(
+      'unsupported backend: no section, nothing is read or stored',
+      () async {
+        expect(helper.guardAreasSupported, isFalse);
+        await helper.enable();
+        final shares = platform.calls;
+        await helper.addGuardAreaHere(500);
+        expect(platform.calls, shares);
+        expect(helper.guardAreas, isEmpty);
+      },
+    );
+
+    test('joining loads the areas already stored', () async {
+      areasTransport.areas = [_area(25.03, 1000)];
+      expect(areasHelper.guardAreasSupported, isTrue);
+      await areasHelper.enable();
+      await _until(() => areasHelper.guardAreas.isNotEmpty);
+      expect(areasHelper.guardAreas.single.radiusMeters, 1000);
+      expect(areasHelper.guardAreas.single.center.lat, 25.03);
+    });
+
+    test(
+      'adding reads the position once and stores previous plus new',
+      () async {
+        areasTransport.areas = [_area(25.03, 500)];
+        await areasHelper.enable();
+        await _until(() => areasHelper.guardAreas.length == 1);
+        final reads = platform.calls;
+        await areasHelper.addGuardAreaHere(1000);
+        expect(platform.calls, reads + 1);
+        final saved = areasTransport.replaced.single;
+        expect(saved.map((a) => a.radiusMeters), [500, 1000]);
+        expect(saved.last.center.lat, _here.lat);
+        expect(areasHelper.guardAreas.map((a) => a.radiusMeters), [500, 1000]);
+        expect(areasHelper.message, '已新增守護區。');
+        expect(areasHelper.messageIsError, isFalse);
+        expect(areasHelper.isBusy, isFalse);
+      },
+    );
+
+    test(
+      'what the server kept is what is shown (it rounds the centre)',
+      () async {
+        areasTransport.roundOnFetch = true;
+        await areasHelper.enable();
+        await areasHelper.addGuardAreaHere(500);
+        expect(areasHelper.guardAreas.single.center.lat, 25.033);
+        expect(areasHelper.guardAreas.single.center.lng, 121.565);
+      },
+    );
+
+    test('if the follow-up read fails, it shows the rounded values', () async {
+      await areasHelper.enable();
+      areasTransport.fetchError = const NearbyAlertException('x');
+      await areasHelper.addGuardAreaHere(500);
+      expect(areasHelper.guardAreas.single.center.lng, 121.565);
+      expect(areasHelper.messageIsError, isFalse);
+    });
+
+    test('an unsupported radius is ignored and nothing is read', () async {
+      await areasHelper.enable();
+      final reads = platform.calls;
+      await areasHelper.addGuardAreaHere(700);
+      expect(platform.calls, reads);
+      expect(areasTransport.replaced, isEmpty);
+    });
+
+    test('at three areas, adding is ignored', () async {
+      areasTransport.areas = [
+        _area(25.01, 500),
+        _area(25.02, 500),
+        _area(25.03, 500),
+      ];
+      await areasHelper.enable();
+      await _until(() => areasHelper.guardAreas.length == 3);
+      final reads = platform.calls;
+      await areasHelper.addGuardAreaHere(500);
+      expect(platform.calls, reads);
+      expect(areasTransport.replaced, isEmpty);
+    });
+
+    test('a failed location read changes nothing and says why', () async {
+      await areasHelper.enable();
+      platform.result = sw.LocationFailure(
+        status: sw.LocationFailureStatus.denied,
+        message: '測試：定位權限未允許',
+      );
+      await areasHelper.addGuardAreaHere(500);
+      expect(areasTransport.replaced, isEmpty);
+      expect(areasHelper.guardAreas, isEmpty);
+      expect(areasHelper.message, contains('定位權限未允許'));
+      expect(areasHelper.messageIsError, isTrue);
+    });
+
+    test('a failed save keeps the list and reports the reason', () async {
+      areasTransport.areas = [_area(25.03, 500)];
+      await areasHelper.enable();
+      await _until(() => areasHelper.guardAreas.length == 1);
+      areasTransport.replaceError = const NearbyAlertException('操作太頻繁');
+      await areasHelper.addGuardAreaHere(500);
+      expect(areasHelper.guardAreas.length, 1);
+      expect(areasHelper.message, '操作太頻繁');
+      expect(areasHelper.messageIsError, isTrue);
+    });
+
+    test(
+      'removing stores the remaining areas; a bad index is ignored',
+      () async {
+        areasTransport.areas = [_area(25.01, 500), _area(25.02, 1000)];
+        await areasHelper.enable();
+        await _until(() => areasHelper.guardAreas.length == 2);
+        await areasHelper.removeGuardArea(5);
+        expect(areasTransport.replaced, isEmpty);
+        await areasHelper.removeGuardArea(0);
+        expect(areasTransport.replaced.single.single.radiusMeters, 1000);
+        expect(areasHelper.guardAreas.single.radiusMeters, 1000);
+        expect(areasHelper.message, '已移除守護區。');
+      },
+    );
+
+    test('before joining, area changes are ignored', () async {
+      await areasHelper.addGuardAreaHere(500);
+      await areasHelper.removeGuardArea(0);
+      expect(platform.calls, 0);
+      expect(areasTransport.replaced, isEmpty);
+    });
+
+    test('stopping clears the list and says the areas were deleted', () async {
+      areasTransport.areas = [_area(25.03, 500)];
+      await areasHelper.enable();
+      await _until(() => areasHelper.guardAreas.length == 1);
+      await areasHelper.disable();
+      expect(areasHelper.guardAreas, isEmpty);
+      expect(areasHelper.message, contains('守護區也已刪除'));
+    });
+
+    test('stopping when deletion is unconfirmed does not claim it', () async {
+      areasTransport.areas = [_area(25.03, 500)];
+      await areasHelper.enable();
+      await _until(() => areasHelper.guardAreas.length == 1);
+      areasTransport.optInError = const NearbyAlertException('x');
+      await areasHelper.disable();
+      expect(areasHelper.messageIsError, isTrue);
+      expect(areasHelper.message, contains('沒有確認伺服器已刪除'));
+      expect(areasHelper.message, contains('守護區則要再次停止協助成功後才會刪除'));
+      expect(areasHelper.message, isNot(contains('守護區也已刪除')));
+    });
+
+    test('disposing mid-add stores nothing', () async {
+      await areasHelper.enable();
+      platform.pending = Completer<sw.LocationResult>();
+      final adding = areasHelper.addGuardAreaHere(500);
+      await _until(() => platform.calls >= 2);
+      areasHelper.dispose();
+      platform.pending!.complete(
+        sw.LocationSuccess(
+          position: sw.Position(
+            coordinates: _here,
+            source: sw.PositionSource.gps,
+            accuracyMeters: 10,
+            observedAt: '2026-11-08T00:00:00Z',
+          ),
+        ),
+      );
+      await adding;
+      expect(areasTransport.replaced, isEmpty);
+    });
   });
 }

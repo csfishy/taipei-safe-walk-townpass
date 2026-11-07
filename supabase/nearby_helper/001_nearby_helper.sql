@@ -64,10 +64,28 @@ create table if not exists safe_walk_nearby.alert_deliveries (
 create index if not exists alert_deliveries_recipient_idx
   on safe_walk_nearby.alert_deliveries (recipient_id);
 
+-- Guard areas: places a helper asks to be notified about even when their live
+-- position is unknown or expired. The centre is stored rounded to 3 decimals
+-- (about 100 m), at most 3 per helper. The server cannot verify that a centre is
+-- somewhere the helper really is; see docs/SAFE_WALK_NEARBY_HELPER_DESIGN.md.
+create table if not exists safe_walk_nearby.helper_areas (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null
+    references safe_walk_nearby.helper_profiles (user_id) on delete cascade,
+  center extensions.geography (point, 4326) not null,
+  radius_m integer not null check (radius_m between 500 and 2000),
+  created_at timestamptz not null default now()
+);
+create index if not exists helper_areas_center_idx
+  on safe_walk_nearby.helper_areas using gist (center);
+create index if not exists helper_areas_user_idx
+  on safe_walk_nearby.helper_areas (user_id);
+
 alter table safe_walk_nearby.helper_profiles enable row level security;
 alter table safe_walk_nearby.helper_locations enable row level security;
 alter table safe_walk_nearby.alerts enable row level security;
 alter table safe_walk_nearby.alert_deliveries enable row level security;
+alter table safe_walk_nearby.helper_areas enable row level security;
 -- Deliberately no policies: deny by default. Only the SECURITY DEFINER
 -- functions below (owned by the migration owner) touch these tables.
 
@@ -142,6 +160,7 @@ begin
     raise exception 'not_authenticated' using errcode = '28000';
   end if;
   delete from safe_walk_nearby.helper_locations where user_id = v_uid;
+  delete from safe_walk_nearby.helper_areas where user_id = v_uid;
   update safe_walk_nearby.helper_profiles
     set revoked_at = now()
     where user_id = v_uid and revoked_at is null;
@@ -266,17 +285,31 @@ begin
     return v_count;
   end if;
 
+  -- A helper is notified when their fresh live position is within 500 m, or
+  -- when one of their guard areas covers the SOS position. Each helper once.
   insert into safe_walk_nearby.alert_deliveries (alert_id, recipient_id)
   select v_alert_id, nearest.user_id
   from (
-    select hl.user_id
-    from safe_walk_nearby.helper_locations hl
-    join safe_walk_nearby.helper_profiles hp on hp.user_id = hl.user_id
-    where hp.revoked_at is null
-      and hl.expires_at > now()
-      and hl.user_id <> v_uid
-      and extensions.st_dwithin(hl.geog, v_geog, 500)
-    order by extensions.st_distance(hl.geog, v_geog)
+    select c.user_id, min(c.dist) as dist
+    from (
+      select hl.user_id,
+             extensions.st_distance(hl.geog, v_geog) as dist
+      from safe_walk_nearby.helper_locations hl
+      join safe_walk_nearby.helper_profiles hp on hp.user_id = hl.user_id
+      where hp.revoked_at is null
+        and hl.expires_at > now()
+        and extensions.st_dwithin(hl.geog, v_geog, 500)
+      union all
+      select ha.user_id,
+             extensions.st_distance(ha.center, v_geog) as dist
+      from safe_walk_nearby.helper_areas ha
+      join safe_walk_nearby.helper_profiles hp on hp.user_id = ha.user_id
+      where hp.revoked_at is null
+        and extensions.st_dwithin(ha.center, v_geog, ha.radius_m)
+    ) c
+    where c.user_id <> v_uid
+    group by c.user_id
+    order by min(c.dist)
     limit 50
   ) as nearest;
 
@@ -333,6 +366,101 @@ begin
 end;
 $$;
 
+-- Replaces the caller's guard areas (at most 3). Centres are rounded to about
+-- 100 m here, whatever the client sent.
+create or replace function public.nearby_helper_set_areas(p_areas jsonb)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_uid uuid := auth.uid();
+  v_item jsonb;
+  v_lat numeric;
+  v_lng numeric;
+  v_radius numeric;
+  v_last timestamptz;
+begin
+  if v_uid is null then
+    raise exception 'not_authenticated' using errcode = '28000';
+  end if;
+  if p_areas is null or jsonb_typeof(p_areas) <> 'array'
+     or jsonb_array_length(p_areas) > 3 then
+    raise exception 'invalid_input' using errcode = '22023';
+  end if;
+  if not exists (
+    select 1 from safe_walk_nearby.helper_profiles
+    where user_id = v_uid and revoked_at is null
+  ) then
+    raise exception 'not_a_helper' using errcode = '42501';
+  end if;
+  select max(created_at) into v_last
+    from safe_walk_nearby.helper_areas where user_id = v_uid;
+  if v_last is not null and v_last > now() - interval '10 seconds' then
+    raise exception 'rate_limited' using errcode = 'PT429';
+  end if;
+
+  -- Validate everything before changing anything.
+  for v_item in select value from jsonb_array_elements(p_areas) loop
+    if jsonb_typeof(v_item) <> 'object'
+       or jsonb_typeof(v_item -> 'lat') is distinct from 'number'
+       or jsonb_typeof(v_item -> 'lng') is distinct from 'number'
+       or jsonb_typeof(v_item -> 'radius_m') is distinct from 'number' then
+      raise exception 'invalid_input' using errcode = '22023';
+    end if;
+    v_lat := (v_item ->> 'lat')::numeric;
+    v_lng := (v_item ->> 'lng')::numeric;
+    v_radius := (v_item ->> 'radius_m')::numeric;
+    if v_lat not between -90 and 90 or v_lng not between -180 and 180
+       or v_radius <> trunc(v_radius) or v_radius not between 500 and 2000 then
+      raise exception 'invalid_input' using errcode = '22023';
+    end if;
+  end loop;
+
+  delete from safe_walk_nearby.helper_areas where user_id = v_uid;
+  insert into safe_walk_nearby.helper_areas (user_id, center, radius_m)
+  select v_uid,
+         extensions.st_setsrid(
+           extensions.st_makepoint(
+             round((e ->> 'lng')::numeric, 3)::double precision,
+             round((e ->> 'lat')::numeric, 3)::double precision),
+           4326)::extensions.geography,
+         (e ->> 'radius_m')::integer
+  from jsonb_array_elements(p_areas) as e;
+end;
+$$;
+
+-- The caller's own guard areas, as stored (already rounded).
+create or replace function public.nearby_helper_get_areas()
+returns table (lat double precision, lng double precision, radius_m integer)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_uid uuid := auth.uid();
+begin
+  if v_uid is null then
+    raise exception 'not_authenticated' using errcode = '28000';
+  end if;
+  if not exists (
+    select 1 from safe_walk_nearby.helper_profiles
+    where user_id = v_uid and revoked_at is null
+  ) then
+    raise exception 'not_a_helper' using errcode = '42501';
+  end if;
+  return query
+  select extensions.st_y(ha.center::extensions.geometry),
+         extensions.st_x(ha.center::extensions.geometry),
+         ha.radius_m
+  from safe_walk_nearby.helper_areas ha
+  where ha.user_id = v_uid
+  order by ha.created_at, ha.id;
+end;
+$$;
+
 -- Hygiene only: every read already filters on expiry. Not exposed to API roles;
 -- schedule it manually (for example with pg_cron) after review.
 create or replace function safe_walk_nearby.purge_expired()
@@ -358,6 +486,8 @@ begin
     'public.nearby_helper_report_location(double precision,double precision,real)'::regprocedure,
     'public.nearby_sos_send(double precision,double precision,uuid)'::regprocedure,
     'public.nearby_helper_fetch_alerts()'::regprocedure,
+    'public.nearby_helper_set_areas(jsonb)'::regprocedure,
+    'public.nearby_helper_get_areas()'::regprocedure,
     'safe_walk_nearby.purge_expired()'::regprocedure
   ] loop
     execute format('revoke all on function %s from public', fn);
@@ -378,6 +508,8 @@ begin
       public.nearby_sos_send(double precision, double precision, uuid)
       to authenticated;
     grant execute on function public.nearby_helper_fetch_alerts() to authenticated;
+    grant execute on function public.nearby_helper_set_areas(jsonb) to authenticated;
+    grant execute on function public.nearby_helper_get_areas() to authenticated;
   end if;
 end
 $grants$;
