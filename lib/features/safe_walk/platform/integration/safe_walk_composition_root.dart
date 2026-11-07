@@ -142,11 +142,12 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state != AppLifecycleState.resumed) {
+    final active = state == AppLifecycleState.resumed;
+    _speaker.setLifecycleActive(active);
+    if (!active) {
       _closeNavigation();
-      // M5: hiding the app stops companion speech.
-      _speaker.stop();
     }
+    if (mounted) setState(() {});
   }
 
   SafeWalkRouteSpeaker _deviceSpeaker() {

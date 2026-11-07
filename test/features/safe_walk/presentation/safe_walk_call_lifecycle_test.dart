@@ -6,9 +6,12 @@ import 'package:town_pass/features/safe_walk/presentation/safe_walk_flow.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_speaker.dart';
 
 class _Spy implements SafeWalkSpeaker {
+  _Spy({this.enabled = true});
+
+  bool enabled;
   final spoken = <String>[];
   @override
-  bool get available => true;
+  bool get available => enabled;
   @override
   void speak(String text, {void Function()? onDone}) => spoken.add(text);
   @override
@@ -57,6 +60,19 @@ void main() {
     await t.pump(const Duration(seconds: 5));
     expect(_buzzes, after);
     expect(speaker.spoken, isEmpty);
+  });
+
+  testWidgets('語音延遲準備完成後，既有來電畫面會改用真實 speaker', (t) async {
+    final speaker = _Spy(enabled: false);
+    await _open(t, speaker);
+
+    speaker.enabled = true;
+    await t.pumpWidget(MaterialApp(home: SafeWalkFlow(speaker: speaker)));
+    await t.pump();
+    await t.tap(find.text('接聽'));
+    await t.pump(const Duration(milliseconds: 300));
+
+    expect(speaker.spoken, hasLength(1));
   });
 
   testWidgets('響鈴中按緊急求助：進求助頁，震動停止', (t) async {

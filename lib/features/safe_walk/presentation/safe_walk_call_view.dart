@@ -73,8 +73,17 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
   /// 先響鈴：按「接聽」才開始對話與計時；「拒絕」直接離開。已接聽過的通話（從地圖回來）不再響鈴。
   late bool _ringing = !_s.answered;
 
-  /// 臺北通尚未配置語音時，用無聲示範（依字數計時）呈現播放樣式；不呼叫 M1／M5 的喇叭。
-  late final SafeWalkSpeaker _voice = widget.speaker.available ? widget.speaker : PreviewSpeaker();
+  /// 臺北通尚未配置語音時，用無聲示範（依字數計時）呈現播放樣式。
+  /// Availability may change after async device preparation, so do not cache
+  /// this choice for the lifetime of the view.
+  final SafeWalkSpeaker _previewVoice = PreviewSpeaker();
+  SafeWalkSpeaker get _voice =>
+      widget.speaker.available ? widget.speaker : _previewVoice;
+
+  void _stopVoices() {
+    _previewVoice.stop();
+    widget.speaker.stop();
+  }
 
   /// 已離開（或正在離開）此畫面；之後的計時器、朗讀與 onDone 一律忽略。
   bool _left = false;
@@ -90,8 +99,7 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
     _reply?.cancel();
     _clock?.cancel();
     _buzz?.cancel();
-    _voice.stop();
-    if (!identical(_voice, widget.speaker)) widget.speaker.stop();
+    _stopVoices();
   }
 
   void _leaveThen(VoidCallback go) {
@@ -132,7 +140,7 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
     leave();
     _clock?.cancel();
     _reply?.cancel();
-    _voice.stop();
+    _stopVoices();
     _draft.dispose();
     _scroll.dispose();
     super.dispose();
@@ -154,7 +162,7 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
   void _toggle(_Entry e) {
     if (_speaking == e.key) {
       _gen++;
-      _voice.stop();
+      _stopVoices();
       setState(() => _speaking = null);
     } else {
       _speak(e);
@@ -171,7 +179,7 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
 
   void _respond(String text) {
     if (_waiting || _left) return;
-    _voice.stop();
+    _stopVoices();
     setState(() {
       _speaking = null;
       _log.add(_Entry('u${_s.seq++}', false, text));
