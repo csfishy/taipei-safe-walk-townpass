@@ -203,6 +203,9 @@ List<List<String>> parseCsv(String text) {
       field.write(ch);
     }
   }
+  if (quoted) {
+    throw const ViolentCrimeFormatException('unterminated quoted field');
+  }
   endRow();
   return rows;
 }
@@ -334,6 +337,13 @@ ViolentCrimeNormalized normalizeViolentCrimeCsv(
       );
       continue;
     }
+    final rate = _rate(cell(cells, _rateColumn));
+    if (rate != null && !rate.isFinite) {
+      rejected.add(
+        ViolentCrimeRejectedRow(line, 'non-finite source-reported rate'),
+      );
+      continue;
+    }
     final key = '${month.year}-${_two(month.month)}';
     if (!seen.add(key)) {
       rejected.add(ViolentCrimeRejectedRow(line, 'duplicate period'));
@@ -351,7 +361,7 @@ ViolentCrimeNormalized normalizeViolentCrimeCsv(
           CrimeCategoryCount('強制性交', sexualAssault),
           CrimeCategoryCount('其他', other),
         ],
-        sourceReportedRatePer100k: _rate(cell(cells, _rateColumn)),
+        sourceReportedRatePer100k: rate,
         source: source,
       ),
     );
@@ -366,6 +376,10 @@ ViolentCrimeNormalized normalizeViolentCrimeCsv(
 /// Semantic checks: the shared source rule plus this format's own rules.
 List<String> cityCrimeProblems(CityMonthlyCrimeStatistics r) {
   final errors = [...sourceProblems(r.source)];
+  final rate = r.sourceReportedRatePer100k;
+  if (rate != null && !rate.isFinite) {
+    errors.add('Source-reported rate must be finite');
+  }
   if (r.periodStart.compareTo(r.periodEnd) > 0) {
     errors.add('Reversed statistics period');
   }

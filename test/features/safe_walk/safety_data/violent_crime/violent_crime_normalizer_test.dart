@@ -122,6 +122,61 @@ void main() {
     ]);
   });
 
+  test('an unterminated quoted field rejects the whole CSV import', () {
+    final csv =
+        '${rawCsv().trimRight()}\r\n'
+        '"115年 9月",3,1,1,1,"0.12';
+
+    expect(
+      () => normalizeViolentCrimeCsv(csv, fixedInfo),
+      throwsA(isA<ViolentCrimeFormatException>()),
+    );
+  });
+
+  test('an overflowing rate rejects its row and keeps valid JSON records', () {
+    final overflow = List.filled(400, '9').join();
+    final csv =
+        '${rawCsv().trimRight()}\r\n'
+        '"115年 9月",3,1,1,1,$overflow';
+    final result = normalizeViolentCrimeCsv(csv, fixedInfo);
+
+    expect(result.records, hasLength(6));
+    expect(result.rejected, hasLength(1));
+    expect(result.rejected.single.line, 8);
+    expect(result.rejected.single.reason, contains('non-finite'));
+    expect(
+      () => jsonEncode([for (final record in result.records) record.toJson()]),
+      returnsNormally,
+    );
+  });
+
+  test(
+    'local semantic checks reject manually constructed non-finite rates',
+    () {
+      final valid = normalizeViolentCrimeCsv(rawCsv(), fixedInfo).records.first;
+      for (final rate in [
+        double.infinity,
+        double.negativeInfinity,
+        double.nan,
+      ]) {
+        final invalid = CityMonthlyCrimeStatistics(
+          id: valid.id,
+          periodStart: valid.periodStart,
+          periodEnd: valid.periodEnd,
+          caseCount: valid.caseCount,
+          breakdown: valid.breakdown,
+          sourceReportedRatePer100k: rate,
+          source: valid.source,
+        );
+
+        expect(
+          cityCrimeProblems(invalid),
+          contains('Source-reported rate must be finite'),
+        );
+      }
+    },
+  );
+
   test('formats any instant as Taipei time with an offset', () {
     expect(
       formatTaipeiTime(DateTime.utc(2026, 12, 31, 20, 0, 0)),

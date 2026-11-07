@@ -174,6 +174,33 @@ void main() {
     );
   });
 
+  test(
+    'truncated CSV is unavailable, not cached, and can be retried',
+    () async {
+      final header = rawCsv()
+          .replaceFirst('\uFEFF', '')
+          .split('\n')
+          .first
+          .trim();
+      final source = FakeSource(csv: '$header\n"115年 8月",2,1,0,1,"0.08');
+      final repository = repo(source);
+
+      await expectLater(
+        repository.getMonthlyStatistics(mode: sw.DataMode.live),
+        throwsA(isA<ViolentCrimeSourceUnavailable>()),
+      );
+      expect(repository.lastReport, isNull);
+
+      source.csv = rawCsv();
+      final records = await repository.getMonthlyStatistics(
+        mode: sw.DataMode.live,
+      );
+      expect(records, hasLength(6));
+      expect(source.csvRequests, hasLength(2));
+      expect(repository.lastReport!.converted, 6);
+    },
+  );
+
   test('metadata failure falls back to the known CSV link with unknown '
       'licence and update time', () async {
     final source = FakeSource()..failMetadata = true;

@@ -18,7 +18,7 @@
 
 - `mode: live`：讀取並回傳月統計，舊到新；`from`／`to` 為含頭尾的 `YYYY-MM`，格式錯誤丟 `ArgumentError`。
 - `mode: mock`：沒有示範資料集，丟 `SafeWalkDataUnavailable`（未配置），不回假資料。
-- 讀取失敗、內容不是預期 CSV、欄位改變、或沒有任何有效列：丟 `ViolentCrimeSourceUnavailable`，訊息不含資料內容；不改用示範資料，不回空陣列冒充成功。
+- 讀取失敗、內容不是預期 CSV（包含未閉合引號的截斷內容）、欄位改變、或沒有任何有效列：丟 `ViolentCrimeSourceUnavailable`，訊息不含資料內容；不改用示範資料，不回空陣列冒充成功。
 - 已取消的 token 丟共用 `SafeWalkCancelledException`，即使快取已填也不交付資料。
 
 ## 來源
@@ -44,7 +44,7 @@
 
 未使用：嫌疑犯、犯罪人口率、破獲件數與破獲率（含積案與他轄，比例可能超過 100%，易被誤讀）。
 
-剔除（整列丟棄並列入 `lastReport.rejected`，不修補）：統計期無法解析、件數不是非負整數、總計 ≠ 三類相加、期間重複。
+剔除（整列丟棄並列入 `lastReport.rejected`，不修補）：統計期無法解析、件數不是非負整數、總計 ≠ 三類相加、發生率超出有限數值範圍、期間重複。
 
 ## 驗證紀錄（2026-11-07）
 
