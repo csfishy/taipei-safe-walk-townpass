@@ -12,6 +12,8 @@ workflows:
       # Use the host's default Xcode; record and verify it on the first cloud run.
       # No Apple account, certificates, provisioning profile or secret group.
     scripts:
+      - name: Generate preview build metadata asset
+        script: python3 tool/release_metadata.py
       - name: Record and verify the pinned SDK and available Xcode
         script: |
           #!/usr/bin/env bash

@@ -1,0 +1,136 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:town_pass/features/safe_walk/presentation/safe_walk_flow.dart';
+import 'package:town_pass/features/safe_walk/presentation/safe_walk_speaker.dart';
+import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart' as sw;
+
+class _SpySpeaker implements SafeWalkSpeaker {
+  final spoken = <String>[];
+  int stops = 0;
+  @override
+  bool get available => true;
+  @override
+  void speak(String text, {void Function()? onDone}) => spoken.add(text);
+  @override
+  void stop() => stops++;
+}
+
+Future<void> _pump(WidgetTester t, Widget w) async {
+  t.view.physicalSize = const Size(390 * 3, 844 * 3);
+  t.view.devicePixelRatio = 3;
+  addTearDown(t.view.reset);
+  await t.pumpWidget(MaterialApp(home: w));
+  await t.pumpAndSettle();
+}
+
+void main() {
+  testWidgets('首頁只有四個入口、示範標示與緊急求助', (t) async {
+    await _pump(t, const SafeWalkFlow());
+    for (final name in ['安心回家', '模擬來電', '附近求助地點', '回報狀況', '緊急求助', '示範模式（Mock）']) {
+      expect(find.text(name), findsWidgets, reason: name);
+    }
+  });
+
+  testWidgets('緊急求助是單獨一頁；mock 不撥號，選 110 只回報示範訊息', (t) async {
+    final calls = <sw.EmergencyChannel>[];
+    await _pump(t, SafeWalkFlow(onEmergency: (c) async {
+      calls.add(c);
+      throw UnimplementedError('mock 測試不應真的取得結果');
+    }));
+    await t.tap(find.text('緊急求助').first);
+    await t.pumpAndSettle();
+    expect(find.text('撥打 110 報警'), findsOneWidget);
+    expect(find.textContaining('示範模式：不會撥號'), findsOneWidget);
+    await t.tap(find.text('我現在安全，關閉'));
+    await t.pumpAndSettle();
+    expect(find.text('安心回家'), findsOneWidget);
+    expect(calls, isEmpty);
+  });
+
+  testWidgets('地圖預設回家路線並顯示已繞開的異常回報；可展開文字路線', (t) async {
+    await _pump(t, const SafeWalkFlow());
+    await t.tap(find.text('安心回家'));
+    await t.pumpAndSettle();
+    expect(find.textContaining('已繞開'), findsOneWidget);
+    expect(find.text('示範路線／非即時導航'), findsOneWidget);
+    await t.tap(find.text('文字路線'));
+    await t.pumpAndSettle();
+    expect(find.text('抵達家'), findsOneWidget);
+  });
+
+  testWidgets('最近求助地點是中性目的地，可切換下一個；資訊框可收合', (t) async {
+    await _pump(t, const SafeWalkFlow());
+    await t.tap(find.text('安心回家'));
+    await t.pumpAndSettle();
+    expect(find.textContaining('7-ELEVEN'), findsNothing);
+    await t.tap(find.text('最近求助地點'));
+    await t.pumpAndSettle();
+    expect(find.text('下一個求助地點'), findsOneWidget);
+    await t.tap(find.bySemanticsLabel('收合資訊框'));
+    await t.pumpAndSettle();
+    expect(find.text('下一個求助地點'), findsNothing);
+    expect(find.bySemanticsLabel(RegExp('展開資訊框')), findsOneWidget);
+  });
+
+  testWidgets('求助地點：載入中、錯誤可重試、空資料都有明確狀態', (t) async {
+    await _pump(t, const SafeWalkFlow(pointsLoading: true));
+    await t.tap(find.text('附近求助地點'));
+    await t.pumpAndSettle();
+    expect(find.bySemanticsLabel('載入中'), findsOneWidget);
+
+    var retried = 0;
+    await _pump(t, SafeWalkFlow(pointsError: '網路連線中斷', onRetryPoints: () => retried++));
+    await t.tap(find.text('附近求助地點'));
+    await t.pumpAndSettle();
+    expect(find.text('求助地點暫時載入失敗'), findsOneWidget);
+    await t.tap(find.text('再試一次'));
+    expect(retried, 1);
+
+    await _pump(t, const SafeWalkFlow(points: []));
+    await t.tap(find.text('附近求助地點'));
+    await t.pumpAndSettle();
+    expect(find.text('附近還沒有求助地點資料'), findsOneWidget);
+  });
+
+  testWidgets('模擬來電：只朗讀對方台詞；自己輸入是讓對方說的話', (t) async {
+    final speaker = _SpySpeaker();
+    await _pump(t, SafeWalkFlow(speaker: speaker));
+    await t.tap(find.text('模擬來電'));
+    await t.pump(const Duration(milliseconds: 300));
+    expect(speaker.spoken, ['喂，你走到哪裡啦？晚餐吃了沒？']);
+    await t.tap(find.text('我正在回家路上，已經吃過了。'));
+    await t.pump(const Duration(milliseconds: 100));
+    expect(speaker.spoken.length, 1, reason: '自己的回應不朗讀');
+    await t.pump(const Duration(seconds: 1));
+    expect(speaker.spoken.length, 2);
+    await t.tap(find.text('自己輸入'));
+    await t.pump(const Duration(milliseconds: 300));
+    await t.enterText(find.byType(TextField), '我在巷口等你');
+    await t.pump();
+    await t.tap(find.text('讓對方說'));
+    await t.pump(const Duration(milliseconds: 300));
+    expect(speaker.spoken.last, '我在巷口等你');
+    await t.tap(find.text('緊急求助').first);
+    await t.pump(const Duration(milliseconds: 300));
+    expect(speaker.stops, greaterThan(0));
+    expect(find.text('撥打 119'), findsOneWidget);
+  });
+
+  testWidgets('簡訊報警：選情況、預覽含 GPS 欄位、示範傳送顯示成功且不呼叫真實傳送', (t) async {
+    await _pump(t, const SafeWalkFlow());
+    await t.tap(find.text('緊急求助').first);
+    await t.pumpAndSettle();
+    await t.scrollUntilVisible(find.text('傳送簡訊'), 200, scrollable: find.byType(Scrollable).first);
+    await t.tap(find.text('有人打架'));
+    await t.pumpAndSettle();
+    expect(find.textContaining('情況：有人打架'), findsOneWidget);
+    expect(find.textContaining('GPS 座標'), findsOneWidget);
+    expect(find.textContaining('IP'), findsNothing);
+    await t.tap(find.text('傳送簡訊'));
+    await t.pump(const Duration(milliseconds: 100));
+    expect(find.text('傳送中…'), findsOneWidget);
+    await t.pump(const Duration(seconds: 1));
+    await t.pumpAndSettle();
+    expect(find.text('示範完成／未傳送簡訊'), findsOneWidget);
+  });
+}

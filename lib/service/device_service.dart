@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'package:flutter/foundation.dart';
 
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:get/get.dart';
@@ -13,11 +13,11 @@ class DeviceService extends GetxService {
 
     baseDeviceInfo = await deviceInfo.deviceInfo;
 
-    if (Platform.isAndroid) {
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
       androidDeviceInfo = await deviceInfo.androidInfo;
     }
 
-    if (Platform.isIOS) {
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
       iosDeviceInfo = await deviceInfo.iosInfo;
     }
     return this;

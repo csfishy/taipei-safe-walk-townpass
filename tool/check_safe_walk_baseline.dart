@@ -92,7 +92,7 @@ void main(List<String> args) {
         const prefix = 'package:town_pass/features/safe_walk/';
         if (target.startsWith(prefix)) {
           final other = target.substring(prefix.length).split('/').first;
-          if (module != other && other != 'shared') {
+          if (!allowsSafeWalkDependency(path, module, other)) {
             failures.add(
               '$path imports another module implementation: $target',
             );
@@ -105,7 +105,7 @@ void main(List<String> args) {
                 .substring(featureUri.length)
                 .split('/')
                 .first;
-            if (module != other && other != 'shared') {
+            if (!allowsSafeWalkDependency(path, module, other)) {
               failures.add(
                 '$path imports another module implementation: $target',
               );
@@ -141,4 +141,24 @@ void main(List<String> args) {
       'TownPass history and Safe Walk module boundaries passed${initializing ? '; official UI/config/license preserved; no new UI' : ''}.',
     );
   }
+}
+
+/// Only M1's explicit composition namespace may wire the other modules.
+/// This exception does not permit business modules to depend on one another.
+bool allowsSafeWalkDependency(
+  String sourcePath,
+  String sourceModule,
+  String targetModule,
+) {
+  if (sourceModule == targetModule || targetModule == 'shared') return true;
+  return sourceModule == 'platform' &&
+      sourcePath
+          .replaceAll('\\', '/')
+          .startsWith('lib/features/safe_walk/platform/integration/') &&
+      const {
+        'presentation',
+        'navigation',
+        'safety_data',
+        'companion',
+      }.contains(targetModule);
 }

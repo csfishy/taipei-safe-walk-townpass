@@ -41,8 +41,11 @@ final class LocalCompanionController implements CompanionController {
       StreamController<sw.CompanionEvent>.broadcast(sync: true);
 
   int _operation = 0;
+  Completer<void>? _activeInterruption;
   String? _scenarioId;
   sw.CompanionState _state = sw.CompanionState.idle;
+  Future<void>? _stopInFlight;
+  bool _disposing = false;
   bool _disposed = false;
   Future<void>? _disposeFuture;
 
@@ -57,10 +60,15 @@ final class LocalCompanionController implements CompanionController {
     _ensureUsable();
     if (cancellation?.isCancelled == true) return;
 
-    final operation = ++_operation;
+    _invalidateOperation();
+    final operation = _operation;
+    final interruption = Completer<void>();
+    _activeInterruption = interruption;
     if (_state == sw.CompanionState.playing ||
         _state == sw.CompanionState.paused) {
-      await _audio.stop();
+      await _stopAudio();
+    } else if (_stopInFlight case final stop?) {
+      await stop;
     }
     if (!_isCurrent(operation)) return;
 
@@ -77,38 +85,67 @@ final class LocalCompanionController implements CompanionController {
       final asset = source == null ? null : _resolveAsset(source);
       if (asset == null) {
         _emit(sw.CompanionState.ended, sw.CompanionReason.notConfigured);
+        _activeInterruption = null;
         return;
       }
 
       try {
-        final cancelled = await _awaitOrCancellation(
+        final playback = await _awaitValueOrInterruption(
           _audio.playAsset(asset, cancellation: cancellation),
           cancellation,
+          interruption.future,
         );
-        if (cancelled || !_isCurrent(operation)) {
+        if (playback == null || !_isCurrent(operation)) {
           await _cancelOperation(operation);
           return;
         }
+        final started = _observeMilestone(playback.started);
+        final completed = _observeMilestone(playback.completed);
+        final cancelledBeforeStart = await _awaitOrInterruption(
+          started,
+          cancellation,
+          interruption.future,
+        );
+        if (cancelledBeforeStart || !_isCurrent(operation)) {
+          await _cancelOperation(operation);
+          return;
+        }
+        _rethrowMilestoneFailure(await started);
         _emit(sw.CompanionState.playing, sw.CompanionReason.user);
 
-        if (step.pauseAfterMs > 0) {
-          final delayCancelled = await _awaitOrCancellation(
-            _delay(Duration(milliseconds: step.pauseAfterMs)),
-            cancellation,
-          );
-          if (delayCancelled || !_isCurrent(operation)) {
-            await _cancelOperation(operation);
-            return;
-          }
+        final cancelledBeforeCompletion = await _awaitOrInterruption(
+          completed,
+          cancellation,
+          interruption.future,
+        );
+        if (cancelledBeforeCompletion || !_isCurrent(operation)) {
+          await _cancelOperation(operation);
+          return;
+        }
+        _rethrowMilestoneFailure(await completed);
+
+        final delayCancelled = await _awaitOrInterruption(
+          step.pauseAfterMs == 0
+              ? Future<void>.value()
+              : _delay(Duration(milliseconds: step.pauseAfterMs)),
+          cancellation,
+          interruption.future,
+        );
+        if (delayCancelled || !_isCurrent(operation)) {
+          await _cancelOperation(operation);
+          return;
         }
       } on SafeWalkCancelledException {
         await _cancelOperation(operation);
         return;
       } catch (_) {
         if (_isCurrent(operation)) {
-          ++_operation;
-          await _audio.stop();
-          _emit(sw.CompanionState.error, sw.CompanionReason.audioError);
+          _invalidateOperation();
+          final errorOperation = _operation;
+          await _stopAudio();
+          if (_isCurrent(errorOperation)) {
+            _emit(sw.CompanionState.error, sw.CompanionReason.audioError);
+          }
         }
         return;
       }
@@ -116,6 +153,7 @@ final class LocalCompanionController implements CompanionController {
 
     if (_isCurrent(operation)) {
       _emit(sw.CompanionState.ended, sw.CompanionReason.user);
+      _activeInterruption = null;
     }
   }
 
@@ -124,20 +162,25 @@ final class LocalCompanionController implements CompanionController {
     _ensureUsable();
     if (_state != sw.CompanionState.playing) return;
 
-    ++_operation;
+    _invalidateOperation();
+    final pauseOperation = _operation;
     await _audio.pause();
-    _emit(sw.CompanionState.paused, sw.CompanionReason.user);
+    if (_isCurrent(pauseOperation)) {
+      _emit(sw.CompanionState.paused, sw.CompanionReason.user);
+    }
   }
 
   @override
   Future<void> stop(sw.CompanionStopReason reason) async {
-    if (_disposed) return;
+    if (_disposing || _disposed) return;
     await _stop(reason);
   }
 
   Future<void> _stop(sw.CompanionStopReason reason) async {
-    ++_operation;
-    await _audio.stop();
+    _invalidateOperation();
+    final stopOperation = _operation;
+    await _stopAudio();
+    if (!_isCurrent(stopOperation)) return;
     if (_state == sw.CompanionState.ended ||
         _state == sw.CompanionState.error ||
         _scenarioId == null) {
@@ -150,32 +193,63 @@ final class LocalCompanionController implements CompanionController {
   Future<void> dispose() => _disposeFuture ??= _disposeOnce();
 
   Future<void> _disposeOnce() async {
-    if (_disposed) return;
+    if (_disposing || _disposed) return;
+    _disposing = true;
     await _stop(sw.CompanionStopReason.unmount);
     _disposed = true;
     await _audio.dispose();
     await _events.close();
   }
 
-  Future<bool> _awaitOrCancellation(
-    Future<void> work,
+  Future<bool> _awaitOrInterruption<T>(
+    Future<T> work,
     SafeWalkCancellation? cancellation,
+    Future<void> interruption,
   ) async {
-    if (cancellation == null) {
-      await work;
-      return false;
-    }
-    if (cancellation.isCancelled) return true;
     return Future.any<bool>([
       work.then((_) => false),
-      cancellation.whenCancelled.then((_) => true),
+      interruption.then((_) => true),
+      if (cancellation != null)
+        cancellation.whenCancelled.then((_) => true),
     ]);
   }
 
+  Future<T?> _awaitValueOrInterruption<T>(
+    Future<T> work,
+    SafeWalkCancellation? cancellation,
+    Future<void> interruption,
+  ) => Future.any<T?>([
+    work.then<T?>((value) => value),
+    interruption.then<T?>((_) => null),
+    if (cancellation != null)
+      cancellation.whenCancelled.then<T?>((_) => null),
+  ]);
+
   Future<void> _cancelOperation(int operation) async {
     if (_operation != operation) return;
-    ++_operation;
-    await _audio.stop();
+    _invalidateOperation();
+    await _stopAudio();
+  }
+
+  Future<void> _stopAudio() {
+    final pending = _stopInFlight;
+    if (pending != null) return pending;
+
+    late final Future<void> stop;
+    stop = Future<void>.sync(_audio.stop).whenComplete(() {
+      if (identical(_stopInFlight, stop)) _stopInFlight = null;
+    });
+    _stopInFlight = stop;
+    return stop;
+  }
+
+  void _invalidateOperation() {
+    _operation++;
+    final interruption = _activeInterruption;
+    _activeInterruption = null;
+    if (interruption != null && !interruption.isCompleted) {
+      interruption.complete();
+    }
   }
 
   bool _isCurrent(int operation) => !_disposed && _operation == operation;
@@ -194,9 +268,34 @@ final class LocalCompanionController implements CompanionController {
   }
 
   void _ensureUsable() {
-    if (_disposed) {
+    if (_disposing || _disposed) {
       throw StateError('Companion controller has been disposed');
     }
+  }
+}
+
+final class _MilestoneResult {
+  const _MilestoneResult.success() : error = null, stackTrace = null;
+
+  const _MilestoneResult.failure(this.error, this.stackTrace);
+
+  final Object? error;
+  final StackTrace? stackTrace;
+}
+
+Future<_MilestoneResult> _observeMilestone(Future<void> milestone) async {
+  try {
+    await milestone;
+    return const _MilestoneResult.success();
+  } catch (error, stackTrace) {
+    return _MilestoneResult.failure(error, stackTrace);
+  }
+}
+
+void _rethrowMilestoneFailure(_MilestoneResult result) {
+  final error = result.error;
+  if (error != null) {
+    Error.throwWithStackTrace(error, result.stackTrace ?? StackTrace.current);
   }
 }
 

@@ -1,0 +1,277 @@
+name: check-and-build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*-pre.*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # Each push must finish; a shared ref group can discard pending runs.
+  group: build-${{ github.run_id }}
+  cancel-in-progress: false
+
+env:
+  FLUTTER_VERSION: '3.47.6'
+  COMMIT_PRERELEASE: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    outputs:
+      version: ${{ steps.metadata.outputs.version }}
+      build_name: ${{ steps.metadata.outputs.build_name }}
+      release_tag: ${{ steps.metadata.outputs.release_tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Validate source and release version
+        id: metadata
+        run: python3 tool/release_metadata.py
+      - name: Test release versioning and publication safeguards
+        run: python3 -m unittest discover -s tool -p 'test_*release*.py' -v
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: flutter pub get --enforce-lockfile
+      - run: dart run build_runner build
+      - run: dart run tool/generate_safe_walk_contracts.dart --check
+      - run: dart run tool/check_safe_walk_baseline.dart
+      - name: Strict Safe Walk analysis
+        run: flutter analyze --no-pub lib/features/safe_walk tool test/features/safe_walk
+      - name: Analyze (errors and warnings are fatal; existing style infos are advisory)
+        run: flutter analyze --no-fatal-infos
+      - run: flutter test --reporter expanded
+      - name: Test browser guards in Chrome (device plugin boundary stubbed)
+        run: flutter test --platform chrome test/web_startup_test.dart --reporter expanded
+      - name: Require unchanged dependency lock
+        run: git diff --exit-code -- pubspec.lock
+
+  web:
+    needs: check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 tool/release_metadata.py
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: flutter pub get --enforce-lockfile
+      - run: dart run build_runner build
+      - name: Build for the GitHub Pages project path
+        run: flutter build web --release --no-pub --base-href /taipei-safe-walk-townpass/ --no-web-resources-cdn
+      - name: Package website
+        run: |
+          cp assets/build-info.json build/web/build-info.json
+          touch build/web/.nojekyll
+          mkdir -p artifacts
+          cd build/web
+          zip -qr ../../artifacts/taipei-safe-walk-townpass-web.zip .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: prerelease-web
+          path: artifacts/taipei-safe-walk-townpass-web.zip
+          if-no-files-found: error
+          retention-days: 30
+      - uses: actions/upload-artifact@v4
+        with:
+          name: website
+          path: build/web/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14
+
+  android:
+    needs: check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 tool/release_metadata.py
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
+      - name: Install Android build tools
+        run: sdkmanager 'build-tools;36.0.0'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - uses: gradle/actions/setup-gradle@v4
+      - run: flutter pub get --enforce-lockfile
+      - run: dart run build_runner build
+      - name: Build test-signed release APK
+        run: flutter build apk --release --no-pub --build-name '${{ needs.check.outputs.version }}' --build-number "$GITHUB_RUN_NUMBER"
+      - name: Verify and stage APK
+        run: |
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose build/app/outputs/flutter-apk/app-release.apk
+          mkdir -p artifacts
+          cp build/app/outputs/flutter-apk/app-release.apk artifacts/taipei-safe-walk-townpass-android-prerelease.apk
+      - name: Verify APK source metadata and compiled arm64 payload
+        run: python3 tool/verify_native_release.py android artifacts/taipei-safe-walk-townpass-android-prerelease.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: prerelease-android
+          path: artifacts/taipei-safe-walk-townpass-android-prerelease.apk
+          if-no-files-found: error
+          retention-days: 30
+
+  ios:
+    needs: check
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 tool/release_metadata.py
+      - name: Select Xcode 26.1.1 (required by the locked device plugin)
+        run: |
+          sudo xcode-select -s /Applications/Xcode_26.1.1.app/Contents/Developer
+          xcodebuild -version
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: flutter pub get --enforce-lockfile
+      - run: dart run build_runner build
+      - name: Build unsigned iPhone device app
+        run: flutter build ios --release --no-codesign --no-pub --build-name '${{ needs.check.outputs.build_name }}' --build-number "$GITHUB_RUN_NUMBER"
+      - name: Package and verify unsigned IPA
+        run: |
+          APP=build/ios/iphoneos/Runner.app
+          test -f "$APP/Runner"
+          test ! -d "$APP/_CodeSignature"
+          if codesign --verify "$APP" 2>/dev/null; then
+            echo 'Expected an unsigned app.'
+            exit 1
+          fi
+          mkdir -p "$RUNNER_TEMP/ipa/Payload" artifacts
+          cp -R "$APP" "$RUNNER_TEMP/ipa/Payload/"
+          ditto -c -k --keepParent "$RUNNER_TEMP/ipa/Payload" artifacts/taipei-safe-walk-townpass-ios-unsigned.ipa
+          unzip -t artifacts/taipei-safe-walk-townpass-ios-unsigned.ipa
+      - name: Verify unsigned IPA identity, version and arm64 payload
+        run: python3 tool/verify_native_release.py ios artifacts/taipei-safe-walk-townpass-ios-unsigned.ipa
+      - uses: actions/upload-artifact@v4
+        with:
+          name: prerelease-ios
+          path: artifacts/taipei-safe-walk-townpass-ios-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    needs: [check, web, android, ios]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 tool/release_metadata.py
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: prerelease-*
+          path: artifacts
+          merge-multiple: true
+      - name: Check all packages and generate checksums
+        run: |
+          cp assets/build-info.json artifacts/build-info.json
+          cd artifacts
+          test -s taipei-safe-walk-townpass-android-prerelease.apk
+          test -s taipei-safe-walk-townpass-ios-unsigned.ipa
+          test -s taipei-safe-walk-townpass-web.zip
+          sha256sum *.apk *.ipa *.zip build-info.json > SHA256SUMS.txt
+      - name: Publish prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ needs.check.outputs.release_tag }}
+        run: python3 tool/publish_prerelease.py --tag "$RELEASE_TAG"
+
+  pages-settings:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: [web, android, ios]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pages: read
+    outputs:
+      configured: ${{ steps.settings.outputs.configured }}
+    steps:
+      - name: Check owner-configured GitHub Pages settings
+        id: settings
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          if gh api "repos/$GH_REPO/pages" --jq '.build_type' > "$RUNNER_TEMP/pages-type.txt"; then
+            if grep -qx workflow "$RUNNER_TEMP/pages-type.txt"; then
+              echo 'configured=true' >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
+          echo 'configured=false' >> "$GITHUB_OUTPUT"
+          echo 'GitHub Pages is not configured for Actions. A repository owner must enable it.' >> "$GITHUB_STEP_SUMMARY"
+
+  pages:
+    needs: pages-settings
+    if: needs.pages-settings.outputs.configured == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    concurrency:
+      group: github-pages
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Skip stale website builds
+        id: current
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          CURRENT_SHA=$(gh api "repos/$GH_REPO/commits/main" --jq '.sha')
+          if [ "$CURRENT_SHA" = "$GITHUB_SHA" ]; then
+            echo 'deploy=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'deploy=false' >> "$GITHUB_OUTPUT"
+            echo 'Skipped website deployment: a newer main commit exists. Prerelease downloads are retained.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - uses: actions/download-artifact@v4
+        if: steps.current.outputs.deploy == 'true'
+        with:
+          name: website
+          path: website
+      - uses: actions/configure-pages@v5
+        if: steps.current.outputs.deploy == 'true'
+      - uses: actions/upload-pages-artifact@v3
+        if: steps.current.outputs.deploy == 'true'
+        with:
+          path: website
+      - name: Deploy GitHub Pages
+        if: steps.current.outputs.deploy == 'true'
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -23,12 +23,13 @@ class _Cancellation implements SafeWalkCancellation {
 geo.Position _native({
   bool accuracyKnown = true,
   bool mocked = false,
+  double accuracy = 12,
   DateTime? timestamp,
 }) => geo.Position(
   longitude: 121.5654,
   latitude: 25.0330,
   timestamp: timestamp ?? DateTime.now().toUtc(),
-  accuracy: accuracyKnown ? 12 : 0,
+  accuracy: accuracyKnown ? accuracy : 0,
   altitude: 0,
   altitudeAccuracy: 0,
   heading: 0,
@@ -62,6 +63,35 @@ void main() {
     }
     expect(nativeCalls, 0);
   });
+  test(
+    'coarse native GPS is unavailable rather than a walking origin',
+    () async {
+      final adapter = TownPassPlatformAdapter(
+        readPosition: () async => _native(accuracy: 500),
+      );
+      final result = await adapter.getCurrentPosition(
+        mode: sw.DataMode.live,
+        userInitiated: true,
+      );
+      expect(result.toJson()['status'], 'unavailable');
+      expect(result.toJson()['message'], contains('精度'));
+    },
+  );
+  test(
+    'official permission errors remain denied without raw native details',
+    () async {
+      for (final error in ['使用者未允許定位權限', '使用者未允許定位權限（永久），無法取得定位資訊']) {
+        final adapter = TownPassPlatformAdapter(
+          readPosition: () => Future<geo.Position>.error(error),
+        );
+        final result = await adapter.getCurrentPosition(
+          mode: sw.DataMode.live,
+          userInitiated: true,
+        );
+        expect(result.toJson()['status'], 'denied');
+      }
+    },
+  );
   test('mock mode only uses injected mock data and never reads GPS', () async {
     var nativeCalls = 0;
     final adapter = TownPassPlatformAdapter(

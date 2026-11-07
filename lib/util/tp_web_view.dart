@@ -254,7 +254,10 @@ class TPInAppWebView extends StatelessWidget {
   Widget build(BuildContext context) {
     return InAppWebView(
       onWebViewCreated: (controller) async {
-        await controller.addWebMessageListener(TPWebMessageListener.webMessageListener());
+        // Cross-origin web iframes do not provide the native TownPass bridge.
+        if (!kIsWeb) {
+          await controller.addWebMessageListener(TPWebMessageListener.webMessageListener());
+        }
         onWebViewCreated?.call(controller);
       },
       gestureRecognizers: gestureRecognizers,
