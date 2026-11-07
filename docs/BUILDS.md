@@ -40,3 +40,14 @@ On non-PR runs, the workflow checks the actual Pages configuration and deploys t
 The expected default project URL is `https://csfishy.github.io/taipei-safe-walk-townpass/`; it is only a target until deployment has succeeded. The web ZIP includes `.nojekyll` and uses hash routes. A GitHub release download is not a hosted website.
 
 Preview limitations and installation instructions are in [PRERELEASE-NOTES.md](PRERELEASE-NOTES.md). These workflow checks do not configure branch protection or required-check rules.
+
+## Native release package verification
+
+Before native artifacts are uploaded, `tool/verify_native_release.py` checks package integrity and compares the embedded metadata with this workflow's generated source/version/build metadata. Android must include compiled DEX, the preview application identifier, and an arm64 Flutter AOT library; `apksigner` separately verifies its test signature. iOS must contain an unsigned arm64 iPhone app with the preview bundle identifier, matching marketing/build versions, and no app signature/provisioning profile. Device/runtime behavior remains a separate verification step.
+
+To check downloaded native packages, pass their matching downloaded `build-info.json`:
+
+```sh
+python3 tool/verify_native_release.py android path/to/preview.apk --metadata path/to/build-info.json
+python3 tool/verify_native_release.py ios path/to/unsigned.ipa --metadata path/to/build-info.json
+```
