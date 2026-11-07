@@ -27,11 +27,43 @@ final class WebJsonTransport implements JsonTransport {
       throw const JsonTransportException(TransportFailure.insecure);
     }
     cancellation?.throwIfCancelled();
+    return _decode(
+      () => _fetch(url.toString().toJS).toDart.timeout(timeout),
+      cancellation,
+    );
+  }
+
+  /// Form POST (Overpass). A urlencoded body is a CORS "simple" request, so
+  /// the browser sends no preflight.
+  @override
+  Future<Object?> postFormJson(
+    Uri url,
+    Map<String, String> form, {
+    SafeWalkCancellation? cancellation,
+  }) async {
+    if (url.scheme != 'https') {
+      throw const JsonTransportException(TransportFailure.insecure);
+    }
+    cancellation?.throwIfCancelled();
+    final init = <String, Object?>{
+      'method': 'POST',
+      'headers': {'Content-Type': 'application/x-www-form-urlencoded'},
+      'body': Uri(queryParameters: form).query,
+      'credentials': 'omit',
+    }.jsify()!;
+    return _decode(
+      () => _fetchWith(url.toString().toJS, init).toDart.timeout(timeout),
+      cancellation,
+    );
+  }
+
+  Future<Object?> _decode(
+    Future<_Response> Function() send,
+    SafeWalkCancellation? cancellation,
+  ) async {
     final _Response response;
     try {
-      response = await _fetch(url.toString().toJS).toDart.timeout(timeout);
-    } on SafeWalkCancelledException {
-      rethrow;
+      response = await send();
     } catch (error) {
       debugPrint('[safe-walk web transport] ${error.runtimeType}');
       throw JsonTransportException(
@@ -50,6 +82,7 @@ final class WebJsonTransport implements JsonTransport {
       debugPrint('[safe-walk web transport] read ${error.runtimeType}');
       throw const JsonTransportException(TransportFailure.network);
     }
+    cancellation?.throwIfCancelled();
     if (status != 200) {
       throw const JsonTransportException(TransportFailure.httpStatus);
     }
@@ -62,17 +95,13 @@ final class WebJsonTransport implements JsonTransport {
       throw const JsonTransportException(TransportFailure.malformed);
     }
   }
-
-  @override
-  Future<Object?> postFormJson(
-    Uri url,
-    Map<String, String> form, {
-    SafeWalkCancellation? cancellation,
-  }) => Future.error(const JsonTransportException(TransportFailure.unsupported));
 }
 
 @JS('fetch')
 external JSPromise<_Response> _fetch(JSString url);
+
+@JS('fetch')
+external JSPromise<_Response> _fetchWith(JSString url, JSAny init);
 
 extension type _Response._(JSObject _) implements JSObject {
   external JSNumber get status;

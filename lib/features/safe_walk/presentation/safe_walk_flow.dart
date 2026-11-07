@@ -25,6 +25,8 @@ class SafeWalkFlow extends StatefulWidget {
     this.pointsLoading = false,
     this.pointsError,
     this.onRetryPoints,
+    this.pointRoutes = const {},
+    this.onSelectPoint,
     this.route,
     this.routeLoading = false,
     this.onPlanRoute,
@@ -68,6 +70,14 @@ class SafeWalkFlow extends StatefulWidget {
   final bool pointsLoading;
   final String? pointsError;
   final VoidCallback? onRetryPoints;
+
+  /// Live: walking routes to each point (id → result), same avoiding routes as
+  /// a destination; points are already ranked safest, then fastest.
+  final Map<String, sw.RouteResult> pointRoutes;
+
+  /// M1: the walker chose this point as the target; navigate there with the
+  /// route already planned for it.
+  final ValueChanged<String>? onSelectPoint;
 
   /// 前往目前目的地的路線（M2 RouteService → M1 提供）。未配置時只有 Mock 使用示範路線；Live 顯示 unavailable。
   final sw.RouteResult? route;
@@ -125,6 +135,19 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> with WidgetsBindingObserver
   LatLng? _manualStart;
   int _editGeneration = 0;
   bool _mapTileConsent = false;
+
+  /// 目前導航的目標：null＝目的地（家／常用地點）；否則是求助地點 id。
+  String? _targetPointId;
+
+  void _setTarget(sw.AssistancePoint? point) {
+    if (point?.id == _targetPointId) return;
+    setState(() => _targetPointId = point?.id);
+    if (point == null) {
+      _planRoute();
+    } else {
+      widget.onSelectPoint?.call(point.id);
+    }
+  }
 
   void _setStart(LatLng? at) {
     ++_editGeneration;
@@ -198,8 +221,7 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> with WidgetsBindingObserver
 
   bool _isMapScreen(_Screen screen) =>
       screen == _Screen.map ||
-      (screen == _Screen.points &&
-          !(widget.mode == sw.DataMode.live && widget.pointsError != null)) ||
+      screen == _Screen.points ||
       (screen == _Screen.report && widget.reportBuilder == null);
 
   Future<void> _editPlace(String id, String name, LatLng at) async {
@@ -260,22 +282,34 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> with WidgetsBindingObserver
   }
 
   void _planRoute({sw.Coordinates? savedDestination}) {
-    if (_missingLiveHome && savedDestination == null) return;
-    final placeAt = _place.at;
-    if (savedDestination == null && placeAt == null) return;
     widget.onReportsChanged?.call([
       for (final a in _anomalies)
         if (a.status != AnomalyStatus.cleared) (id: a.id, center: sw.Coordinates(lat: a.at.lat, lng: a.at.lng)),
     ]);
+    if (savedDestination != null) _targetPointId = null;
+    // 目標是求助地點時，重新規劃（例如回報變了）也是往那個地點。
+    final target = _targetPointId == null
+        ? null
+        : _pointsState.points.where((p) => p.id == _targetPointId).firstOrNull;
+    if (target != null) {
+      widget.onPlanRoute?.call(target.coordinates);
+      return;
+    }
+    if (_missingLiveHome && savedDestination == null) return;
+    final placeAt = _place.at;
+    if (savedDestination == null && placeAt == null) return;
     widget.onPlanRoute?.call(
       savedDestination ?? sw.Coordinates(lat: placeAt!.lat, lng: placeAt.lng),
     );
   }
 
   void _selectPlace(String id) {
-    if (id == _placeId) return;
+    if (id == _placeId && _targetPointId == null) return;
     ++_editGeneration;
-    setState(() => _placeId = id);
+    setState(() {
+      _placeId = id;
+      _targetPointId = null;
+    });
     _planRoute();
   }
 
@@ -284,6 +318,7 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> with WidgetsBindingObserver
     loading: widget.pointsLoading,
     error: widget.pointsError,
     onRetry: widget.onRetryPoints,
+    routes: widget.pointRoutes,
   );
 
   void _go(_Screen s) {
@@ -308,6 +343,7 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> with WidgetsBindingObserver
     }
     if (!_isMapScreen(s) && _isMapScreen(_screen)) {
       ++_editGeneration;
+      _targetPointId = null;
       _mapTileConsent = false;
       widget.onLeaveMap?.call();
     }
@@ -397,6 +433,8 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> with WidgetsBindingObserver
           : null,
       pointsState: _pointsState,
       routeState: _routeState,
+      targetPointId: _targetPointId,
+      onTarget: _setTarget,
       manualStart: _manualStart,
       crimeSpots: widget.crimeSpots,
       crimeQueryStatus: widget.crimeQueryStatus,
@@ -454,19 +492,7 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> with WidgetsBindingObserver
         onBack: () => _go(_Screen.home),
       ),
       _Screen.map => map(),
-      _Screen.points =>
-        widget.mode == sw.DataMode.live && widget.pointsError != null
-            ? Scaffold(
-                appBar: AppBar(
-                  title: const Text('附近求助地點'),
-                  leading: BackButton(onPressed: () => _go(_Screen.home)),
-                ),
-                body: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Text(widget.pointsError!),
-                ),
-              )
-            : map(start: MapStartView.points),
+      _Screen.points => map(start: MapStartView.points),
       _Screen.report =>
         widget.reportBuilder?.call(context, () => _go(_Screen.home)) ??
             map(start: MapStartView.report),
