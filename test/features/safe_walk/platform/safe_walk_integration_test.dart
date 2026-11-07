@@ -226,7 +226,7 @@ void main() {
       await t.pumpAndSettle();
       await t.tap(find.text('接聽'));
       await t.pumpAndSettle();
-      expect(find.text('語音尚未配置，播放為無聲示範'), findsOneWidget);
+      expect(find.text('語音尚未配置，播放為無聲示範'), findsNothing);
       expect(companion.starts, 0);
       await t.tap(find.text('緊急求助').first);
       await t.pumpAndSettle();
