@@ -49,16 +49,22 @@ class _SafeWalkCallViewState extends State<SafeWalkCallView> {
   final _scroll = ScrollController();
   Timer? _clock, _reply;
   bool _pipLeft = false;
+  bool _leaving = false;
+  int _speechGeneration = 0;
 
   @override
   void initState() {
     super.initState();
     _say(FakeCallScript.lines[0].text);
-    _clock = Timer.periodic(const Duration(seconds: 1), (_) => setState(() => _seconds++));
+    _clock = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted && !_leaving) setState(() => _seconds++);
+    });
   }
 
   @override
   void dispose() {
+    _leaving = true;
+    _speechGeneration++;
     _clock?.cancel();
     _reply?.cancel();
     widget.speaker.stop();
@@ -68,17 +74,20 @@ class _SafeWalkCallViewState extends State<SafeWalkCallView> {
   }
 
   void _speak(_Entry e) {
+    if (_leaving || !widget.speaker.available) return;
+    final generation = ++_speechGeneration;
     setState(() => _speaking = e.key);
     widget.speaker.speak(
       e.text,
       onDone: () {
-        if (mounted && _speaking == e.key) setState(() => _speaking = null);
+        if (mounted && !_leaving && generation == _speechGeneration && _speaking == e.key) setState(() => _speaking = null);
       },
     );
   }
 
   void _toggle(_Entry e) {
     if (_speaking == e.key) {
+      _speechGeneration++;
       widget.speaker.stop();
       setState(() => _speaking = null);
     } else {
@@ -87,6 +96,7 @@ class _SafeWalkCallViewState extends State<SafeWalkCallView> {
   }
 
   void _say(String text) {
+    if (_leaving) return;
     final e = _Entry('c${_seq++}', true, text);
     setState(() => _log.add(e));
     _speak(e);
@@ -94,7 +104,8 @@ class _SafeWalkCallViewState extends State<SafeWalkCallView> {
   }
 
   void _respond(String text) {
-    if (_waiting) return;
+    if (_waiting || _leaving) return;
+    _speechGeneration++;
     widget.speaker.stop();
     setState(() {
       _speaking = null;
@@ -104,7 +115,7 @@ class _SafeWalkCallViewState extends State<SafeWalkCallView> {
     _scrollDown();
     final next = FakeCallScript.lines[_line].next;
     _reply = Timer(const Duration(milliseconds: 900), () {
-      if (!mounted) return;
+      if (!mounted || _leaving) return;
       setState(() {
         _line = next;
         _waiting = false;
@@ -114,8 +125,17 @@ class _SafeWalkCallViewState extends State<SafeWalkCallView> {
   }
 
   void _scrollDown() => WidgetsBinding.instance.addPostFrameCallback((_) {
-    if (_scroll.hasClients) _scroll.animateTo(_scroll.position.maxScrollExtent, duration: const Duration(milliseconds: 200), curve: Curves.easeOut);
+    if (!_leaving && _scroll.hasClients) _scroll.animateTo(_scroll.position.maxScrollExtent, duration: const Duration(milliseconds: 200), curve: Curves.easeOut);
   });
+
+  void _leave(VoidCallback next) {
+    _leaving = true;
+    _speechGeneration++;
+    _reply?.cancel();
+    _clock?.cancel();
+    widget.speaker.stop();
+    next();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -136,7 +156,7 @@ class _SafeWalkCallViewState extends State<SafeWalkCallView> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Center(
-                        child: SwRoundButton(icon: Icons.arrow_back_ios_new_rounded, label: '返回', onTap: widget.onEnd),
+                        child: SwRoundButton(icon: Icons.arrow_back_ios_new_rounded, label: '返回', onTap: () => _leave(widget.onEnd)),
                       ),
                       const SizedBox(width: 12),
                       Container(
@@ -211,7 +231,7 @@ class _SafeWalkCallViewState extends State<SafeWalkCallView> {
                           final v = d.primaryVelocity ?? 0;
                           if (v.abs() > 100) setState(() => _pipLeft = v < 0);
                         },
-                        child: _Pip(start: start, points: widget.points, anomalies: widget.anomalies, onTap: widget.onMap),
+                        child: _Pip(start: start, points: widget.points, anomalies: widget.anomalies, onTap: () => _leave(widget.onMap)),
                       ),
                     ),
                   ],
@@ -263,7 +283,7 @@ class _SafeWalkCallViewState extends State<SafeWalkCallView> {
             child: Row(
               children: [
                 SwPressable(
-                  onTap: widget.onEnd,
+                  onTap: () => _leave(widget.onEnd),
                   color: SwColors.surface,
                   pressedColor: SwColors.brandSoft,
                   border: const BorderSide(color: SwColors.border),
@@ -284,8 +304,7 @@ class _SafeWalkCallViewState extends State<SafeWalkCallView> {
                 const Spacer(),
                 SwSosButton(
                   onTap: () {
-                    widget.speaker.stop();
-                    widget.onEmergency();
+                    _leave(widget.onEmergency);
                   },
                 ),
               ],
