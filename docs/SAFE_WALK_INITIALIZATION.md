@@ -104,3 +104,11 @@ git clone --branch migration/townpass-native-base https://github.com/csfishy/tai
 - [x] 共用 JSON Schema 保留並有可測 Dart 對照。
 - [x] 其他成員的 GitHub 工作未遭覆寫／丟棄。
 - [x] 已有同一 TownPass 架構的可審查基線；正式五分支仍待 PR 合併。
+
+## 2026-11-07 Supabase 本機設定補充
+
+使用者另明確要求將目前 TownPass Flutter App 設定連至指定 Supabase 專案。本輪從共同 main `99d4135` 建立本機 `codex/supabase-setup`；初始化階段「不新增資料庫」不撤銷此次連線設定授權。設定範圍與實際結果見 [Supabase 連線紀錄](SAFE_WALK_SUPABASE.md)。
+
+已確認 Data API 啟用，設定忽略版控的公開 client key，並以 Dart 3.13.5 實跑不讀寫資料列的 PostgREST 連線檢查。隔離純 Dart runner 20 項測試、Schema check、模組 guard 與格式檢查通過；本機 Flutter 3.47.7 與 pin 3.47.6 不符，因此本輪沒有執行 Flutter pub get、build_runner、完整 analyze／Flutter test 或 build，亦沒有把 formatter 的缺少 lint include 提示當成完整 lint 通過。
+
+沒有部署 PR #21 的附近通知 SQL：其匿名 security-definer RPC 尚缺可信身份／ownership 驗證。App 入口仍 Mock，沒有真實定位、資料列寫入、通知、官方登入或實機驗收；本輪以 `codex/supabase-setup` 交 PR 審查，不自行合併或發布。
