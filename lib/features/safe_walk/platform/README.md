@@ -1,6 +1,6 @@
 # M1｜小魚：平台、唯一定位入口、求助與整合
 
-所有成員均可跨 M1～M5 修改功能與相應測試，自行 AI Coding、除錯及建立 PR。修改其他模組時說明目的、影響檔案及原主要負責人，先核對進行中的 PR 避免同時改同一檔；普通 Level A 變更不需小魚事前批准，Level B 合併前確認、Level C 啟用前須隊長明確授權與安全驗收。完整規則見 [開放協作](../../../../docs/SAFE_WALK_COLLABORATION.md)。
+所有成員均可跨 M1～M5 修改功能與相應測試，自行 AI Coding、除錯及建立 PR。修改其他模組時說明目的、影響檔案及原主要負責人，先核對進行中的 PR 避免同時改同一檔；普通 Level A 變更不需小魚事前批准，Level B 合併前確認；Level C 合併前須隊長明確授權及安全／隱私審查，正式啟用前完成適用驗收。完整規則見 [開放協作](../../../../docs/SAFE_WALK_COLLABORATION.md)。
 
 本模組以可驗證的 Live MVP 為交付目標。先讀根目錄 AGENTS、[Live MVP 驗收](../../../../docs/SAFE_WALK_LIVE_MVP.md)、[上線條件表](../../../../docs/SAFE_WALK_LIVE_READINESS.md)、[模組契約](../../../../docs/SAFE_WALK_MODULES.md)及共用 Schema。初始化紀錄只保留當時事實，不再要求等待初始化合併或建立五個分支。
 

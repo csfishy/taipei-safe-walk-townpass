@@ -1,6 +1,6 @@
 # M5｜奶爸：純控制器、Audio adapter 與取消清理
 
-所有成員均可跨 M1～M5 修改功能與相應測試，自行 AI Coding、除錯及建立 PR。修改其他模組時說明目的、影響檔案及原主要負責人，先核對進行中的 PR 避免同時改同一檔；普通 Level A 變更不需小魚事前批准，Level B 合併前確認、Level C 啟用前須隊長明確授權與安全驗收。完整規則見 [開放協作](../../../../docs/SAFE_WALK_COLLABORATION.md)。
+所有成員均可跨 M1～M5 修改功能與相應測試，自行 AI Coding、除錯及建立 PR。修改其他模組時說明目的、影響檔案及原主要負責人，先核對進行中的 PR 避免同時改同一檔；普通 Level A 變更不需小魚事前批准，Level B 合併前確認；Level C 合併前須隊長明確授權及安全／隱私審查，正式啟用前完成適用驗收。完整規則見 [開放協作](../../../../docs/SAFE_WALK_COLLABORATION.md)。
 
 先讀根目錄 AGENTS、[Live MVP 規格](../../../../docs/SAFE_WALK_LIVE_MVP.md)、[上線條件](../../../../docs/SAFE_WALK_LIVE_READINESS.md)及 [五人模組契約](../../../../docs/SAFE_WALK_MODULES.md)。初始化文件是歷史紀錄。奶爸是音訊主要負責人，莅紋是正式 UI/UX 設計主要負責人；任何成員可跨通話頁、speaker、控制器與測試完成完整陪伴功能，不索取麥克風／聯絡人／位置，不假扮警消或真人親友在線。
 

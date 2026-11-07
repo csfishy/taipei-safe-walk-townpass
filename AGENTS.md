@@ -34,7 +34,7 @@ Mock／Live 是既有 wire DataMode；Unavailable 是能力／操作呈現語意
 ## 三層審查與 PR
 
 - **Level A**：一般功能、UI callback、導航邏輯、資料轉換、音訊與測試，任何成員可直接開發；相關測試及必要 CI 通過後，由一位具權限的非作者隊員 Review。普通跨模組修改不需原模組主責或小魚事前批准。
-- **Level B**：共用 Schema／Contracts／Models、依賴套件／lock、TownPass Route、原生平台、正式 UI 大型改版、CI/CD／重大架構，可由任何人開發，合併前需對應主要負責人確認。共用／平台／CI 找小魚，大型 UI 找莅紋；不要求其親自修改。一般 constructor callback 接線屬 A，改 shared 契約才屬 B。
+- **Level B**：共用 Schema／Contracts／Models、依賴套件／lock、TownPass Route、原生平台、正式 UI 大型改版、CI/CD／重大架構，可由任何人開發，合併前需對應主要負責人確認。共用／平台／CI 找小魚，大型 UI 找莅紋；不要求其親自修改。一般 constructor／callback 接線在維持既有語意且未涉及 B/C 範圍時屬 A；共用契約、依賴／lock、TownPass route、原生設定、CI 等變更仍依 B，不能以普通接線降級。
 - **Level C**：真實警消發送、救援者位置通知、Supabase 身分／RPC／RLS、敏感位置儲存、正式部署／Live 開關及真實外部作用。可做隔離實作／測試；合併需隊長明確授權與安全／隱私審查，啟用前完成必要驗收，不以編譯成功啟用。既有明確授權在有效範圍內沿用。
 - 小型功能 PR 列使用者功能、完成定義、主要檔案、影響模組／原主責、契約變更、A/B/C、實際測試／skip、未驗部分及 Live／安全影響。完整流程可分增量，但不能把未接線／未驗部分宣稱完成。接收者與檔案協調見 [協作規範](docs/SAFE_WALK_COLLABORATION.md)。
 
