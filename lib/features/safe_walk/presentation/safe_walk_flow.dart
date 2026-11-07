@@ -5,6 +5,7 @@ import 'package:town_pass/features/safe_walk/presentation/safe_walk_emergency_vi
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_home_setting_view.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_home_view.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_map_view.dart';
+import 'package:town_pass/features/safe_walk/presentation/safe_walk_nearby_broadcast.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_speaker.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_ui.dart';
 import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart'
@@ -47,6 +48,7 @@ class SafeWalkFlow extends StatefulWidget {
     this.onLocate,
     this.onEmergency,
     this.onSendSms,
+    this.nearbyBroadcast,
     this.homeLocation,
     this.onHomeChanged,
     this.onExit,
@@ -117,6 +119,9 @@ class SafeWalkFlow extends StatefulWidget {
 
   /// M1：使用者確認簡訊內容後，交給手機開啟簡訊 App；null 時只模擬傳送畫面。
   final Future<bool> Function(String body)? onSendSms;
+
+  /// M1：緊急求助頁的「通知附近的人」；null 時不顯示。
+  final SafeWalkNearbyBroadcast? nearbyBroadcast;
   final VoidCallback? onExit;
 
   /// M1：使用者已儲存在裝置上的「家」。null＝尚未設定；只有 Mock 可沿用示範的家。
@@ -558,6 +563,7 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
         statusIsError: _emergencyError,
         locating: _locating,
         onSendSms: widget.onSendSms,
+        nearbyBroadcast: widget.nearbyBroadcast,
         nearbyPointName: _nearestPointName,
         onChannel: _channel,
         onLocate: _locate,
