@@ -1,8 +1,12 @@
 import 'dart:async';
+import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:town_pass/features/safe_walk/navigation/avoid_area.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/crime_reference_wiring.dart';
+import 'package:town_pass/features/safe_walk/platform/supabase/safe_walk_supabase_config.dart';
+import 'package:town_pass/features/safe_walk/platform/supabase/web_rpc_post.dart';
 import 'package:town_pass/features/safe_walk/safety_data/crime_reference/crime_reference_models.dart';
 import 'package:town_pass/features/safe_walk/safety_data/crime_reference/crime_reference_repository.dart';
 import 'package:town_pass/features/safe_walk/navigation/default_json_transport.dart';
@@ -141,8 +145,38 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
 
   /// Product-defined buffers around reference positions; not incident bounds.
   late final CrimeReferenceRepository _crime =
-      widget.crimeRepository ??
-      CrimeReferenceWiring.fromEnvironment().repository;
+      widget.crimeRepository ?? _crimeRepository();
+
+  /// Local web preview only (`--dart-define=SAFE_WALK_WEB_ROUTES=true`).
+  static const _webPreview = bool.fromEnvironment('SAFE_WALK_WEB_ROUTES');
+
+  /// Phones use M1's dart:io client. The local web preview posts the same
+  /// reviewed read-only RPC through browser fetch; default web stays off.
+  static CrimeReferenceRepository _crimeRepository() {
+    if (!kIsWeb || !_webPreview) {
+      return CrimeReferenceWiring.fromEnvironment().repository;
+    }
+    final SafeWalkSupabaseConfig config;
+    try {
+      config = SafeWalkSupabaseConfig.fromEnvironment();
+    } on SupabaseConfigurationException {
+      return CrimeReferenceRepository(transport: null);
+    }
+    return CrimeReferenceRepository(
+      transport: (arguments) async {
+        final (status, body) = await webRpcPost(
+          config.url.resolve('/rest/v1/rpc/$crimeReferenceRpcFunction'),
+          {
+            ...config.requestHeaders,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          jsonEncode(arguments),
+        );
+        return CrimeReferenceHttpResponse(status, body);
+      },
+    );
+  }
   List<AvoidArea> _crimeAreas = const [];
   List<CrimeSpot> _crimeSpots = const [];
   bool _hasCrimeConsent = false;
@@ -465,6 +499,22 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
             : '未同意犯罪參考查詢；路線不套用犯罪參考避讓。';
       });
     }
+  }
+
+  /// Same pattern as the crime setting: a dialog to agree or decline.
+  /// Declining cancels any route work in flight.
+  Future<void> _manageRoutingConsent() async {
+    if (!mounted || !_foreground || _lifetime.isCancelled) return;
+    // Changing the setting stops route work in flight; it resumes only after
+    // the walker agrees and plans again.
+    _invalidateOperation();
+    final prompt = _routingConsentPrompt ??= _askRoutingConsent();
+    final agreed = await prompt;
+    if (identical(_routingConsentPrompt, prompt)) _routingConsentPrompt = null;
+    if (!mounted || !_foreground || _lifetime.isCancelled || agreed == null) {
+      return;
+    }
+    _setRoutingConsent(agreed);
   }
 
   Future<void> _manageCrimeConsent() async {
@@ -845,8 +895,10 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
         onManageCrimeConsent: widget.liveRoutes
             ? () => unawaited(_manageCrimeConsent())
             : null,
-        onRevokeRoutingConsent: widget.liveRoutes
-            ? () => _setRoutingConsent(false)
+        routingConsent: _navigation.hasRoutingConsent,
+        crimeConsent: _hasCrimeConsent,
+        onManageRoutingConsent: widget.liveRoutes
+            ? () => unawaited(_manageRoutingConsent())
             : null,
         onStartChanged: widget.liveRoutes
             ? (origin) {

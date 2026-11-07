@@ -1022,7 +1022,13 @@ void main() {
         expect(map(t).routeState.best?.id, 'osrm-direct');
         expect(map(t).routeState.allowDemoFallback, isFalse);
         expect(map(t).crimeSpots, hasLength(1));
-        expect(find.textContaining('50 公尺避讓緩衝區'), findsWidgets);
+        // The buffer note opens on tapping a purple dot; the dot itself is labelled.
+        expect(
+          find.byWidgetPredicate(
+            (w) => w is Semantics && (w.properties.label ?? '').contains('50 公尺避讓緩衝區'),
+          ),
+          findsWidgets,
+        );
         expect(find.textContaining('不保證'), findsWidgets);
         expect(find.text('示範路線／非即時導航'), findsNothing);
         await leaveMap(t);

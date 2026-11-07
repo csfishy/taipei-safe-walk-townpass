@@ -48,6 +48,7 @@ class DemoMap extends StatelessWidget {
     this.showAttribution = true,
     this.showTiles = true,
     this.crimeSpots = const [],
+    this.onCrime,
     this.avoidRadiusMeters = 0,
     this.showShortcut = false,
     this.homeActive = true,
@@ -77,6 +78,9 @@ class DemoMap extends StatelessWidget {
 
   /// 紫色參考位置及產品設定的 50 公尺繞行緩衝，並非案發範圍。
   final List<({LatLng at, String label})> crimeSpots;
+
+  /// Tap a purple dot (index into [crimeSpots]) to show its details.
+  final ValueChanged<int>? onCrime;
 
   /// When > 0, each unresolved report gets a circle of this real-world radius.
   final double avoidRadiusMeters;
@@ -150,10 +154,10 @@ class DemoMap extends StatelessWidget {
               '${anomalyCategoryLabel[a.category]}，${anomalyStatusLabel[a.status]}，查看與回報新狀況',
           onTap: onAnomaly == null ? null : () => onAnomaly!(a.id),
         ),
-      for (final c in crimeSpots)
+      for (final (i, c) in crimeSpots.indexed)
         marker(
           c.at,
-          12,
+          onCrime == null ? 12 : 20,
           Container(
             width: 10,
             height: 10,
@@ -164,6 +168,7 @@ class DemoMap extends StatelessWidget {
             ),
           ),
           label: '50 公尺避讓緩衝區：${c.label}（產品設定的繞行距離；參考位置不是精確案發點或官方犯罪範圍）',
+          onTap: onCrime == null ? null : () => onCrime!(i),
         ),
       for (final p in points)
         marker(

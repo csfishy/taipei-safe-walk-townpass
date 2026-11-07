@@ -152,7 +152,9 @@ class SafeWalkMapView extends StatefulWidget {
     this.crimeSpots = const [],
     this.crimeQueryStatus,
     this.onManageCrimeConsent,
-    this.onRevokeRoutingConsent,
+    this.onManageRoutingConsent,
+    this.routingConsent = false,
+    this.crimeConsent = false,
     this.destinationConfigured = true,
     this.showMapTiles = true,
     this.onMapTileConsent,
@@ -161,7 +163,13 @@ class SafeWalkMapView extends StatefulWidget {
   /// 犯罪參考位置及產品設定的避讓緩衝（紫色，非案發範圍）。
   final List<CrimeSpot> crimeSpots;
   final String? crimeQueryStatus;
-  final VoidCallback? onManageCrimeConsent, onRevokeRoutingConsent;
+  final VoidCallback? onManageCrimeConsent, onManageRoutingConsent;
+
+  /// Whether the walker currently allows the third-party route query.
+  final bool routingConsent;
+
+  /// Whether the walker currently allows the crime reference query.
+  final bool crimeConsent;
   final bool destinationConfigured;
   final bool showMapTiles;
   final VoidCallback? onMapTileConsent;
@@ -215,6 +223,9 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
 
   /// 正在新增的地點名稱；不為 null 時，點地圖是選這個地點的位置。
   String? _newPlaceName;
+
+  /// 正在看的犯罪參考位置（點紫點）。
+  CrimeSpot? _crimeDetail;
 
   /// 正在編輯的常用地點（null＝新增）。
   String? _editingPlaceId;
@@ -308,7 +319,8 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
     // 尚未配置路線時用示範起點畫示範路線；計算中或失敗時不畫線。
     // 真實路線模式：起點與目的地確定、路線算出來之前，不畫示範路線也不顯示時間。
     final liveWired = widget.onStartChanged != null;
-    final waitingRoute = isHome && liveWired && !rs.configured;
+    final waitingRoute =
+        isHome && liveWired && rs.result == null && !rs.loading;
     final demoHome = isHome && !rs.configured && !liveWired;
     final path = point != null
         ? DemoGeo.lRoute(_start, _at(point))
@@ -337,6 +349,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
     final (String summary, Widget body) = switch (true) {
       _ when _newPlaceName != null => ('新增地點', _newPlaceSheet()),
       _ when _pickingStart => ('設定起點', _startPickSheet()),
+      _ when _crimeDetail != null => ('犯罪參考位置', _crimeSheet(_crimeDetail!)),
       _ when _picking || _pin != null => (
         '回報狀況',
         _pin == null ? _pickSheet() : _formSheet(),
@@ -389,6 +402,14 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                         widget.manualStart != null ||
                         widget.position != null ||
                         path.isNotEmpty,
+                    onCrime: (i) => setState(() {
+                      _crimeDetail = widget.crimeSpots[i];
+                      _detailId = null;
+                      _picking = false;
+                      _pin = null;
+                      _toast = null;
+                      if (_size == _SheetSize.collapsed) _size = _SheetSize.normal;
+                    }),
                     crimeSpots: rs.live
                         ? [
                             for (final c in widget.crimeSpots)
@@ -413,6 +434,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                     selectedAnomalyId: detail?.id,
                     pin: _pin,
                     onAnomaly: (id) => setState(() {
+                      _crimeDetail = null;
                       _detailId = id;
                       _toast = null;
                       _picking = false;
@@ -720,7 +742,10 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
           onPoint: () => setState(() => _pointIndex = 0),
         ),
         const SizedBox(height: 12),
-        if (isHome && widget.onStartChanged != null && !rs.configured)
+        if (isHome &&
+            widget.onStartChanged != null &&
+            rs.result == null &&
+            !rs.loading)
           SwStateMessage(
             icon: Icons.alt_route_rounded,
             title: '設定起點與目的地',
@@ -872,38 +897,17 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
           Text('路線來源：${rs.best!.provider}', style: SwText.small),
         ],
         for (final warning in rs.warnings) Text(warning, style: SwText.small),
-        if (widget.crimeQueryStatus != null) ...[
-          const SizedBox(height: 8),
-          Text(widget.crimeQueryStatus!, style: SwText.secondary),
-        ],
-        if (widget.crimeSpots.isNotEmpty) ...[
-          const SizedBox(height: 8),
-          Text('50 公尺避讓緩衝區', style: SwText.smallStrong),
-          Text(
-            '紫色圓是產品設定的繞行距離；參考位置並非精確案發點，圓形不是官方認定的犯罪範圍，也不保證沿途安全。',
-            style: SwText.small,
+        Align(
+          alignment: Alignment.centerLeft,
+          child: SwSourcesLink(
+            settings: [
+              if (widget.onManageRoutingConsent != null)
+                (icon: Icons.alt_route_rounded, label: '路線查詢設定', onTap: widget.onManageRoutingConsent!),
+              if (widget.onManageCrimeConsent != null)
+                (icon: Icons.policy_outlined, label: '犯罪資料查詢設定', onTap: widget.onManageCrimeConsent!),
+            ],
           ),
-          for (final c in widget.crimeSpots.take(5))
-            Text(c.label, style: SwText.small),
-          if (widget.crimeSpots.length > 5)
-            Text(
-              '地圖另有 ${widget.crimeSpots.length - 5} 筆參考位置。',
-              style: SwText.small,
-            ),
-        ],
-        if (widget.onManageCrimeConsent != null)
-          TextButton.icon(
-            onPressed: widget.onManageCrimeConsent,
-            icon: const Icon(Icons.privacy_tip_outlined),
-            label: const Text('犯罪資料查詢同意設定'),
-          ),
-        if (widget.onRevokeRoutingConsent != null)
-          TextButton.icon(
-            onPressed: widget.onRevokeRoutingConsent,
-            icon: const Icon(Icons.location_off_outlined),
-            label: const Text('撤回路線查詢同意'),
-          ),
-        const Align(alignment: Alignment.centerLeft, child: SwSourcesLink()),
+        ),
       ],
     );
   }
@@ -979,6 +983,39 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
     'work' => Icons.work_outline_rounded,
     _ => Icons.place_outlined,
   };
+
+  /// 點紫點：類別、日期、地點、來源、精度與限制（不放在路線資訊下方）。
+  Widget _crimeSheet(CrimeSpot c) {
+    final lines = c.label.split('\n');
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              width: 12,
+              height: 12,
+              decoration: const BoxDecoration(shape: BoxShape.circle, color: crimeMarkColor),
+            ),
+            const SizedBox(width: 8),
+            Expanded(child: Text(lines.first, style: SwText.bodyStrong)),
+            IconButton(
+              tooltip: '關閉',
+              icon: const Icon(Icons.close_rounded),
+              onPressed: () => setState(() => _crimeDetail = null),
+            ),
+          ],
+        ),
+        for (final line in lines.skip(1)) Text(line, style: SwText.small),
+        const SizedBox(height: 8),
+        Text('50 公尺避讓緩衝區', style: SwText.smallStrong),
+        Text(
+          '紫色圓是產品設定的繞行距離；參考位置並非精確案發點，圓形不是官方認定的犯罪範圍，也不保證沿途安全。',
+          style: SwText.small,
+        ),
+      ],
+    );
+  }
 
   Widget _startPickSheet() => Column(
     crossAxisAlignment: CrossAxisAlignment.start,

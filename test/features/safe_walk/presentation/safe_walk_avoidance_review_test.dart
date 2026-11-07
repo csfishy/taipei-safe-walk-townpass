@@ -71,27 +71,31 @@ void main() {
     expect(map.routeState.path, isNull);
   });
 
-  testWidgets('路線尚不可用仍可獨立管理犯罪查詢及撤回路線同意', (tester) async {
-    var manage = 0;
-    var revoke = 0;
+  testWidgets('路線尚不可用仍可從資料來源與授權管理兩種查詢設定', (tester) async {
+    var crime = 0;
+    var routing = 0;
     await _pump(
       tester,
       SafeWalkFlow(
         mode: sw.DataMode.live,
         crimeQueryStatus: '尚未同意犯罪資料查詢；未送出座標。',
-        onManageCrimeConsent: () => manage++,
-        onRevokeRoutingConsent: () => revoke++,
+        onManageCrimeConsent: () => crime++,
+        onManageRoutingConsent: () => routing++,
       ),
     );
     await tester.tap(find.text('安心行'));
     await tester.pumpAndSettle();
-    expect(find.text('尚未同意犯罪資料查詢；未送出座標。'), findsOneWidget);
-    await tester.ensureVisible(find.text('犯罪資料查詢同意設定'));
-    await tester.tap(find.text('犯罪資料查詢同意設定'));
-    await tester.ensureVisible(find.text('撤回路線查詢同意'));
-    await tester.tap(find.text('撤回路線查詢同意'));
-    expect(manage, 1);
-    expect(revoke, 1);
+    expect(find.text('尚未同意犯罪資料查詢；未送出座標。'), findsNothing, reason: '不在資訊框下方顯示狀態');
+    for (final name in ['路線查詢設定', '犯罪資料查詢設定']) {
+      final link = find.text('資料來源與授權').last;
+      await tester.ensureVisible(link);
+      await tester.tap(link);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(name));
+      await tester.pumpAndSettle();
+    }
+    expect(routing, 1);
+    expect(crime, 1);
   });
 
   testWidgets('50 公尺圓形保留，清楚標示產品緩衝且計入犯罪參考位置', (tester) async {
@@ -120,7 +124,9 @@ void main() {
     expect(circles.single.useRadiusInMeter, isTrue);
     expect(find.text('經過 1 個避讓緩衝區'), findsOneWidget);
     expect(find.text('不經過避讓緩衝區'), findsOneWidget);
-    await tester.ensureVisible(find.text('50 公尺避讓緩衝區'));
+    expect(find.text('50 公尺避讓緩衝區'), findsNothing, reason: '來源與精度改成點紫點才顯示');
+    await tester.tap(find.bySemanticsLabel(RegExp('^50 公尺避讓緩衝區：測試來源')));
+    await tester.pumpAndSettle();
     expect(find.text('50 公尺避讓緩衝區'), findsOneWidget);
     expect(find.textContaining('圓形不是官方認定的犯罪範圍'), findsOneWidget);
     expect(find.text('測試來源・2026-01-01・地址參考位置'), findsOneWidget);
