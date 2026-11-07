@@ -439,7 +439,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                     children: [
                       TextSpan(
                         text: '$minutes',
-                        style: SwText.title.copyWith(fontSize: 44, height: 1, color: SwColors.brandDeep),
+                        style: SwText.display.copyWith(height: 1, color: SwColors.brandDeep),
                       ),
                       TextSpan(text: ' 分鐘', style: SwText.heading),
                     ],
@@ -1095,7 +1095,7 @@ class _StepsList extends StatelessWidget {
             child: icon,
           ),
           const SizedBox(width: 12),
-          Expanded(child: Text(text, style: SwText.heading.copyWith(fontSize: 20))),
+          Expanded(child: Text(text, style: SwText.heading)),
           if (meters != null) Text(meters, style: SwText.secondary),
         ],
       ),
@@ -1154,7 +1154,7 @@ class _StepRow extends StatelessWidget {
                 ),
                 child: done
                     ? const Icon(Icons.check_rounded, size: 14, color: SwColors.onDeep)
-                    : Text('$index', style: SwText.small.copyWith(fontSize: 12, height: 1, color: now ? SwColors.warnText : SwColors.textSecondary)),
+                    : Text('$index', style: SwText.caption.copyWith(height: 1, color: now ? SwColors.warnText : SwColors.textSecondary)),
               ),
               if (!last) Expanded(child: Container(width: 2, color: done ? SwColors.brandDeep : SwColors.border)),
             ],
@@ -1221,10 +1221,7 @@ class _PlaceCard extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                     decoration: BoxDecoration(color: known ? SwColors.brandSoft : SwColors.warnBg, borderRadius: BorderRadius.circular(6)),
-                    child: Text(
-                      _open[p.availability]!,
-                      style: SwText.small.copyWith(color: known ? SwColors.brandDeep : SwColors.warnText, fontWeight: FontWeight.w600),
-                    ),
+                    child: Text(_open[p.availability]!, style: SwText.smallStrong.copyWith(color: known ? SwColors.brandDeep : SwColors.warnText)),
                   ),
                 ],
               ),
@@ -1347,14 +1344,7 @@ class _Legend extends StatelessWidget {
               ),
               '建議路線',
             ),
-          if (showShortcut)
-            item(
-              const Text(
-                '···',
-                style: TextStyle(color: TPColors.grayscale500, fontWeight: FontWeight.w900),
-              ),
-              '較短但經過異常',
-            ),
+          if (showShortcut) item(Text('···', style: SwText.bodyStrong.copyWith(color: TPColors.grayscale500)), '較短但經過異常'),
           item(const Icon(Icons.warning_rounded, size: 18, color: SwColors.warnMark), '異常回報'),
           item(const Icon(Icons.home_rounded, size: 18, color: SwColors.brandDeep), '家'),
           Text('示範地圖，非實際路網', style: SwText.small),
@@ -1425,11 +1415,7 @@ class _MapTool extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(icon, color: fg, size: 24),
-                Text(
-                  caption,
-                  maxLines: 1,
-                  style: SwText.small.copyWith(color: fg, fontWeight: FontWeight.w700, fontSize: 12, height: 1.2),
-                ),
+                Text(caption, maxLines: 1, style: SwText.caption.copyWith(color: fg, height: 1.2)),
               ],
             ),
           ),

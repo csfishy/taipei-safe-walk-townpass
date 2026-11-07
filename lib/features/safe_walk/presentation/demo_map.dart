@@ -257,10 +257,7 @@ class _PointMark extends StatelessWidget {
       border: Border.all(color: selected ? SwColors.brand : SwColors.surface, width: 3),
       boxShadow: SwShadow.float,
     ),
-    child: Text(
-      glyph,
-      style: SwText.small.copyWith(color: SwColors.onDeep, fontWeight: FontWeight.w700, fontSize: 12, height: 1),
-    ),
+    child: Text(glyph, style: SwText.caption.copyWith(color: SwColors.onDeep, height: 1)),
   );
 }
 

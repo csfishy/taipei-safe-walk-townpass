@@ -59,7 +59,7 @@ class SafeWalkEmergencyView extends StatelessWidget {
                   children: [
                     Semantics(
                       header: true,
-                      child: Text('緊急求助', style: SwText.title.copyWith(fontSize: 30, color: SwColors.sos)),
+                      child: Text('緊急求助', style: SwText.title.copyWith(color: SwColors.sos)),
                     ),
                     const SizedBox(height: 8),
                     SwMockBadge(text: note),
@@ -243,7 +243,7 @@ class _SmsReportCardState extends State<_SmsReportCard> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('簡訊報警', style: SwText.heading.copyWith(fontSize: 20, color: SwColors.sos)),
+                            Text('簡訊報警', style: SwText.heading.copyWith(color: SwColors.sos)),
                             Text('不方便說話時，用文字通知', style: SwText.secondary),
                           ],
                         ),
@@ -359,7 +359,7 @@ class _SmsReportCardState extends State<_SmsReportCard> {
               ),
             ),
             const SizedBox(width: 12),
-            Expanded(child: Text(mock ? '示範完成／未傳送簡訊' : '已開啟簡訊 App', style: SwText.heading.copyWith(fontSize: 20))),
+            Expanded(child: Text(mock ? '示範完成／未傳送簡訊' : '已開啟簡訊 App', style: SwText.heading)),
           ],
         ),
         const SizedBox(height: 8),
@@ -408,7 +408,7 @@ class _CallButton extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: SwText.title.copyWith(color: SwColors.onDeep, fontSize: 24)),
+                  Text(title, style: SwText.title.copyWith(color: SwColors.onDeep)),
                   const SizedBox(height: 2),
                   Text(when, style: SwText.body.copyWith(color: SwColors.onDeep)),
                 ],

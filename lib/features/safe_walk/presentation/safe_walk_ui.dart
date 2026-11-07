@@ -27,12 +27,16 @@ abstract final class SwColors {
 abstract final class SwText {
   // 與臺北通 TPText 一致：英文與數字用 Roboto，中文落到 PingFangTC（Roboto 沒有中文字）。
   static TextStyle _tp(TextStyle s) => s.copyWith(fontFamily: 'Roboto', fontFamilyFallback: const ['PingFangTC']);
-  static TextStyle title = _tp(TPTextStyles.h2SemiBold.copyWith(color: SwColors.text));
-  static TextStyle heading = _tp(TPTextStyles.titleSemiBold.copyWith(color: SwColors.text));
-  static TextStyle body = _tp(TPTextStyles.h3Regular.copyWith(color: SwColors.text, height: 1.5));
-  static TextStyle bodyStrong = _tp(TPTextStyles.h3SemiBold.copyWith(color: SwColors.text, height: 1.5));
-  static TextStyle secondary = _tp(TPTextStyles.h3Regular.copyWith(color: SwColors.textSecondary, height: 1.5));
-  static TextStyle small = _tp(TPTextStyles.bodyRegular.copyWith(color: SwColors.textSecondary, height: 1.5));
+  // 字級一律對應 TPTextStyles（36／24／18／16／14／12），不在畫面上另設 fontSize、fontWeight；臺北通調整字級時安心行會跟著變。
+  static TextStyle display = _tp(TPTextStyles.h1SemiBold.copyWith(color: SwColors.text)); // 36
+  static TextStyle title = _tp(TPTextStyles.h2SemiBold.copyWith(color: SwColors.text)); // 24
+  static TextStyle heading = _tp(TPTextStyles.titleSemiBold.copyWith(color: SwColors.text)); // 18
+  static TextStyle body = _tp(TPTextStyles.h3Regular.copyWith(color: SwColors.text, height: 1.5)); // 16
+  static TextStyle bodyStrong = _tp(TPTextStyles.h3SemiBold.copyWith(color: SwColors.text, height: 1.5)); // 16
+  static TextStyle secondary = _tp(TPTextStyles.h3Regular.copyWith(color: SwColors.textSecondary, height: 1.5)); // 16
+  static TextStyle small = _tp(TPTextStyles.bodyRegular.copyWith(color: SwColors.textSecondary, height: 1.5)); // 14
+  static TextStyle smallStrong = _tp(TPTextStyles.bodySemiBold.copyWith(color: SwColors.textSecondary, height: 1.5)); // 14
+  static TextStyle caption = _tp(TPTextStyles.caption.copyWith(color: SwColors.textSecondary)); // 12
 }
 
 const double swTouch = 48;
@@ -276,10 +280,7 @@ class SwMockBadge extends StatelessWidget {
       borderRadius: BorderRadius.circular(6),
       border: Border.all(color: TPColors.secondary300),
     ),
-    child: Text(
-      text,
-      style: SwText.small.copyWith(color: SwColors.warnText, fontWeight: FontWeight.w600),
-    ),
+    child: Text(text, style: SwText.smallStrong.copyWith(color: SwColors.warnText)),
   );
 }
 

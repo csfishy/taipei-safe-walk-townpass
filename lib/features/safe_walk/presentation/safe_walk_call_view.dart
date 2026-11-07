@@ -415,15 +415,9 @@ class _Bubble extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          caller ? '對方' : '我',
-          style: SwText.small.copyWith(fontWeight: FontWeight.w700, color: caller ? SwColors.textSecondary : SwColors.onDeep),
-        ),
+        Text(caller ? '對方' : '我', style: SwText.smallStrong.copyWith(color: caller ? SwColors.textSecondary : SwColors.onDeep)),
         const SizedBox(height: 2),
-        Text(
-          entry.text,
-          style: SwText.heading.copyWith(fontSize: 20, fontWeight: FontWeight.w500, height: 1.5, color: caller ? SwColors.text : SwColors.onDeep),
-        ),
+        Text(entry.text, style: SwText.heading.copyWith(height: 1.5, color: caller ? SwColors.text : SwColors.onDeep)),
         if (caller) ...[
           const SizedBox(height: 4),
           Row(
@@ -433,7 +427,7 @@ class _Bubble extends StatelessWidget {
               const SizedBox(width: 4),
               Text(
                 speaking ? (silent ? '播放中（無聲示範）・點一下停止' : '朗讀中・點一下停止') : '點一下重播',
-                style: SwText.small.copyWith(color: speaking ? SwColors.brandDeep : SwColors.textSecondary, fontWeight: speaking ? FontWeight.w700 : FontWeight.w400),
+                style: (speaking ? SwText.smallStrong : SwText.small).copyWith(color: speaking ? SwColors.brandDeep : SwColors.textSecondary),
               ),
             ],
           ),
@@ -561,7 +555,7 @@ class _NextStep extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(headline, style: SwText.heading.copyWith(fontSize: 20)),
+                        Text(headline, style: SwText.heading),
                         Text(sub, style: SwText.secondary),
                       ],
                     ),
@@ -686,13 +680,13 @@ class _IncomingState extends State<_Incoming> with SingleTickerProviderStateMixi
                                             height: 104,
                                             alignment: Alignment.center,
                                             decoration: BoxDecoration(color: TPColors.white, shape: BoxShape.circle, boxShadow: SwShadow.float),
-                                            child: Text('家', style: SwText.title.copyWith(fontSize: 44, color: TPColors.primary700)),
+                                            child: Text('家', style: SwText.display.copyWith(color: TPColors.primary700)),
                                           ),
                                         ),
                                       ),
                                     ),
                                     const SizedBox(height: 16),
-                                    Text('家人', style: SwText.title.copyWith(fontSize: 34, color: SwColors.onDeep)),
+                                    Text('家人', style: SwText.display.copyWith(color: SwColors.onDeep)),
                                     const SizedBox(height: 4),
                                     Row(
                                       mainAxisSize: MainAxisSize.min,
