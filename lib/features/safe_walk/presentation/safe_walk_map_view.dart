@@ -342,6 +342,21 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
     }
   }
 
+  /// 定位不到時，改在地圖上選起點，選好就從那裡重新找求助地點。
+  List<Widget> _pickStartChip() => [
+    if (widget.onStartChanged != null) ...[
+      const SizedBox(height: 8),
+      SwChip(
+        label: '在地圖上選起點',
+        icon: Icons.edit_location_alt_outlined,
+        onTap: () => setState(() {
+          _pickingStart = true;
+          if (_size == _SheetSize.collapsed) _size = _SheetSize.normal;
+        }),
+      ),
+    ],
+  ];
+
   /// 路線服務給的逐路口文字（Valhalla 路名）；沒有時用幾何推算方向。
   List<RouteInstruction>? _instructions(RouteState rs) {
     final best = rs.best;
@@ -602,6 +617,10 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                               _pickingStart = false;
                               _toast = '已設定起點';
                             });
+                            // 正在找求助地點：從新的起點重新查。
+                            if (_pointsView || _pointIndex != null) {
+                              widget.pointsState.onRetry?.call();
+                            }
                           }
                         : _newPlaceName != null
                         ? (at) async {
@@ -924,7 +943,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
               ],
             ),
           )
-        else if (!isHome && ps.error != null)
+        else if (!isHome && ps.error != null) ...[
           SwStateMessage(
             icon: Icons.cloud_off_rounded,
             title: '求助地點暫時載入失敗',
@@ -932,7 +951,9 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
             actionLabel: '再試一次',
             onAction: ps.onRetry,
             error: true,
-          )
+          ),
+          ..._pickStartChip(),
+        ]
         else if (!isHome && point == null)
           SwStateMessage(
             icon: Icons.search_off_rounded,
@@ -1650,13 +1671,19 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
     final ps = widget.pointsState;
     if (ps.loading) return const SwSkeleton();
     if (ps.error != null) {
-      return SwStateMessage(
-        icon: Icons.cloud_off_rounded,
-        title: '求助地點暫時載入失敗',
-        message: ps.error!,
-        actionLabel: '再試一次',
-        onAction: ps.onRetry,
-        error: true,
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SwStateMessage(
+            icon: Icons.cloud_off_rounded,
+            title: '求助地點暫時載入失敗',
+            message: ps.error!,
+            actionLabel: '再試一次',
+            onAction: ps.onRetry,
+            error: true,
+          ),
+          ..._pickStartChip(),
+        ],
       );
     }
     if (points.isEmpty) {

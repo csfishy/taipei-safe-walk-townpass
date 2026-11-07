@@ -710,7 +710,11 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
 
     final origin = await _consentedOrigin(operation, isCurrent: alive);
     if (origin == null || !current()) {
-      return fail('需要同意路線查詢並取得位置，才能找附近營業中的店家。');
+      return fail(
+        _navigation.hasRoutingConsent
+            ? '取得不到夠精確的位置（需 100 公尺內）。可以在地圖上選起點，再找附近營業中的店家。'
+            : '需要同意路線查詢並取得位置，才能找附近營業中的店家。',
+      );
     }
     final List<NearestPoint> stores;
     try {
