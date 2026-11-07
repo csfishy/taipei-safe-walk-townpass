@@ -61,7 +61,13 @@ class SafeWalkCompositionRoot extends StatefulWidget {
     this.reviewedAreas = const [],
     this.showLiveMap = true,
     this.findStores,
+    this.consentGranted = false,
   });
+
+  /// Official entry (2026-11-08 team decision): route and crime queries run
+  /// without a consent dialog and the query settings are hidden. Tests keep
+  /// the consent flow by leaving this false.
+  final bool consentGranted;
 
   /// Nearby help points; defaults to the bundled OpenStreetMap snapshot of
   /// convenience stores and police (opening hours read at lookup time).
@@ -428,6 +434,11 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
       liveProviderReady: widget.liveRoutes,
     );
     _navigation.addListener(_syncFollowing);
+    if (widget.liveRoutes && widget.consentGranted) {
+      _navigation.setRoutingConsent(true);
+      _hasCrimeConsent = _crime.isConfigured;
+      _crimeConsentAsked = true;
+    }
     if (widget.liveRoutes) {
       _report = SafeWalkReportStatusController(
         repository: _crime,
@@ -1148,12 +1159,12 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
         onLeaveMap: _closeNavigation,
         crimeSpots: _crimeSpots,
         crimeQueryStatus: widget.liveRoutes ? _crimeQueryStatus : null,
-        onManageCrimeConsent: widget.liveRoutes
+        onManageCrimeConsent: widget.liveRoutes && !widget.consentGranted
             ? () => unawaited(_manageCrimeConsent())
             : null,
         routingConsent: _navigation.hasRoutingConsent,
         crimeConsent: _hasCrimeConsent,
-        onManageRoutingConsent: widget.liveRoutes
+        onManageRoutingConsent: widget.liveRoutes && !widget.consentGranted
             ? () => unawaited(_manageRoutingConsent())
             : null,
         onStartChanged: widget.liveRoutes
