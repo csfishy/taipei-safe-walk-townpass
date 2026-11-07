@@ -1137,7 +1137,17 @@ void main() {
           db: db,
           showMap: true,
         );
-        await openMap(t);
+        Future<void> openTilesOnly() async {
+          await openMap(t);
+          // With no saved home, map entry still asks for routing consent.
+          // Dismiss the modal through the UI before testing navigation.
+          expect(find.text('規劃路線需要你的位置'), findsOneWidget);
+          await t.tap(find.widgetWithText(TextButton, '不要'));
+          await t.pumpAndSettle();
+          expect(find.byType(AlertDialog), findsNothing);
+        }
+
+        await openTilesOnly();
         void expectDirectMap() {
           expect(find.text('地圖載入設定'), findsNothing);
           expect(find.text('同意載入'), findsNothing);
@@ -1148,7 +1158,7 @@ void main() {
 
         expectDirectMap();
         await leaveMap(t);
-        await openMap(t);
+        await openTilesOnly();
         expectDirectMap();
         t.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
         await t.pump();

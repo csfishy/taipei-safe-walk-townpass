@@ -239,6 +239,17 @@ Future<void> _openCrimeSettings(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
+Future<void> _openMapWithoutRouting(WidgetTester tester) async {
+  await tester.tap(find.text('安心行'));
+  await tester.pumpAndSettle();
+  // An unset home now prompts for consent on entry. Decline before opening
+  // the independent crime settings so this flow cannot start GPS or routing.
+  expect(find.text('規劃路線需要你的位置'), findsOneWidget);
+  await tester.tap(find.widgetWithText(TextButton, '不要'));
+  await tester.pumpAndSettle();
+  expect(find.byType(AlertDialog), findsNothing);
+}
+
 void _interrupt(WidgetTester tester, String reason) {
   switch (reason) {
     case 'leave':
@@ -266,8 +277,7 @@ void main() {
       routes,
       CrimeReferenceRepository(transport: null),
     );
-    await tester.tap(find.text('安心行'));
-    await tester.pumpAndSettle();
+    await _openMapWithoutRouting(tester);
     await _openCrimeSettings(tester);
     expect(find.text('犯罪資料查詢暫時無法使用'), findsOneWidget);
     expect(find.textContaining('請更新至最新版本'), findsOneWidget);
@@ -297,8 +307,7 @@ void main() {
         },
       ),
     );
-    await tester.tap(find.text('安心行'));
-    await tester.pumpAndSettle();
+    await _openMapWithoutRouting(tester);
     await _openCrimeSettings(tester);
     expect(find.text('犯罪參考資料查詢同意'), findsOneWidget);
     await tester.tap(find.text('同意查詢'));
