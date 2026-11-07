@@ -225,6 +225,7 @@ final class SafeWalkLiveLoopController extends ChangeNotifier {
         locationTimeout,
       );
     } on SafeWalkCancelledException {
+      if (_current(generation)) _fail(LiveLoopFailure.cancelled);
       return;
     } on TimeoutException {
       if (!_current(generation)) return;
@@ -303,6 +304,7 @@ final class SafeWalkLiveLoopController extends ChangeNotifier {
         routeTimeout,
       );
     } on SafeWalkCancelledException {
+      if (_current(generation)) _fail(LiveLoopFailure.cancelled);
       return;
     } on TimeoutException {
       if (!_current(generation)) return;
@@ -358,6 +360,10 @@ final class SafeWalkLiveLoopController extends ChangeNotifier {
       _alert = alert;
       _referenceState = LiveLoopReferenceState.done;
     } on SafeWalkCancelledException {
+      if (_current(generation)) {
+        _clearRoute();
+        _fail(LiveLoopFailure.cancelled);
+      }
       return;
     } on TimeoutException {
       if (!_current(generation)) return;
@@ -424,6 +430,8 @@ final class SafeWalkLiveLoopController extends ChangeNotifier {
   bool _isLiveFix(sw.Position position) =>
       position.source == sw.PositionSource.gps &&
       position.accuracyMeters != null &&
+      position.accuracyMeters!.isFinite &&
+      position.accuracyMeters! >= 0 &&
       position.accuracyMeters! <= 100 &&
       positionProblems(position, now: _clock()).isEmpty;
 
@@ -556,10 +564,17 @@ final class SafeWalkReportStatusController extends ChangeNotifier {
   int _generation = 0;
   _Token? _token;
   bool _disposed = false;
+  bool _foreground = true;
+
+  void setForeground(bool foreground) {
+    if (_disposed || _foreground == foreground) return;
+    _foreground = foreground;
+    if (!foreground) cancel();
+  }
 
   /// Called on every entry to the screen; a newer call supersedes older ones.
   Future<void> load() async {
-    if (_disposed) return;
+    if (_disposed || !_foreground) return;
     _generation++;
     _token?.cancel();
     final generation = _generation;
@@ -583,6 +598,11 @@ final class SafeWalkReportStatusController extends ChangeNotifier {
       _result = result;
       _stage = ReportStatusStage.answered;
     } on SafeWalkCancelledException {
+      if (_isCurrent(generation)) {
+        _token = null;
+        _stage = ReportStatusStage.cancelled;
+        _notify();
+      }
       return;
     } on TimeoutException {
       if (!_isCurrent(generation)) return;
@@ -650,7 +670,10 @@ Future<T> _guard<T>(Future<T> Function() work, _Token token, Duration timeout) {
       }
     }),
   );
-  Future.sync(work).then(
+  Future.sync(() {
+    token.throwIfCancelled();
+    return work();
+  }).then(
     (value) {
       if (!completer.isCompleted) completer.complete(value);
     },

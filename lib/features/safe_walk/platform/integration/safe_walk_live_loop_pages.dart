@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:town_pass/features/safe_walk/navigation/coordinate_math.dart';
 import 'package:town_pass/features/safe_walk/navigation/route_reference_area_check.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/crime_reference_live_check_page.dart';
@@ -24,6 +25,7 @@ class SafeWalkLiveRoutePage extends StatefulWidget {
     required this.onBack,
     required this.onEmergency,
     this.showMap = true,
+    this.savedHome,
   });
 
   final SafeWalkLiveLoopController controller;
@@ -32,6 +34,7 @@ class SafeWalkLiveRoutePage extends StatefulWidget {
 
   /// Tests disable OSM tiles to avoid network access.
   final bool showMap;
+  final sw.Coordinates? savedHome;
 
   @override
   State<SafeWalkLiveRoutePage> createState() => _SafeWalkLiveRoutePageState();
@@ -40,6 +43,7 @@ class SafeWalkLiveRoutePage extends StatefulWidget {
 class _SafeWalkLiveRoutePageState extends State<SafeWalkLiveRoutePage> {
   final _lat = TextEditingController();
   final _lng = TextEditingController();
+  bool _mapConsent = false;
 
   SafeWalkLiveLoopController get _c => widget.controller;
 
@@ -97,14 +101,16 @@ class _SafeWalkLiveRoutePageState extends State<SafeWalkLiveRoutePage> {
               contentPadding: EdgeInsets.zero,
               value: _c.routingConsent,
               onChanged: _c.setRoutingConsent,
-              title: const Text('同意將起訖座標傳送至第三方 OSRM 步行路線服務'),
+              title: const Text(
+                '同意將起訖座標傳送至第三方 OSRM 步行路線服務（routing.openstreetmap.de）',
+              ),
             ),
             SwitchListTile(
               key: const Key('live-consent-reference'),
               contentPadding: EdgeInsets.zero,
               value: _c.referenceConsent,
               onChanged: _c.setReferenceConsent,
-              title: const Text('同意以路線外框（約加 200 公尺）查詢犯罪參考資料'),
+              title: const Text('同意將路線外框（約加 200 公尺）傳送至 Supabase 犯罪參考資料服務進行查詢'),
             ),
             FilledButton(
               key: const Key('live-locate'),
@@ -118,6 +124,14 @@ class _SafeWalkLiveRoutePageState extends State<SafeWalkLiveRoutePage> {
               key: const Key('live-origin'),
             ),
             const SizedBox(height: 8),
+            if (widget.savedHome != null)
+              TextButton(
+                key: const Key('live-use-saved-home'),
+                onPressed: working
+                    ? null
+                    : () => _c.setDestination(widget.savedHome),
+                child: const Text('使用已儲存的家作為目的地'),
+              ),
             const Text('選擇目的地：在地圖上點選，或輸入座標。'),
             Row(
               children: [
@@ -155,7 +169,18 @@ class _SafeWalkLiveRoutePageState extends State<SafeWalkLiveRoutePage> {
               _c.destination == null ? '尚未選擇目的地。' : '已選擇目的地。',
               key: const Key('live-destination'),
             ),
-            if (widget.showMap && _c.origin != null)
+            if (widget.showMap)
+              SwitchListTile(
+                key: const Key('live-consent-map'),
+                contentPadding: EdgeInsets.zero,
+                value: _mapConsent,
+                onChanged: (value) => setState(() => _mapConsent = value),
+                title: const Text(
+                  '同意載入 OpenStreetMap 地圖圖磚（tile.openstreetmap.org）',
+                ),
+                subtitle: const Text('會傳送目前檢視範圍，可能包含起點與目的地；不同意仍可輸入座標規劃。'),
+              ),
+            if (widget.showMap && _mapConsent && _c.origin != null)
               SizedBox(
                 height: 280,
                 child: SafeWalkLiveMap(
@@ -273,6 +298,7 @@ class SafeWalkReportStatusPage extends StatefulWidget {
 
 class _SafeWalkReportStatusPageState extends State<SafeWalkReportStatusPage> {
   SafeWalkReportStatusController get _c => widget.controller;
+  bool _mapConsent = false;
 
   @override
   void initState() {
@@ -309,6 +335,12 @@ class _SafeWalkReportStatusPageState extends State<SafeWalkReportStatusPage> {
           padding: const EdgeInsets.all(16),
           children: [
             const Text('使用者回報尚未接上真實後端；本頁只查詢資料庫現況，不送出任何回報。'),
+            if (widget.showMap)
+              SwitchListTile(
+                value: _mapConsent,
+                onChanged: (value) => setState(() => _mapConsent = value),
+                title: const Text('同意向 OpenStreetMap 載入檢視範圍的圖磚'),
+              ),
             const SizedBox(height: 8),
             ...switch (_c.stage) {
               ReportStatusStage.idle || ReportStatusStage.loading => [
@@ -371,7 +403,7 @@ class _SafeWalkReportStatusPageState extends State<SafeWalkReportStatusPage> {
             '「${a.label}」：${a.evidence}',
             key: ValueKey('report-area-${a.id}'),
           ),
-        if (widget.showMap)
+        if (widget.showMap && _mapConsent)
           SizedBox(
             height: 240,
             child: SafeWalkLiveMap(areas: areas, candidates: const []),
@@ -470,14 +502,36 @@ class SafeWalkLiveMap extends StatelessWidget {
             ),
           ],
         ),
-        const Positioned(
+        Positioned(
           right: 4,
           bottom: 2,
           child: ColoredBox(
             color: Colors.white70,
-            child: Text(
-              '© OpenStreetMap contributors',
-              style: TextStyle(fontSize: 10),
+            child: TextButton(
+              onPressed: () async {
+                try {
+                  final opened = await launchUrl(
+                    Uri.parse('https://www.openstreetmap.org/copyright'),
+                    mode: LaunchMode.externalApplication,
+                  );
+                  if (opened) return;
+                } catch (_) {
+                  // Display a fixed public URL when the platform cannot open it.
+                }
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        '請瀏覽 https://www.openstreetmap.org/copyright 查看地圖授權。',
+                      ),
+                    ),
+                  );
+                }
+              },
+              child: const Text(
+                '© OpenStreetMap contributors',
+                style: TextStyle(fontSize: 10),
+              ),
             ),
           ),
         ),

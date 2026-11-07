@@ -90,7 +90,7 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
 
   /// 進行中的模擬來電；去地圖看路再回來會接續。結束通話、拒絕、緊急求助、回首頁時丟棄。
   SafeWalkCallSession? _call;
-  late final List<SavedPlace> _places = [...demoPlaces()];
+  late final List<SavedPlace> _places = widget.liveMapBuilder == null ? [...demoPlaces()] : [];
   String _placeId = 'home';
 
   @override
@@ -111,6 +111,12 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
 
   /// 已儲存的家取代示範的家；缺值保留 Mock 展示資料，Live 由規劃入口阻擋。
   void _applyHome() {
+    if (widget.liveMapBuilder != null) {
+      _places.removeWhere((p) => p.isHome);
+      final home = widget.homeLocation;
+      if (home != null) _places.add(SavedPlace('home', '家', LatLng(home.lat, home.lng)));
+      return;
+    }
     final i = _places.indexWhere((p) => p.isHome);
     final h = widget.homeLocation;
     final next = h == null ? demoPlaces().first : SavedPlace('home', '家', LatLng(h.lat, h.lng));
@@ -172,7 +178,7 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
   void _go(_Screen s) {
     if (_screen == _Screen.call && s != _Screen.call) _callKey.currentState?.leave();
     // 使用者明確打開地圖（點「安心行」主卡）時才請 M1 規劃路線；一進安心行不自動送出。
-    if (s == _Screen.map && _screen != _Screen.map) _planRoute();
+    if (s == _Screen.map && _screen != _Screen.map && widget.liveMapBuilder == null) _planRoute();
     if (s == _Screen.home) _call = null;
     setState(() {
       _forward = s != _Screen.home && s != _back;
@@ -253,7 +259,8 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
     );
     final child = switch (_screen) {
       _Screen.home => SafeWalkHomeView(
-        destination: _place.label,
+        destination: widget.liveMapBuilder == null ? _place.label : '目的地',
+        isLive: widget.mode == sw.DataMode.live,
         homeSet: widget.homeLocation != null,
         onEditHome: widget.onHomeChanged == null ? null : () => _go(_Screen.homeSetting),
         avoided: avoidedCount(_anomalies),
@@ -273,7 +280,12 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
         onBack: () => _go(_Screen.home),
       ),
       _Screen.map => widget.liveMapBuilder?.call(context, () => _go(_Screen.home), _openEmergency) ?? map(),
-      _Screen.points => map(start: MapStartView.points),
+      _Screen.points => widget.liveMapBuilder == null
+          ? map(start: MapStartView.points)
+          : Scaffold(
+              appBar: AppBar(title: const Text('附近求助地點'), leading: BackButton(onPressed: () => _go(_Screen.home))),
+              body: const Padding(padding: EdgeInsets.all(24), child: Text('附近求助地點查詢尚未接線，未取得任何場所資料。請使用已知的警察局或便利商店資訊。')),
+            ),
       _Screen.report => widget.reportBuilder?.call(context, () => _go(_Screen.home)) ?? map(start: MapStartView.report),
       _Screen.call => SafeWalkCallView(
         key: _callKey,
