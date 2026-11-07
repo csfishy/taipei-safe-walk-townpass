@@ -8,7 +8,8 @@ import 'package:town_pass/features/safe_walk/presentation/safe_walk_home_view.da
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_map_view.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_speaker.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_ui.dart';
-import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart' as sw;
+import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart'
+    as sw;
 
 enum _Screen { home, map, points, report, call, emergency, homeSetting }
 
@@ -110,7 +111,8 @@ class SafeWalkFlow extends StatefulWidget {
   final Future<sw.LocationResult> Function()? onLocate;
 
   /// M1：使用者選 110／119 時呼叫 PlatformService.requestEmergency(userInitiated: true)。
-  final Future<sw.EmergencyActionResult> Function(sw.EmergencyChannel channel)? onEmergency;
+  final Future<sw.EmergencyActionResult> Function(sw.EmergencyChannel channel)?
+  onEmergency;
 
   /// M1：使用者確認簡訊內容後，交給手機開啟簡訊 App；null 時只模擬傳送畫面。
   final Future<bool> Function(String body)? onSendSms;
@@ -249,8 +251,12 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> with WidgetsBindingObserver
 
   SavedPlace get _place => _places.firstWhere((p) => p.id == _placeId, orElse: () => _places.first);
   // Live mode never shows invented danger points or stand-in assistance points.
-  late List<Anomaly> _anomalies = widget.mode == sw.DataMode.mock ? demoAnomalies() : <Anomaly>[];
-  late List<sw.AssistancePoint> _demoPoints = widget.mode == sw.DataMode.mock ? demoAssistancePoints() : const <sw.AssistancePoint>[];
+  late List<Anomaly> _anomalies = widget.mode == sw.DataMode.mock
+      ? demoAnomalies()
+      : <Anomaly>[];
+  late List<sw.AssistancePoint> _demoPoints = widget.mode == sw.DataMode.mock
+      ? demoAssistancePoints()
+      : const <sw.AssistancePoint>[];
 
   String? get _nearestPointName {
     final pts = _pointsState.points;
@@ -262,7 +268,10 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> with WidgetsBindingObserver
     return sorted.first.name;
   }
 
-  bool get _missingLiveHome => widget.mode == sw.DataMode.live && _place.isHome && widget.homeLocation == null;
+  bool get _missingLiveHome =>
+      widget.mode == sw.DataMode.live &&
+      _place.isHome &&
+      widget.homeLocation == null;
 
   RouteState get _routeState {
     if (_missingLiveHome) {
@@ -278,7 +287,12 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> with WidgetsBindingObserver
         allowDemoFallback: false,
       );
     }
-    return RouteState(result: widget.route, loading: widget.routeLoading, allowDemoFallback: widget.mode == sw.DataMode.mock, onRetry: widget.onPlanRoute == null ? null : _planRoute);
+    return RouteState(
+      result: widget.route,
+      loading: widget.routeLoading,
+      allowDemoFallback: widget.mode == sw.DataMode.mock,
+      onRetry: widget.onPlanRoute == null ? null : _planRoute,
+    );
   }
 
   void _planRoute({sw.Coordinates? savedDestination}) {
@@ -314,7 +328,11 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> with WidgetsBindingObserver
   }
 
   PointsState get _pointsState => PointsState(
-    points: widget.points ?? (widget.pointsLoading || widget.pointsError != null ? const [] : _demoPoints),
+    points:
+        widget.points ??
+        (widget.pointsLoading || widget.pointsError != null
+            ? const []
+            : _demoPoints),
     loading: widget.pointsLoading,
     error: widget.pointsError,
     onRetry: widget.onRetryPoints,
@@ -367,7 +385,9 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> with WidgetsBindingObserver
     widget.speaker.stop();
     setState(() {
       _forward = true;
-      _back = _screen == _Screen.call || _screen == _Screen.emergency ? _Screen.home : _screen;
+      _back = _screen == _Screen.call || _screen == _Screen.emergency
+          ? _Screen.home
+          : _screen;
       _emergencyMessage = null;
       _screen = _Screen.emergency;
     });
@@ -455,7 +475,11 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> with WidgetsBindingObserver
       placeId: _placeId,
       onSelectPlace: _selectPlace,
       onAddPlace: (name, at) {
-        final p = SavedPlace('place-${DateTime.now().microsecondsSinceEpoch}', name, at);
+        final p = SavedPlace(
+          'place-${DateTime.now().microsecondsSinceEpoch}',
+          name,
+          at,
+        );
         setState(() => _places.add(p));
         _selectPlace(p.id);
       },
@@ -474,7 +498,9 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> with WidgetsBindingObserver
         isLive: widget.mode == sw.DataMode.live,
         destination: _place.label,
         homeSet: widget.homeLocation != null,
-        onEditHome: widget.onHomeChanged == null ? null : () => _go(_Screen.homeSetting),
+        onEditHome: widget.onHomeChanged == null
+            ? null
+            : () => _go(_Screen.homeSetting),
         avoided: avoidedCount(_anomalies),
         onBack: widget.onExit,
         onEmergency: _openEmergency,
@@ -486,9 +512,14 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> with WidgetsBindingObserver
         }),
       ),
       _Screen.homeSetting => SafeWalkHomeSettingView(
-        initial: widget.homeLocation == null ? null : LatLng(widget.homeLocation!.lat, widget.homeLocation!.lng),
-        onSave: (at) => widget.onHomeChanged!(sw.Coordinates(lat: at.lat, lng: at.lng)),
-        onClear: widget.homeLocation == null ? null : () => widget.onHomeChanged!(null),
+        initial: widget.homeLocation == null
+            ? null
+            : LatLng(widget.homeLocation!.lat, widget.homeLocation!.lng),
+        onSave: (at) =>
+            widget.onHomeChanged!(sw.Coordinates(lat: at.lat, lng: at.lng)),
+        onClear: widget.homeLocation == null
+            ? null
+            : () => widget.onHomeChanged!(null),
         onBack: () => _go(_Screen.home),
       ),
       _Screen.map => map(),
@@ -534,7 +565,9 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> with WidgetsBindingObserver
         switchInCurve: SwMotion.curve,
         switchOutCurve: Curves.easeIn,
         transitionBuilder: (c, a) {
-          final begin = _screen == _Screen.emergency ? const Offset(0, .12) : Offset(_forward ? .12 : -.12, 0);
+          final begin = _screen == _Screen.emergency
+              ? const Offset(0, .12)
+              : Offset(_forward ? .12 : -.12, 0);
           return FadeTransition(
             opacity: a,
             child: SlideTransition(

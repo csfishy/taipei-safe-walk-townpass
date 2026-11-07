@@ -23,8 +23,13 @@ final class CrimeReferenceHttpResponse {
 /// Calls `POST /rest/v1/rpc/<crimeReferenceRpcFunction>` with the JSON
 /// [arguments]. [TimeoutException] means timeout; [SafeWalkCancelledException]
 /// preserves cancellation. Other throws mean network failure. Injected by M1.
+/// Transports must check cancellation after connecting, before writing the
+/// potentially location-bearing body, and abort their request when cancelled.
 typedef CrimeReferenceRpcTransport =
-    Future<CrimeReferenceHttpResponse> Function(Map<String, Object?> arguments);
+    Future<CrimeReferenceHttpResponse> Function(
+      Map<String, Object?> arguments, {
+      SafeWalkCancellation? cancellation,
+    });
 
 enum CrimeReferenceFailure {
   /// Network error before an HTTP answer.
@@ -94,7 +99,18 @@ final class CrimeReferenceRepository {
     }
     final CrimeReferenceHttpResponse response;
     try {
-      response = await transport(query.toRpcArguments());
+      final pending = transport(
+        query.toRpcArguments(),
+        cancellation: cancellation,
+      );
+      response = await (cancellation == null
+          ? pending
+          : Future.any<CrimeReferenceHttpResponse>([
+              pending,
+              cancellation.whenCancelled.then<CrimeReferenceHttpResponse>(
+                (_) => throw const SafeWalkCancelledException(),
+              ),
+            ]));
     } on SafeWalkCancelledException {
       rethrow;
     } on TimeoutException {

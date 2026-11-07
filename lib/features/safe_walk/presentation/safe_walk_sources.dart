@@ -61,92 +61,102 @@ const swDataSources = <SwDataSource>[
 ];
 
 /// 一個查詢設定（例如路線查詢、犯罪資料查詢）；點了開啟同意視窗。
-typedef SwQuerySetting = ({IconData icon, String label, VoidCallback onTap});
+typedef SwQuerySetting = ({
+  IconData icon,
+  String label,
+  String status,
+  VoidCallback onTap,
+});
 
 /// 從下方彈出的「資料來源與授權」說明；[settings] 放在最上方。
 Future<void> showSwDataSources(
   BuildContext context, {
   List<SwQuerySetting> settings = const [],
-}) =>
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: SwColors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+}) => showModalBottomSheet<void>(
+  context: context,
+  isScrollControlled: true,
+  backgroundColor: SwColors.surface,
+  shape: const RoundedRectangleBorder(
+    borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+  ),
+  builder: (sheet) => SafeArea(
+    child: ConstrainedBox(
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.sizeOf(sheet).height * .85,
       ),
-      builder: (sheet) => SafeArea(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.sizeOf(sheet).height * .85,
-          ),
-          child: ListView(
-            shrinkWrap: true,
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: SwColors.border,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
+      child: ListView(
+        shrinkWrap: true,
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        children: [
+          Center(
+            child: Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: SwColors.border,
+                borderRadius: BorderRadius.circular(2),
               ),
-              const SizedBox(height: 12),
-              if (settings.isNotEmpty) ...[
-                Semantics(
-                  header: true,
-                  child: Text('查詢設定', style: SwText.heading),
-                ),
-                const SizedBox(height: 8),
-                for (final setting in settings)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: SwPressable(
-                      onTap: () {
-                        Navigator.of(sheet).pop();
-                        setting.onTap();
-                      },
-                      color: SwColors.bg,
-                      border: const BorderSide(color: SwColors.border),
-                      radius: 10,
-                      semanticsLabel: setting.label,
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      child: SizedBox(
-                        height: 56,
-                        child: Row(
-                          children: [
-                            Icon(setting.icon, color: SwColors.brand),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(setting.label, style: SwText.bodyStrong),
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (settings.isNotEmpty) ...[
+            Semantics(header: true, child: Text('查詢設定', style: SwText.heading)),
+            const SizedBox(height: 8),
+            for (final setting in settings)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: SwPressable(
+                  onTap: () {
+                    Navigator.of(sheet).pop();
+                    setting.onTap();
+                  },
+                  color: SwColors.bg,
+                  border: const BorderSide(color: SwColors.border),
+                  radius: 10,
+                  semanticsLabel: '${setting.label}，${setting.status}',
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(minHeight: 56),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      child: Row(
+                        children: [
+                          Icon(setting.icon, color: SwColors.brand),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(setting.label, style: SwText.bodyStrong),
+                                Text(setting.status, style: SwText.small),
+                              ],
                             ),
-                            const Icon(
-                              Icons.chevron_right_rounded,
-                              color: SwColors.textSecondary,
-                            ),
-                          ],
-                        ),
+                          ),
+                          const Icon(
+                            Icons.chevron_right_rounded,
+                            color: SwColors.textSecondary,
+                          ),
+                        ],
                       ),
                     ),
                   ),
-                const SizedBox(height: 12),
-              ],
-              Semantics(
-                header: true,
-                child: Text('資料來源與授權', style: SwText.heading),
+                ),
               ),
-              const SizedBox(height: 4),
-              Text('安心行使用的開放資料與授權。', style: SwText.small),
-              const SizedBox(height: 12),
-              for (final s in swDataSources) _SourceRow(source: s),
-            ],
+            const SizedBox(height: 12),
+          ],
+          Semantics(
+            header: true,
+            child: Text('資料來源與授權', style: SwText.heading),
           ),
-        ),
+          const SizedBox(height: 4),
+          Text('安心行使用的開放資料與授權。', style: SwText.small),
+          const SizedBox(height: 12),
+          for (final s in swDataSources) _SourceRow(source: s),
+        ],
       ),
-    );
+    ),
+  ),
+);
 
 class _SourceRow extends StatelessWidget {
   const _SourceRow({required this.source});

@@ -1,19 +1,25 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:town_pass/features/safe_walk/navigation/route_service.dart';
 import 'package:town_pass/features/safe_walk/platform/home_location/home_location_service.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_composition_root.dart';
+import 'package:town_pass/features/safe_walk/platform/integration/crime_reference_wiring.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_route_speaker.dart';
 import 'package:town_pass/features/safe_walk/platform/platform_service.dart';
+import 'package:town_pass/features/safe_walk/platform/supabase/safe_walk_supabase_config.dart';
+import 'package:town_pass/features/safe_walk/platform/supabase/supabase_rpc_client.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_flow.dart';
 import 'package:town_pass/features/safe_walk/safety_data/crime_reference/crime_reference_repository.dart';
 import 'package:town_pass/features/safe_walk/shared/contracts/cancellation.dart';
 import 'package:town_pass/features/safe_walk/shared/contracts/safe_walk_navigation_scope.dart';
 import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart'
     as sw;
+
+import '../supabase/fake_rpc_http.dart';
 
 // All positions, records and recipients below are artificial. No device APIs
 // or external transport are used by these regressions.
@@ -208,6 +214,38 @@ void _interrupt(WidgetTester tester, String reason) {
 }
 
 void main() {
+  for (final boundary in ['leave', 'background']) {
+    testWidgets('late routing setting after $boundary cannot persist consent', (
+      tester,
+    ) async {
+      final platform = _Platform();
+      final routes = _Routes();
+      await _mount(
+        tester,
+        platform,
+        routes,
+        CrimeReferenceRepository(transport: null),
+      );
+      _flow(tester).onManageRoutingConsent!();
+      await tester.pumpAndSettle();
+      _interrupt(tester, boundary);
+      if (boundary == 'background') {
+        tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.resumed,
+        );
+      }
+      await tester.tap(find.text('同意'));
+      await tester.pumpAndSettle();
+      expect(_scope(tester).hasRoutingConsent, isFalse);
+      expect(platform.locations, isEmpty);
+      expect(routes.requests, isEmpty);
+      _flow(tester).onPlanRoute!(sw.Coordinates(lat: 25.001, lng: 121.501));
+      await tester.pumpAndSettle();
+      expect(find.text('規劃路線需要你的位置'), findsOneWidget);
+      expect(platform.locations, isEmpty);
+    });
+  }
+
   testWidgets('late routing consent after leaving cannot start GPS', (
     tester,
   ) async {
@@ -240,7 +278,7 @@ void main() {
         platform,
         routes,
         CrimeReferenceRepository(
-          transport: (_) async {
+          transport: (_, {cancellation}) async {
             queries++;
             return _answer();
           },
@@ -274,7 +312,7 @@ void main() {
       platform,
       routes,
       CrimeReferenceRepository(
-        transport: (_) async {
+        transport: (_, {cancellation}) async {
           queries++;
           return _answer();
         },
@@ -305,7 +343,7 @@ void main() {
         platform,
         routes,
         CrimeReferenceRepository(
-          transport: (_) async {
+          transport: (_, {cancellation}) async {
             queries++;
             return _answer();
           },
@@ -337,7 +375,7 @@ void main() {
           platform,
           routes,
           CrimeReferenceRepository(
-            transport: (_) {
+            transport: (_, {cancellation}) {
               queries++;
               return pending.future;
             },
@@ -372,7 +410,7 @@ void main() {
         platform,
         routes,
         CrimeReferenceRepository(
-          transport: (_) async {
+          transport: (_, {cancellation}) async {
             queries++;
             return _answer();
           },
@@ -405,7 +443,9 @@ void main() {
         tester,
         platform,
         routes,
-        CrimeReferenceRepository(transport: (_) => pending.future),
+        CrimeReferenceRepository(
+          transport: (_, {cancellation}) => pending.future,
+        ),
       );
       await _start(tester);
       platform.locations.single.complete(_position());
@@ -432,7 +472,7 @@ void main() {
       final crime = CrimeReferenceRepository(
         transport: outcome == 'unconfigured'
             ? null
-            : (_) async {
+            : (_, {cancellation}) async {
                 if (outcome == 'failure') {
                   throw StateError('artificial network failure');
                 }
@@ -454,5 +494,77 @@ void main() {
         }),
       );
     });
+  }
+
+  for (final boundary in ['crime consent', 'leave', 'background']) {
+    testWidgets(
+      'delayed RPC connect after $boundary sends no bbox; retry works',
+      (tester) async {
+        final connect = Completer<HttpClientRequest>();
+        final first = FakeRpcHttpClient()..connection = connect.future;
+        final second = FakeRpcHttpClient();
+        second.request.response = Future.value(
+          FakeRpcResponse.text(_answer(empty: true).body),
+        );
+        final clients = [first, second];
+        var created = 0;
+        final rpc = SupabaseRpcClient(
+          config: SafeWalkSupabaseConfig(
+            url: Uri.parse('https://artificial.example'),
+            apiKey: 'sb_publishable_artificial-local-test-key',
+          ),
+          createHttpClient: () => clients[created++],
+        );
+        final platform = _Platform();
+        final routes = _Routes();
+        await _mount(
+          tester,
+          platform,
+          routes,
+          CrimeReferenceRepository(
+            transport: CrimeReferenceWiring.rpcTransport(rpc),
+          ),
+        );
+        await _start(tester);
+        platform.locations.single.complete(_position());
+        await tester.pumpAndSettle();
+        expect(first.calls, 1);
+        expect(first.request.written, isEmpty);
+        if (boundary == 'crime consent') {
+          _flow(tester).onManageCrimeConsent!();
+          await tester.pumpAndSettle();
+          await tester.tap(find.text('撤回同意'));
+        } else {
+          _interrupt(tester, boundary);
+        }
+        await tester.pumpAndSettle();
+        expect(first.closes, greaterThan(0));
+        connect.complete(first.request);
+        await tester.pumpAndSettle();
+        expect(first.request.written, isEmpty);
+        expect(first.request.closeCalls, 0);
+        expect(routes.requests, isEmpty);
+        expect(_flow(tester).crimeSpots, isEmpty);
+
+        if (boundary == 'background') {
+          tester.binding.handleAppLifecycleStateChanged(
+            AppLifecycleState.resumed,
+          );
+        } else if (boundary == 'crime consent') {
+          _flow(tester).onManageCrimeConsent!();
+          await tester.pumpAndSettle();
+          await tester.tap(find.text('同意查詢'));
+          await tester.pumpAndSettle();
+        }
+        _flow(tester).onPlanRoute!(sw.Coordinates(lat: 25.001, lng: 121.501));
+        await tester.pumpAndSettle();
+        platform.locations.last.complete(_position());
+        await tester.pumpAndSettle();
+        expect(created, 2);
+        expect(second.request.written, isNotEmpty);
+        expect(routes.requests, hasLength(1));
+        expect(_flow(tester).crimeQueryStatus, contains('沒有可定位'));
+      },
+    );
   }
 }

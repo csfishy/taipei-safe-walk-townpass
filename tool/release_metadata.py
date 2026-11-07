@@ -22,7 +22,11 @@ if not re.fullmatch(r'[1-9]\d*', build_number):
 if os.environ.get('COMMIT_PRERELEASE') == 'true':
     if os.environ.get('GITHUB_EVENT_NAME') != 'push' or ref != 'refs/heads/main':
         raise SystemExit('Automatic prereleases require a push to main')
-    version = f'{version.split("-")[0]}-pre.{build_number}.g{commit[:12]}'
+    if len(build_number) > 10:
+        raise SystemExit('Automatic prerelease build number must fit ten digits')
+    # GitHub orders prerelease suffixes alphabetically. A letter prefix permits
+    # SemVer-valid padding and puts new releases above legacy numeric suffixes.
+    version = f'{version.split("-")[0]}-pre.r{build_number.zfill(10)}.g{commit[:12]}'
 metadata = {
     'version': version,
     'buildNumber': build_number,
