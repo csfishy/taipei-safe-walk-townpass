@@ -8,20 +8,6 @@
 
 圖磚增量（隨 PR #29 交付）：`DemoMap` 沿用類名，renderer 已改用 flutter_map／OSM 真實圖磚及座標投影；底圖子能力為 WIRED_NOT_VERIFIED，R5 整體 Live UI 為 IMPLEMENTED_NOT_WIRED。路線／點位仍為 Mock，Live gates 未開，未完成真實資料整合或 iPhone 驗收。本段及 R5 記錄該增量，不改寫 `03f98f2` 原盤點，也不預先宣稱 PR 已合併或 LIVE_VERIFIED。
 
-## P0 受控預覽增量（本工作分支）
-
-本輪從 main `c4410706292ab008774e7b559c98ac59be08708e` 接入正常入口的真實步行路線預覽，詳細操作與實跑／待驗見 [P0 Live 預覽](SAFE_WALK_P0_LIVE_PREVIEW.md)。最終 SHA／PR／CI／artifact 待填；以下增量優先於本文件其餘明列舊 SHA 的歷史表格，不將工作分支寫成已合併／已發布。
-
-| ID | 本輪增量狀態 | 已接入與仍需證據 |
-|---|---|---|
-| R1 主動 GPS | WIRED_NOT_VERIFIED | 正常流程透過 coordinator 及 TownPass adapter，在明確開始／重試且兩份同意後取單次 GPS；無 Demo fallback。真 iPhone 權限／位置仍待驗。 |
-| R2 OSRM | WIRED_NOT_VERIFIED | 既有 M2 Provider 接入起訖 request、同意／取消及公共服務派送節流；HTTP 人工地標 probe 成功只證當時服務可達。Dart Provider／App／iPhone 證據分開記錄，不互相代替。 |
-| R3 Controller／scope | WIRED_NOT_VERIFIED | Live UI 消費位置／路線／錯誤、兩份同意與目的地 callbacks；撤回／換目的地／背景／SOS／返回使舊意圖失效。最終組合測試與 CI 以本輪 PR 為準。 |
-| R5 Live UI／地圖 | WIRED_NOT_VERIFIED | 沿用真 OSM 底圖，顯示 Provider geometry／距離／nullable 時間；地圖點選或輸入座標選目的地。Live 不畫 Demo 據點／異常／假 ETA；iPhone 地圖、失敗、大字體／VoiceOver 待驗。 |
-| R4、R6–R8、R10–R14 | 本輪未解除原有缺口／BLOCKED | 未接入 follower 產品流程、真據點／統計／外部導航；未啟用附近通知、官方派遣或真實求助交接。R9 TTS 保留既有接線與 iPhone 待驗，沒有因此升級為 LIVE_VERIFIED。 |
-
-本輪原生 root 預設受控 Live 預覽，Mock 為顯式獨立模式；兩份同意預設 false。controller readiness gates 表示本分支實作可供驗收，不是已完成 P0-D 或正式部署許可。Web 預設 Live 路由未配置；公開服務無 SLA／容量保證。**沒有任何能力因本輪假平台測試、HTTP probe 或 CI 而被標成 LIVE_VERIFIED。**
-
 ## 狀態與證據規則
 
 | 狀態 | 意義 |
@@ -78,9 +64,9 @@ Mock unit test、建構 provider、API 可達、截圖或 CI 綠燈都不足以�
 
 `SAFE_WALK_LIVE=1` 只是允許測試連外，不能推論通過、真資料完整或裝置完成。真實 Provider 紀錄需附 commit、endpoint/資料版本、日期、成功/失敗案例、是否取裝置定位及去識別結果；不附精確個資位置或 key。iPhone 紀錄需裝置/iOS、安裝 build SHA、操作與結果；Windows 不宣稱本機 iOS build 或實機完成。
 
-## SafeWalkCompositionRoot 的原始解除條件（歷史盤點）
+## SafeWalkCompositionRoot 的解除條件
 
-以下保留 `03f98f2` 的原始隔離條件；本輪 P0 已接入受控 Live 預覽，以前節增量為準。尚未完成的 Provider／iPhone／部署證據繼續保留，不能只改常數或將預覽視為正式上線；正式部署開關採 Level C。
+以下設定是當前隔離，不是永久不可修改規則。本文件 PR 保留程式值；後續工程 PR 須附以下證據並依 Level A／B／C 完成審查，不能只改常數；正式部署開關採 Level C。
 
 功能主責可直接完成下列接線及測試；表內主要負責人提供技術／證據確認，不是唯一實作者。一般 composition 接線採 Level A；如改 shared 契約採 Level B；正式啟用依 Level C。
 

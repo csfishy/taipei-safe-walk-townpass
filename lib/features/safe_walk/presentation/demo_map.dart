@@ -47,17 +47,12 @@ class DemoMap extends StatelessWidget {
     this.onPoint,
     this.onPick,
     this.compact = false,
-    this.liveRendering = false,
-    this.hasStart = true,
   });
   final LatLng start;
   final List<sw.AssistancePoint> points;
   final List<Anomaly> anomalies;
   final List<LatLng> path;
   final bool showShortcut, homeActive, compact;
-
-  /// Neutral renderer: no Demo home, shortcut or anomaly overlays.
-  final bool liveRendering, hasStart;
   final String? selectedPointId, selectedAnomalyId;
   final LatLng? pin;
   final ValueChanged<String>? onAnomaly, onPoint;
@@ -71,20 +66,13 @@ class DemoMap extends StatelessWidget {
   Widget _buildMap(BuildContext context, Size viewport) {
     final interactive = !compact;
     // 初始視野：涵蓋起點、回家、所有求助地點與異常回報（避開上方標題與下方資訊框）。
-    final fitPoints = [
-      if (hasStart || !liveRendering || (path.isEmpty && pin == null))
-        _ll(start),
-      if (!liveRendering) _ll(DemoGeo.home),
+    final fit = LatLngBounds.fromPoints([
+      _ll(start),
+      _ll(DemoGeo.home),
       for (final at in path) _ll(at),
-      if (liveRendering && pin != null) _ll(pin!),
-      for (final p in points)
-        if (!liveRendering || p.source.dataMode == sw.DataMode.live)
-          ll.LatLng(p.coordinates.lat, p.coordinates.lng),
-      if (!liveRendering)
-        for (final a in anomalies) _ll(a.at),
-    ];
-    final fit = LatLngBounds.fromPoints(fitPoints);
-    final singlePoint = fitPoints.every((p) => p == fitPoints.first);
+      for (final p in points) ll.LatLng(p.coordinates.lat, p.coordinates.lng),
+      for (final a in anomalies) _ll(a.at),
+    ]);
 
     Marker marker(
       LatLng at,
@@ -114,35 +102,32 @@ class DemoMap extends StatelessWidget {
     }
 
     final markers = <Marker>[
-      if (!liveRendering)
-        for (final a in anomalies)
-          marker(
-            a.at,
-            a.id == selectedAnomalyId ? 34 : 26,
-            _AnomalyMark(
-              status: a.status,
-              selected: a.id == selectedAnomalyId,
-              small: compact,
-            ),
-            label:
-                '${anomalyCategoryLabel[a.category]}，${anomalyStatusLabel[a.status]}，查看與回報新狀況',
-            onTap: onAnomaly == null ? null : () => onAnomaly!(a.id),
+      for (final a in anomalies)
+        marker(
+          a.at,
+          a.id == selectedAnomalyId ? 34 : 26,
+          _AnomalyMark(
+            status: a.status,
+            selected: a.id == selectedAnomalyId,
+            small: compact,
           ),
+          label:
+              '${anomalyCategoryLabel[a.category]}，${anomalyStatusLabel[a.status]}，查看與回報新狀況',
+          onTap: onAnomaly == null ? null : () => onAnomaly!(a.id),
+        ),
       for (final p in points)
-        if (!liveRendering || p.source.dataMode == sw.DataMode.live)
-          marker(
-            LatLng(p.coordinates.lat, p.coordinates.lng),
-            p.id == selectedPointId ? 40 : 26,
-            _PointMark(
-              glyph: pointGlyph[p.kind]!,
-              selected: p.id == selectedPointId,
-            ),
-            label: '${p.name}，查看詳細資訊',
-            onTap: onPoint == null ? null : () => onPoint!(p.id),
+        marker(
+          LatLng(p.coordinates.lat, p.coordinates.lng),
+          p.id == selectedPointId ? 40 : 26,
+          _PointMark(
+            glyph: pointGlyph[p.kind]!,
+            selected: p.id == selectedPointId,
           ),
-      if (!liveRendering)
-        marker(DemoGeo.home, 32, _HomeMark(active: homeActive)),
-      if (hasStart) marker(start, 34, const _StartMark()),
+          label: '${p.name}，查看詳細資訊',
+          onTap: onPoint == null ? null : () => onPoint!(p.id),
+        ),
+      marker(DemoGeo.home, 32, _HomeMark(active: homeActive)),
+      marker(start, 34, const _StartMark()),
       if (pin != null)
         marker(
           pin!,
@@ -152,7 +137,7 @@ class DemoMap extends StatelessWidget {
     ];
 
     final lines = <Polyline>[
-      if (showShortcut && !liveRendering)
+      if (showShortcut)
         Polyline(
           points: DemoGeo.shortcutRoute.map(_ll).toList(),
           strokeWidth: 3,
@@ -184,28 +169,20 @@ class DemoMap extends StatelessWidget {
     final map = FlutterMap(
       // A changed destination gets a fresh fit. Unchanged route values retain
       // the user's current pan/zoom through other view rebuilds.
-      key: ValueKey(
-        liveRendering
-            ? '$hasStart:${start.lat},${start.lng}:${pin?.lat},${pin?.lng}:${path.map((at) => '${at.lat},${at.lng}').join('|')}'
-            : path.map((at) => '${at.lat},${at.lng}').join('|'),
-      ),
+      key: ValueKey(path.map((at) => '${at.lat},${at.lng}').join('|')),
       options: MapOptions(
-        initialCenter: fitPoints.first,
-        initialZoom: 14,
-        initialCameraFit: liveRendering && singlePoint
-            ? null
-            : CameraFit.bounds(
-                bounds: fit,
-                padding: compact
-                    ? const EdgeInsets.all(16)
-                    : EdgeInsets.fromLTRB(
-                        math.min(40, viewport.width * .1),
-                        topInset,
-                        math.min(40, viewport.width * .1),
-                        bottomInset,
-                      ),
-                maxZoom: 18,
-              ),
+        initialCameraFit: CameraFit.bounds(
+          bounds: fit,
+          padding: compact
+              ? const EdgeInsets.all(16)
+              : EdgeInsets.fromLTRB(
+                  math.min(40, viewport.width * .1),
+                  topInset,
+                  math.min(40, viewport.width * .1),
+                  bottomInset,
+                ),
+          maxZoom: 18,
+        ),
         minZoom: 3,
         maxZoom: 19,
         backgroundColor: SwColors.surface,
