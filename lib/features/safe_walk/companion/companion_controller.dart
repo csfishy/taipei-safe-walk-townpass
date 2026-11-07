@@ -14,15 +14,24 @@ typedef CompanionDelay = Future<void> Function(Duration duration);
 /// [resolveAsset] is the allow-list boundary between a wire `/audio/...` value
 /// and a bundled Flutter asset. Returning null rejects an unapproved source.
 final class LocalCompanionController implements CompanionController {
-  LocalCompanionController({
+  factory LocalCompanionController({
     required CompanionAudioAdapter audio,
     required CompanionAssetResolver resolveAsset,
     CompanionClock? clock,
     CompanionDelay? delay,
-  }) : _audio = audio,
-       _resolveAsset = resolveAsset,
-       _clock = clock ?? DateTime.now,
-       _delay = delay ?? Future<void>.delayed;
+  }) => LocalCompanionController._(
+    audio,
+    resolveAsset,
+    clock ?? DateTime.now,
+    delay ?? Future<void>.delayed,
+  );
+
+  LocalCompanionController._(
+    this._audio,
+    this._resolveAsset,
+    this._clock,
+    this._delay,
+  );
 
   final CompanionAudioAdapter _audio;
   final CompanionAssetResolver _resolveAsset;
@@ -157,7 +166,7 @@ final class LocalCompanionController implements CompanionController {
       return false;
     }
     if (cancellation.isCancelled) return true;
-    return Future<bool>.any([
+    return Future.any<bool>([
       work.then((_) => false),
       cancellation.whenCancelled.then((_) => true),
     ]);
