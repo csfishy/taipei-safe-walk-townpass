@@ -11,11 +11,12 @@ import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart
 import 'package:town_pass/util/tp_colors.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+/// 求助地點在地圖、圖例與清單上一律用「救」；種類（超商、派出所…）寫在文字裡。
 const pointGlyph = {
-  sw.AssistancePointKind.police: '警',
-  sw.AssistancePointKind.partnerStore: '店',
-  sw.AssistancePointKind.convenienceStore: '店',
-  sw.AssistancePointKind.publicFacility: '公',
+  sw.AssistancePointKind.police: '救',
+  sw.AssistancePointKind.partnerStore: '救',
+  sw.AssistancePointKind.convenienceStore: '救',
+  sw.AssistancePointKind.publicFacility: '救',
 };
 
 /// OpenStreetMap 標準圖磚（不需 API Key）。使用條款要求標示來源並帶有可辨識的 User-Agent。
@@ -174,10 +175,7 @@ class DemoMap extends StatelessWidget {
         marker(
           LatLng(p.coordinates.lat, p.coordinates.lng),
           p.id == selectedPointId ? 40 : 26,
-          _PointMark(
-            glyph: pointGlyph[p.kind]!,
-            selected: p.id == selectedPointId,
-          ),
+          HelpPointMark(selected: p.id == selectedPointId),
           label: '${p.name}，查看詳細資訊',
           onTap: onPoint == null ? null : () => onPoint!(p.id),
         ),
@@ -402,21 +400,23 @@ class _AnomalyMark extends StatelessWidget {
   }
 }
 
-class _PointMark extends StatelessWidget {
-  const _PointMark({required this.glyph, required this.selected});
-  final String glyph;
+/// 求助地點標記：主色圓底白字「救」；地圖與圖例共用。
+class HelpPointMark extends StatelessWidget {
+  const HelpPointMark({super.key, this.selected = false, this.size = 26});
   final bool selected;
+  final double size;
+  String get glyph => '救';
   @override
   Widget build(BuildContext context) => Container(
-    width: selected ? 36 : 26,
-    height: selected ? 36 : 26,
+    width: selected ? size + 10 : size,
+    height: selected ? size + 10 : size,
     alignment: Alignment.center,
     decoration: BoxDecoration(
       shape: BoxShape.circle,
       color: SwColors.brand,
       border: Border.all(
         color: selected ? SwColors.brand : SwColors.surface,
-        width: 3,
+        width: size < 24 ? 2 : 3,
       ),
       boxShadow: SwShadow.float,
     ),

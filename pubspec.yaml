@@ -98,6 +98,7 @@ flutter:
   assets:
     - assets/build-info.json
     - assets/mock_data/
+    - assets/safe_walk/
     - assets/image/
     - assets/svg/
 

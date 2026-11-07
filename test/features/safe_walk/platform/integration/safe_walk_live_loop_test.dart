@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:town_pass/features/safe_walk/platform/home_location/home_location_service.dart';
+import 'package:town_pass/features/safe_walk/presentation/mock/safe_walk_demo_data.dart'
+    show LatLng;
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_flow.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_map_view.dart';
 import 'package:town_pass/features/safe_walk/navigation/route_reference_area_check.dart';
@@ -108,6 +110,68 @@ sw.RouteResult _success(
   routes: [candidate ?? _candidate()],
   warnings: const ['路線僅反映所用路網'],
 );
+
+/// An artificial convenience store recorded as open (or closed) just now.
+sw.AssistancePoint _store(
+  String id,
+  double lat, {
+  String availability = 'open',
+}) => sw.AssistancePoint.fromJson({
+  'schemaVersion': '1.0.0',
+  'id': id,
+  'name': '人工店家 $id',
+  'kind': 'convenience_store',
+  'coordinates': {'lat': lat, 'lng': 121.5},
+  'address': null,
+  'publicPhone': null,
+  'recognition': {
+    'status': 'unconfirmed',
+    'evidenceUrl': null,
+    'checkedAt': null,
+  },
+  'availability': availability,
+  'availabilityCheckedAt': DateTime.now().toUtc().toIso8601String(),
+  'capabilities': ['unknown'],
+  'source': {
+    'datasetId': 'test-stores',
+    'title': '人工測試資料',
+    'dataMode': 'live',
+    'sourceUrl': 'https://example.test/',
+    'retrievedAt': DateTime.now().toUtc().toIso8601String(),
+    'dataUpdatedAt': null,
+    'license': null,
+    'coverage': '人工',
+    'limitations': ['人工測試資料'],
+  },
+});
+
+/// A route to [r]'s destination taking [seconds].
+sw.RouteResult _storeRoute(sw.RouteRequest r, double seconds) =>
+    sw.RouteSuccess(
+      requestId: r.requestId,
+      mode: r.mode,
+      generatedAt: _now.toIso8601String(),
+      routes: [
+        sw.RouteCandidate(
+          id: 'r',
+          kind: sw.RouteKind.direct,
+          geometry: sw.LineString(
+            coordinates: [
+              (longitude: 121.5, latitude: 25.0),
+              (longitude: r.destination.lng, latitude: r.destination.lat),
+            ],
+          ),
+          distanceMeters: seconds,
+          durationSeconds: seconds,
+          viaPointIds: const [],
+          provider: 'valhalla-pedestrian (test)',
+          walkingNetworkVerified: true,
+          explanations: const ['依 OpenStreetMap 步行路網計算'],
+          warnings: const ['僅反映路網，不保證路段安全'],
+        ),
+      ],
+      warnings: const ['路線僅反映所用路網'],
+    );
 
 sw.RouteResult _routeFail(sw.RouteRequest r, sw.RouteFailureStatus status) =>
     sw.RouteFailure(
@@ -1001,6 +1065,8 @@ void main() {
       List<RouteReferenceArea> areas = const [],
       bool showMap = false,
       sw.Coordinates? home,
+      List<sw.AssistancePoint>? stores,
+      List<sw.Coordinates>? storeQueries,
     }) async {
       t.view.physicalSize = const Size(900, 3000);
       t.view.devicePixelRatio = 1;
@@ -1015,6 +1081,10 @@ void main() {
             crimeRepository: db.repository,
             reviewedAreas: areas,
             showLiveMap: showMap,
+            findStores: (origin, {cancellation}) async {
+              storeQueries?.add(origin);
+              return stores ?? const [];
+            },
             watchPosition: () => const Stream<sw.Position>.empty(),
             homeLocationStore: _HomeStore(home),
             speaker: _SilentSpeaker(),
@@ -1146,7 +1216,7 @@ void main() {
     );
 
     testWidgets(
-      'official entry keeps unconfigured points and SMS unavailable without GPS',
+      'nearby points ask for route consent first; declining sends nothing',
       (t) async {
         final platform = _livePlatform();
         final routes = _Routes();
@@ -1165,9 +1235,12 @@ void main() {
         expect(find.text('目前為示範資料，未連線真實服務'), findsNothing);
         await t.tap(find.text('附近求助地點'));
         await t.pumpAndSettle();
-        expect(find.byType(SafeWalkMapView), findsNothing);
-        expect(find.textContaining('附近求助地點查詢尚未接線'), findsOneWidget);
-        await t.tap(find.byType(BackButton));
+        expect(find.byType(SafeWalkMapView), findsOneWidget);
+        expect(find.text('規劃路線需要你的位置'), findsOneWidget);
+        await t.tap(find.text('不要'));
+        await t.pumpAndSettle();
+        expect(find.textContaining('需要同意路線查詢並取得位置'), findsOneWidget);
+        t.widget<SafeWalkMapView>(find.byType(SafeWalkMapView)).onBack();
         await t.pumpAndSettle();
         await t.tap(find.text('緊急求助'));
         await t.pumpAndSettle();
@@ -1177,6 +1250,131 @@ void main() {
         expect(platform.calls, 0);
         expect(routes.requests, isEmpty);
         expect(db.calls, isEmpty);
+        await t.pumpWidget(const SizedBox.shrink());
+      },
+    );
+
+    testWidgets(
+      'nearby points: open stores only, safest-fastest first, three to switch',
+      (t) async {
+        final platform = _livePlatform();
+        final routes = _Routes(
+          (r) async => _storeRoute(r, switch (r.destination.lat) {
+            25.002 => 300, // nearest but slowest
+            25.003 => 120, // fastest: ranked first
+            25.004 => 200,
+            _ => 100, // 25.005: fourth store, never shown
+          }),
+        );
+        final db = _Db();
+        final queries = <sw.Coordinates>[];
+        await pumpRoot(
+          t,
+          platform: platform,
+          routes: routes,
+          db: db,
+          home: _destination,
+          storeQueries: queries,
+          stores: [
+            _store('closed', 25.0015, availability: 'closed'),
+            _store('a', 25.002),
+            _store('b', 25.003),
+            _store('c', 25.004),
+            _store('d', 25.005),
+          ],
+        );
+        await t.tap(find.text('附近求助地點'));
+        await t.pumpAndSettle();
+        await t.tap(find.text('同意'));
+        await t.pumpAndSettle();
+        // The crime query consent follows; decline it.
+        if (find.text('不要查詢').evaluate().isNotEmpty) {
+          await t.tap(find.text('不要查詢'));
+          await t.pumpAndSettle();
+        }
+        expect(queries, hasLength(1));
+        final map = t.widget<SafeWalkMapView>(find.byType(SafeWalkMapView));
+        expect(map.pointsState.points.map((p) => p.id), ['b', 'c', 'a']);
+        expect(map.pointsState.routes.keys, containsAll(['a', 'b', 'c']));
+        expect(find.textContaining('人工店家 closed'), findsNothing);
+
+        // Go to the first store: the three stores show as switchable options.
+        await t.tap(find.text('帶我去這裡').first);
+        await t.pumpAndSettle();
+        expect(find.text('附近的求助地點'), findsOneWidget);
+        expect(find.textContaining('人工店家 d'), findsNothing);
+        // The chosen store is the navigation target: same controller.
+        expect(
+          t.widget<SafeWalkMapView>(find.byType(SafeWalkMapView)).targetPointId,
+          'b',
+        );
+        await t.tap(find.text('人工店家 a').first);
+        await t.pumpAndSettle();
+        expect(find.textContaining('5 分鐘'), findsWidgets);
+        final after = t.widget<SafeWalkMapView>(find.byType(SafeWalkMapView));
+        expect(after.targetPointId, 'a');
+        expect(after.routeState.result, same(after.pointsState.routes['a']));
+        // Back to the destination: the target and its route come back.
+        await t.tap(find.text('目的地').first);
+        await t.pumpAndSettle();
+        expect(
+          t.widget<SafeWalkMapView>(find.byType(SafeWalkMapView)).targetPointId,
+          isNull,
+        );
+        await t.pumpWidget(const SizedBox.shrink());
+      },
+    );
+
+    testWidgets(
+      'nearby points without a usable fix use the shared picked start',
+      (t) async {
+        final platform = _Platform(() async => _locFail('unavailable'));
+        final routes = _Routes((r) async => _storeRoute(r, 120));
+        final queries = <sw.Coordinates>[];
+        await pumpRoot(
+          t,
+          platform: platform,
+          routes: routes,
+          db: _Db(),
+          home: _destination,
+          storeQueries: queries,
+          stores: [_store('a', 25.002)],
+        );
+        await t.tap(find.text('附近求助地點'));
+        await t.pumpAndSettle();
+        await t.tap(find.text('同意'));
+        await t.pumpAndSettle();
+        if (find.text('不要查詢').evaluate().isNotEmpty) {
+          await t.tap(find.text('不要查詢'));
+          await t.pumpAndSettle();
+        }
+        expect(queries, isEmpty);
+        expect(find.textContaining('取得不到夠精確的位置'), findsOneWidget);
+        expect(find.text('在地圖上選起點'), findsOneWidget);
+
+        // The header shows and changes the same start setting as the route.
+        await t.tap(find.text('目前位置 → 附近求助地點'));
+        await t.pumpAndSettle();
+        expect(find.text('從哪裡出發？'), findsOneWidget);
+        await t.tapAt(const Offset(10, 10)); // close the menu
+        await t.pumpAndSettle();
+
+        final map = t.widget<SafeWalkMapView>(find.byType(SafeWalkMapView));
+        map.onStartChanged!(const LatLng(25.01, 121.51));
+        map.pointsState.onRetry!();
+        await t.pumpAndSettle();
+        expect(queries.single.lat, 25.01);
+        expect(routes.requests.last.origin.source, sw.PositionSource.manual);
+        expect(find.text('指定起點 → 附近求助地點'), findsOneWidget);
+        expect(
+          t
+              .widget<SafeWalkMapView>(find.byType(SafeWalkMapView))
+              .pointsState
+              .points
+              .single
+              .id,
+          'a',
+        );
         await t.pumpWidget(const SizedBox.shrink());
       },
     );

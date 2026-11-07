@@ -76,6 +76,20 @@ final class SafeWalkNavigationController extends ChangeNotifier {
     _routeError = null;
   }
 
+  /// Shows a route already planned through the same route analysis (one of
+  /// the nearby stores compared beforehand) without asking the provider again.
+  /// Following and re-planning then work on it like any planned route.
+  void showRoute(sw.RouteResult result) {
+    if (_disposed || result.mode != mode) return;
+    if (mode == sw.DataMode.live &&
+        (!liveNavigationAvailable || !hasRoutingConsent)) {
+      return;
+    }
+    _clearRoute();
+    _routeResult = result;
+    notifyListeners();
+  }
+
   Future<void> planRoute(sw.RouteRequest request) async {
     if (_disposed) return;
     _clearRoute();

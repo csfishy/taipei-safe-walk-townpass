@@ -7,6 +7,7 @@ import 'package:town_pass/features/safe_walk/navigation/cancellable.dart';
 import 'package:town_pass/features/safe_walk/navigation/coordinate_math.dart';
 import 'package:town_pass/features/safe_walk/navigation/default_route_service.dart';
 import 'package:town_pass/features/safe_walk/navigation/json_post.dart';
+import 'package:town_pass/features/safe_walk/shared/route_instructions.dart';
 import 'package:town_pass/features/safe_walk/navigation/walking_route_provider.dart';
 import 'package:town_pass/features/safe_walk/shared/contracts/cancellation.dart';
 import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart'
@@ -191,7 +192,9 @@ final class ValhallaAvoidingRoutePlanner implements AvoidingRoutePlanner {
           {'lat': destination.lat, 'lon': destination.lng},
         ],
         'costing': 'pedestrian',
-        'directions_type': 'none',
+        // Maneuvers give street names for turn-by-turn text (no narrative).
+        'directions_type': 'maneuvers',
+        'units': 'kilometers',
         if (excluded.isNotEmpty) 'exclude_polygons': excluded,
       };
       final Object? json;
@@ -269,7 +272,13 @@ final class ValhallaAvoidingRoutePlanner implements AvoidingRoutePlanner {
     if (time != null && (time is! num || !time.isFinite || time < 0)) {
       throw const WalkingRouteProviderUnavailable();
     }
-    return _Line(coordinates, time is num ? time.toDouble() : null);
+    final first = legs.first;
+    return _Line(
+      coordinates,
+      time is num ? time.toDouble() : null,
+      // Shape indices are per leg; a single leg is all this planner sends.
+      legs.length == 1 && first is Map ? first['maneuvers'] : null,
+    );
   }
 
   sw.RouteCandidate _candidate(
@@ -277,7 +286,7 @@ final class ValhallaAvoidingRoutePlanner implements AvoidingRoutePlanner {
     _Line line,
     List<AvoidArea> areas,
   ) {
-    return sw.RouteCandidate(
+    final candidate = sw.RouteCandidate(
       id: 'valhalla-${level.name}',
       kind: sw.RouteKind.direct,
       geometry: sw.LineString(
@@ -301,6 +310,8 @@ final class ValhallaAvoidingRoutePlanner implements AvoidingRoutePlanner {
       ],
       warnings: const ['依 OpenStreetMap 步行路網計算，不保證沿途安全或目前可通行'],
     );
+    routeInstructions[candidate] = instructionsFromValhalla(line.maneuvers);
+    return candidate;
   }
 
   /// Circumscribed regular octagon (edges never cut into the circle) plus
@@ -385,9 +396,10 @@ List<List<double>> decodePolyline6(String encoded) {
 }
 
 final class _Line {
-  const _Line(this.coordinates, this.seconds);
+  const _Line(this.coordinates, this.seconds, [this.maneuvers]);
   final List<List<double>> coordinates;
   final double? seconds;
+  final Object? maneuvers;
 }
 
 double _round6(double v) => (v * 1e6).roundToDouble() / 1e6;
