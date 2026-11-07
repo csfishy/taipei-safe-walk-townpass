@@ -72,9 +72,26 @@ void main() {
       final routes = _Answering();
       final positions = StreamController<sw.Position>();
       var listening = false;
-      positions.onListen = () => listening = true;
-      positions.onCancel = () => listening = false;
-      await mount(t, routes, _Gps(), watch: () => positions.stream);
+      var listenCount = 0;
+      var cancelCount = 0;
+      var watchStarts = 0;
+      positions.onListen = () {
+        listening = true;
+        listenCount++;
+      };
+      positions.onCancel = () {
+        listening = false;
+        cancelCount++;
+      };
+      await mount(
+        t,
+        routes,
+        _Gps(),
+        watch: () {
+          watchStarts++;
+          return positions.stream;
+        },
+      );
       await t.tap(find.text('同意'));
       await t.pumpAndSettle();
       expect(routes.requests, hasLength(1));
@@ -88,10 +105,28 @@ void main() {
       await t.pumpAndSettle();
       expect(routes.requests, hasLength(2));
       expect(routes.requests.last.origin.coordinates.lat, 25.0400);
+      expect(
+        listening,
+        isTrue,
+        reason: 'automatic replan preserves active GPS',
+      );
+      expect(
+        listenCount,
+        1,
+        reason: 'one subscription through automatic reroute',
+      );
+      expect(
+        watchStarts,
+        1,
+        reason: 'no second listener on the same device stream',
+      );
+      expect(cancelCount, 0, reason: 'replanning is not a navigation exit');
 
       await t.tap(find.byIcon(Icons.arrow_back_ios_new_rounded).first);
       await t.pumpAndSettle();
       expect(listening, isFalse, reason: 'leaving the map stops GPS');
+      expect(cancelCount, 1);
+      await positions.close();
     },
   );
 
@@ -117,6 +152,7 @@ final class _SavedHomeStore implements HomeLocationStore {
   Future<void> write(String value) async {
     _value = value;
   }
+
   @override
   Future<void> clear() async {
     _value = null;

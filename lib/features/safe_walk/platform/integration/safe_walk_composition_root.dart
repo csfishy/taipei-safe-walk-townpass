@@ -315,16 +315,28 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     }
   }
 
-  /// A new live route starts (or restarts) following; anything else stops it.
+  /// Replace route followers during a replan, retaining the one foreground GPS
+  /// subscription. Cancellation, failure and leaving navigation still stop it.
   void _syncFollowing() {
     final result = _navigation.routeResult;
-    if (identical(result, _followed)) return;
-    _followed = result;
     if (!widget.liveRoutes ||
         _manualOrigin != null ||
         !_navigationActive ||
-        result is! sw.RouteSuccess ||
-        result.mode != sw.DataMode.live) {
+        !_foreground ||
+        !_navigation.hasRoutingConsent) {
+      _followed = result;
+      _stopFollowing();
+      return;
+    }
+    if (result == null) {
+      _followed = null;
+      _followers = const [];
+      if (!_navigation.routeLoading) _stopFollowing();
+      return;
+    }
+    if (identical(result, _followed)) return;
+    _followed = result;
+    if (result is! sw.RouteSuccess || result.mode != sw.DataMode.live) {
       _stopFollowing();
       return;
     }

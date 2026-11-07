@@ -166,28 +166,24 @@ void main() {
   tearDown(() => Get.reset());
 
   testWidgets(
-    'real city service and registered route open the default M3 flow',
+    'real city service and registered route open the Live M3 flow without demo destinations',
     (t) async {
       await cityApp(t, null);
       await enter(t);
       final flow = t.widget<SafeWalkFlow>(find.byType(SafeWalkFlow));
-      expect(flow.mode, sw.DataMode.mock);
+      expect(flow.mode, sw.DataMode.live);
       expect(flow.allowRealCalls, isFalse);
       expect(flow.speaker.available, isFalse);
       // Live entry shows no demo help points (real nearby places come later).
       expect(flow.points, isEmpty);
-      expect(
-        flow.points!.every(
-          (point) => point.source.dataMode == sw.DataMode.mock,
-        ),
-        isTrue,
-      );
-      expect(
-        flow.points!.every(
-          (point) => point.availability == sw.OpeningStatus.unknown,
-        ),
-        isTrue,
-      );
+      expect(flow.onPlanRoute, isNotNull);
+      expect(flow.homeLocation, isNull);
+      expect(flow.route, isNull);
+      await t.tap(find.text('安心行'));
+      await t.pumpAndSettle();
+      expect(find.text('請先返回首頁設定「家」的位置，再規劃回家路線。'), findsWidgets);
+      expect(find.text('規劃路線需要你的位置'), findsNothing);
+      await back(t);
       await back(t);
       expect(find.byType(CityServiceView), findsOneWidget);
       expect(t.takeException(), isNull);
@@ -238,12 +234,12 @@ void main() {
       );
       expect(platform.emergencies, 1);
       await t.scrollUntilVisible(
-        find.text('目前沒有撥號設定，未實際串接警方。'),
+        find.text('示範：未撥號、未通知任何人。'),
         200,
         scrollable: find.byType(Scrollable).first,
       );
       await t.pumpAndSettle();
-      expect(find.text('目前沒有撥號設定，未實際串接警方。'), findsOneWidget);
+      expect(find.text('示範：未撥號、未通知任何人。'), findsOneWidget);
       await t.scrollUntilVisible(
         find.text('我現在安全，關閉'),
         200,
