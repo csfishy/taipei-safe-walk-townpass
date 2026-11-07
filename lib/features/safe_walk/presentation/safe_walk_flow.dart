@@ -35,18 +35,18 @@ class SafeWalkFlow extends StatefulWidget {
   final sw.DataMode mode;
   final bool allowRealCalls;
 
-  /// 求助地點（M4 → M1 提供）。null 且沒有載入中／錯誤時，使用 M3 示範資料。
+  /// 求助地點（M4 → M1 提供）。未配置時只有 Mock 使用 M3 示範資料。
   final List<sw.AssistancePoint>? points;
   final bool pointsLoading;
   final String? pointsError;
   final VoidCallback? onRetryPoints;
 
-  /// 前往目前目的地的路線（M2 RouteService → M1 提供）。null 且不在計算中＝尚未配置，使用示範路線並標示。
+  /// 前往目前目的地的路線（M2 RouteService → M1 提供）。未配置時只有 Mock 使用示範路線；Live 顯示 unavailable。
   final sw.RouteResult? route;
   final bool routeLoading;
 
   /// M1：使用者打開地圖、換目的地、按「再試一次」時呼叫（不會在一進安心行時自動呼叫），請依此目的地呼叫 RouteService.planRoute，
-  /// 再把結果傳回 [route]。null 時畫面一律用示範路線。
+  /// 再把結果傳回 [route]。
   final ValueChanged<sw.Coordinates>? onPlanRoute;
   final SafeWalkSpeaker speaker;
 
@@ -60,7 +60,7 @@ class SafeWalkFlow extends StatefulWidget {
   final Future<bool> Function(String body)? onSendSms;
   final VoidCallback? onExit;
 
-  /// M1：使用者已儲存的「家」（只存在裝置上）。null＝尚未設定，沿用示範的家。
+  /// M1：使用者已儲存在裝置上的「家」。null＝尚未設定，沿用示範的家。
   final sw.Coordinates? homeLocation;
 
   /// M1：使用者在「設定家」按儲存（帶座標）或移除（null）時呼叫，由 M1 寫入裝置儲存。
@@ -95,6 +95,10 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
   void didUpdateWidget(SafeWalkFlow old) {
     super.didUpdateWidget(old);
     if (old.homeLocation != widget.homeLocation) _applyHome();
+    if (old.mode != widget.mode) {
+      _anomalies = widget.mode == sw.DataMode.mock ? demoAnomalies() : <Anomaly>[];
+      _demoPoints = widget.mode == sw.DataMode.mock ? demoAssistancePoints() : const <sw.AssistancePoint>[];
+    }
   }
 
   /// 已儲存的家取代示範的家；移除後回到示範的家。
@@ -111,15 +115,6 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
   // Live mode never shows invented danger points or stand-in assistance points.
   late List<Anomaly> _anomalies = widget.mode == sw.DataMode.mock ? demoAnomalies() : <Anomaly>[];
   late List<sw.AssistancePoint> _demoPoints = widget.mode == sw.DataMode.mock ? demoAssistancePoints() : const <sw.AssistancePoint>[];
-
-  @override
-  void didUpdateWidget(SafeWalkFlow oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.mode != widget.mode) {
-      _anomalies = widget.mode == sw.DataMode.mock ? demoAnomalies() : <Anomaly>[];
-      _demoPoints = widget.mode == sw.DataMode.mock ? demoAssistancePoints() : const <sw.AssistancePoint>[];
-    }
-  }
 
   String? get _nearestPointName {
     final pts = _pointsState.points;

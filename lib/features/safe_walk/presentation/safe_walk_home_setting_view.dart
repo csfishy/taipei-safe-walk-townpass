@@ -62,8 +62,9 @@ class _SafeWalkHomeSettingViewState extends State<SafeWalkHomeSettingView> {
   Future<void> _openAttribution() async {
     const url = 'https://www.openstreetmap.org/copyright';
     try {
-      if (await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication))
+      if (await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication)) {
         return;
+      }
     } catch (_) {
       // Fixed fallback text never contains the selected location.
     }
