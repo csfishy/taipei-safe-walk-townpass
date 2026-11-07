@@ -81,8 +81,9 @@ class _ServiceBar extends StatelessWidget {
                     message: '關閉',
                     child: SwPressable(
                       onTap: onClose,
-                      color: TPColors.primary600,
-                      pressedColor: TPColors.primary700,
+                      // 比照臺北通服務頁：平常只有白色 ✕，滑鼠移上去或按下才出現圓底。
+                      pressedColor: TPColors.primary600,
+                      hoverColor: TPColors.primary600,
                       radius: 24,
                       semanticsLabel: '關閉臺北安心行',
                       child: const SizedBox(width: 48, height: 48, child: Icon(Icons.close_rounded, color: TPColors.white, size: 26)),
