@@ -69,6 +69,9 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
   String? _emergencyMessage;
   bool _emergencyError = false, _locating = false;
   final _callKey = GlobalKey<SafeWalkCallViewState>();
+
+  /// 進行中的模擬來電；去地圖看路再回來會接續。結束通話、拒絕、緊急求助、回首頁時丟棄。
+  SafeWalkCallSession? _call;
   late final List<SavedPlace> _places = [...demoPlaces()];
   String _placeId = 'home';
   SavedPlace get _place => _places.firstWhere((p) => p.id == _placeId, orElse: () => _places.first);
@@ -113,6 +116,7 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
 
   void _go(_Screen s) {
     if (_screen == _Screen.call && s != _Screen.call) _callKey.currentState?.leave();
+    if (s == _Screen.home) _call = null;
     setState(() {
       _forward = s != _Screen.home && s != _back;
       if (s == _Screen.call || s == _Screen.emergency) _back = _screen == _Screen.call ? _back : _screen;
@@ -121,6 +125,7 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
   }
 
   void _openEmergency() {
+    _call = null;
     _callKey.currentState?.leave();
     widget.speaker.stop();
     setState(() {
@@ -212,12 +217,16 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
         points: _pointsState.points,
         anomalies: _anomalies,
         speaker: widget.speaker,
+        session: _call ??= SafeWalkCallSession(),
         routePath: _placePath,
         routeMinutes: _routeState.minutes,
         destination: _place.label,
         routeStatus: _routeState.loading ? '路線計算中…' : (_routeState.failed ? _routeState.failTitle : null),
         onMap: () => _go(_Screen.map),
-        onEnd: () => _go(_back),
+        onEnd: () {
+          _call = null;
+          _go(_back);
+        },
         onEmergency: _openEmergency,
       ),
       _Screen.emergency => SafeWalkEmergencyView(

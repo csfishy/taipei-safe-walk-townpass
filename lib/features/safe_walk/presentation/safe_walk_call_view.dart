@@ -18,6 +18,13 @@ class _Entry {
 
 enum _Mode { quick, template, input }
 
+/// 一通模擬來電的進度，由 Flow 保管：從地圖回到通話時接續（不再響鈴、對話與計時不重來）。結束通話或離開安心行時丟棄。
+class SafeWalkCallSession {
+  bool answered = false;
+  int line = 0, seq = 0, seconds = 0;
+  final List<_Entry> _log = [];
+}
+
 /// 模擬來電：只有對方台詞會朗讀（點泡泡重播／再點停止）；自己的回應只顯示文字；「自己輸入」是輸入對方要說的話。
 class SafeWalkCallView extends StatefulWidget {
   const SafeWalkCallView({
@@ -29,6 +36,7 @@ class SafeWalkCallView extends StatefulWidget {
     required this.onMap,
     required this.onEnd,
     required this.onEmergency,
+    this.session,
     this.routePath = DemoGeo.homeRoute,
     this.routeMinutes,
     this.destination = '家',
@@ -36,6 +44,8 @@ class SafeWalkCallView extends StatefulWidget {
   });
 
   /// 目前目的地的路線（null＝計算中或失敗，顯示 [routeStatus]）。預設為示範回家路線。
+  /// 通話進度；null 時每次都是新的一通。
+  final SafeWalkCallSession? session;
   final List<LatLng>? routePath;
   final int? routeMinutes;
   final String destination;
@@ -51,18 +61,17 @@ class SafeWalkCallView extends StatefulWidget {
 }
 
 class SafeWalkCallViewState extends State<SafeWalkCallView> {
-  int _line = 0;
-  final _log = <_Entry>[];
+  late final SafeWalkCallSession _s = widget.session ?? SafeWalkCallSession();
+  List<_Entry> get _log => _s._log;
   String? _speaking;
   bool _waiting = false;
   _Mode _mode = _Mode.quick;
-  int _seq = 0, _seconds = 0;
   final _draft = TextEditingController();
   final _scroll = ScrollController();
   Timer? _clock, _reply, _buzz;
 
-  /// 先響鈴：按「接聽」才開始對話與計時；「拒絕」直接離開。
-  bool _ringing = true;
+  /// 先響鈴：按「接聽」才開始對話與計時；「拒絕」直接離開。已接聽過的通話（從地圖回來）不再響鈴。
+  late bool _ringing = !_s.answered;
 
   /// 臺北通尚未配置語音時，用無聲示範（依字數計時）呈現播放樣式；不呼叫 M1／M5 的喇叭。
   late final SafeWalkSpeaker _voice = widget.speaker.available ? widget.speaker : PreviewSpeaker();
@@ -93,19 +102,29 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
   @override
   void initState() {
     super.initState();
+    if (!_ringing) {
+      _startClock();
+      // 離開前已回覆、對方還沒回：接續回覆。
+      if (_log.isNotEmpty && !_log.last.caller) _scheduleReply();
+      _scrollDown(jump: true);
+      return;
+    }
     // 響鈴時手機震動（網頁沒有震動）；鈴聲音檔需另外核准，先不播放。
     HapticFeedback.vibrate();
     _buzz = Timer.periodic(const Duration(milliseconds: 1500), (_) => HapticFeedback.vibrate());
   }
 
+  void _startClock() => _clock = Timer.periodic(const Duration(seconds: 1), (_) {
+    if (mounted && !_left) setState(() => _s.seconds++);
+  });
+
   void _answer() {
     if (_left || !_ringing) return;
     _buzz?.cancel();
+    _s.answered = true;
     setState(() => _ringing = false);
     _say(FakeCallScript.lines[0].text);
-    _clock = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted && !_left) setState(() => _seconds++);
-    });
+    _startClock();
   }
 
   @override
@@ -144,7 +163,7 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
 
   void _say(String text) {
     if (_left) return;
-    final e = _Entry('c${_seq++}', true, text);
+    final e = _Entry('c${_s.seq++}', true, text);
     setState(() => _log.add(e));
     _speak(e);
     _scrollDown();
@@ -155,23 +174,30 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
     _voice.stop();
     setState(() {
       _speaking = null;
-      _log.add(_Entry('u${_seq++}', false, text));
+      _log.add(_Entry('u${_s.seq++}', false, text));
       _waiting = true;
     });
     _scrollDown();
-    final next = FakeCallScript.lines[_line].next;
+    _scheduleReply();
+  }
+
+  void _scheduleReply() {
+    _waiting = true;
+    final next = FakeCallScript.lines[_s.line].next;
     _reply = Timer(const Duration(milliseconds: 900), () {
       if (!mounted || _left) return;
       setState(() {
-        _line = next;
+        _s.line = next;
         _waiting = false;
       });
       _say(FakeCallScript.lines[next].text);
     });
   }
 
-  void _scrollDown() => WidgetsBinding.instance.addPostFrameCallback((_) {
-    if (!_left && _scroll.hasClients) _scroll.animateTo(_scroll.position.maxScrollExtent, duration: const Duration(milliseconds: 200), curve: Curves.easeOut);
+  void _scrollDown({bool jump = false}) => WidgetsBinding.instance.addPostFrameCallback((_) {
+    if (_left || !_scroll.hasClients) return;
+    final end = _scroll.position.maxScrollExtent;
+    jump ? _scroll.jumpTo(end) : _scroll.animateTo(end, duration: const Duration(milliseconds: 200), curve: Curves.easeOut);
   });
 
   @override
@@ -179,7 +205,7 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
     if (_ringing) {
       return _Incoming(onAnswer: _answer, onDecline: () => _leaveThen(widget.onEnd), onEmergency: () => _leaveThen(widget.onEmergency));
     }
-    final mm = (_seconds ~/ 60).toString().padLeft(2, '0'), ss = (_seconds % 60).toString().padLeft(2, '0');
+    final mm = (_s.seconds ~/ 60).toString().padLeft(2, '0'), ss = (_s.seconds % 60).toString().padLeft(2, '0');
     final start = widget.position == null ? DemoGeo.start : LatLng(widget.position!.coordinates.lat, widget.position!.coordinates.lng);
     return Scaffold(
       backgroundColor: SwColors.bg,
@@ -332,7 +358,7 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
         : const SizedBox.shrink();
     switch (_mode) {
       case _Mode.quick:
-        return Column(children: [wait, for (final r in FakeCallScript.lines[_line].replies) option(r)]);
+        return Column(children: [wait, for (final r in FakeCallScript.lines[_s.line].replies) option(r)]);
       case _Mode.template:
         return ConstrainedBox(
           constraints: const BoxConstraints(maxHeight: 220),
