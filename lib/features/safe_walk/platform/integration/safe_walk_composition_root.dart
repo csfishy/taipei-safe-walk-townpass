@@ -479,9 +479,10 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
       child: SafeWalkFlow(
         mode: sw.DataMode.mock,
         allowRealCalls: false,
-        points: _points,
-        pointsLoading: _pointsLoading,
-        pointsError: _pointsError,
+        // Live mode shows no demo help points; real nearby places come later.
+        points: widget.liveRoutes ? const [] : _points,
+        pointsLoading: !widget.liveRoutes && _pointsLoading,
+        pointsError: widget.liveRoutes ? null : _pointsError,
         onRetryPoints: () => unawaited(_loadPoints()),
         route: widget.liveRoutes ? _navigation.routeResult : null,
         livePosition: _livePosition,
