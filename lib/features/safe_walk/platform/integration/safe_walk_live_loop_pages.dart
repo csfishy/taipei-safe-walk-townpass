@@ -356,7 +356,7 @@ class _SafeWalkReportStatusPageState extends State<SafeWalkReportStatusPage> {
     ReportQueryStatus.ok => '查詢狀態：正常（資料庫已回應）',
     ReportQueryStatus.empty => '查詢狀態：無紀錄（資料庫已回應，但沒有任何參考紀錄）',
     ReportQueryStatus.error => '查詢狀態：錯誤（未取得資料庫現況）',
-    ReportQueryStatus.stale => '查詢狀態：資料過舊（資料庫已回應，但資料日期已久）',
+    ReportQueryStatus.stale => '查詢狀態：資料過舊或日期待確認（資料庫已回應）',
   };
 
   static const _scopeText = '可信範圍：僅限已核對邊界的範圍；資料庫參考座標點不是範圍，行政區統計也不是路段分數。';
@@ -364,7 +364,6 @@ class _SafeWalkReportStatusPageState extends State<SafeWalkReportStatusPage> {
 
   List<Widget> _answered(CrimeReferenceResult r) {
     final areas = _c.evidencedAreas;
-    final status = _c.queryStatus;
     final updated = r.snapshot.asOfDate;
     return [
       Text(
@@ -374,9 +373,9 @@ class _SafeWalkReportStatusPageState extends State<SafeWalkReportStatusPage> {
                   '共 ${r.totalMatching} 筆參考紀錄；本次取得 ${r.retrievedAt}。',
         key: const Key('report-status'),
       ),
-      if (status == ReportQueryStatus.stale)
+      if (_c.snapshotIsStale)
         const Text(
-          '資料已超過更新期限或日期無法判讀，僅供參考，請勿當作現況。',
+          '資料已超過更新期限或日期無法確認，僅供參考，請勿當作現況。',
           key: Key('report-stale-note'),
         ),
       for (final s in r.sources)
@@ -411,12 +410,13 @@ class _SafeWalkReportStatusPageState extends State<SafeWalkReportStatusPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('「${a.label}」：${a.evidence}'),
+                Text('「${a.label}」邊界來源／證據：${a.evidence}'),
+                const Text('邊界資料更新日期：未提供；犯罪資料快照日期不代表邊界更新日。'),
                 Text(
-                  '來源：邊界證據如上；參考資料 ${r.sources.map((s) => s.name).join('、')}',
+                  '犯罪參考資料包含：${r.sources.map((s) => s.name).join('、')}；不代表這些來源認定此範圍為危險區域。',
                 ),
                 Text('可信範圍：僅此已核對邊界內（${a.label}）；邊界外不作任何判斷。'),
-                Text('更新日期：資料截至 $updated'),
+                Text('犯罪參考資料快照截至 $updated'),
                 const Text(_limitText),
               ],
             ),

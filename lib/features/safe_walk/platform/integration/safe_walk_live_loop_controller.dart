@@ -541,7 +541,7 @@ final class SafeWalkReportStatusController extends ChangeNotifier {
   }) : reviewedAreas = List.unmodifiable(reviewedAreas),
        _clock = clock ?? DateTime.now;
 
-  /// A snapshot whose `asOfDate` is older than this is labelled stale.
+  /// Maximum age measured from midnight UTC of the snapshot's calendar date.
   final Duration staleAfter;
   final DateTime Function() _clock;
 
@@ -558,6 +558,21 @@ final class SafeWalkReportStatusController extends ChangeNotifier {
   CrimeReferenceFailure? _failure;
   CrimeReferenceFailure? get failure => _failure;
 
+  /// Freshness is independent of whether the snapshot contains records.
+  /// Invalid or future dates cannot establish that the data is current.
+  bool get snapshotIsStale {
+    final result = _result;
+    if (_stage != ReportStatusStage.answered || result == null) return false;
+    final raw = result.snapshot.asOfDate;
+    if (!RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(raw)) return true;
+    final date = DateTime.tryParse('${raw}T00:00:00Z');
+    if (date == null || date.toIso8601String().substring(0, 10) != raw) {
+      return true;
+    }
+    final now = _clock().toUtc();
+    return date.isAfter(now) || now.difference(date) > staleAfter;
+  }
+
   ReportQueryStatus get queryStatus {
     switch (_stage) {
       case ReportStatusStage.idle:
@@ -571,12 +586,7 @@ final class SafeWalkReportStatusController extends ChangeNotifier {
       case ReportStatusStage.answered:
         final r = _result!;
         if (r.totalMatching == 0) return ReportQueryStatus.empty;
-        final asOf = DateTime.tryParse(r.snapshot.asOfDate);
-        // An unreadable date cannot be shown to be fresh.
-        if (asOf == null ||
-            _clock().toUtc().difference(asOf.toUtc()) > staleAfter) {
-          return ReportQueryStatus.stale;
-        }
+        if (snapshotIsStale) return ReportQueryStatus.stale;
         return ReportQueryStatus.ok;
     }
   }

@@ -674,6 +674,8 @@ void main() {
       expect(find.textContaining('僅此已核對邊界內（人工範圍）'), findsOneWidget);
       expect(find.textContaining('不是即時資訊'), findsWidgets);
       expect(find.textContaining('行政區統計也不是路段分數'), findsOneWidget);
+      expect(find.textContaining('邊界資料更新日期：未提供'), findsOneWidget);
+      expect(find.textContaining('不代表這些來源認定此範圍為危險區域'), findsOneWidget);
       expect(find.byKey(const ValueKey('report-area-area-1')), findsOneWidget);
     });
 
@@ -689,6 +691,22 @@ void main() {
       expect(c.queryStatus, ReportQueryStatus.empty);
       expect(status('無紀錄'), findsOneWidget);
       expect(find.textContaining('不代表這些地方沒有風險或安全'), findsOneWidget);
+    });
+
+    testWidgets('empty snapshot still shows its stale-data warning', (t) async {
+      final db = _Db()
+        ..answer = () async =>
+            CrimeReferenceHttpResponse(200, jsonEncode(_body(total: 0)));
+      final c = SafeWalkReportStatusController(
+        repository: db.repository,
+        staleAfter: const Duration(days: 30),
+        clock: () => _now,
+      );
+      await pumpPage(t, c);
+      expect(c.queryStatus, ReportQueryStatus.empty);
+      expect(c.snapshotIsStale, isTrue);
+      expect(status('無紀錄'), findsOneWidget);
+      expect(find.byKey(const Key('report-stale-note')), findsOneWidget);
     });
 
     testWidgets('no reviewed area says so and is not safe', (t) async {
@@ -768,31 +786,68 @@ void main() {
       expect(find.textContaining('未列出的地點不代表安全'), findsWidgets);
     });
 
-    test('stale boundary and unreadable date', () async {
-      Future<ReportQueryStatus> run(String asOf, Duration after) async {
-        final body = _body();
-        (body['snapshot']! as Map<String, Object?>)['asOfDate'] = asOf;
-        final db = _Db()
-          ..answer = () async =>
-              CrimeReferenceHttpResponse(200, jsonEncode(body));
-        final c = SafeWalkReportStatusController(
-          repository: db.repository,
-          staleAfter: after,
-          clock: () => _now,
-        );
-        await c.load();
-        return c.queryStatus;
-      }
+    test(
+      'freshness uses a UTC date, exact boundary and valid past dates',
+      () async {
+        Future<ReportQueryStatus> run(
+          String asOf,
+          Duration after, {
+          DateTime? now,
+        }) async {
+          final body = _body();
+          (body['snapshot']! as Map<String, Object?>)['asOfDate'] = asOf;
+          // Keep the artificial record before every tested snapshot date.
+          ((body['records']! as List).first
+                  as Map<String, Object?>)['eventDate'] =
+              '2026-01-01';
+          final db = _Db()
+            ..answer = () async =>
+                CrimeReferenceHttpResponse(200, jsonEncode(body));
+          final c = SafeWalkReportStatusController(
+            repository: db.repository,
+            staleAfter: after,
+            clock: () => now ?? _now,
+          );
+          await c.load();
+          final status = c.queryStatus;
+          c.dispose();
+          return status;
+        }
 
-      expect(
-        await run('2026-11-01', const Duration(days: 30)),
-        ReportQueryStatus.ok,
-      );
-      expect(
-        await run('2026-09-30', const Duration(days: 30)),
-        ReportQueryStatus.stale,
-      );
-    });
+        expect(
+          await run('2026-11-01', const Duration(days: 30)),
+          ReportQueryStatus.ok,
+        );
+        expect(
+          await run('2026-09-30', const Duration(days: 30)),
+          ReportQueryStatus.stale,
+        );
+        expect(
+          await run(
+            '2026-10-09',
+            const Duration(days: 30),
+            now: DateTime.parse('2026-11-08T08:00:00+08:00'),
+          ),
+          ReportQueryStatus.ok,
+        );
+        expect(
+          await run(
+            '2026-10-09',
+            const Duration(days: 30),
+            now: DateTime.utc(2026, 11, 8, 0, 0, 0, 0, 1),
+          ),
+          ReportQueryStatus.stale,
+        );
+        expect(
+          await run('2026-12-01', const Duration(days: 90)),
+          ReportQueryStatus.stale,
+        );
+        expect(
+          await run('2026-02-31', const Duration(days: 365)),
+          ReportQueryStatus.stale,
+        );
+      },
+    );
   });
 
   group('official composition entry', () {
