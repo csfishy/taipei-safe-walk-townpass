@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show mapEquals;
 import 'package:flutter/material.dart';
 import 'package:town_pass/features/safe_walk/presentation/demo_map.dart';
 import 'package:town_pass/features/safe_walk/presentation/mock/safe_walk_demo_data.dart';
@@ -238,7 +239,10 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
   @override
   void didUpdateWidget(SafeWalkMapView old) {
     super.didUpdateWidget(old);
-    if (old.routeState.result != widget.routeState.result) _routeChoice = 0;
+    if (old.routeState.result != widget.routeState.result ||
+        !mapEquals(old.pointsState.routes, widget.pointsState.routes)) {
+      _routeChoice = 0;
+    }
     // 地點陸續出現、最後再依安全與時間重排：畫面停在使用者正在看的那一個。
     final target = widget.targetPointId;
     if (target != null && _pointIndex != null) {
@@ -251,8 +255,8 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
           .where((spot) => spot.id == detail.id)
           .firstOrNull;
     }
-    // 店家結果剛算好：正在看求助地點時，第一間（最安全最快）就成為導航目標。
-    if (old.pointsState.routes.isEmpty &&
+    // 店家結果更新時，同一店家的新路線也交回共用導航控制器。
+    if (!mapEquals(old.pointsState.routes, widget.pointsState.routes) &&
         widget.pointsState.routes.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _targetCurrentPoint();
@@ -318,8 +322,10 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
     final i = _pointIndex;
     if (i == null || _pointsView || points.isEmpty) return;
     final p = points[i % points.length];
-    if (widget.pointsState.routes.containsKey(p.id) &&
-        widget.targetPointId != p.id) {
+    final route = widget.pointsState.routes[p.id];
+    if (route != null &&
+        (widget.targetPointId != p.id ||
+            !identical(widget.routeState.result, route))) {
       widget.onTarget?.call(p);
     }
   }

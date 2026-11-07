@@ -136,8 +136,10 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
   String? _targetPointId;
 
   void _setTarget(sw.AssistancePoint? point) {
-    if (point?.id == _targetPointId) return;
-    setState(() => _targetPointId = point?.id);
+    if (point == null && _targetPointId == null) return;
+    if (point?.id != _targetPointId) {
+      setState(() => _targetPointId = point?.id);
+    }
     if (point == null) {
       _planRoute();
     } else {
@@ -289,7 +291,7 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
       widget.homeLocation == null;
 
   RouteState get _routeState {
-    if (_missingLiveHome) {
+    if (_missingLiveHome && _targetPointId == null) {
       return RouteState(
         result: sw.RouteFailure(
           requestId: 'home-not-set',

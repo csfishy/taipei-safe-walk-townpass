@@ -65,7 +65,7 @@ class SafeWalkCompositionRoot extends StatefulWidget {
 
   /// Nearby help points; defaults to the bundled OpenStreetMap snapshot of
   /// convenience stores and police (opening hours read at lookup time).
-  /// opening hours read. Tests inject a fake so nothing leaves the device.
+  /// Tests inject a fake so nothing leaves the device.
   final NearbyPointFinder? findStores;
 
   /// Continuous positions while the map is open; defaults to the device GPS.
@@ -133,6 +133,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
   bool _nearbyLoading = false;
   String? _nearbyError;
   _RouteCancellation? _nearbyOperation;
+
   /// Read once, on the first nearby lookup.
   late final Future<OsmHelpPointSnapshot> _snapshot = rootBundle
       .loadString('assets/safe_walk/osm_help_points_taipei.json')
@@ -301,14 +302,14 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     } on SafeWalkCancelledException {
       return;
     } on CrimeReferenceQueryException catch (error) {
-      if (!_isCurrent(operation) || !_hasCrimeConsent) return;
+      if (!isCurrent() || !_hasCrimeConsent) return;
       setState(
         () => _crimeQueryStatus =
             '犯罪參考資料查詢失敗：${_crimeFailureMessage(error.failure)}'
             '本次路線未套用犯罪參考避讓。',
       );
     } on ArgumentError {
-      if (!_isCurrent(operation) || !_hasCrimeConsent) return;
+      if (!isCurrent() || !_hasCrimeConsent) return;
       setState(
         () => _crimeQueryStatus =
             '犯罪參考資料查詢失敗：查詢範圍過大或條件不適用，請縮短行程後重新規劃。'
@@ -797,10 +798,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
         '附近 2 公里內沒有資料標示營業中的便利商店或派出所（資料不完整，不代表附近沒有）。可以改走回家路線，或直接按緊急求助。',
       );
     }
-    final all = [
-      origin.coordinates,
-      for (final s in stores) s.coordinates,
-    ];
+    final all = [origin.coordinates, for (final s in stores) s.coordinates];
     await _loadCrime(
       sw.Coordinates(
         lat: all.map((c) => c.lat).reduce(math.min),
@@ -819,10 +817,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
       if (options.length == _nearbyCount) break;
       try {
         final result = await _storeRoutes.planRoute(
-          _createRouteRequest(
-            origin: origin,
-            destination: store.coordinates,
-          ),
+          _createRouteRequest(origin: origin, destination: store.coordinates),
           cancellation: operation,
         );
         if (!current()) return;
