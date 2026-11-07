@@ -12,6 +12,7 @@
 |---|---|---|
 | 真實求助據點 Repository | NOT_IMPLEMENTED | `SafetyDataRepository` 尚無 Live 實作；Parser／Mock 已接展示流程，App 仍注入 `demoAssistancePoints()`，不能標成真實據點。 |
 | 全市暴力犯罪月統計 | IMPLEMENTED_NOT_WIRED | 真實來源讀取及正規化已合併，尚未接入 M1／畫面；不能再籠統寫「所有真實來源尚未實作」。 |
+| 北北基犯罪參考資料唯讀查詢 | IMPLEMENTED_NOT_WIRED | 審查用 RPC SQL、Repository、Parser 與獨立 live check 入口，見 [crime_reference/README.md](crime_reference/README.md)；SQL 尚未套用至真實 Supabase，未接正式流程。 |
 
 ## 主要負責人與輸入輸出
 
