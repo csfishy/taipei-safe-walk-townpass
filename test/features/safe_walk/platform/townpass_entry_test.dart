@@ -1,6 +1,9 @@
+import 'package:carousel_slider/carousel_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
+import 'package:town_pass/bean/activity.dart';
+import 'package:town_pass/bean/home_banner.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_composition_root.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_flow.dart';
 import 'package:town_pass/page/city_service/model/my_service_model.dart';
@@ -206,12 +209,26 @@ Future<void> _homeApp(
   await tester.pump();
 }
 
-class _NewsWithoutTimer extends NewsBannerWidgetController {
+class _NewsWithoutTimer extends GetxController
+    implements NewsBannerWidgetController {
   @override
-  void onInit() {}
+  final controller = CarouselSliderController();
+
+  @override
+  int carouselIndex = 0;
+
+  @override
+  bool isLoading = true;
+
+  @override
+  HomeBannerList? list;
 }
 
-class _ActivityWithoutTimer extends ActivityBannerWidgetController {
+class _ActivityWithoutTimer extends GetxController
+    implements ActivityBannerWidgetController {
   @override
-  void onInit() => isLoading = true;
+  bool isLoading = true;
+
+  @override
+  ActivityList? list;
 }
