@@ -42,12 +42,7 @@ final class NearbyEmergencyService {
   final NearbyAlertTransport _transport;
   final int radiusMeters;
 
-  String? get unavailableReason {
-    final transport = _transport;
-    return transport is UnavailableNearbyAlertBackend
-        ? (transport as UnavailableNearbyAlertBackend).unavailableReason
-        : null;
-  }
+  String? get unavailableReason => nearbyBackendUnavailableReason(_transport);
 
   Future<NearbyEmergencyResult> triggerEmergency({
     required sw.DataMode mode,
