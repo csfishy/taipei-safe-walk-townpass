@@ -1,5 +1,7 @@
 # Safe Walk CI 與選用雲端建置
 
+現行功能驗收以 [Live MVP](SAFE_WALK_LIVE_MVP.md)／[Readiness](SAFE_WALK_LIVE_READINESS.md) 為準；下文「本次只追加」「未修改 UI」及初始化執行結果是歷史範圍。最新工作流已有 M3 Widget／原生入口及 TTS 等程式，CI 通過仍不代表真實 Provider 或 iPhone 驗收。
+
 後續跨平台預覽交付另見 [Checks, prereleases and GitHub Pages](BUILDS.md)。`check-and-build` 會保留本文件的 Schema／完整測試／嚴格 scoped 門檻，另以 errors/warnings fatal、既有 style infos advisory 的全專案分析作建置閘門，建置 APK／unsigned IPA／Web 並處理預發佈與 Pages。原 Safe Walk CI／Codemagic 在 pub get 前新增產生必要的 build-info asset；以下初始化時的驗證敘述仍為歷史紀錄，不代表新的部署已執行。
 
 2026-11-07。Flutter 專案就在 Repository 根目錄，沿用 `.fvmrc` 的 **Flutter 3.47.6** 與官方 `pubspec.lock`。這份文件描述新增工作流；配置存在不等於 GitHub／Codemagic 已執行，更不等於裝置驗收或正式發佈完成。
@@ -19,7 +21,7 @@
 5. **只有來源分支為 `migration/` 的 PR** 執行 `dart run tool/check_safe_walk_baseline.dart --initialization`，檢查本次無新 UI 的初始化邊界。一般 feature PR／後續 M3 UI 開發不套用此初始化限制。
 6. 實跑完整 `flutter analyze --no-pub`，保存原始輸出、exit code 與 step outcome。
 7. 嚴格執行 `flutter analyze --no-pub lib/features/safe_walk tool test/features/safe_walk`。
-8. `flutter test --no-pub` 執行整套測試，包含官方根目錄測試及安心行測試；不跳過或更改 counter 模板測試來假裝全部成功。
+8. `flutter test --no-pub` 執行整套測試，包含官方 route／preference／browser 與安心行測試；保留既有涵蓋，不弱化測試來假裝成功，實際 skip 分開回報。初始化時 counter 模板的調整事實見歷史紀錄。
 
 ### 完整分析與新增範圍的門檻
 
@@ -27,7 +29,7 @@
 
 Schema、一致性、初始化 guard、新增範圍分析及完整測試都是必要門檻。任何一步失敗或未執行，均應照實回報。即使工作流因新增範圍通過而呈綠色，也不能將非阻擋的完整分析說成已通過；下一步應對照完整報告與官方基底，區分上游既有問題和本次新增問題。
 
-目前的嚴格分析範圍對應這次無 UI 初始化。後續若經授權修改官方 route／頁面或其他範圍，M1 應將相關路徑納入嚴格檢查，或建立可核對的上游診斷 baseline；不能把新增範圍外的所有新問題自動歸類成上游資訊。
+嚴格分析涵蓋全部 Safe Walk（包含 M3 Widget）、tool 及模組測試；check-and-build 另以全專案 errors/warnings fatal、既有 style infos advisory 作建置門檻。後續修改官方 route／頁面或其他範圍，M1 應納入嚴格檢查或建立可核對的診斷 baseline，不能把範圍外新問題自動歸類成上游資訊。--initialization 僅用於 migration，不能限制正常 feature／Live 開發。
 
 檢查報告保存在 `safe-walk-verification-reports` artifact，預設保留 14 天。設定 required checks／branch protection 是另一項 Repository 設定；本工作流不會自動啟用它。
 

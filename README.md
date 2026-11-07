@@ -1,16 +1,16 @@
 # 臺北安心行 · Taipei Safe Walk
 
-以官方 TownPass Flutter App 為基底的五人協作專案，參與「2026 臺北城市通微服務黑客松」。專案目前提供安心行示範畫面、TownPass 內的原生功能入口、共用資料契約與模組測試；真實步行導航、官方求助介接與裝置驗收仍待交付。
+以官方 TownPass Flutter App 為基底的五人協作專案，參與「2026 臺北城市通微服務黑客松」。主要開發目標已轉為 **Live MVP／Production Readiness**：交付真實、可驗證、可部署的功能。保留 Mock／Fake／示範地圖供測試、離線開發及明確展示；正式驗收以 [Live MVP 規格](docs/SAFE_WALK_LIVE_MVP.md) 為準。
 
 - **Repository**：[csfishy/taipei-safe-walk-townpass](https://github.com/csfishy/taipei-safe-walk-townpass)；Public，預設分支 `main`。
 - **開發基線**：Flutter **3.47.6**／Dart **3.13.5**，依 [.fvmrc](.fvmrc) 與已提交的 [pubspec.lock](pubspec.lock)；同一個 Flutter App，以模組分支協作。
-- **目前狀態**：五模組初始化、M3 畫面、M5 控制器、M1 原生接線及自動預發佈設定已合併至 `main`。產物與部署狀態請查看 [GitHub Actions](https://github.com/csfishy/taipei-safe-walk-townpass/actions) 對應 commit 的實際結果，不能將設定已合併視為全部檢查或部署成功。
+- **目前狀態**：以 main `03f98f2b7b5254db73774c4d097eb4d610499c2c` 盤點，已有原生入口、M3 畫面、OSRM Provider、RouteFollower、OSM 店家／外部導航工具、全市犯罪資料 Repository、裝置 TTS 與 Supabase 連線基礎。導航仍受 Mock／接線／真地圖及驗收缺口隔離；TTS 已接但缺 iPhone 證據。詳見 [Live Readiness](docs/SAFE_WALK_LIVE_READINESS.md)；[CI](https://github.com/csfishy/taipei-safe-walk-townpass/actions) 成功不等於真實功能或部署已驗收。
 
 ## 在 TownPass 開啟安心行
 
 從 TownPass **首頁新聞上方的「臺北安心行」功能卡片**進入，卡片包含圖示、說明與向右箭頭，排列方式參考 TownPass-self。也可從「城市服務」的釘選項目開啟；兩處進入同一個原生功能頁，返回回到原本的 TownPass 畫面。
 
-目前為明確標示的示範模式，提供安心回家、模擬來電、附近求助地點、回報狀況與緊急求助示範。進入功能不會自動取 GPS、播放語音、撥號或傳送簡訊。實際模組狀態與未配置功能見 [入口整合說明](docs/SAFE_WALK_INTEGRATION.md)。
+目前導航／據點／求助流程仍是明確標示的示範模式，模擬來電已接裝置本機 TTS，無可用語音時文字預覽。進入功能不會自動取 GPS、播放語音、撥號或傳送簡訊。這是當前狀態，不是永久產品限制；已驗證能力須逐項接入正常流程，未配置／失敗清楚顯示 Unavailable，不暗中切換 Mock。實際接線見 [整合說明](docs/SAFE_WALK_INTEGRATION.md)。
 
 ## Clone 與五人分工
 
@@ -34,7 +34,7 @@ git fetch origin
 
 正式開工前同步已合併的共同基線：`git fetch origin` 後，在自己的分支執行 `git merge origin/main`。有衝突時與 M1 協調，不 force push 或重設隊友歷史。main 已包含下列開發與預覽流程，無須切到 PR #2；其他待審模組 PR 的成果仍須合併後才會進入共同基線。
 
-共用 Schema、Dart models／contracts、套件／lock、CI、官方 route 與跨模組修改由 M1 統一協調。模組透過共用型別及依賴注入整合，不直接 import 其他模組實作。詳細輸入／輸出、狀態與第一輪交付見 [五人模組契約](docs/SAFE_WALK_MODULES.md) 及各模組 README。
+共用 Schema、Dart models／contracts、套件／lock、CI、官方 route 與跨模組修改由 M1 統一協調。模組透過共用型別及依賴注入整合，不直接 import 其他模組實作。詳細輸入／輸出、狀態與持續交付見 [五人模組契約](docs/SAFE_WALK_MODULES.md) 及各模組 README。
 
 ## 首次安裝與產生檔案
 
@@ -109,7 +109,8 @@ GitHub Pages 僅從最新 main 部署：Web／Android／iOS 三個建置成功�
 ## 架構、資料與產品邊界
 
 - JSON payload 的唯一來源是 [contracts.schema.json](schemas/safe_walk/v1/contracts.schema.json)；Dart 模型／runtime schema 可由 `dart run tool/generate_safe_walk_contracts.dart` 重產，再執行 `--check`。不手改生成模型，也不在五模組各自定義資料型別。
-- 模組先以 mock／fixtures／fake adapters 獨立開發。mock 不是真實位置、正式機關資料或救援；live provider 未配置要明確失敗，不能用 mock 假成功。`officialReceipt` 保持 null，不宣稱警方已受理或救援已派遣。
+- Mock 僅用於測試、離線開發及清楚標示的 Demo；正式公開版本優先提供各自已驗證的 Live 能力，不用全域 Mock 阻擋整個產品。Unavailable 必須說明原因／下一步，不能用 Mock 假成功。`officialReceipt` 保持 null，不宣稱警方已受理或救援已派遣。
+- 定位權限與第三方路線／據點查詢同意分開；不補示範座標或路線。附近協助者通知因身分、ownership、RPC/RLS、防濫用與保留刪除等條件未完成維持 BLOCKED；官方案件自動派送須正式授權。兩者不阻擋導航、查詢、TTS、主動系統撥號及官方通報入口。
 - 行政區歷史犯罪統計不能直接等同即時道路安全評分，也不構成路段安全保證。來源、時間、認可及未知狀態各自保留。
 - 官方 `main.dart`、GetX route、Theme、`TPColors`、品牌與原生功能沿用官方架構。安心行 UI/UX 由 **M3 莅紋**設計，M1 在 TownPass 首頁與城市服務接入同一個功能頁；不套用其他技術棧的 CSS 設計。
 - 色值沿用官方 [TPColors](lib/util/tp_colors.dart)，語意與對比參考 [顏色規範](docs/SAFE_WALK_COLOR_SPEC.md)；色彩配對不等於整個 App 已通過 WCAG。
@@ -120,8 +121,12 @@ GitHub Pages 僅從最新 main 部署：Web／Android／iOS 三個建置成功�
 | 文件 | 用途 |
 |---|---|
 | [AGENTS.md](AGENTS.md) | 人員與 AI 協作、修改範圍、資料與 Git 規則 |
+| [Live MVP](docs/SAFE_WALK_LIVE_MVP.md) | 現行正式功能驗收及 Mock／Live／Unavailable 定義 |
+| [Live Readiness](docs/SAFE_WALK_LIVE_READINESS.md) | 逐能力現況、接線／測試／實機缺口與旗標解除條件 |
+| [規格逐項審查](docs/SAFE_WALK_SPEC_AUDIT.md)、[P0–P2 工程計畫](docs/SAFE_WALK_LIVE_PLAN.md) | Markdown／程式對照、五人分工與第一個實作提示詞 |
 | [架構基線](docs/SAFE_WALK_ARCHITECTURE.md) | 官方接點、模組邊界與整合方向 |
-| [五人模組契約](docs/SAFE_WALK_MODULES.md) | 輸入／輸出、所有權、狀態與第一輪交付 |
+| [五人模組契約](docs/SAFE_WALK_MODULES.md) | 輸入／輸出、所有權、狀態與持續開發交付 |
+| [導航呈現契約](docs/SAFE_WALK_NAVIGATION_PRESENTATION_CONTRACT.md) | M1／M2／M3 正式流程、同意、路線與 UI 接線 |
 | [Schema 與 Dart 模型](docs/SAFE_WALK_SCHEMA.md) | 單一來源、strict 欄位、nullable、語意與取消 |
 | [顏色規範](docs/SAFE_WALK_COLOR_SPEC.md) | 官方 TPColors 語意；不預先定義 UI 版型 |
 | [初始化驗證紀錄](docs/SAFE_WALK_INITIALIZATION.md) | 初始化時的實跑證據與限制；後續狀態以新 run 為準 |

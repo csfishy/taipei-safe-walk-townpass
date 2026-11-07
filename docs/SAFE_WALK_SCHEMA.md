@@ -2,6 +2,8 @@
 
 本文件只定義資料與驗證接點，不建立畫面、Widget、Theme 或音訊／導航產品功能。
 
+此為文件範圍，不是禁止實作產品功能。現行驗收見 [Live MVP](SAFE_WALK_LIVE_MVP.md)，實際狀態見 [Readiness](SAFE_WALK_LIVE_READINESS.md)。本次不更改 Schema；Unavailable 是能力／錯誤呈現語意，不新增既有 mock/live wire enum。必要新 payload 欄位另開 Schema 變更。
+
 ## 來源與單一來源
 
 canonical payload 為 `schemas/safe_walk/v1/contracts.schema.json`，原始版本 `1.0.0`、Draft 2020-12。Schema、16 個引用入口及 fixtures 均從 Legacy Repository 原樣保留；不是把 TypeScript 或 React 元件機械轉成 Dart。
@@ -73,7 +75,7 @@ switch (result) {
 - `DataMode.mock/live` 明確分離。enum 使用 `.wireValue`，不要拿 `.name` 當 JSON：`EmergencyChannel.police/fire/trustedContact` 分別是 `110`／`119`／`trusted_contact`；`visibilityHidden` 等保留 snake_case wire 值。
 - `RouteFailure` 不可能帶成功路線；`LocationFailureStatus` 沒有自造 cancelled。官方受理、派遣與案件編號不在本版契約，`officialReceipt` 永遠 null。
 - 認可 confirmed 仍必須有 evidenceUrl 與 checkedAt；一般便利商店不自動變合作安全站。
-- 音檔 wire `/audio/...` 保留為邏輯本地資產路徑；驗證格式不代表檔案存在、已授權或已播放。M5 未來明確映射核准的 Flutter assets，本輪不修改官方 assets 或新增錄音。
+- 音檔 wire `/audio/...` 保留為邏輯本地資產路徑；驗證格式不代表檔案存在、已授權或已播放。M5 已有控制器 allow-list 映射接點，具體核准資產／播放器仍待交付；已接裝置 TTS 是程序內另一能力，不需為此改音檔欄位。
 
 ## 結構與語意分層
 
@@ -113,6 +115,6 @@ flutter test test/features/safe_walk/contracts --no-pub
 
 `test/fixtures/safe_walk/` 原樣保留 12 個 valid＋13 個 invalid 案例與 manifest。manifest 內原 `fixtures/` 相對路徑由測試 loader 映射，不修改 fixture 內容；valid 逐筆解析再 roundtrip，invalid 必須拒絕。另驗證四個 sealed unions、額外／缺少欄位、immutable collections、GeoJSON、有限數字、日期／URI、Unicode 長度、假受理、取消與上述語意。
 
-命令與案例清單不是 PASS 宣告；本次實際結果、官方既有檢查及裝置／Build 限制統一記錄在 `SAFE_WALK_INITIALIZATION.md`。這些純資料測試不啟動官方登入、GPS、電話、音訊或任何新 UI。
+命令與案例清單不是 PASS 宣告；初始化結果留在 `SAFE_WALK_INITIALIZATION.md`，後續結果以各 PR／CI 與 [Readiness](SAFE_WALK_LIVE_READINESS.md) 為準。這些純資料測試不啟動官方登入、GPS、電話、音訊或任何新 UI。
 
 Schema 改動仍由 M1 統一協調；必須同步 generator 映射、validator 支援、fixtures、語意測試與接收模組，再重產並執行 `--check`。不先手改生成 Dart 來暫時繞過契約。

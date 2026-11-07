@@ -1,32 +1,44 @@
 # M1｜小魚：平台、唯一定位入口、求助與整合
 
-Supabase 本機連線設定、唯讀檢查與附近通知 SQL 的部署前提見 [Supabase 設定](../../../../docs/SAFE_WALK_SUPABASE.md)。公開 client key 的配置不會開啟 Live 求助或自動上傳位置。
+本模組以可驗證的 Live MVP 為交付目標。先讀根目錄 AGENTS、[Live MVP 驗收](../../../../docs/SAFE_WALK_LIVE_MVP.md)、[上線條件表](../../../../docs/SAFE_WALK_LIVE_READINESS.md)、[模組契約](../../../../docs/SAFE_WALK_MODULES.md)及共用 Schema。初始化紀錄只保留當時事實，不再要求等待初始化合併或建立五個分支。
 
-先讀根目錄 AGENTS、官方初始化文件及 [五人模組契約](../../../../docs/SAFE_WALK_MODULES.md)。本目錄不包含正式頁面；官方 main／GetX route／theme 保留，不套 React UI。
+## 所有權與契約
 
-## 所有權與接點
+- M1 管理 `platform/`、共用 contracts/models/Schema/fixtures、官方入口、route、CI、平台設定與依賴；測試位於 `test/features/safe_walk/platform/`。跨模組實作依賴集中於 `integration/`，保留 M3 莅紋的正式 UI/UX 設計權。
+- `PlatformService.getCurrentPosition({required mode, required userInitiated, cancellation})` 回傳共用 `LocationResult`。沒有明確操作不得觸發權限，Mock 不讀裝置 GPS，Live 失敗不得以示範位置補足。
+- `requestEmergency({required mode, required channel, required userInitiated, required allowRealCalls, summary})` 回傳 `EmergencyActionResult`；使用者主動開啟 110／119 撥號或官方通報入口是可開發的合法交接能力。開啟撥號器不代表已接通，`officialReceipt` 保持 null。
+- 唯讀匯入 `shared/models/safe_walk_models.dart as sw`，不複製 Position 或建立第二套 payload；新增 wire 欄位需獨立 Schema 變更。
 
-- 本模組可改 `lib/features/safe_walk/platform/`，新增測試使用 `test/features/safe_walk/platform/`；共用 contracts／models／Schema／fixtures、官方接線、route、CI、依賴由 M1 統一協調。
-- `PlatformService.getCurrentPosition()` 明確接 `DataMode mode`、`bool userInitiated`、選用 `SafeWalkCancellation`，輸出 `Future<LocationResult>`。false 使用者操作不得觸發權限；mock 不取裝置 GPS。
-- `requestEmergency()` 明確接 mode、channel、userInitiated、allowRealCalls 與選用 `IncidentSummary`，輸出 `EmergencyActionResult`。只有 live＋使用者操作＋允許真實電話才可能 handoff；`officialReceipt` 固定 null。
-- 共用模型唯讀匯入 `shared/models/safe_walk_models.dart as sw`，不另外定義 geolocator 版 Position 給其他模組。
+## main 的實際狀況
 
-## 狀態、缺值與整合
+盤點基線為 `03f98f2b7b5254db73774c4d097eb4d610499c2c`（2026-11-07）。以下為已合併實作，不等於實機驗收完成。
 
-位置失敗為 denied／timeout／unavailable／unsupported；取消可拋共用 `SafeWalkCancelledException`，由 M1 邊界忽略過期結果，或轉 unavailable＋明確取消訊息，不新增 wire status。未知精度／時間遵守 required nullable，不能補假座標。
+| 能力 | 已存在程式 | 正式流程仍缺少 |
+|---|---|---|
+| TownPass 入口 | `TPRoute.safeWalk` 已建立 `SafeWalkCompositionRoot`；官方 `GeoLocatorService` 由既有 `main.dart` 註冊 | 入口的 Live 能力選擇與誠實狀態 |
+| 原生位置 | `TownPassPlatformAdapter` lazy 呼叫既有 `GeoLocatorService.position()`，具操作/模式閘門、8 秒逾時、取消、權限與不可用映射 | composition 的 `_locate()` 固定 Mock；需要主動啟動導航/更新位置、定位同意 UI 及 iPhone 驗收 |
+| 導航控制 | `SafeWalkNavigationController` + `SafeWalkNavigationScope` 已組合 M2 `DefaultRouteService` 與 OSRM provider，保護 requestId、模式、取消及遲到回應 | root 固定 `DataMode.mock`、`livePresentationReady: false`、`liveProviderReady: false`；M3 Flow 尚未消費 scope 的路線/同意 callbacks |
+| 據點 | 目前注入 `MockSafetyDataRepository`，驗證同模式 snapshot 後供 M2 lookup | M4 真實據點 repository、來源/有效性與 Live UI；`_loadPoints()` 目前固定 Mock 並拒絕 Live 混入 |
+| 音訊 | 預設 `TtsSafeWalkSpeaker.device()` 已接 M5 裝置 TTS，SOS 優先 stop，離開時 dispose | iPhone 真聲音、無 voice 文字預覽、背景/回前景及非同步競態驗收；未合併 #26 須另審，不能當成本基線成果 |
+| 系統求助交接 | `requestEmergency()` 契約與 Mock SOS 流程存在 | `TownPassPlatformAdapter` 尚無 dial/share/report adapter，任何旗標仍回 `not_configured`；需實作系統撥號/官方入口交接 |
+| 附近協助者 | service、RPC transport、匿名 UUID store 與 SQL 已合併；Supabase 有獨立唯讀連線檢查 | **BLOCKED**：可信身分、接收資格、ownership、RLS/RPC、頻率、防濫用、保留刪除與後端/裝置驗證；未接主 App |
 
-`TownPassPlatformAdapter` 已包裝官方 `GeoLocatorService.position()`，但未在官方 App 註冊或自動呼叫。只有 live 且明確使用者操作才可能讀位置；mock 只消費注入 fixture，沒有時回不可用。缺少實測精度或來自 native mock provider 的位置不會假標為真實 GPS；live 結果亦套用共用 `positionProblems()`，拒絕超過 60 秒的定位及超前 30 秒以上的時間。M2 消費這一份位置；M1 之後注入 M4 repo／據點 lookup，求助先停止 M5 並取消路線。不等待定位成功才提供求助，也不自行宣稱警方受理或派遣。
+原生入口的 Mock 狀態是當前接線事實，不是永久規格。Mock 僅作為測試與未驗證功能的隔離模式；正式功能完成相應驗收後，必須能透過正式操作流程使用 Live Provider。不同能力應分別啟用，附近通知尚未就緒不能阻擋 GPS、路線、資料查詢、TTS 或使用者主動開啟官方求助入口。
 
-## 第一輪交付
+## 位置與同意
 
-以 fake／mock 驗證模式與操作閘門、成功／拒絕／取消、求助不撥號不傳位置；原生權限、電話與 route 接線明列待驗。`platform_service.dart` 是抽象介面；`townpass_platform_adapter.dart` 提供 lazy 位置映射、有限等待與取消，正式求助 Adapter 尚未配置，因此無論旗標如何都不撥號、不傳位置，回 not_configured／cancelled 與固定 null 回執。
+位置失敗沿用 `denied`／`timeout`／`unavailable`／`unsupported`；取消可拋 `SafeWalkCancelledException`，由 M1 忽略過期回應或以 unavailable 加清楚訊息呈現，不新增 wire status。Adapter 拒絕缺少實測精度、native mocked、精度超過 100 公尺、超過 60 秒或超前 30 秒的位置；不得補 DemoGeo。
 
-預定分支 `feat/m1-platform`：**pending**。先審查初始化 PR，使用者確認合併後才從共同 Flutter base 建立，不自行 merge 或預先建立五個分支。
+定位權限與將起訖座標送往第三方 OSRM／Overpass 的同意必須分開。使用者撤回第三方同意、換目的地、取消、SOS、離開或背景中斷應取消目前路線並清除舊結果。M2 只消費 M1 取得的位置，不另註冊 GPS watcher；必要時由使用者主動更新。位置及危難筆記不寫入日誌，正式流程不得默默外傳。
 
-## M1 導航整合（2026-11-07）
+## 求助與附近通知的不同條件
 
-`integration/SafeWalkCompositionRoot` 現在注入 M2 `DefaultRouteService`，使用已驗證的同模式 M4 據點 snapshot 核對途經 ID。`SafeWalkNavigationController` 管理共用 request/result、loading/error、取消與遲到結果；`shared/contracts/safe_walk_navigation_scope.dart` 提供 M3 接線邊界，不新增 GPS 監聽。
+求助不等待定位成功。M1 先中斷陪伴及路線，再執行使用者選擇的系統交接；不以介面成功或受理編號暗示已接通、警方已接案或派遣。未獲官方授權不得自動送警消案件。
 
-原生入口固定 Mock，現有 M3 Demo 操作保留。Live UI/provider 閘門維持關閉，OSRM 僅預備注入、不發請求；Overpass 未接入。M3 尚未消費 scope，目的地變更、SOS 開頁及離開導航的使用者事件仍需由 M3 接上；不能把 scope 測試當成真實路線 UI 已完成。詳見 [M1／M2／M3 接線規格與交接](../../../../docs/SAFE_WALK_NAVIGATION_PRESENTATION_CONTRACT.md)。
+附近協助者不是官方警消通報。`supabase/nearby_emergency.sql` 的 security-definer RPC 目前接受呼叫者 UUID 並授權 anon，沒有身分與資料所有權核對；表級 RLS 本身不能補上缺口。不得僅憑匿名 UUID、公開 key、按下同意或增加 Live 旗標就公開傳送陌生人的精確位置。部署前提與既有唯讀連線證據見 [Supabase](../../../../docs/SAFE_WALK_SUPABASE.md)。
 
-納入 main 的 PR #15 後，完整 Flutter suite：370 通過、12 跳過（10 截圖、2 opt-in live smoke）；Schema／module guard／scoped analyze 通過。完整預設 analyze exit 1，僅 17 項既有 info、無 error/warning；CI 的 `--no-fatal-infos` exit 0。測試包含 22 項 controller、11 項 scope 接線及既有 TownPass 入口／Mock SOS 整合，不包含 iPhone 實機或公共 OSRM／Overpass 驗證。
+## 驗證與後續交付
+
+既有 `townpass_platform_adapter_test.dart`、`safe_walk_integration_test.dart`、`integration/safe_walk_navigation_controller_test.dart`、`integration/safe_walk_navigation_wiring_test.dart`、TTS／Supabase／nearby 測試供回歸使用，多數採 fake 或本機伺服器。歷史測試數量不代表目前全部通過；本輪執行結果以 PR 驗證紀錄為準。測試 scope 不等於 M3 已顯示真實路線，Mock unit tests 不等於 LIVE_VERIFIED。
+
+P0 先完成 GPS、第三方同意、M2 OSRM、M3 真實地圖與 RouteResult 接線；P1 再接合法真實據點、外部導航、裝置 TTS 驗收與官方求助交接。每次啟用依 [上線條件表](../../../../docs/SAFE_WALK_LIVE_READINESS.md)附真實 Provider 及 iPhone 證據，以 PR 與 CI 審查，不自行 merge 或改動官方 upstream。
