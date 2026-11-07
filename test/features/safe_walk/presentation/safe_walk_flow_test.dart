@@ -119,7 +119,8 @@ void main() {
     await t.pump(const Duration(seconds: 1));
     expect(speaker.spoken.length, 3);
     expect(speaker.spoken.last, startsWith('I see you.'));
-    expect(find.textContaining('嚇阻台詞已播放完畢'), findsOneWidget);
+    expect(find.textContaining('已到劇本最後一句'), findsOneWidget);
+    expect(find.textContaining('已播放完畢'), findsNothing);
     await t.tap(find.text('緊急求助').first);
     await t.pump(const Duration(milliseconds: 300));
     expect(speaker.stops, greaterThan(0));
