@@ -174,7 +174,7 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> with WidgetsBindingO
             children: [
               Semantics(header: true, child: Text('選擇通話情境', style: SwText.heading)),
               const SizedBox(height: 4),
-              Text('選一個跟你現在情況相近的劇本。模擬通話，未聯絡任何人。', style: SwText.small),
+              Text('選一個跟你現在情況相近的情境。', style: SwText.small),
               const SizedBox(height: 12),
               for (final (id, label, desc) in options)
                 Padding(
@@ -287,13 +287,16 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> with WidgetsBindingO
     setState(() => _waiting = true);
     _reply = Timer(const Duration(milliseconds: 900), () {
       if (!mounted || !_active) return;
-      _say(ack, onDone: () {
-        if (_s.finished) {
-          setState(() => _waiting = false);
-        } else {
-          _scheduleReply(delay: Duration.zero);
-        }
-      });
+      _say(
+        ack,
+        onDone: () {
+          if (_s.finished) {
+            setState(() => _waiting = false);
+          } else {
+            _scheduleReply(delay: Duration.zero);
+          }
+        },
+      );
     });
   }
 
@@ -331,121 +334,135 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> with WidgetsBindingO
       return _Incoming(scenarioLabel: _scenario.label, onPickScenario: _pickScenario, onAnswer: _answer, onDecline: () => _leaveThen(widget.onEnd), onEmergency: () => _leaveThen(widget.onEmergency));
     }
     final mm = (_s.seconds ~/ 60).toString().padLeft(2, '0'), ss = (_s.seconds % 60).toString().padLeft(2, '0');
+    final callerSpeaking = _speaking != null && _log.any((e) => e.key == _speaking && e.caller);
     return Scaffold(
       backgroundColor: SwColors.bg,
       body: Column(
         children: [
-          Container(
-            color: SwColors.surface,
+          // 頂部：與響鈴畫面相同的主色漸層，頭像在對方說話時亮起外圈。
+          DecoratedBox(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [TPColors.primary500, TPColors.primary400]),
+            ),
             child: SafeArea(
               bottom: false,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-                child: IntrinsicHeight(
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Center(
-                        child: SwRoundButton(icon: Icons.arrow_back_ios_new_rounded, label: '返回', onTap: () => _leaveThen(widget.onEnd)),
-                      ),
-                      const SizedBox(width: 12),
-                      Container(
-                        width: 40,
-                        height: 40,
-                        alignment: Alignment.center,
-                        margin: const EdgeInsets.symmetric(vertical: 4),
-                        decoration: const BoxDecoration(shape: BoxShape.circle, color: SwColors.brand),
-                        child: Text('家', style: SwText.bodyStrong.copyWith(color: SwColors.onBrand)),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Semantics(
-                              header: true,
-                              label: '$callerName，模擬來電',
-                              child: ExcludeSemantics(child: Text(callerName, style: SwText.bodyStrong)),
-                            ),
-                            Text('模擬來電・$mm:$ss', style: SwText.secondary.copyWith(fontFeatures: const [FontFeature.tabularFigures()])),
-                          ],
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 16),
+                child: Row(
+                  children: [
+                    SwRoundButton(icon: Icons.arrow_back_ios_new_rounded, label: '返回', onTap: () => _leaveThen(widget.onEnd)),
+                    const SizedBox(width: 12),
+                    AnimatedContainer(
+                      duration: SwMotion.of(context, 200),
+                      width: 60,
+                      height: 60,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: TPColors.white,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: TPColors.white.withValues(alpha: callerSpeaking ? .9 : .35),
+                          width: callerSpeaking ? 5 : 3,
                         ),
+                        boxShadow: SwShadow.card,
                       ),
-                    ],
-                  ),
+                      child: Text('家', style: SwText.title.copyWith(color: SwColors.brandText)),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Semantics(
+                            header: true,
+                            label: '$callerName，通話中',
+                            child: ExcludeSemantics(
+                              child: Text(callerName, style: SwText.title.copyWith(color: SwColors.onBrand)),
+                            ),
+                          ),
+                          Text(
+                            '${callerSpeaking ? '說話中' : '通話中'}・$mm:$ss',
+                            style: SwText.small.copyWith(color: SwColors.onBrand, fontFeatures: const [FontFeature.tabularFigures()]),
+                          ),
+                          const SizedBox(height: 4),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                            decoration: BoxDecoration(color: SwColors.brandDeep, borderRadius: BorderRadius.circular(12)),
+                            child: Text(
+                              _scenario.label,
+                              style: SwText.small.copyWith(color: SwColors.onDeep),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
           ),
-          Container(
-            width: double.infinity,
-            color: SwColors.surface,
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 4,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                SwMockBadge(text: _scenario.disclosure),
-                Text('情境：${_scenario.label}', style: SwText.smallStrong),
-                Text(widget.speaker.available ? '台詞由手機語音朗讀' : '語音尚未配置，播放為無聲示範', style: SwText.small),
-              ],
-            ),
-          ),
-          const Divider(height: 1, color: SwColors.border),
           Expanded(
             child: ListView.separated(
               controller: _scroll,
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-              itemCount: _log.length,
-              separatorBuilder: (_, _) => const SizedBox(height: 12),
-              itemBuilder: (_, i) => _Bubble(entry: _log[i], speaking: _speaking == _log[i].key, silent: !widget.speaker.available, onTap: _log[i].caller ? () => _toggle(_log[i]) : null),
+              padding: const EdgeInsets.fromLTRB(12, 16, 16, 16),
+              itemCount: _log.length + (_waiting ? 1 : 0),
+              separatorBuilder: (_, _) => const SizedBox(height: 10),
+              itemBuilder: (_, i) => i == _log.length ? const _Typing() : _Bubble(entry: _log[i], speaking: _speaking == _log[i].key, onTap: _log[i].caller ? () => _toggle(_log[i]) : null),
             ),
           ),
           Container(
-            decoration: const BoxDecoration(
-              color: SwColors.surface,
-              border: Border(top: BorderSide(color: SwColors.border)),
-            ),
+            decoration: BoxDecoration(color: SwColors.surface, boxShadow: SwShadow.sheet),
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
             child: Column(
               children: [
                 Row(
                   children: [
-                    for (final (m, label) in [(_Mode.quick, '快速回覆'), (_Mode.template, '完整句子'), (_Mode.input, '自己輸入')])
-                      Expanded(
-                        child: Semantics(
-                          selected: _panelOpen && _mode == m,
-                          button: true,
-                          child: InkWell(
-                            onTap: () => setState(() {
-                              _mode = m;
-                              _panelOpen = true;
-                            }),
-                            child: Container(
-                              height: swTouch,
-                              alignment: Alignment.center,
-                              decoration: BoxDecoration(
-                                border: Border(
-                                  bottom: BorderSide(color: _panelOpen && _mode == m ? SwColors.brand : SwColors.border, width: _panelOpen && _mode == m ? 3 : 1),
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(color: SwColors.bg, borderRadius: BorderRadius.circular(24)),
+                        child: Row(
+                          children: [
+                            for (final (m, label) in [(_Mode.quick, '快速回覆'), (_Mode.template, '完整句子'), (_Mode.input, '自己輸入')])
+                              Expanded(
+                                child: Semantics(
+                                  selected: _panelOpen && _mode == m,
+                                  button: true,
+                                  child: GestureDetector(
+                                    behavior: HitTestBehavior.opaque,
+                                    onTap: () => setState(() {
+                                      _mode = m;
+                                      _panelOpen = true;
+                                    }),
+                                    child: AnimatedContainer(
+                                      duration: SwMotion.of(context, 180),
+                                      height: 44,
+                                      alignment: Alignment.center,
+                                      decoration: BoxDecoration(
+                                        color: _panelOpen && _mode == m ? SwColors.surface : Colors.transparent,
+                                        borderRadius: BorderRadius.circular(20),
+                                        boxShadow: _panelOpen && _mode == m ? SwShadow.card : null,
+                                      ),
+                                      child: Text(label, style: SwText.smallStrong.copyWith(color: _panelOpen && _mode == m ? SwColors.brandText : SwColors.textSecondary)),
+                                    ),
+                                  ),
                                 ),
                               ),
-                              child: Text(label, style: SwText.bodyStrong.copyWith(color: _panelOpen && _mode == m ? SwColors.brandText : SwColors.textSecondary)),
-                            ),
-                          ),
+                          ],
                         ),
                       ),
+                    ),
+                    const SizedBox(width: 4),
                     Tooltip(
                       message: _panelOpen ? '收合回覆區' : '展開回覆區',
                       child: InkWell(
+                        customBorder: const CircleBorder(),
                         onTap: () => setState(() => _panelOpen = !_panelOpen),
-                        child: Container(
+                        child: SizedBox(
                           width: swTouch,
                           height: swTouch,
-                          alignment: Alignment.center,
-                          decoration: const BoxDecoration(
-                            border: Border(bottom: BorderSide(color: SwColors.border)),
-                          ),
                           child: Icon(_panelOpen ? Icons.expand_more_rounded : Icons.expand_less_rounded, color: SwColors.textSecondary),
                         ),
                       ),
@@ -456,7 +473,7 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> with WidgetsBindingO
                   duration: SwMotion.of(context, 200),
                   curve: SwMotion.curve,
                   alignment: Alignment.topCenter,
-                  child: _panelOpen ? Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 12), child: _replyPanel()) : const SizedBox(width: double.infinity),
+                  child: _panelOpen ? Padding(padding: const EdgeInsets.fromLTRB(4, 12, 4, 12), child: _replyPanel()) : const SizedBox(width: double.infinity, height: 8),
                 ),
               ],
             ),
@@ -471,40 +488,48 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> with WidgetsBindingO
   }
 
   Widget _replyPanel() {
-    Widget option(String text) => Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: SwPressable(
-        onTap: _waiting ? null : () => _respond(text, sentence: _mode == _Mode.template),
-        color: SwColors.surface,
-        pressedColor: SwColors.brandSoft,
-        border: BorderSide(color: _waiting ? SwColors.border : SwColors.brand),
-        radius: 10,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: SizedBox(
-          width: double.infinity,
-          child: Text(text, style: SwText.bodyStrong.copyWith(color: _waiting ? SwColors.textSecondary : SwColors.brandText)),
-        ),
-      ),
+    Widget option(String text) => SwPressable(
+      onTap: _waiting ? null : () => _respond(text, sentence: _mode == _Mode.template),
+      color: _waiting ? SwColors.bg : SwColors.brandSoft,
+      pressedColor: TPColors.primary100,
+      border: BorderSide(color: _waiting ? SwColors.border : SwColors.brand.withValues(alpha: .5)),
+      radius: 22,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+      child: Text(text, style: SwText.bodyStrong.copyWith(color: _waiting ? SwColors.textSecondary : SwColors.brandText)),
     );
     final note = _waiting || _scriptDone
         ? Padding(
             padding: const EdgeInsets.only(bottom: 8),
-            child: Text(_waiting ? '對方回應中，請稍候' : '對方說完了，可以結束通話，或用「完整句子」繼續聊', style: SwText.secondary),
+            child: Text(_waiting ? '對方回應中…' : '對方說完了，可以結束通話，或用「完整句子」繼續聊', style: SwText.small),
           )
         : const SizedBox.shrink();
     switch (_mode) {
       case _Mode.quick:
         return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             note,
             if (!_scriptDone)
-              for (final r in _replies) option(r),
+              SizedBox(
+                width: double.infinity,
+                child: Wrap(spacing: 8, runSpacing: 8, children: [for (final r in _replies) option(r)]),
+              ),
           ],
         );
       case _Mode.template:
         return ConstrainedBox(
           constraints: const BoxConstraints(maxHeight: 220),
-          child: ListView(shrinkWrap: true, children: [note, for (final t in callTemplates) option(t)]),
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              note,
+              for (final t in callTemplates)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Align(alignment: Alignment.centerLeft, child: option(t)),
+                ),
+            ],
+          ),
         );
       case _Mode.input:
         return Column(
@@ -543,69 +568,117 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> with WidgetsBindingO
 }
 
 class _Bubble extends StatelessWidget {
-  const _Bubble({required this.entry, required this.speaking, required this.onTap, this.silent = false});
+  const _Bubble({required this.entry, required this.speaking, required this.onTap});
   final _Entry entry;
   final bool speaking;
-
-  /// 臺北通尚未配置語音：播放樣式照樣呈現，但文字註明是無聲示範。
-  final bool silent;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final caller = entry.caller;
-    final body = Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(caller ? '對方' : '我', style: SwText.smallStrong.copyWith(color: caller ? SwColors.textSecondary : SwColors.onBrand)),
-        const SizedBox(height: 2),
-        Text(entry.text, style: SwText.body.copyWith(color: caller ? SwColors.text : SwColors.onBrand)),
-        if (caller) ...[
-          const SizedBox(height: 4),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(speaking ? Icons.graphic_eq_rounded : Icons.replay_rounded, size: 18, color: speaking ? SwColors.brand : SwColors.textSecondary),
-              const SizedBox(width: 4),
-              Text(
-                speaking ? (silent ? '播放中（無聲示範）・點一下停止' : '朗讀中・點一下停止') : '點一下重播',
-                style: (speaking ? SwText.smallStrong : SwText.small).copyWith(color: speaking ? SwColors.brandText : SwColors.textSecondary),
+    final maxW = MediaQuery.sizeOf(context).width * .74;
+    const r = Radius.circular(18);
+    if (!caller) {
+      return Align(
+        alignment: Alignment.centerRight,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: maxW),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: const BoxDecoration(
+              color: SwColors.brand,
+              borderRadius: BorderRadius.only(topLeft: r, topRight: r, bottomLeft: r, bottomRight: Radius.circular(4)),
+            ),
+            child: Semantics(
+              label: '我：${entry.text}',
+              child: ExcludeSemantics(
+                child: Text(entry.text, style: SwText.body.copyWith(color: SwColors.onBrand)),
               ),
-            ],
+            ),
           ),
-        ],
+        ),
+      );
+    }
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        const _Avatar(),
+        const SizedBox(width: 8),
+        ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: maxW),
+          child: Semantics(
+            liveRegion: speaking,
+            label: '對方：${entry.text}',
+            hint: speaking ? '點兩下停止朗讀' : '點兩下重播',
+            child: ExcludeSemantics(
+              child: SwPressable(
+                onTap: onTap,
+                color: SwColors.surface,
+                pressedColor: SwColors.brandSoft,
+                border: BorderSide(color: speaking ? SwColors.brand : SwColors.border, width: speaking ? 2 : 1),
+                radius: 18,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(entry.text, style: SwText.body),
+                    const SizedBox(height: 4),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(speaking ? Icons.graphic_eq_rounded : Icons.replay_rounded, size: 16, color: speaking ? SwColors.brand : SwColors.textSecondary),
+                        const SizedBox(width: 4),
+                        Text(speaking ? '朗讀中・點一下停止' : '點一下重播', style: SwText.caption.copyWith(color: speaking ? SwColors.brandText : SwColors.textSecondary)),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
       ],
     );
-    const r = Radius.circular(16);
-    return Align(
-      alignment: caller ? Alignment.centerLeft : Alignment.centerRight,
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width * .82),
-        child: caller
-            ? Semantics(
-                liveRegion: speaking,
-                child: SwPressable(
-                  onTap: onTap,
-                  color: SwColors.surface,
-                  pressedColor: SwColors.brandSoft,
-                  border: BorderSide(color: speaking ? SwColors.secondaryFocus : SwColors.border, width: 2),
-                  radius: 16,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  child: body,
-                ),
-              )
-            : Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                decoration: const BoxDecoration(
-                  color: SwColors.brand,
-                  borderRadius: BorderRadius.only(topLeft: r, topRight: r, bottomLeft: r, bottomRight: Radius.circular(4)),
-                ),
-                child: body,
-              ),
-      ),
-    );
   }
+}
+
+class _Avatar extends StatelessWidget {
+  const _Avatar();
+  @override
+  Widget build(BuildContext context) => Container(
+    width: 32,
+    height: 32,
+    alignment: Alignment.center,
+    decoration: const BoxDecoration(color: SwColors.brand, shape: BoxShape.circle),
+    child: Text('家', style: SwText.smallStrong.copyWith(color: SwColors.onBrand)),
+  );
+}
+
+/// 對方準備回話時的「…」泡泡（靜態，不用循環動畫）。
+class _Typing extends StatelessWidget {
+  const _Typing();
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      const _Avatar(),
+      const SizedBox(width: 8),
+      Semantics(
+        label: '對方正在回話',
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: SwColors.surface,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: SwColors.border),
+          ),
+          child: ExcludeSemantics(
+            child: Text('• • •', style: SwText.bodyStrong.copyWith(color: SwColors.textSecondary)),
+          ),
+        ),
+      ),
+    ],
+  );
 }
 
 /// 響鈴畫面：臺北通主色底（primary500，配深色字）、頭像外一圈圈擴散的光圈，下方「拒絕」「接聽」。
@@ -691,15 +764,6 @@ class _IncomingState extends State<_Incoming> with SingleTickerProviderStateMixi
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                              decoration: BoxDecoration(color: SwColors.brandDeep, borderRadius: BorderRadius.circular(20)),
-                              child: Text(
-                                '模擬來電・不是真人通話，也沒有報警',
-                                textAlign: TextAlign.center,
-                                style: SwText.small.copyWith(color: SwColors.onBrand),
-                              ),
-                            ),
                             const SizedBox(height: 32),
                             Semantics(
                               liveRegion: true,

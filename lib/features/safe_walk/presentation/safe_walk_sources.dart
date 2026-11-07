@@ -22,8 +22,6 @@ const swDataSources = <SwDataSource>[
     note: '全市統計，不代表個別路段的風險。',
     url: 'https://data.taipei/dataset/detail?id=33dc5028-78ef-4892-bec6-0b459f7cb193',
   ),
-  SwDataSource(title: '附近求助地點', provider: '示範資料（非真實機關）', license: '—', demo: true),
-  SwDataSource(title: '異常回報', provider: '示範回報，不是警政或犯罪紀錄', license: '—', demo: true),
   SwDataSource(title: '陪伴通話劇本', provider: '團隊自製；由手機內建文字轉語音朗讀', license: '團隊作品'),
   SwDataSource(title: '本服務程式', provider: '以臺北市政府「臺北通 TownPass」開源專案為基礎', license: 'GPL-3.0（上游授權）', url: 'https://github.com/taipei-doit/TownPass'),
 ];
@@ -51,7 +49,7 @@ Future<void> showSwDataSources(BuildContext context) => showModalBottomSheet<voi
           const SizedBox(height: 12),
           Semantics(header: true, child: Text('資料來源與授權', style: SwText.heading)),
           const SizedBox(height: 4),
-          Text('標示「示範」的項目目前用的是示範資料；其他為正式版使用的開放資料。', style: SwText.small),
+          Text('安心行使用的開放資料與授權。', style: SwText.small),
           const SizedBox(height: 12),
           for (final s in swDataSources) _SourceRow(source: s),
         ],

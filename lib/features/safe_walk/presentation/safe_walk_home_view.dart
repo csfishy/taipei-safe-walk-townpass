@@ -64,13 +64,7 @@ class SafeWalkHomeView extends StatelessWidget {
                 Semantics(header: true, child: Text('其他功能', style: SwText.bodyStrong)),
                 const SizedBox(height: 12),
                 for (final (id, icon, name, desc) in _more) ...[_FeatureRow(icon: icon, name: name, desc: desc, onTap: () => onOpen(id)), const SizedBox(height: 10)],
-                Wrap(
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    Text('目前為示範資料，未連線真實服務', style: SwText.small),
-                    const SwSourcesLink(),
-                  ],
-                ),
+                const Align(alignment: Alignment.centerLeft, child: SwSourcesLink()),
               ],
             ),
           ),
@@ -104,7 +98,7 @@ class _ContextCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text('$hhmm・${night ? '天色已暗' : '白天'}', style: SwText.bodyStrong.copyWith(color: night ? SwColors.onDeep : SwColors.text)),
-                  Text(night ? '建議走明亮的大路，需要時開模擬來電' : '出門前先看看沿路有沒有回報', style: SwText.body.copyWith(color: night ? TPColors.primary100 : SwColors.textSecondary)),
+                  Text(night ? '建議走明亮的大路' : '出門前看看沿路回報', style: SwText.body.copyWith(color: night ? TPColors.primary100 : SwColors.textSecondary)),
                 ],
               ),
             ),
@@ -134,7 +128,7 @@ class _GoHomeCardState extends State<_GoHomeCard> {
   @override
   Widget build(BuildContext context) => Semantics(
     button: true,
-    label: '示範：安心行，前往${widget.destination}，已繞開 ${widget.avoided} 個異常回報，點擊開始',
+    label: '安心行，前往${widget.destination}，已繞開 ${widget.avoided} 個異常回報，點擊開始',
     child: DecoratedBox(
       decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), boxShadow: SwShadow.float),
       child: ClipRRect(

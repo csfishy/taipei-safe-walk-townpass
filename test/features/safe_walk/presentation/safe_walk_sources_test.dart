@@ -12,7 +12,7 @@ Future<void> _pump(WidgetTester t) async {
 }
 
 void main() {
-  testWidgets('首頁：資料來源與授權列出 OSM、政府開放資料授權，並標示示範項目', (t) async {
+  testWidgets('首頁：資料來源與授權列出 OSM、政府開放資料授權，不出現示範字樣', (t) async {
     await _pump(t);
     final link = find.text('資料來源與授權');
     await t.ensureVisible(link);
@@ -20,9 +20,7 @@ void main() {
     await t.pumpAndSettle();
     expect(find.textContaining('OpenStreetMap'), findsWidgets);
     expect(find.textContaining('政府資料開放授權條款'), findsOneWidget);
-    await t.scrollUntilVisible(find.text('示範資料（非真實機關）'), 200, scrollable: find.descendant(of: find.byType(BottomSheet), matching: find.byType(Scrollable)).first);
-    await t.pumpAndSettle();
-    expect(find.text('示範'), findsWidgets, reason: '示範資料要標出來');
+    expect(find.textContaining('示範'), findsNothing, reason: '正式畫面不顯示示範字樣');
   });
 
   testWidgets('地圖路線資訊框也有資料來源入口', (t) async {

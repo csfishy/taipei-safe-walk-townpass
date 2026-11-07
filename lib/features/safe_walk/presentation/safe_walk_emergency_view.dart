@@ -35,11 +35,7 @@ class SafeWalkEmergencyView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final note = mode == sw.DataMode.mock
-        ? '示範模式：不會撥號，也不會通知任何人'
-        : allowRealCalls
-        ? '按下後由手機開啟撥號，不代表已接通或已受理'
-        : '撥號尚未啟用，按鈕不會撥號';
+    final notes = mode == sw.DataMode.live && allowRealCalls ? const ['按下後由手機開啟撥號，不代表已接通或已受理'] : const ['目前沒有撥號設定', '未實際串接警方'];
     return Scaffold(
       backgroundColor: SwColors.bg,
       body: Column(
@@ -62,7 +58,7 @@ class SafeWalkEmergencyView extends StatelessWidget {
                       child: Text('緊急求助', style: SwText.title.copyWith(color: SwColors.sos)),
                     ),
                     const SizedBox(height: 8),
-                    SwMockBadge(text: note),
+                    Wrap(spacing: 8, runSpacing: 6, children: [for (final n in notes) SwMockBadge(text: n)]),
                   ],
                 ),
               ),
@@ -279,7 +275,7 @@ class _SmsReportCardState extends State<_SmsReportCard> {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  Text('收件：${SmsDraftTemplate.recipient ?? '報案簡訊號碼（尚未設定，由 M1 決定）'}', style: SwText.secondary),
+                  Text('收件：${SmsDraftTemplate.recipient ?? '報案簡訊號碼（尚未設定）'}', style: SwText.secondary),
                   const SizedBox(height: 6),
                   Semantics(
                     label: '簡訊內容預覽',
@@ -333,7 +329,7 @@ class _SmsReportCardState extends State<_SmsReportCard> {
                       ),
                     ),
                   ),
-                  if (mock) ...[const SizedBox(height: 6), Text('示範模式：只模擬傳送畫面，不會真的發出簡訊。', style: SwText.small)],
+                  if (mock) ...[const SizedBox(height: 6), Text('目前沒有設定報案簡訊號碼。', style: SwText.small)],
                 ],
               ),
       ),
@@ -360,7 +356,7 @@ class _SmsReportCardState extends State<_SmsReportCard> {
               ),
             ),
             const SizedBox(width: 12),
-            Expanded(child: Text(mock ? '示範完成／未傳送簡訊' : '已開啟簡訊 App', style: SwText.bodyStrong)),
+            Expanded(child: Text(mock ? '簡訊內容已準備好' : '已開啟簡訊 App', style: SwText.bodyStrong)),
           ],
         ),
         const SizedBox(height: 8),
@@ -409,9 +405,9 @@ class _CallButton extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: SwText.title.copyWith(color: SwColors.onDeep)),
+                  Text(title, style: SwText.heading.copyWith(color: SwColors.onDeep)),
                   const SizedBox(height: 2),
-                  Text(when, style: SwText.body.copyWith(color: SwColors.onDeep)),
+                  Text(when, style: SwText.small.copyWith(color: SwColors.onDeep)),
                 ],
               ),
             ),
