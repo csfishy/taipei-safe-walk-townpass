@@ -266,8 +266,7 @@ void main() {
       routes,
       CrimeReferenceRepository(transport: null),
     );
-    await tester.tap(find.text('安心行'));
-    await tester.pumpAndSettle();
+    // 查詢設定移到首頁的「資料來源與授權」。
     await _openCrimeSettings(tester);
     expect(find.text('犯罪資料查詢暫時無法使用'), findsOneWidget);
     expect(find.textContaining('請更新至最新版本'), findsOneWidget);
@@ -277,6 +276,8 @@ void main() {
     await tester.tap(find.text('知道了'));
     await tester.pumpAndSettle();
     expect(find.byType(AlertDialog), findsNothing);
+    await tester.tap(find.text('安心行'));
+    await tester.pumpAndSettle();
     expect(find.byKey(const Key('crime-query-status')), findsOneWidget);
   });
 
@@ -297,8 +298,6 @@ void main() {
         },
       ),
     );
-    await tester.tap(find.text('安心行'));
-    await tester.pumpAndSettle();
     await _openCrimeSettings(tester);
     expect(find.text('犯罪參考資料查詢同意'), findsOneWidget);
     await tester.tap(find.text('同意查詢'));
@@ -306,6 +305,8 @@ void main() {
     expect(queries, 0);
     expect(platform.locations, isEmpty);
     expect(routes.requests, isEmpty);
+    await tester.tap(find.text('安心行'));
+    await tester.pumpAndSettle();
     expect(
       tester.widget<Text>(find.byKey(const Key('crime-query-status'))).data,
       contains('重新規劃路線時才會查詢'),

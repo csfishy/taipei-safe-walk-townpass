@@ -24,11 +24,15 @@ class SafeWalkHomeView extends StatelessWidget {
     this.now,
     this.isLive = false,
     this.nearbyHelper,
+    this.settings = const [],
   });
   final bool isLive;
 
   /// M1：「附近協助者」；null 時不顯示。
   final SafeWalkNearbyHelper? nearbyHelper;
+
+  /// 查詢設定與回報資料說明，放在「資料來源與授權」裡（地圖上不再重複放這個連結）。
+  final List<SwQuerySetting> settings;
   final ValueChanged<SafeWalkEntry> onOpen;
   final VoidCallback onEmergency;
 
@@ -46,8 +50,6 @@ class SafeWalkHomeView extends StatelessWidget {
 
   static const _more = [
     (SafeWalkEntry.call, Icons.phone_in_talk_rounded, '模擬來電', '家人來電陪你'),
-    (SafeWalkEntry.points, Icons.local_police_rounded, '附近求助地點', '警察局、超商'),
-    (SafeWalkEntry.report, Icons.campaign_rounded, '回報狀況', '標出暗路、打架等'),
   ];
 
   @override
@@ -123,9 +125,9 @@ class SafeWalkHomeView extends StatelessWidget {
                   SafeWalkNearbyHelperCard(helper: nearbyHelper!),
                   const SizedBox(height: 16),
                 ],
-                const Align(
+                Align(
                   alignment: Alignment.centerLeft,
-                  child: SwSourcesLink(),
+                  child: SwSourcesLink(settings: settings),
                 ),
               ],
             ),

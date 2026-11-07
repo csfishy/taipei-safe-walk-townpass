@@ -28,10 +28,14 @@ Future<void> _pump(WidgetTester t, Widget w) async {
 }
 
 void main() {
-  testWidgets('首頁只有四個入口與緊急求助', (t) async {
+  testWidgets('首頁只有安心行、模擬來電與緊急求助', (t) async {
     await _pump(t, const SafeWalkFlow());
-    for (final name in ['安心行', '點擊開始', '模擬來電', '附近求助地點', '回報狀況', '緊急求助']) {
+    for (final name in ['安心行', '點擊開始', '模擬來電', '緊急求助']) {
       expect(find.text(name), findsWidgets, reason: name);
+    }
+    // 回報與最近求助地點的主要入口在地圖上，首頁不重複放。
+    for (final name in ['附近求助地點', '回報狀況']) {
+      expect(find.text(name), findsNothing, reason: name);
     }
   });
 
@@ -83,20 +87,20 @@ void main() {
 
   testWidgets('求助地點：載入中、錯誤可重試、空資料都有明確狀態', (t) async {
     await _pump(t, const SafeWalkFlow(pointsLoading: true));
-    await t.tap(find.text('附近求助地點'));
+    await _openNearby(t);
     await t.pumpAndSettle();
     expect(find.bySemanticsLabel('載入中'), findsOneWidget);
 
     var retried = 0;
     await _pump(t, SafeWalkFlow(pointsError: '網路連線中斷', onRetryPoints: () => retried++));
-    await t.tap(find.text('附近求助地點'));
+    await _openNearby(t);
     await t.pumpAndSettle();
     expect(find.text('求助地點暫時載入失敗'), findsOneWidget);
     await t.tap(find.text('再試一次'));
     expect(retried, 1);
 
     await _pump(t, const SafeWalkFlow(points: []));
-    await t.tap(find.text('附近求助地點'));
+    await _openNearby(t);
     await t.pumpAndSettle();
     expect(find.text('附近還沒有求助地點資料'), findsOneWidget);
   });
@@ -133,6 +137,8 @@ void main() {
     await t.pumpAndSettle();
     await t.scrollUntilVisible(find.text('傳送簡訊'), 200, scrollable: find.byType(Scrollable).first);
     await t.tap(find.text('有人打架'));
+    await t.pumpAndSettle();
+    await t.tap(find.text('查看簡訊內容'));
     await t.pumpAndSettle();
     expect(find.textContaining('情況：有人打架'), findsOneWidget);
     expect(find.textContaining('GPS 座標'), findsOneWidget);
@@ -399,4 +405,13 @@ void main() {
       expect(find.textContaining('6 分鐘'), findsWidgets);
     });
   });
+}
+
+/// 首頁不再有「附近求助地點」入口（主要入口是地圖面板的「最近求助地點」）；
+/// 清單畫面的程式碼仍保留，測試直接開啟它。
+Future<void> _openNearby(WidgetTester t) async {
+  // 同一個 flow 重新 pump 時可能已經停在清單畫面。
+  if (find.byType(SafeWalkHomeView).evaluate().isEmpty) return;
+  t.widget<SafeWalkHomeView>(find.byType(SafeWalkHomeView)).onOpen(SafeWalkEntry.points);
+  await t.pump();
 }

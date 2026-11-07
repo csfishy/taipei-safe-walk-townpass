@@ -942,7 +942,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
         '（valhalla1.openstreetmap.de、routing.openstreetmap.de）計算步行路線；'
         '附近求助地點用 App 內建的 OpenStreetMap 快照查詢，不另外傳送位置。'
         '導航期間會在前景持續更新位置，用於路線跟隨與偏離後重新規劃；離開導航或進入背景即停止。'
-        '系統定位權限與犯罪參考資料查詢會分別取得同意；可在地圖撤回路線查詢同意。',
+        '系統定位權限與犯罪參考資料查詢會分別取得同意；可在首頁「資料來源與授權」撤回路線查詢同意。',
       ),
       actions: [
         TextButton(
@@ -965,7 +965,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
         '將起點與目的地周圍的查詢外框傳給 Supabase（$_crimeServiceHost），'
         '讀取附近歷史犯罪參考資料。這會透露大致行程範圍，與路線查詢同意分開。'
         '50 公尺是產品設定的避讓緩衝，並非官方案發範圍或安全保證。'
-        '拒絕仍可規劃步行路線；可隨時由地圖的犯罪查詢同意入口撤回。',
+        '拒絕仍可規劃步行路線；可隨時在首頁「資料來源與授權」撤回。',
       ),
       actions: [
         TextButton(

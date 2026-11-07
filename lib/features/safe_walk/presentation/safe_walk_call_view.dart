@@ -378,7 +378,7 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> with WidgetsBindingO
                         ),
                         boxShadow: SwShadow.card,
                       ),
-                      child: Text('家', style: SwText.title.copyWith(color: SwColors.brandText)),
+                      child: Text(callerName[0], style: SwText.title.copyWith(color: SwColors.brandText)),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -396,19 +396,6 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> with WidgetsBindingO
                             '${callerSpeaking ? '說話中' : '通話中'}・$mm:$ss',
                             style: SwText.small.copyWith(color: SwColors.onBrand, fontFeatures: const [FontFeature.tabularFigures()]),
                           ),
-                          const SizedBox(height: 4),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-                            decoration: BoxDecoration(color: SwColors.brandDeep, borderRadius: BorderRadius.circular(12)),
-                            child: Text(
-                              _scenario.label,
-                              style: SwText.small.copyWith(color: SwColors.onDeep),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text('模擬通話，未聯絡任何人', style: SwText.small.copyWith(color: SwColors.onBrand)),
                         ],
                       ),
                     ),
@@ -421,9 +408,14 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> with WidgetsBindingO
             child: ListView.separated(
               controller: _scroll,
               padding: const EdgeInsets.fromLTRB(12, 16, 16, 16),
-              itemCount: _log.length + (_waiting ? 1 : 0),
+              itemCount: _log.length + (_waiting ? 1 : 0) + 1,
               separatorBuilder: (_, _) => const SizedBox(height: 10),
-              itemBuilder: (_, i) => i == _log.length ? const _Typing() : _Bubble(entry: _log[i], speaking: _speaking == _log[i].key, onTap: _log[i].caller ? () => _toggle(_log[i]) : null),
+              itemBuilder: (_, n) {
+                // 第一列放通話說明，取代標頭的情境標籤：旁人瞄到標頭也看不出情境。
+                if (n == 0) return _CallNote(scenario: _scenario.label);
+                final i = n - 1;
+                return i == _log.length ? const _Typing() : _Bubble(entry: _log[i], speaking: _speaking == _log[i].key, onTap: _log[i].caller ? () => _toggle(_log[i]) : null);
+              },
             ),
           ),
           Container(
@@ -663,6 +655,21 @@ class _Bubble extends StatelessWidget {
   }
 }
 
+class _CallNote extends StatelessWidget {
+  const _CallNote({required this.scenario});
+  final String scenario;
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
+    child: Column(
+      children: [
+        Text('模擬通話，未聯絡任何人', textAlign: TextAlign.center, style: SwText.small),
+        Text('情境：$scenario・對方的話會大聲唸出', textAlign: TextAlign.center, style: SwText.small),
+      ],
+    ),
+  );
+}
+
 class _Avatar extends StatelessWidget {
   const _Avatar();
   @override
@@ -671,7 +678,7 @@ class _Avatar extends StatelessWidget {
     height: 32,
     alignment: Alignment.center,
     decoration: const BoxDecoration(color: SwColors.brand, shape: BoxShape.circle),
-    child: Text('家', style: SwText.smallStrong.copyWith(color: SwColors.onBrand)),
+    child: Text(callerName[0], style: SwText.smallStrong.copyWith(color: SwColors.onBrand)),
   );
 }
 
@@ -803,7 +810,7 @@ class _IncomingState extends State<_Incoming> with SingleTickerProviderStateMixi
                                             height: 104,
                                             alignment: Alignment.center,
                                             decoration: BoxDecoration(color: TPColors.white, shape: BoxShape.circle, boxShadow: SwShadow.float),
-                                            child: Text('男', style: SwText.title.copyWith(color: TPColors.primary700)),
+                                            child: Text(callerName[0], style: SwText.title.copyWith(color: TPColors.primary700)),
                                           ),
                                         ),
                                       ),

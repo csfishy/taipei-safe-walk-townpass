@@ -519,6 +519,35 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
       _Screen.home => SafeWalkHomeView(
         isLive: widget.mode == sw.DataMode.live,
         nearbyHelper: widget.nearbyHelper,
+        settings: [
+          if (widget.onManageRoutingConsent != null)
+            (
+              icon: Icons.alt_route_rounded,
+              label: '路線查詢設定',
+              status: widget.routingConsent
+                  ? '已同意路線查詢；可在此撤回。系統定位權限另行設定，地圖圖磚自動載入。'
+                  : '未同意路線查詢；不會傳送起點、目的地與避讓緩衝。',
+              onTap: widget.onManageRoutingConsent!,
+            ),
+          if (widget.onManageCrimeConsent != null)
+            (
+              icon: Icons.policy_outlined,
+              label: '犯罪資料查詢設定',
+              status: [
+                widget.crimeConsent ? '已同意行程範圍查詢；可在此撤回。' : '未同意行程範圍查詢。',
+                if (widget.crimeQueryStatus != null) widget.crimeQueryStatus!,
+              ].join('\n'),
+              onTap: widget.onManageCrimeConsent!,
+            ),
+          // 首頁不再放「回報狀況」；正式模式的回報資料說明頁改從這裡進入。
+          if (widget.reportBuilder != null)
+            (
+              icon: Icons.campaign_outlined,
+              label: '回報資料說明',
+              status: '歷史資料來源、更新日期與限制',
+              onTap: () => _go(_Screen.report),
+            ),
+        ],
         destination: _place.label,
         homeSet: widget.homeLocation != null,
         onEditHome: widget.onHomeChanged == null
