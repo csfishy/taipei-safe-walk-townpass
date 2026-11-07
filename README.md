@@ -89,7 +89,7 @@ Android／iOS 開發使用 `flutter run -d 裝置ID`，先安裝對應 SDK、模
 
 ## CI、預覽包與網站
 
-CI／Demo 資料庫採隔離重設：PR 僅 runner 本機 PostGIS；main 所有檢查及三平台建置成功後，才由單一 job 重設白名單中的專用 Demo，再放行發布／部署。缺白名單或環境 Secrets 會停止；不清除 Auth、public 或正式資料。設定與 Level C 審查見 [資料庫重設](docs/SAFE_WALK_DATABASE_RESET.md)。
+兩份工作流的 runner 本機 PostGIS 初始化、雙重重設與安全測試均為必要檢查；PR 永不連遠端 Demo。專用 Demo 重設另由 **Repository Actions Variable `DEMO_DATABASE_RESET_ENABLED`** 明確啟用：未設定或值為 `false` 時，遠端 job 跳過，既有 main prerelease／Pages 可在全部建置及檢查成功後繼續，Summary 明示未重設，不能宣稱 Demo 已就緒。只有精確值 `true` 才啟用單一遠端 reset job；啟用後缺白名單、Secrets、marker／受限角色，或重設失敗、取消、非預期跳過，都會阻擋相關發布／部署。其他旗標值視為配置錯誤，不自動放行。設定與 Level C 審查見 [資料庫重設](docs/SAFE_WALK_DATABASE_RESET.md)。
 
 下列兩份工作流均已在 main；執行規則與實際結果分開看，預覽產物、Release 與 Pages 以對應 run 為準：
 
@@ -98,7 +98,7 @@ CI／Demo 資料庫採隔離重設：PR 僅 runner 本機 PostGIS；main 所有�
 | [Safe Walk CI](https://github.com/csfishy/taipei-safe-walk-townpass/actions/workflows/safe_walk.yml) | PR、main／migration push、手動執行；Schema 一致性、模組／工具分析、完整測試與原始診斷報告；可手動選擇 Android debug build |
 | [check-and-build](https://github.com/csfishy/taipei-safe-walk-townpass/actions/workflows/build.yml) | PR、main push、`v*-pre.*` tag、手動執行；檢查後產生 Android APK／unsigned iOS IPA／Web 預覽產物 |
 
-每次 **push 到 main**，檢查及三平台建置全部通過後會自動發布 GitHub prerelease，版本包含 run number 與 commit，例如 `v0.0.12-pre.42.g31cb0ac12345`；一次推送多個 commits 時只建置最後一個。符合 pubspec 版本的手動預發佈 tag 仍支援發布。PR／manual run 僅產生 artifacts，不建立 Release；不要覆寫已發布 tag。完整規則見 [建置與部署](docs/BUILDS.md)。
+每次 **push 到 main**，檢查及三平台建置全部通過，且上方 Demo gate 已符合後，會自動發布 GitHub prerelease，版本包含 run number 與 commit，例如 `v0.0.12-pre.42.g31cb0ac12345`；一次推送多個 commits 時只建置最後一個。符合 pubspec 版本的手動預發佈 tag 仍支援發布且不重設共享 Demo。PR／manual run 不建立 Release；main 手動執行在旗標啟用時也須完成重設，Pages 仍依既有設定及最新來源檢查。不要覆寫已發布 tag。完整規則見 [建置與部署](docs/BUILDS.md)。
 
 本機可在完成相同 metadata／pub get／generation 後建置；以下 iOS 範例的純數字版本對應目前 pubspec：
 
@@ -110,7 +110,7 @@ flutter build web --release --no-pub --base-href /taipei-safe-walk-townpass/ --n
 
 iOS `--build-name` 使用 pubspec 版本的純數字部分，升版時需同步調整。這些命令需要對應平台工具；列出命令不是已完成建置的證明。預覽使用獨立身份 `Town Pass Preview`／`io.github.csfishy.taipeisafewalktownpass.preview`，不是正式市政服務發行版。Android APK 使用測試金鑰；unsigned IPA 沒有 provisioning profile／簽章，不能直接安裝或當作 TestFlight 版本，需在 Mac／Xcode 以適用開發身分與 provisioning 重新簽署後安裝。下載 IPA 不代表 iPhone 驗收完成；限制見 [預發佈說明](docs/PRERELEASE-NOTES.md)。
 
-GitHub Pages 僅從最新 main 部署：Web／Android／iOS 三個建置成功，且 owner／admin 已將 Source 設為 **GitHub Actions**、允許 main environment 部署後才發布；未配置或來源已過期時明確跳過。專案網址為 [csfishy.github.io/taipei-safe-walk-townpass](https://csfishy.github.io/taipei-safe-walk-townpass/)，實際部署結果以對應 run 為準。Web ZIP 或 Release 下載頁不是網站部署證明。
+GitHub Pages 僅從最新 main 部署：必要資料庫測試、分析及 Web／Android／iOS 三個建置成功，上方 Demo gate 已符合，且 owner／admin 已將 Source 設為 **GitHub Actions**、允許 main environment 部署後才發布；Pages 未配置或來源已過期時明確跳過。專案網址為 [csfishy.github.io/taipei-safe-walk-townpass](https://csfishy.github.io/taipei-safe-walk-townpass/)，實際部署結果以對應 run 為準。Web ZIP 或 Release 下載頁不是網站部署證明。
 
 ## 架構、資料與產品邊界
 
