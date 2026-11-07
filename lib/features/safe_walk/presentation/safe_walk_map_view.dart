@@ -195,7 +195,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
     final avoided = avoidedCount(widget.anomalies);
     final detail = _detailId == null ? null : widget.anomalies.where((a) => a.id == _detailId).firstOrNull;
     final picked = points.where((p) => p.id == _pickedPointId).firstOrNull ?? points.firstOrNull;
-    final title = _pointsView ? '附近求助地點' : '${widget.position == null || demoHome ? '示範起點' : '目前位置'} → ${isHome ? place.label : '求助地點'}';
+    final title = _pointsView ? '附近求助地點' : '${!rs.live && (widget.position == null || demoHome) ? '示範起點' : '目前位置'} → ${isHome ? place.label : '求助地點'}';
     final meters = (isHome ? rs.meters : null) ?? routeMeters(path);
     final minutes = (isHome ? rs.minutes : null) ?? walkMinutes(meters);
 
@@ -224,7 +224,8 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
               children: [
                 Positioned.fill(
                   child: DemoMap(
-                    start: _start,
+                    // 真實路線從使用者實際位置出發。
+                    start: rs.live && isHome && path.isNotEmpty ? path.first : _start,
                     points: points,
                     anomalies: widget.anomalies,
                     path: _pointsView ? const [] : path,
