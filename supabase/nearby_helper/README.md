@@ -1,8 +1,20 @@
 # 附近協助者通知：隔離空表建置
 
-本次使用者明確授權依剛提交的兩份 Markdown 規格建立對應資料表。規格為 commit `92565c9`，經 PR #70 合併至 main `0dd580d` 的[設計提案](../../docs/SAFE_WALK_NEARBY_HELPER_DESIGN.md)與[安全狀態](../../docs/SAFE_WALK_NEARBY_SECURITY.md)。本目錄把其中四表草案具體化為可手動審查的 SQL；授權範圍只有隔離空表、索引、RLS 與撤權，不代表附近通知已啟用。
+本目錄依使用者授權，把兩份 Markdown 的四表草案具體化為可手動審查的 SQL。初次規格為 commit `92565c9`，經 PR #70 合併至 main `0dd580d` 的[設計提案](../../docs/SAFE_WALK_NEARBY_HELPER_DESIGN.md)與[安全狀態](../../docs/SAFE_WALK_NEARBY_SECURITY.md)。初次授權範圍是隔離空表、索引、RLS 與撤權；此次依新版兩份 MD 調整既有資料庫，附近通知仍未啟用。
 
-## 2026-11-08 實際建置紀錄（Asia/Taipei）
+## 2026-11-08 新版規格：選填定位精度（已套用）
+
+新版規格來自 `origin/feat/nearby-helper-backend` 的 `2661d02`，目前仍在 feature branch，尚未合併 main。完整比對兩份 MD 後，本輪結構差異只有 `helper_locations.accuracy_m`：保留 `real` 型別，允許 NULL，並將 CHECK 改為 `accuracy_m IS NULL OR accuracy_m >= 0`。其他三表及欄位、既有 PK／FK／UNIQUE、500 公尺 CHECK、索引、RLS 與封鎖權限沿用。
+
+本次差異 migration 為 Supabase 官方 CLI `3.0.0` 產生的 [`20261107221444_allow_optional_helper_accuracy.sql`](migrations/20261107221444_allow_optional_helper_accuracy.sql)，已在 App 原用的 **`gxofnhzkqcmzrftxqddi`** 套用。遠端 `apply_migration` history version 為 **`20261107221553`**、name 為 **`allow_optional_helper_accuracy`**；工具自行產生 history 時間，與本機 CLI 檔名時間不同。檔案保留在手動目錄，不放入自動執行的 migrations 路徑。`00_preflight.sql`、`01_create_tables.sql` 保留初次建表版本，原始 `accuracy_m` 仍為 NOT NULL；新建環境也須在初次建表後套用本次差異 migration，才符合最新版 `02_verify.sql`。
+
+本次實際驗證：套用前以 `d79c04d` 版唯讀 verifier 確認既有結構；套用後最新版 `02_verify.sql` **PASS**，catalog 顯示 `accuracy_m` 為 nullable `real`、明確 NULL CHECK 已 validated。四表仍為 20 欄、12 個約束，保留原 GiST／PK／UNIQUE 索引、CASCADE FK、RLS 與有效 ACL；各表筆數前後皆為 `0`。沒有建立 RPC／policy 或開放 API 權限。Advisor 對本 schema 仍僅回報預期的 RLS／零 policy INFO，既有 public／PostGIS 告警未改動。
+
+本輪本機 Schema generator `--check`、正常 module guard、犯罪資料隔離 guard、README 本機連結與 diff whitespace 檢查皆 PASS。沒有 App 程式或 shared wire 契約變更，未執行 Flutter build／裝置驗收；本輪證據僅涵蓋上述資料表規格調整。
+
+同一 feature branch 的 `001_nearby_helper.sql` 另加 consent_version 長度 CHECK、四個輔助索引與通知 RPC；這些不在兩份 MD 的表結構差異內，本輪不套用該整份 SQL，也不部署 RPC。新版 MD 的精度省略、10 秒更新間隔與重複收取／首次 seen_at 行為，屬後續 transport／RPC 實作與驗收範圍。
+
+## 2026-11-08 初次建表紀錄：舊規格（Asia/Taipei）
 
 已先核對 App 的 `SafeWalkSupabaseConfig`／`CrimeReferenceWiring`、本機 `supabase.local.json` 與 `native-client.json`，以及 GitHub Actions 的 `SUPABASE_URL`；全部指向既有專案 **`gxofnhzkqcmzrftxqddi`（csfishy's Project）**。未建立新 Supabase 專案，也未改連線設定。建置前後均使用 App 原有 `check_crime_reference.dart` 成功查詢相同快照：2,542 筆來源紀錄、10 個來源；沒有傳 GPS 或輸出個別資料列。
 
@@ -11,7 +23,7 @@
 | 實際檢查 | 結果 |
 |---|---|
 | 遠端 `00_preflight.sql` | PASS；原 schema 不存在，既有 Auth／API roles／PostGIS 符合要求 |
-| 遠端 `02_verify.sql` | PASS；20 欄、型別／defaults／nullability、PK／FK／UNIQUE／CHECK、GiST、RLS、零 policy／function／自訂 trigger、有效 ACL 均符合 |
+| 遠端 `02_verify.sql`（當時 `d79c04d` 版） | PASS；20 欄、型別／defaults／nullability、PK／FK／UNIQUE／CHECK、GiST、RLS、零 policy／function／自訂 trigger、有效 ACL 均符合 |
 | 四表筆數 | `helper_profiles`、`helper_locations`、`alerts`、`alert_deliveries` 各為 `0` |
 | 公開 client 的 Data API profile 檢查 | PASS；`Accept-Profile: safe_walk_nearby` 的零資料列 probe 回 HTTP 406／`PGRST106`，未暴露此 schema |
 | App 原有犯罪資料唯讀查詢 | 建置前後均 PASS；相同快照及來源筆數 |
@@ -22,7 +34,7 @@
 
 ## 執行範圍
 
-只建立新的 `safe_walk_nearby` schema 與 `helper_profiles`、`helper_locations`、`alerts`、`alert_deliveries` 四張空表。欄位、PK、CASCADE FK、兩個 CHECK、冪等 UNIQUE 與位置 GiST 索引遵循設計草案；四表啟用 RLS，沒有 policy。`PUBLIC`、`anon`、`authenticated`、`service_role` 均無 schema／table／sequence 權限。
+初次建置只建立新的 `safe_walk_nearby` schema 與 `helper_profiles`、`helper_locations`、`alerts`、`alert_deliveries` 四張空表。欄位、PK、CASCADE FK、兩個 CHECK、冪等 UNIQUE 與位置 GiST 索引遵循初次設計草案；四表啟用 RLS，沒有 policy。`PUBLIC`、`anon`、`authenticated`、`service_role` 均無 schema／table／sequence 權限。本次差異 migration 僅調整既有 `accuracy_m` 的 nullability 與 CHECK，不建立或重建資料表。
 
 既有專案的 PostGIS 實際安裝在 `public`，與草案的 `extensions.geography` 寫法不同。腳本從 `pg_extension`／`pg_namespace` 找到既有 extension 的 namespace，使用其 `geography(Point,4326)` 型別；不安裝、搬移或修改 extension，也不建立替代型別。這項適配保留欄位語意。其他 schema、Auth 資料列、舊 public 物件、`crime_reference` 及 `safe_walk_demo` 都不修改。
 
@@ -30,13 +42,13 @@
 
 ## 手動執行
 
-1. 在已獲本次授權的 Supabase 專案，使用可建 schema、參照 `auth.users` 的管理 SQL session。先人工核對專案；不要將密碼或 token 貼進腳本、對話或日誌。
-2. 完整執行 [`00_preflight.sql`](00_preflight.sql)。它使用唯讀交易，只查 metadata；檢查新 schema 不存在、既有 PostGIS geography、Auth UUID 欄位與預期 API roles，並列出執行身分、extension namespace 與 owner default ACL。
-3. 審閱後完整執行 [`01_create_tables.sql`](01_create_tables.sql)。全部建置與撤權在同一交易；任何錯誤須停止並回滾。`CREATE SCHEMA` 刻意沒有 `IF NOT EXISTS`；schema 已存在就失敗，不接管、不刪除、不自動修復既有物件。若 SQL 工具在錯誤後仍保持 aborted transaction，只執行 `ROLLBACK` 結束失敗交易，再調查原因。
-4. 執行 [`02_verify.sql`](02_verify.sql)。唯讀驗證精確欄位／型別／nullability／defaults、PK／FK 與 CASCADE、冪等 UNIQUE、CHECK、Point/4326 geography、GiST、RLS、零 policy／function／自訂 trigger，以及 PUBLIC、API roles 的有效權限（含繼承及欄位權限）。最後只回傳新四表筆數，建置完成時應各為 `0`；不輸出任何座標或使用者資料。
+1. 在已獲本次授權的 Supabase 專案，使用有權變更目標表的管理 SQL session。先人工核對專案；不要將密碼或 token 貼進腳本、對話或日誌。
+2. 已有初次四表的專案直接進行差異 migration；不要重跑 `00_preflight.sql` 或 `01_create_tables.sql`。只有全新環境先完整執行 [`00_preflight.sql`](00_preflight.sql) 的唯讀 metadata 檢查，再審閱並完整執行 [`01_create_tables.sql`](01_create_tables.sql)。`CREATE SCHEMA` 刻意沒有 `IF NOT EXISTS`；schema 已存在就失敗，不接管、不刪除、不自動修復既有物件。
+3. 完整套用 [`20261107221444_allow_optional_helper_accuracy.sql`](migrations/20261107221444_allow_optional_helper_accuracy.sql)，將既有欄位改為 nullable 與明確接受 NULL 的 CHECK。所有變更及斷言應在同一交易；任何錯誤須停止並回滾。若 SQL 工具在錯誤後仍保持 aborted transaction，只執行 `ROLLBACK` 結束失敗交易，再調查原因。
+4. 差異 migration 成功後才執行最新版 [`02_verify.sql`](02_verify.sql)。它要求 `accuracy_m` 可為 NULL、CHECK 為 `accuracy_m IS NULL OR accuracy_m >= 0`，並唯讀驗證精確欄位／型別／defaults、PK／FK 與 CASCADE、冪等 UNIQUE、CHECK、Point/4326 geography、GiST、RLS、零 policy／function／自訂 trigger，以及 PUBLIC、API roles 的有效權限（含繼承及欄位權限）。最後只回傳四表筆數；初次空表建置時應各為 `0`，後續執行不會刪除非零資料，不輸出座標或使用者資料。
 5. 每次執行皆記錄實際目標、腳本版本、日期與各步結果。僅保存不含 secrets 或位置的摘要；不得把上方本次紀錄挪作其他部署的 PASS。
 
-若透過已連接的 Supabase `apply_migration` 工具部署，由工具記錄 migration history 並管理交易；僅移除 `01_create_tables.sql` 最外層的 `BEGIN`／`COMMIT` 後提交其完整內容，不拆開建表、撤權或交易內檢查。本機檔保留外層交易供手動執行。metadata preflight 與部署後唯讀驗證仍須分別完成。
+若透過已連接的 Supabase `apply_migration` 工具部署，由工具記錄 migration history 並管理交易。提交要部署的完整 migration；若該腳本自帶最外層 `BEGIN`／`COMMIT`，僅移除該外層包裝，不拆開變更與交易內檢查。本機初次建表檔保留外層交易供手動執行。部署前 metadata 檢查與部署後唯讀驗證仍須分別完成。
 
 `01_create_tables.sql` 的 transaction 內另有權限／RLS／零 policy 檢查，避免權限異常仍提交。`02_verify.sql` 是可重跑的結構檢查，不會刪除非零資料；未來經另案授權增加 RPC、policy、欄位或 trigger 後，需同步更新驗證規格。
 

@@ -1,4 +1,5 @@
--- Manual, read-only verification. Catalogs and four new-table counts only.
+-- Manual, read-only verification after the optional-accuracy delta migration.
+-- Spec: nearby-helper-backend commit 2661d02; catalogs and four table counts only.
 -- No coordinates, users, alerts, existing business rows or secret values read.
 BEGIN TRANSACTION READ ONLY;
 SET LOCAL search_path = pg_catalog;
@@ -46,7 +47,7 @@ BEGIN
     ('helper_profiles', 'revoked_at', 'timestamptz', false, NULL),
     ('helper_locations', 'user_id', 'uuid', true, NULL),
     ('helper_locations', 'geog', 'geography', true, NULL),
-    ('helper_locations', 'accuracy_m', 'real', true, NULL),
+    ('helper_locations', 'accuracy_m', 'real', false, NULL),
     ('helper_locations', 'reported_at', 'timestamptz', true, NULL),
     ('helper_locations', 'expires_at', 'timestamptz', true, NULL),
     ('alerts', 'id', 'uuid', true, 'gen_random_uuid()'),
@@ -135,16 +136,16 @@ BEGIN
     RAISE EXCEPTION 'Expected exactly 4 PK, 5 FK, 1 UNIQUE and 2 CHECK constraints';
   END IF;
 
-  -- Strip only rendering parentheses/whitespace and PostgreSQL numeric casts.
+  -- Normalize SQL keyword case, rendering parentheses/whitespace and numeric casts.
   -- No substring match: changed operators, constants or extra clauses fail.
   FOR expected IN SELECT * FROM (VALUES
-    ('helper_locations', 'accuracy_m>=0'), ('alerts', 'radius_m=500')
+    ('helper_locations', 'accuracy_misnulloraccuracy_m>=0'), ('alerts', 'radius_m=500')
   ) AS checks(table_name, expression)
   LOOP
-    SELECT regexp_replace(
+    SELECT lower(regexp_replace(
       regexp_replace(pg_get_expr(c.conbin, c.conrelid),
         '::(double precision|real|integer|numeric)', '', 'g'),
-      '[[:space:]()]', '', 'g')
+      '[[:space:]()]', '', 'g'))
     INTO normalized_check FROM pg_constraint c
     WHERE c.conrelid = to_regclass(format('safe_walk_nearby.%I', expected.table_name))
       AND c.contype = 'c' AND c.convalidated;
