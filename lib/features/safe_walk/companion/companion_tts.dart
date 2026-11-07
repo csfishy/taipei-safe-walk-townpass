@@ -233,6 +233,9 @@ final class _FlutterTtsDriver {
   }
 
   Future<void> stop(Object owner) {
+    if (_terminal == null && _stopFuture == null) {
+      return Future<void>.value();
+    }
     if (_owner != null && !identical(owner, _owner)) {
       return Future<void>.value();
     }
@@ -248,7 +251,7 @@ final class _FlutterTtsDriver {
     _release();
     try {
       // Callbacks have no utterance ID. Do not submit another utterance until
-      // the old one has terminated; an idle stop needs only its native reply.
+      // the old one has terminated. Idle stops never enter this method.
       await Future.wait<void>([
         _tts.stop().then<void>((_) {}),
         if (!_blocked && terminal != null) terminal.future,

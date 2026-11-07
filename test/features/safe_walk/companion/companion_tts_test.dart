@@ -313,11 +313,30 @@ void main() {
       expect(finished, isTrue);
     });
 
-    test('idle stop completes without a terminal callback', () async {
+    test('idle stop never calls native code or creates a timer', () async {
       final engine = FlutterTtsEngine(FlutterTts());
 
-      await engine.stop();
-      expect(calls.where((call) => call.method == 'stop'), hasLength(1));
+      Future<void> expectIdleStop() async {
+        var timers = 0;
+        await runZoned(
+          engine.stop,
+          zoneSpecification: ZoneSpecification(
+            createTimer: (self, parent, zone, duration, callback) {
+              timers++;
+              return parent.createTimer(zone, duration, callback);
+            },
+          ),
+        );
+        expect(calls.where((call) => call.method == 'stop'), isEmpty);
+        expect(timers, 0);
+      }
+
+      await expectIdleStop();
+      final spoken = engine.speak('正常結束的語句');
+      await pumpEventQueue();
+      await platformSays('speak.onComplete');
+      await spoken;
+      await expectIdleStop();
     });
 
     test('concurrent active stops share one terminal barrier', () async {
