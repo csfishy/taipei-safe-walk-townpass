@@ -2,6 +2,8 @@
 
 依 [Live MVP](SAFE_WALK_LIVE_MVP.md) 與 [Readiness](SAFE_WALK_LIVE_READINESS.md)，本次只交規格；每項後續任務開獨立 PR，不自動 merge。Owner 代表責任分配，不代表已取得新的外部帳號／派遣授權。共同前置：同步 origin/main、保留 M3 設計、單一 Schema 與模組 guard；新 wire 欄位才另開 Schema PR。
 
+審查更新（2026-11-07）：原始計畫依 `03f98f2` 盤點；main `65ee6f7dd9c07710ecf18084b1975b6998287b3e` 已合併 #26 speaker lifecycle 修正與回歸。P1-C 接續裝置驗收與剩餘缺口，不重做已合併修正；#28／#29 仍未合併，後續先核對各自 PR，不將其提案當已完成。
+
 ## P0：正常流程的真實 GPS、OSRM 與 Live UI
 
 | 任務／Owner | 修改檔案範圍 | 接收 → 輸出契約 | 實際完成標準 | 測試與 iPhone 驗收 | 前置依賴 |
@@ -19,7 +21,7 @@ P0-A/B/C 可按約定介面平行開發，整合／驗收按表列前置依賴�
 |---|---|---|---|---|---|
 | P1-A 真實據點：M4 信義，M1/M2 協作 | safety_data 的來源 Adapter／Repository／parser、fixtures／tests；M1 points lookup；M2 via 路線 | 合法來源＋mode＋取消 → List<AssistancePoint>／明確錯誤 | 完整 provenance／座標／日期／限制，可由 M1/M2 查詢及規劃；空資料、失敗、未配置分開；認可／營業證據不杜撰 | 真實來源 fetch／parse、Schema／語意、lookup／途經整合；iPhone 日期／限制／空錯誤／路線 | 來源／授權／品質查核，P0 資料契約；OSM/AED 不自動認證 |
 | P1-B 最近據點與外部導航：M2 Steven，M1/M3 協作 | navigation/nearest_store_planner.dart、osm_convenience_store_source.dart、google_maps_link.dart；M1 handoff；M3 操作 | Position、合法據點、查詢同意／使用者選擇 → 路線／walking URI／錯誤 | 接既有 planner，不把直線最近稱步行最近；無路線可主動開外部導航，未點擊不開；未知店況揭露 | URI／planner／撤回同意／快取測試、正式按鈕整合；iPhone 外部 App 有／無／取消／斷網 | P0-A/B/C，P1-A 或明確來源／限制的 OSM 資料，外傳同意 |
-| P1-C 裝置 TTS 完整驗收：M5 奶爸，M1/M3 協作 | companion/companion_tts.dart、platform/integration/tts_safe_walk_speaker.dart／speaker 介面、presentation/safe_walk_call_view.dart、相關測試 | 劇本／本機 voice／使用者操作／lifecycle → 實際播放回執或文字預覽 | 保留已接引擎；驗晚到 ready、排隊／停止、背景／離開／SOS；不用麥克風，前景不擅自續播 | fake engine＋頁面生命週期；真實 iPhone 離線播放、無 voice、音量與中斷；PR26 先核對重疊再整合 | 已合併 #22/#24；#26 仍待審，不預先當完成；可與 P0 平行但排程 P1 |
+| P1-C 裝置 TTS 完整驗收：M5 奶爸，M1/M3 協作 | companion/companion_tts.dart、platform/integration/tts_safe_walk_speaker.dart／speaker 介面、presentation/safe_walk_call_view.dart、相關測試 | 劇本／本機 voice／使用者操作／lifecycle → 實際播放回執或文字預覽 | 保留已接引擎及 #26 已合併 lifecycle 修正；驗晚到 ready、排隊／停止、背景／離開／SOS；不用麥克風，前景不擅自續播 | 保留 fake engine＋頁面生命週期回歸；補真實 iPhone 離線播放、無 voice、音量與中斷證據，不以 CI 代替裝置驗收 | 已合併 #22/#24/#26（#26 merge `65ee6f7`）；從最新 main 接續剩餘驗收，可與 P0 平行但排程 P1 |
 | P1-D 110／119／官方通報入口：M1 小魚，M3 協作 | platform/townpass_platform_adapter.dart／handoff adapter、integration、presentation/safe_walk_emergency_view.dart／flow、tests | 主動求助＋mode／能力＋必要分享同意 → EmergencyActionResult／外部開啟結果 | 真實系統撥號及官方管道，失敗／取消可理解，officialReceipt null；不聲稱接通／受理，不連動陌生人通知 | fake launcher URI／平台失敗／SOS 語音中斷；iPhone 只開系統畫面，不撥真實緊急號碼、不送報案 | 官方 URL 來源核對與裝置可用性；不需等待附近協助者解除 BLOCKED |
 
 ## P2：統計、輔助功能與效能

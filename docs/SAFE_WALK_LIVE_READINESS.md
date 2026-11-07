@@ -2,6 +2,8 @@
 
 盤點日期：2026-11-07（Asia/Taipei）。程式基線：`origin/main` 的 `03f98f2b7b5254db73774c4d097eb4d610499c2c`（已合併 #22／#27）。本文件記錄已合併程式與現存測試；本次文件 PR 不啟用 Live 常數、權限、RPC 或通知。功能驗收以 [Live MVP](SAFE_WALK_LIVE_MVP.md) 為準，工程排序見 [P0–P2 計畫](SAFE_WALK_LIVE_PLAN.md)。
 
+審查更新（2026-11-07）：main `65ee6f7dd9c07710ecf18084b1975b6998287b3e` 已合併 PR #26 的統一 speaker lifecycle 修正與回歸測試，R9 依此增量更新，仍為 WIRED_NOT_VERIFIED，缺少實際 iPhone 驗收。其他文件明列 `03f98f2` 的盤點及 #26 待審敘述是原始快照，不應據此重做已合併工作；#28／#29 仍未合併，不預先計入完成。
+
 ## 狀態與證據規則
 
 | 狀態 | 意義 |
@@ -28,7 +30,7 @@ Mock unit test、建構 provider、API 可達、截圖或 CI 綠燈都不足以�
 | R6 已查證求助據點 | M4 信義；M1 小魚注入；M2 Steven路線；M3 莅紋呈現 | NOT_IMPLEMENTED | `safety_data/contract_safety_data.dart` parser、Mock repository；M1 snapshot lookup 與 M2 via ID 驗證 | 尚無正式 Live assistance source；Mock 查詢 Live 拋不可用；需來源正規化、查證/更新與 UI | 合法開放資料；逐來源授權、取得/更新日期、coverage、limitations | 無資料/查詢失敗/未配置分開；AED/商店不等同認證救援；未知營業不填假值 | 否；來源、查證、provider、查詢/途經驗收缺少 |
 | R7 附近便利商店／外部導航 | M2 Steven；M1 小魚 handoff；M3 莅紋操作 | IMPLEMENTED_NOT_WIRED | `osm_convenience_store_source.dart`、`nearest_store_planner.dart`、`google_maps_link.dart`；有 consent/取消及路徑演算法 | Overpass/planner 未接 composition；link builder 尚無正式開啟流程、失敗狀態/同意 UI | OSM/Overpass、OSRM、Google Maps／系統 URL handler | 位置傳第三方須同意；商店只是查得場所，不假稱政府救援；失敗由使用者選外部導航 | 否；真查詢、正確場所/座標及 iPhone handoff 待驗 |
 | R8 全市月別暴力犯罪資訊 | M4 信義；M1 小魚整合；M3 莅紋呈現 | IMPLEMENTED_NOT_WIRED | `safety_data/violent_crime/taipei_violent_crime_repository.dart`、CSV normalizer、GetConnect fetcher、6h cache/取消 | 未接 composition/UI；module-local `CityMonthlyCrimeStatistics` 不適用 district `AreaStatistics`，不得硬塞 | data.taipei metadata／主計處 CSV；保留來源、license、取得/更新、全市月別限制 | 不宣稱行政區、道路、逐時風險；不把歷史率變成即時安全路線 | 否；Dart 真資料抓取、呈現與裝置驗收待補 |
-| R9 裝置內建陪伴 TTS | M5 奶爸；M1 小魚 speaker；M3 莅紋通話 UI | WIRED_NOT_VERIFIED | `companion/companion_tts.dart`、`platform/integration/tts_safe_walk_speaker.dart`；root 預設 device speaker，Flow/Call 已接；有 foreground/中斷保護 | 真 iPhone、缺 voice、背景/遲到 readiness、離開/SOS 競態待驗；#26 未合併，須另審並回歸，不假定主線毫無生命週期保護 | 裝置本機 voice／flutter_tts；無可用引擎文字預覽 | 不要求麥克風；不偽裝真人/警消；只用本機 voice；停止/背景/SOS 優先中斷 | 否；不等待附近通知授權，但須本列必要裝置驗收 |
+| R9 裝置內建陪伴 TTS | M5 奶爸；M1 小魚 speaker；M3 莅紋通話 UI | WIRED_NOT_VERIFIED | `companion/companion_tts.dart`、`platform/integration/tts_safe_walk_speaker.dart`；root 預設 device speaker，Flow/Call 已接；#26 統一 speaker lifecycle 修正與回歸已於 `65ee6f7` 合併 | 真 iPhone、缺 voice、背景/遲到 readiness、離開/SOS 競態仍待裝置驗收；保留已合併修正與回歸，不重做 #26 或以其 CI 代替實機證據 | 裝置本機 voice／flutter_tts；無可用引擎文字預覽 | 不要求麥克風；不偽裝真人/警消；只用本機 voice；停止/背景/SOS 優先中斷 | 否；不等待附近通知授權，但須本列必要裝置驗收 |
 | R10 本機核准音訊資產播放 | M5 奶爸；M3 莅紋 UI | NOT_IMPLEMENTED | `CompanionAudioAdapter` 契約、`LocalCompanionController` 與 fake adapter 測試 | 具體核准資產播放器/可用音檔未提供；不得把文字預覽當播放完成 | 經授權本地資產、裝置音訊 session | 停止/離開/背景/SOS 清理；不錄音/不要求麥克風；保留資產授權 | 否；R9 TTS 可滿足 MVP，此資產能力另驗 |
 | R11 110／119 撥號與官方通報入口 | M1 小魚；M3 莅紋操作 | NOT_IMPLEMENTED | `PlatformService.requestEmergency()`、Mock SOS 與結果契約；TownPass 既有 url_launcher 可作最小 adapter | Safe Walk adapter 不執行 dial/share/report，旗標皆 not_configured；需系統 handoff/官方入口來源核對 | 系統撥號器、已核對官方通報 URL/管道 | 使用者主動、不等 GPS；開啟不代表接通/受理、officialReceipt null；不真呼叫緊急號碼測試 | 否；handoff/cancel/failure 及 iPhone 開啟畫面待驗 |
 | R12 Supabase 連線基礎 | M1 小魚 | IMPLEMENTED_NOT_WIRED | `platform/supabase/safe_walk_supabase_config.dart`、`supabase_connection.dart`、`tool/check_supabase_connection.dart`；RPC transport 共用設定 | 獨立 CLI 診斷不等於 App 業務接線；業務表/權限/通知須獨立驗證 | 配置的 Supabase HTTPS Data API、公開 client key | 建構不連線；probe 不讀寫資料/不 RPC/不取位置；secret/service_role 不進 client | 否（業務）；既有唯讀工具可明確執行，不能據此開通知 |
@@ -49,7 +51,7 @@ Mock unit test、建構 provider、API 可達、截圖或 CI 綠燈都不足以�
 | R6 | `safety_data/contract_safety_data_test.dart` 為 parser/Mock；待 live source 正反案例 | snapshot/途經 ID 有 fake 測試；待真據點→M2/M3 | 未提供合法來源抓取、查詢失敗/空/缺欄證據 | 未提供；點位來源/更新/未知營業、途經真路線 |
 | R7 | `navigation/osm_convenience_store_source_test.dart`、`nearest_store_planner_test.dart`、`google_maps_link_test.dart` | planner 用替身據點，未接正式 UI | opt-in Overpass smoke 可接受 transport failure；PASS 本身不足，需真查得與來源核對 | 未提供；主動開外部導航、不可開啟/取消/斷網 |
 | R8 | `safety_data/violent_crime/violent_crime_normalizer_test.dart`、`taipei_violent_crime_repository_test.dart` 用 fixture/fake | 未接 UI；待全市月別語意/錯誤呈現 | 須 Dart 真 metadata/CSV 解析；Legacy Node 記錄不能代替 | 未提供；來源/日期/全市月別/未知值顯示 |
-| R9 | `companion/companion_tts_test.dart`、`platform/integration/tts_safe_walk_speaker_test.dart` 用 fake/native channel | `presentation/safe_walk_call_lifecycle_test.dart`、`safe_walk_companion_sync_test.dart` 及平台整合；#26 另審回歸 | 未有裝置 voice 實際輸出/無 voice 完整證據 | 未提供；播放/停止/離開/背景/SOS/延遲準備不復活聲音、無麥克風提示 |
+| R9 | `companion/companion_tts_test.dart`、`platform/integration/tts_safe_walk_speaker_test.dart` 用 fake/native channel | `presentation/safe_walk_call_lifecycle_test.dart`、`safe_walk_companion_sync_test.dart` 及平台整合；保留 #26 已合併的統一 lifecycle 回歸，本次文件修正不宣告重跑 | 未有裝置 voice 實際輸出/無 voice 完整證據 | 未提供；播放/停止/離開/背景/SOS/延遲準備不復活聲音、無麥克風提示 |
 | R10 | `companion/companion_controller_test.dart`、state/scenarios tests 用 fake audio | 具體資產 adapter/UI 尚缺 | 無具體播放器與授權資產證據 | 未提供；播放/停止/session 中斷與釋放 |
 | R11 | adapter tests 只確認不做外部操作；待 fake launcher 成功/拒絕/失敗 | Mock SOS 中斷已測；待 handoff 契約/官方來源核對 | 不真撥 110/119；驗 URI/OS 啟動畫面及官方入口 | 未提供；只開撥號器/官方管道，不按通話/不送案件，文案不稱接通 |
 | R12 | `platform/supabase/safe_walk_supabase_config_test.dart`、`supabase_connection_test.dart`（local HTTP） | 共用設定/transport 基礎，無正式業務整合 | #25 記錄真專案唯讀 PostgREST probe 成功，只證明連線，非 RPC/RLS；本輪不重跑 | 未提供；CLI 診斷不能替代裝置業務流程 |
@@ -74,7 +76,7 @@ controller 的 mode 存活期間固定；切換須新 session 並取消/清理�
 
 ## 未合併工作與安全阻塞
 
-盤點時未合併 #26（speaker 共用 lifecycle，head `f919e6218546a2572219d81abb7fc80d5e28c37c`）、#28（知識圖譜）、#29（OSM 圖磚），不計入主線成果／裝置證據；完整 SHA／CI 快照見 [審查報告](SAFE_WALK_SPEC_AUDIT.md)。main 已有 TTS readiness 刷新、foreground 與部分背景／待回覆取消保護；#26 須對照 main 審查。
+`03f98f2` 原始盤點時，#26（speaker 共用 lifecycle，head `f919e6218546a2572219d81abb7fc80d5e28c37c`）、#28（知識圖譜）、#29（OSM 圖磚）均未合併；完整 SHA／CI 原始快照見 [審查報告](SAFE_WALK_SPEC_AUDIT.md)。審查更新至 `65ee6f7` 時，#26 已合併，後續保留其修正與回歸並補 R9 裝置證據；#28／#29 仍待審查，不計入主線完成或裝置驗收。
 
 #27 已合併，新增 `platform/nearby_emergency/nearby_live_test_main.dart`／`nearby_live_test_page.dart` 與 fake Widget tests；以 NEARBY_LIVE_ENABLED、URL、公開 key 三項設定隔離，直接 geolocator reader 僅在此獨立開發入口，未接正常 TownPass。此為現存例外，不擴大為正式導航第二份 GPS；不作為通知安全或裝置送達證據，不因設定齊全就解除 BLOCKED。
 

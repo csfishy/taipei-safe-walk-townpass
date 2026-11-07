@@ -2,6 +2,8 @@
 
 日期：2026-11-07（Asia/Taipei）。本報告比較 **已 fetch 的團隊 main 程式／測試**與全部版控 Markdown，不只依 README 判斷。本次只調整文件，不修改程式、Schema、常數、套件、UI 設計或外部通知；現行規格以 [Live MVP](SAFE_WALK_LIVE_MVP.md) 為準。
 
+> 審查更新（2026-11-07）：PR #26 已合併至 main `65ee6f7dd9c07710ecf18084b1975b6998287b3e`，統一 speaker lifecycle 修正與回歸已進主線，仍缺實際 iPhone 驗收。下列 `03f98f2` 的 PR／CI 快照與 541 通過、17 跳過是原盤點事實，保留不改寫；本增量註記不宣告重跑或 LIVE_VERIFIED。R9 與 P1-C 的現行後續工作已更新，#28／#29 仍未合併，不計入主線完成。
+
 ## 基線、PR 與工作樹
 
 起初本機 main c765f471866de85908fef9bce3a673ea491a16f4，工作樹乾淨，落後當時 origin/main 42 commits。先 fetch 得 0ea99798b130cfba10358b9f47c287b93d06b275，再於獨立 worktree／docs/live-mvp-spec 分支作業。審查中 #27 合併，再 fetch 並 fast-forward 到 **03f98f2b7b5254db73774c4d097eb4d610499c2c**，納入新增的兩個 Dart 測試入口檔與一個測試檔，重跑相關驗證。未切換或重設其他工作樹。
