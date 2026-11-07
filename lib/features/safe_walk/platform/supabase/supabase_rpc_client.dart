@@ -50,10 +50,15 @@ final class SupabaseRpcClient {
 
   /// `POST /rest/v1/rpc/<function>`. Throws [TimeoutException] on timeout and
   /// [SafeWalkCancelledException] on cancellation. HTTP errors are returned.
+  ///
+  /// [headers] are added after the configured public-key headers and may
+  /// override them, for example `Authorization: Bearer <user session JWT>`.
+  /// They are never logged.
   Future<SupabaseRpcResponse> call(
     String function,
     Map<String, Object?> arguments, {
     SafeWalkCancellation? cancellation,
+    Map<String, String>? headers,
   }) async {
     if (!_functionName.hasMatch(function)) {
       throw ArgumentError('Invalid RPC function name');
@@ -78,7 +83,7 @@ final class SupabaseRpcClient {
     }
     try {
       return await Future.any<SupabaseRpcResponse>([
-        _post(client, function, arguments, requireActive),
+        _post(client, function, arguments, requireActive, headers),
         if (cancellation != null) cancelled.future,
       ]).timeout(timeout);
     } catch (_) {
@@ -95,6 +100,7 @@ final class SupabaseRpcClient {
     String function,
     Map<String, Object?> arguments,
     void Function() requireActive,
+    Map<String, String>? extraHeaders,
   ) async {
     requireActive();
     final request = await client.postUrl(
@@ -107,6 +113,7 @@ final class SupabaseRpcClient {
     request.headers.set(HttpHeaders.acceptHeader, 'application/json');
     request.headers.contentType = ContentType.json;
     config.requestHeaders.forEach(request.headers.set);
+    extraHeaders?.forEach(request.headers.set);
     request.add(utf8.encode(jsonEncode(arguments)));
     final response = await request.close();
     requireActive();
