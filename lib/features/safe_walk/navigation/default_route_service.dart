@@ -111,6 +111,8 @@ final class DefaultRouteService implements RouteService {
     } on SafeWalkCancelledException {
       return cancelled('使用者已取消');
     } on ConsentRequiredException {
+      final interrupted = interruption();
+      if (interrupted != null) return interrupted;
       return fail(
         sw.RouteFailureStatus.providerUnavailable,
         '尚未取得使用者同意，不會把位置送到路線服務',
