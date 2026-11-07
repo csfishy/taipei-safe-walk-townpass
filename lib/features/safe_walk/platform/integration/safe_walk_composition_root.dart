@@ -2,6 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:town_pass/features/safe_walk/navigation/avoid_area.dart';
+import 'package:town_pass/features/safe_walk/platform/integration/crime_reference_wiring.dart';
+import 'package:town_pass/features/safe_walk/safety_data/crime_reference/crime_reference_models.dart';
+import 'package:town_pass/features/safe_walk/safety_data/crime_reference/crime_reference_repository.dart';
 import 'package:town_pass/features/safe_walk/navigation/default_json_transport.dart';
 import 'package:town_pass/features/safe_walk/navigation/default_route_service.dart';
 import 'package:town_pass/features/safe_walk/navigation/json_transport.dart';
@@ -85,6 +88,59 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
   /// Unresolved reports to route around (50 m circles), sent by the map.
   List<AvoidArea> _areas = const [];
 
+  /// Crime reference records near the route (purple "犯罪紀錄區"), avoided
+  /// together with reports. Reference coordinates only, not incident points.
+  late final CrimeReferenceRepository _crime =
+      CrimeReferenceWiring.fromEnvironment().repository;
+  List<AvoidArea> _crimeAreas = const [];
+  List<CrimeSpot> _crimeSpots = const [];
+
+  Future<void> _loadCrime(sw.Coordinates a, sw.Coordinates b) async {
+    if (!_crime.isConfigured) return;
+    const m = 0.006; // ~600 m margin around the start/destination box
+    try {
+      final result = await _crime.query(
+        mode: sw.DataMode.live,
+        query: CrimeReferenceQuery(
+          bounds: CrimeReferenceBounds(
+            minLat: (a.lat < b.lat ? a.lat : b.lat) - m,
+            minLng: (a.lng < b.lng ? a.lng : b.lng) - m,
+            maxLat: (a.lat > b.lat ? a.lat : b.lat) + m,
+            maxLng: (a.lng > b.lng ? a.lng : b.lng) + m,
+          ),
+          limit: crimeReferenceMaxLimit,
+        ),
+        cancellation: _lifetime,
+      );
+      final located = [
+        for (final r in result.records)
+          if (r.latitude != null && r.longitude != null) r,
+      ];
+      if (!mounted) return;
+      setState(() {
+        _crimeSpots = [
+          for (final r in located)
+            (
+              id: 'crime-${r.sourceRecordId}',
+              at: LatLng(r.latitude!, r.longitude!),
+              label: '${r.category}・${r.eventDate}・${r.locationText}',
+            ),
+        ];
+        _crimeAreas = [
+          for (final r in located)
+            AvoidArea(
+              id: 'crime-${r.sourceRecordId}',
+              center: sw.Coordinates(lat: r.latitude!, lng: r.longitude!),
+              radiusMeters: AvoidArea.reportRadiusMeters,
+              source: 'crime',
+            ),
+        ];
+      });
+    } catch (_) {
+      // Unavailable data never blocks routing; the map simply shows none.
+    }
+  }
+
   /// Start point the user picked on the map; null = device GPS.
   sw.Coordinates? _manualOrigin;
   bool _askingConsent = false;
@@ -143,7 +199,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
                     hasConsent: hasConsent,
                   ),
                   fallback: osrm,
-                  areas: () => _areas,
+                  areas: () => [..._areas, ..._crimeAreas],
                 )
               : osrm),
       // M3 still draws demo geometry/ETA/PiP. M2 lifecycle fixes are included,
@@ -238,6 +294,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     _openNavigation();
     final manual = _manualOrigin;
     if (manual != null) {
+      await _loadCrime(manual, destination);
       await _planRoute(
         _createRouteRequest(
           origin: sw.Position(
@@ -268,6 +325,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
       );
       return;
     }
+    await _loadCrime(located.position.coordinates, destination);
     await _planRoute(
       _createRouteRequest(origin: located.position, destination: destination),
     );
@@ -487,6 +545,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
         route: widget.liveRoutes ? _navigation.routeResult : null,
         livePosition: _livePosition,
         onLeaveMap: _closeNavigation,
+        crimeSpots: _crimeSpots,
         onStartChanged: widget.liveRoutes
             ? (origin) {
                 _manualOrigin = origin;

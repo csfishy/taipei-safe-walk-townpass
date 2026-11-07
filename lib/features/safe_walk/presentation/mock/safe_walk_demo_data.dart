@@ -183,6 +183,9 @@ enum AnomalyStatus { pending, multiReported, forwardedDemo, cleared }
 
 const anomalyStatusLabel = {AnomalyStatus.pending: '待確認', AnomalyStatus.multiReported: '多人回報', AnomalyStatus.forwardedDemo: '已協助轉通報', AnomalyStatus.cleared: '已解除'};
 
+/// 犯罪紀錄區：官方犯罪紀錄的參考位置（地址或捷運出口比對，非精確案發地點）。
+typedef CrimeSpot = ({String id, LatLng at, String label});
+
 /// 系統內回報的避讓半徑（公尺），與路線規劃一致。
 const reportAvoidRadiusMeters = 50.0;
 

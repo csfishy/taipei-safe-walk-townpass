@@ -24,6 +24,9 @@ const _kUserAgentPackage = 'town_pass';
 
 ll.LatLng _ll(LatLng p) => ll.LatLng(p.lat, p.lng);
 
+/// 犯罪紀錄區用的紫色（臺北通色票沒有紫，取官方輔助色）。
+const _crime = Color(0xFF7B4BB7);
+
 class DemoMap extends StatelessWidget {
   /// Tests supply a fresh, non-network provider without changing app defaults.
   @visibleForTesting
@@ -41,6 +44,7 @@ class DemoMap extends StatelessWidget {
     this.altPaths = const [],
     this.destination,
     this.showAttribution = true,
+    this.crimeSpots = const [],
     this.avoidRadiusMeters = 0,
     this.showShortcut = false,
     this.homeActive = true,
@@ -65,6 +69,9 @@ class DemoMap extends StatelessWidget {
 
   /// false 時由外層（例如下方資訊框）顯示 OSM 版權標示。
   final bool showAttribution;
+
+  /// 犯罪紀錄區：紫色範圍＋小點（參考位置，非精確案發地點）。
+  final List<({LatLng at, String label})> crimeSpots;
 
   /// When > 0, each unresolved report gets a circle of this real-world radius.
   final double avoidRadiusMeters;
@@ -134,6 +141,21 @@ class DemoMap extends StatelessWidget {
           label:
               '${anomalyCategoryLabel[a.category]}，${anomalyStatusLabel[a.status]}，查看與回報新狀況',
           onTap: onAnomaly == null ? null : () => onAnomaly!(a.id),
+        ),
+      for (final c in crimeSpots)
+        marker(
+          c.at,
+          12,
+          Container(
+            width: 10,
+            height: 10,
+            decoration: BoxDecoration(
+              color: _crime,
+              shape: BoxShape.circle,
+              border: Border.all(color: SwColors.surface, width: 1.5),
+            ),
+          ),
+          label: '犯罪紀錄區：${c.label}（參考位置，非精確案發地點）',
         ),
       for (final p in points)
         marker(
@@ -240,6 +262,15 @@ class DemoMap extends StatelessWidget {
         if (avoidRadiusMeters > 0)
           CircleLayer(
             circles: [
+              for (final c in crimeSpots)
+                CircleMarker(
+                  point: _ll(c.at),
+                  radius: avoidRadiusMeters,
+                  useRadiusInMeter: true,
+                  color: _crime.withValues(alpha: .14),
+                  borderColor: _crime,
+                  borderStrokeWidth: 1.5,
+                ),
               for (final a in anomalies)
                 if (a.status != AnomalyStatus.cleared)
                   CircleMarker(

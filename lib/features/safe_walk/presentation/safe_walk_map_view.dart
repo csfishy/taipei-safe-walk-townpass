@@ -97,7 +97,11 @@ class SafeWalkMapView extends StatefulWidget {
     this.routeState = const RouteState(),
     this.manualStart,
     this.onStartChanged,
+    this.crimeSpots = const [],
   });
+
+  /// 犯罪紀錄區（紫色），與回報點一起避開。
+  final List<CrimeSpot> crimeSpots;
 
   /// 使用者在地圖上指定的起點；null＝用目前位置（GPS）。
   final LatLng? manualStart;
@@ -257,6 +261,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                     anomalies: widget.anomalies,
                     path: _pointsView ? const [] : path,
                     destination: place.at,
+                    crimeSpots: rs.live ? [for (final c in widget.crimeSpots) (at: c.at, label: c.label)] : const [],
                     showAttribution: false,
                     altPaths: _pointsView || !isHome
                         ? const []

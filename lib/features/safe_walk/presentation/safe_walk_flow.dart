@@ -28,6 +28,7 @@ class SafeWalkFlow extends StatefulWidget {
     this.onPlanRoute,
     this.onReportsChanged,
     this.onStartChanged,
+    this.crimeSpots = const [],
     this.livePosition,
     this.onLeaveMap,
     this.speaker = const UnavailableSpeaker(),
@@ -55,6 +56,9 @@ class SafeWalkFlow extends StatefulWidget {
 
   /// 每次規劃路線前，送出目前尚未解除的回報點（真實路線會避開以它們為中心的圓）。
   final ValueChanged<List<ReportSpot>>? onReportsChanged;
+
+  /// 路線附近的犯罪紀錄區（M1 查詢後提供）；地圖以紫色標示，路線會一起避開。
+  final List<CrimeSpot> crimeSpots;
 
   /// 使用者指定起點（null＝改回 GPS）；之後的路線規劃從這裡出發。
   final ValueChanged<sw.Coordinates?>? onStartChanged;
@@ -202,6 +206,7 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
       pointsState: _pointsState,
       routeState: _routeState,
       manualStart: _manualStart,
+      crimeSpots: widget.crimeSpots,
       onStartChanged: widget.onStartChanged == null ? null : _setStart,
       anomalies: _anomalies,
       startView: start,
