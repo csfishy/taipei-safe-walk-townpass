@@ -153,9 +153,10 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
   /// Phones use M1's dart:io client. The local web preview posts the same
   /// reviewed read-only RPC through browser fetch; default web stays off.
   static CrimeReferenceRepository _crimeRepository() {
-    if (!kIsWeb || !_webPreview) {
+    if (!kIsWeb) {
       return CrimeReferenceWiring.fromEnvironment().repository;
     }
+    if (!_webPreview) return CrimeReferenceRepository(transport: null);
     final SafeWalkSupabaseConfig config;
     try {
       config = SafeWalkSupabaseConfig.fromEnvironment();
@@ -163,7 +164,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
       return CrimeReferenceRepository(transport: null);
     }
     return CrimeReferenceRepository(
-      transport: (arguments) async {
+      transport: (arguments, {cancellation}) async {
         final (status, body) = await webRpcPost(
           config.url.resolve('/rest/v1/rpc/$crimeReferenceRpcFunction'),
           {
@@ -172,6 +173,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
             'Accept': 'application/json',
           },
           jsonEncode(arguments),
+          cancellation: cancellation,
         );
         return CrimeReferenceHttpResponse(status, body);
       },
@@ -508,10 +510,15 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     // Changing the setting stops route work in flight; it resumes only after
     // the walker agrees and plans again.
     _invalidateOperation();
+    final revision = _boundaryRevision;
     final prompt = _routingConsentPrompt ??= _askRoutingConsent();
     final agreed = await prompt;
     if (identical(_routingConsentPrompt, prompt)) _routingConsentPrompt = null;
-    if (!mounted || !_foreground || _lifetime.isCancelled || agreed == null) {
+    if (!mounted ||
+        !_foreground ||
+        _lifetime.isCancelled ||
+        revision != _boundaryRevision ||
+        agreed == null) {
       return;
     }
     _setRoutingConsent(agreed);
@@ -632,7 +639,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
       actions: [
         TextButton(
           onPressed: () => Navigator.of(dialog).pop(false),
-          child: const Text('不要'),
+          child: Text(_navigation.hasRoutingConsent ? '撤回同意' : '不要'),
         ),
         TextButton(
           onPressed: () => Navigator.of(dialog).pop(true),

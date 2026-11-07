@@ -297,18 +297,61 @@ class SafeWalkReportStatusPage extends StatefulWidget {
 }
 
 class _SafeWalkReportStatusPageState extends State<SafeWalkReportStatusPage> {
+  // AnimatedSwitcher may keep an outgoing page alive while a new visit uses
+  // the same controller. Only the latest visit may cancel its work.
+  static final _currentVisits = Expando<Object>('report page visit');
+
   SafeWalkReportStatusController get _c => widget.controller;
+  Object? _visit;
   bool _mapConsent = false;
 
   @override
   void initState() {
     super.initState();
-    unawaited(_c.load());
+    _beginVisit();
+  }
+
+  void _beginVisit() {
+    final controller = _c;
+    final visit = _visit = Object();
+    _currentVisits[controller] = visit;
+    // A previous page may still listen during its exit animation. Notify it
+    // after the new page's build, never from this page's initState.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted &&
+          identical(widget.controller, controller) &&
+          identical(_currentVisits[controller], visit)) {
+        unawaited(controller.load());
+      }
+    });
+  }
+
+  void _endVisit(SafeWalkReportStatusController controller) {
+    final visit = _visit;
+    _visit = null;
+    if (visit == null || !identical(_currentVisits[controller], visit)) return;
+    _currentVisits[controller] = null;
+    controller.cancel();
+  }
+
+  void _retry() {
+    if (_visit != null && identical(_currentVisits[_c], _visit)) {
+      unawaited(_c.load());
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant SafeWalkReportStatusPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.controller, widget.controller)) {
+      _endVisit(oldWidget.controller);
+      _beginVisit();
+    }
   }
 
   @override
   void dispose() {
-    _c.cancel();
+    _endVisit(_c);
     super.dispose();
   }
 
@@ -318,7 +361,7 @@ class _SafeWalkReportStatusPageState extends State<SafeWalkReportStatusPage> {
     builder: (context, _) {
       final retry = TextButton(
         key: const Key('report-retry'),
-        onPressed: () => unawaited(_c.load()),
+        onPressed: _retry,
         child: const Text('再試一次'),
       );
       return Scaffold(
@@ -326,7 +369,7 @@ class _SafeWalkReportStatusPageState extends State<SafeWalkReportStatusPage> {
           title: const Text('回報狀況・資料庫現況'),
           leading: BackButton(
             onPressed: () {
-              _c.cancel();
+              _endVisit(_c);
               widget.onBack();
             },
           ),

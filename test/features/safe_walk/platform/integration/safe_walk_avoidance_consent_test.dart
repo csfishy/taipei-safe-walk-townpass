@@ -214,6 +214,38 @@ void _interrupt(WidgetTester tester, String reason) {
 }
 
 void main() {
+  for (final boundary in ['leave', 'background']) {
+    testWidgets('late routing setting after $boundary cannot persist consent', (
+      tester,
+    ) async {
+      final platform = _Platform();
+      final routes = _Routes();
+      await _mount(
+        tester,
+        platform,
+        routes,
+        CrimeReferenceRepository(transport: null),
+      );
+      _flow(tester).onManageRoutingConsent!();
+      await tester.pumpAndSettle();
+      _interrupt(tester, boundary);
+      if (boundary == 'background') {
+        tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.resumed,
+        );
+      }
+      await tester.tap(find.text('同意'));
+      await tester.pumpAndSettle();
+      expect(_scope(tester).hasRoutingConsent, isFalse);
+      expect(platform.locations, isEmpty);
+      expect(routes.requests, isEmpty);
+      _flow(tester).onPlanRoute!(sw.Coordinates(lat: 25.001, lng: 121.501));
+      await tester.pumpAndSettle();
+      expect(find.text('規劃路線需要你的位置'), findsOneWidget);
+      expect(platform.locations, isEmpty);
+    });
+  }
+
   testWidgets('late routing consent after leaving cannot start GPS', (
     tester,
   ) async {

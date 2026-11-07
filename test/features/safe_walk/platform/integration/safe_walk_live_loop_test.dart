@@ -1025,7 +1025,9 @@ void main() {
         // The buffer note opens on tapping a purple dot; the dot itself is labelled.
         expect(
           find.byWidgetPredicate(
-            (w) => w is Semantics && (w.properties.label ?? '').contains('50 公尺避讓緩衝區'),
+            (w) =>
+                w is Semantics &&
+                (w.properties.label ?? '').contains('50 公尺避讓緩衝區'),
           ),
           findsWidgets,
         );
@@ -1241,6 +1243,86 @@ void main() {
         await t.pumpWidget(const SizedBox.shrink());
       },
     );
+
+    for (final back in ['button', 'system']) {
+      testWidgets(
+        'rapid report re-entry after $back back keeps the new query after the old page exits',
+        (t) async {
+          final first = Completer<CrimeReferenceHttpResponse>();
+          final second = Completer<CrimeReferenceHttpResponse>();
+          var requests = 0;
+          final db = _Db()
+            ..answer = () => ++requests == 1 ? first.future : second.future;
+          final platform = _livePlatform();
+          final routes = _Routes();
+          try {
+            await pumpRoot(
+              t,
+              platform: platform,
+              routes: routes,
+              db: db,
+              home: _destination,
+            );
+            await t.tap(find.text('回報狀況'));
+            await t.pump();
+            await t.pump(const Duration(milliseconds: 350));
+            final controller = t
+                .widget<SafeWalkReportStatusPage>(
+                  find.byType(SafeWalkReportStatusPage),
+                )
+                .controller;
+            expect(db.calls, hasLength(1));
+            expect(controller.stage, ReportStatusStage.loading);
+
+            if (back == 'button') {
+              await t.tap(find.byType(BackButton));
+            } else {
+              await t.binding.handlePopRoute();
+            }
+            await t.pump();
+            await t.pump(const Duration(milliseconds: 50));
+            expect(controller.stage, ReportStatusStage.cancelled);
+            // Re-enter before the previous report page's 280ms exit finishes.
+            await t.tap(find.text('回報狀況'));
+            await t.pump();
+            expect(t.takeException(), isNull);
+            expect(db.calls, hasLength(2));
+            expect(controller.stage, ReportStatusStage.loading);
+
+            await t.pump(const Duration(milliseconds: 350));
+            expect(find.byType(SafeWalkReportStatusPage), findsOneWidget);
+            expect(controller.stage, ReportStatusStage.loading);
+            first.complete(
+              CrimeReferenceHttpResponse(200, jsonEncode(_body(total: 0))),
+            );
+            await t.pump();
+            expect(controller.stage, ReportStatusStage.loading);
+            expect(controller.result, isNull);
+            second.complete(
+              CrimeReferenceHttpResponse(200, jsonEncode(_body())),
+            );
+            await t.pumpAndSettle();
+            expect(controller.stage, ReportStatusStage.answered);
+            expect(controller.result!.totalMatching, 1);
+            expect(platform.calls, 0);
+            expect(routes.requests, isEmpty);
+          } finally {
+            if (!first.isCompleted) {
+              first.complete(
+                CrimeReferenceHttpResponse(200, jsonEncode(_body())),
+              );
+            }
+            if (!second.isCompleted) {
+              second.complete(
+                CrimeReferenceHttpResponse(200, jsonEncode(_body())),
+              );
+            }
+            await t.pumpWidget(const SizedBox.shrink());
+            await t.pump();
+          }
+        },
+      );
+    }
 
     testWidgets(
       'report status preserves empty database and no reviewed area states',
