@@ -11,7 +11,7 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-        // Safe Walk SOS: send an SMS without opening the messaging app.
+        // Safe Walk SOS: request an SMS without opening the messaging app.
         // Dart side: lib/features/safe_walk/platform/nearby_emergency/sms_sender.dart
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "safe_walk/sms")
             .setMethodCallHandler { call, result ->
@@ -26,7 +26,8 @@ class MainActivity : FlutterActivity() {
                     return@setMethodCallHandler
                 }
                 if (checkSelfPermission(Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED) {
-                    // First use: ask once. The user taps SOS again after granting.
+                    // Never resume this request after permission is granted: the
+                    // user must start a new SOS action with fresh consent/location.
                     requestPermissions(arrayOf(Manifest.permission.SEND_SMS), 1001)
                     result.success(false)
                     return@setMethodCallHandler
@@ -39,6 +40,9 @@ class MainActivity : FlutterActivity() {
                         SmsManager.getDefault()
                     }
                     sms.sendMultipartTextMessage(number, null, sms.divideMessage(body), null, null)
+                    // No sent/delivery PendingIntents are registered. True means
+                    // only that this submission call returned without an exception;
+                    // the carrier can still reject it or fail to deliver it later.
                     result.success(true)
                 } catch (e: Exception) {
                     result.success(false)

@@ -16,6 +16,7 @@ final class NearbyEmergencySent extends NearbyEmergencyResult {
 enum NearbyEmergencyBlock {
   mockMode,
   noUserAction,
+  backendUnavailable,
   locationUnavailable,
   cancelled,
   transportFailed,
@@ -41,6 +42,13 @@ final class NearbyEmergencyService {
   final NearbyAlertTransport _transport;
   final int radiusMeters;
 
+  String? get unavailableReason {
+    final transport = _transport;
+    return transport is UnavailableNearbyAlertBackend
+        ? (transport as UnavailableNearbyAlertBackend).unavailableReason
+        : null;
+  }
+
   Future<NearbyEmergencyResult> triggerEmergency({
     required sw.DataMode mode,
     required String senderId,
@@ -59,13 +67,30 @@ final class NearbyEmergencyService {
         '需要使用者主動按下求助',
       );
     }
+    if (cancellation?.isCancelled ?? false) {
+      return const NearbyEmergencyNotSent(
+        NearbyEmergencyBlock.cancelled,
+        '已取消',
+      );
+    }
+    final backendFailure = unavailableReason;
+    if (backendFailure != null) {
+      return NearbyEmergencyNotSent(
+        NearbyEmergencyBlock.backendUnavailable,
+        backendFailure,
+      );
+    }
 
     final sw.Coordinates location;
     try {
-      final result = await _platform.getCurrentPosition(
-        mode: mode,
-        userInitiated: true,
-        cancellation: cancellation,
+      cancellation?.throwIfCancelled();
+      final result = await _whileActive(
+        _platform.getCurrentPosition(
+          mode: mode,
+          userInitiated: true,
+          cancellation: cancellation,
+        ),
+        cancellation,
       );
       if (cancellation?.isCancelled ?? false) {
         return const NearbyEmergencyNotSent(
@@ -82,16 +107,31 @@ final class NearbyEmergencyService {
       }
       location = result.position.coordinates;
     } on SafeWalkCancelledException {
-      return const NearbyEmergencyNotSent(NearbyEmergencyBlock.cancelled, '已取消');
+      return const NearbyEmergencyNotSent(
+        NearbyEmergencyBlock.cancelled,
+        '已取消',
+      );
     }
 
     try {
-      final count = await _transport.sendEmergencyAlert(
-        senderId: senderId,
-        location: location,
-        radiusMeters: radiusMeters,
+      cancellation?.throwIfCancelled();
+      final count = await _whileActive(
+        _transport.sendEmergencyAlert(
+          senderId: senderId,
+          location: location,
+          radiusMeters: radiusMeters,
+        ),
+        cancellation,
       );
+      cancellation?.throwIfCancelled();
       return NearbyEmergencySent(count);
+    } on SafeWalkCancelledException {
+      // An already submitted request cannot be recalled; do not present its
+      // late response as a new successful action after cancellation.
+      return const NearbyEmergencyNotSent(
+        NearbyEmergencyBlock.cancelled,
+        '已取消',
+      );
     } on Object {
       return const NearbyEmergencyNotSent(
         NearbyEmergencyBlock.transportFailed,
@@ -114,25 +154,49 @@ final class NearbyEmergencyService {
     if (!userInitiated) {
       throw const NearbyAlertException('User action required');
     }
+    cancellation?.throwIfCancelled();
+    final backendFailure = unavailableReason;
+    if (backendFailure != null) throw NearbyAlertException(backendFailure);
     sw.Coordinates? location;
     if (enabled) {
-      final result = await _platform.getCurrentPosition(
-        mode: mode,
-        userInitiated: true,
-        cancellation: cancellation,
+      final result = await _whileActive(
+        _platform.getCurrentPosition(
+          mode: mode,
+          userInitiated: true,
+          cancellation: cancellation,
+        ),
+        cancellation,
       );
+      cancellation?.throwIfCancelled();
       if (result is! sw.LocationSuccess) {
         throw NearbyAlertException((result as sw.LocationFailure).message);
       }
       location = result.position.coordinates;
     }
-    await _transport.setHelperOptIn(
-      helperId: helperId,
-      enabled: enabled,
-      location: location,
+    cancellation?.throwIfCancelled();
+    await _whileActive(
+      _transport.setHelperOptIn(
+        helperId: helperId,
+        enabled: enabled,
+        location: location,
+      ),
+      cancellation,
     );
+    cancellation?.throwIfCancelled();
   }
 
   Future<List<NearbyAlert>> fetchPendingAlerts(String helperId) =>
       _transport.fetchPendingAlerts(helperId);
 }
+
+Future<T> _whileActive<T>(
+  Future<T> operation,
+  SafeWalkCancellation? cancellation,
+) => cancellation == null
+    ? operation
+    : Future.any<T>([
+        operation,
+        cancellation.whenCancelled.then<T>(
+          (_) => throw const SafeWalkCancelledException(),
+        ),
+      ]);

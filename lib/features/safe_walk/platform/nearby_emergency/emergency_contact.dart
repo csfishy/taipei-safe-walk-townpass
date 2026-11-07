@@ -14,7 +14,7 @@ abstract interface class EmergencyContactStore {
   Future<void> write(String phone);
 }
 
-/// The preset number is stored only on this device.
+/// Stores the number in app preferences; OS backup policies still apply.
 final class SharedPreferencesEmergencyContactStore
     implements EmergencyContactStore {
   static const _key = 'safe_walk.emergency_contact_phone';
@@ -28,7 +28,12 @@ final class SharedPreferencesEmergencyContactStore
 
   @override
   Future<void> write(String phone) async {
+    if (!isValidEmergencyPhone(phone)) {
+      throw const FormatException('Invalid emergency contact');
+    }
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_key, normalizeEmergencyPhone(phone));
+    if (!await prefs.setString(_key, normalizeEmergencyPhone(phone))) {
+      throw StateError('Could not save emergency contact');
+    }
   }
 }

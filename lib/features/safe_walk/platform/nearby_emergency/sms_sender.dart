@@ -1,8 +1,9 @@
 import 'package:flutter/services.dart';
 
-/// Sends a text message without opening the user's messaging app.
+/// Requests a text message without opening the user's messaging app.
 abstract interface class SmsSender {
-  /// True only when the platform accepted the message for sending.
+  /// True only when the platform accepted the submission request.
+  /// This does not confirm that the message was sent or delivered.
   Future<bool> send({required String number, required String body});
 }
 
@@ -13,12 +14,15 @@ final class ChannelSmsSender implements SmsSender {
 
   @override
   Future<bool> send({required String number, required String body}) async {
+    final destination = number.trim();
+    if (destination.isEmpty || body.trim().isEmpty) return false;
     try {
-      final ok = await _channel.invokeMethod<bool>('send', {
-        'number': number,
+      final ok = await _channel.invokeMethod<Object?>('send', {
+        'number': destination,
         'body': body,
       });
-      return ok ?? false;
+      // Malformed or absent native responses cannot establish submission.
+      return ok == true;
     } on MissingPluginException {
       return false;
     } on PlatformException {

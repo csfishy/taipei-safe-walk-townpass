@@ -19,54 +19,63 @@ final class NearbyAlertWatcher {
   final _controller = StreamController<NearbyAlert>.broadcast();
   final _seen = <String>{};
   Timer? _timer;
-  bool _polling = false;
+  bool _stopped = false;
+  bool _disposed = false;
+  int _generation = 0;
+  int? _pollingGeneration;
 
   Stream<NearbyAlert> get alerts => _controller.stream;
 
   void start() {
+    if (_disposed || _timer != null) return;
+    _stopped = false;
     _timer ??= Timer.periodic(interval, (_) => unawaited(poll()));
   }
 
   void stop() {
+    _stopped = true;
+    _generation++;
     _timer?.cancel();
     _timer = null;
   }
 
-  /// Fetches once. Network errors are ignored so polling keeps running.
+  /// Fetches once. The caller must already have helper consent.
+  /// A newly created watcher permits an explicit poll without starting a timer;
+  /// after stop(), start() is required before any further poll can run.
+  /// Network errors are ignored so polling keeps running.
   Future<void> poll() async {
-    if (_polling || _controller.isClosed) return;
-    _polling = true;
+    final generation = _generation;
+    if (_stopped || _disposed || _pollingGeneration == generation) return;
+    _pollingGeneration = generation;
     try {
       final alerts = await _service.fetchPendingAlerts(helperId);
       for (final alert in alerts) {
-        if (_seen.add(alert.alertId) && !_controller.isClosed) {
+        if (_stopped || _disposed || generation != _generation) return;
+        if (_seen.add(alert.alertId)) {
           _controller.add(alert);
         }
       }
     } catch (_) {
       // Retry on the next tick.
     } finally {
-      _polling = false;
+      // A restarted watcher may already have a newer request in flight.
+      if (_pollingGeneration == generation) _pollingGeneration = null;
     }
   }
 
   void dispose() {
+    if (_disposed) return;
     stop();
+    _disposed = true;
     unawaited(_controller.close());
   }
 }
 
-/// Popup text for a nearby alert: exact coordinates and a Google Maps link.
+/// Coordinates and the alert creation time; no external location link.
 String nearbyAlertPopupText(NearbyAlert alert) {
   final lat = alert.location.lat.toStringAsFixed(6);
   final lng = alert.location.lng.toStringAsFixed(6);
+  final createdAt = alert.createdAt.toUtc().toIso8601String();
   return '求助位置：$lat, $lng\n'
-      '範圍：${alert.radiusMeters} 公尺內\n'
-      '地圖：https://maps.google.com/?q=$lat,$lng';
-}
-
-String nearbyAlertMapUrl(NearbyAlert alert) {
-  final lat = alert.location.lat.toStringAsFixed(6);
-  final lng = alert.location.lng.toStringAsFixed(6);
-  return 'https://maps.google.com/?q=$lat,$lng';
+      '建立時間：$createdAt（UTC）';
 }
