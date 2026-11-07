@@ -32,7 +32,13 @@ class SafeWalkCompositionRoot extends StatefulWidget {
     this.routeService,
     this.routeTransport,
     this.onExit,
+    this.liveRoutes = false,
   });
+
+  /// Real walking routes: opening the map reads the device position (after the
+  /// user agrees to share it with the OSM routing service) and asks OSRM for a
+  /// route to the chosen place. Points, SOS and companion stay in Mock.
+  final bool liveRoutes;
 
   final PlatformService? platform;
   final SafetyDataRepository? safetyData;
@@ -106,9 +112,9 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
       // M3 still draws demo geometry/ETA/PiP. M2 lifecycle fixes are included,
       // but real-provider/native validation remains pending. This UI cannot
       // enable either readiness gate.
-      mode: sw.DataMode.mock,
-      livePresentationReady: false,
-      liveProviderReady: false,
+      mode: widget.liveRoutes ? sw.DataMode.live : sw.DataMode.mock,
+      livePresentationReady: widget.liveRoutes,
+      liveProviderReady: widget.liveRoutes,
     );
     unawaited(_loadPoints());
   }
@@ -130,6 +136,58 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     if (_lifetime.isCancelled || !_navigationActive) return;
     await _navigation.planRoute(request);
   }
+
+  /// Map opened, destination changed or retry: consent → GPS → OSRM route.
+  Future<void> _planTo(sw.Coordinates destination) async {
+    if (_lifetime.isCancelled || _navigation.routeLoading) return;
+    if (!_navigation.hasRoutingConsent) {
+      final agreed = await _askRoutingConsent();
+      if (agreed != true || !mounted) return;
+      _navigation.setRoutingConsent(true);
+    }
+    _openNavigation();
+    final sw.LocationResult located;
+    try {
+      located = await _platform.getCurrentPosition(
+        mode: _navigation.mode,
+        userInitiated: true,
+        cancellation: _lifetime,
+      );
+    } on SafeWalkCancelledException {
+      return;
+    }
+    if (!mounted || _lifetime.isCancelled) return;
+    if (located is! sw.LocationSuccess) {
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+        SnackBar(content: Text((located as sw.LocationFailure).message)),
+      );
+      return;
+    }
+    await _planRoute(
+      _createRouteRequest(origin: located.position, destination: destination),
+    );
+  }
+
+  Future<bool?> _askRoutingConsent() => showDialog<bool>(
+    context: context,
+    builder: (dialog) => AlertDialog(
+      title: const Text('規劃路線需要你的位置'),
+      content: const Text(
+        '會把你目前的位置和目的地傳給 OpenStreetMap 步行路線服務'
+        '（routing.openstreetmap.de）來計算路線，不會傳給其他人。',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(dialog).pop(false),
+          child: const Text('不要'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(dialog).pop(true),
+          child: const Text('同意'),
+        ),
+      ],
+    ),
+  );
 
   void _openNavigation() {
     if (!_lifetime.isCancelled) _navigationActive = true;
@@ -316,6 +374,11 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
       pointsLoading: _pointsLoading,
       pointsError: _pointsError,
       onRetryPoints: () => unawaited(_loadPoints()),
+      route: widget.liveRoutes ? _navigation.routeResult : null,
+      routeLoading: widget.liveRoutes && _navigation.routeLoading,
+      onPlanRoute: widget.liveRoutes
+          ? (destination) => unawaited(_planTo(destination))
+          : null,
       speaker: _speaker,
       onLocate: _locate,
       onEmergency: _emergency,
