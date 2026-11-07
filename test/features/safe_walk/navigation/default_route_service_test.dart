@@ -353,6 +353,18 @@ void main() {
       );
     });
 
+    test('four candidates return a typed provider failure', () async {
+      final provider = FakeProvider(
+        (_, _) async => List.generate(4, (_) => candidate()),
+      );
+
+      expectFailure(
+        await service(live: provider).planRoute(liveRequest()),
+        sw.RouteFailureStatus.providerUnavailable,
+        mode: sw.DataMode.live,
+      );
+    });
+
     test('WalkingRouteNotFound is no_route', () async {
       final provider = FakeProvider(
         (_, _) async => throw const WalkingRouteNotFound(),
@@ -557,6 +569,66 @@ void main() {
         );
       },
     );
+
+    for (final (description, error) in [
+      ('no-route', const WalkingRouteNotFound()),
+      ('provider error', StateError('late provider failure')),
+    ]) {
+      test('an older late $description returns cancelled', () async {
+        final slow = Completer<List<sw.RouteCandidate>>();
+        final started = Completer<void>();
+        final mock = FakeProvider((req, _) {
+          if (req.requestId == 'old') {
+            started.complete();
+            return slow.future;
+          }
+          return Future.value([candidate()]);
+        });
+        final svc = service(mock: mock);
+
+        final first = svc.planRoute(request(requestId: 'old'));
+        await started.future;
+        final second = await svc.planRoute(request(requestId: 'new'));
+        slow.completeError(error);
+
+        expect(second, isA<sw.RouteSuccess>());
+        expect(second.requestId, 'new');
+        expectFailure(
+          await first,
+          sw.RouteFailureStatus.cancelled,
+          requestId: 'old',
+        );
+      });
+    }
+
+    test('an older late missing-point lookup returns cancelled', () async {
+      final slow = Completer<List<sw.AssistancePoint>>();
+      final started = Completer<void>();
+      final mock = FakeProvider((_, _) async => [candidate()]);
+      final svc = service(
+        mock: mock,
+        lookup: (ids, {cancellation}) {
+          started.complete();
+          return slow.future;
+        },
+      );
+
+      final first = svc.planRoute(request(requestId: 'old'));
+      await started.future;
+      final second = await svc.planRoute(
+        request(requestId: 'new', preference: 'direct', ids: const []),
+      );
+      slow.complete(const []);
+
+      expect(second, isA<sw.RouteSuccess>());
+      expect(second.requestId, 'new');
+      expectFailure(
+        await first,
+        sw.RouteFailureStatus.cancelled,
+        requestId: 'old',
+      );
+      expect(mock.calls, 1);
+    });
   });
 
   group('boundaries', () {

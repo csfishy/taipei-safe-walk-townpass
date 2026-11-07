@@ -63,6 +63,11 @@ final class DefaultRouteService implements RouteService {
     );
     sw.RouteFailure cancelled(String reason) =>
         fail(sw.RouteFailureStatus.cancelled, reason, const ['沒有產生路線']);
+    sw.RouteFailure? interruption() {
+      if (cancellation?.isCancelled ?? false) return cancelled('使用者已取消');
+      if (call != _latestCall) return cancelled('已被較新的路線請求取代');
+      return null;
+    }
 
     if (cancellation?.isCancelled ?? false) return cancelled('使用者已取消');
 
@@ -86,6 +91,8 @@ final class DefaultRouteService implements RouteService {
     final List<sw.RouteCandidate> candidates;
     try {
       points = await _lookupPoints(request, cancellation);
+      final interrupted = interruption();
+      if (interrupted != null) return interrupted;
       final missing = request.assistancePointIds.where(
         (id) => !points.any((point) => point.id == id),
       );
@@ -102,13 +109,17 @@ final class DefaultRouteService implements RouteService {
     } on SafeWalkCancelledException {
       return cancelled('使用者已取消');
     } on WalkingRouteNotFound {
+      final interrupted = interruption();
+      if (interrupted != null) return interrupted;
       return fail(sw.RouteFailureStatus.noRoute, '找不到可步行的路線');
     } catch (_) {
+      final interrupted = interruption();
+      if (interrupted != null) return interrupted;
       return fail(sw.RouteFailureStatus.providerUnavailable, '路線供應商目前無法使用');
     }
 
-    if (cancellation?.isCancelled ?? false) return cancelled('使用者已取消');
-    if (call != _latestCall) return cancelled('已被較新的路線請求取代');
+    final interrupted = interruption();
+    if (interrupted != null) return interrupted;
     if (candidates.isEmpty) {
       return fail(sw.RouteFailureStatus.noRoute, '找不到可步行的路線');
     }
@@ -118,16 +129,24 @@ final class DefaultRouteService implements RouteService {
       return fail(sw.RouteFailureStatus.providerUnavailable, endpointProblem);
     }
 
-    final result = sw.RouteSuccess(
-      requestId: base.requestId,
-      mode: base.mode,
-      generatedAt: base.generatedAt,
-      routes: candidates,
-      warnings: [
-        if (request.mode == sw.DataMode.mock) '目前為示範模式，不提供安全保證',
-        '路線僅反映所用路網，不保證路段安全、無障礙或實際可通行',
-      ],
-    );
+    final sw.RouteSuccess result;
+    try {
+      result = sw.RouteSuccess(
+        requestId: base.requestId,
+        mode: base.mode,
+        generatedAt: base.generatedAt,
+        routes: candidates,
+        warnings: [
+          if (request.mode == sw.DataMode.mock) '目前為示範模式，不提供安全保證',
+          '路線僅反映所用路網，不保證路段安全、無障礙或實際可通行',
+        ],
+      );
+    } on FormatException {
+      return fail(
+        sw.RouteFailureStatus.providerUnavailable,
+        '路線供應商的結果未通過共用契約檢查',
+      );
+    }
     final problems = routeProblems(result, points: points);
     if (problems.isNotEmpty) {
       return fail(
