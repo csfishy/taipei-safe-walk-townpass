@@ -6,6 +6,7 @@ import 'package:town_pass/features/safe_walk/navigation/io_json_transport.dart';
 import 'package:town_pass/features/safe_walk/navigation/json_transport.dart';
 import 'package:town_pass/features/safe_walk/navigation/nearest_point.dart';
 import 'package:town_pass/features/safe_walk/navigation/osm_convenience_store_source.dart';
+import 'package:town_pass/features/safe_walk/navigation/nearest_store_planner.dart';
 import 'package:town_pass/features/safe_walk/navigation/osrm_walking_route_provider.dart';
 import 'package:town_pass/features/safe_walk/navigation/route_follower.dart';
 import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart'
@@ -87,6 +88,80 @@ void main() {
       print(
         'Follower: walked ${route.geometry.coordinates.length} points, arrived',
       );
+    },
+    skip: live ? false : 'set SAFE_WALK_LIVE=1 to call the real services',
+    timeout: const Timeout(Duration(seconds: 60)),
+  );
+
+  test(
+    'planner picks the shortest real walk to a store and builds a Google link',
+    () async {
+      // Two stand-in stores (not real shops) so only the routing is live.
+      sw.AssistancePoint standIn(String id, double lat, double lng) =>
+          sw.AssistancePoint(
+            id: id,
+            name: '測試用店 $id',
+            kind: sw.AssistancePointKind.convenienceStore,
+            coordinates: sw.Coordinates(lat: lat, lng: lng),
+            address: null,
+            publicPhone: null,
+            recognition: sw.UnconfirmedRecognition(
+              status: sw.UnconfirmedRecognitionStatus.unconfirmed,
+              checkedAt: null,
+            ),
+            availability: sw.OpeningStatus.open,
+            availabilityCheckedAt: DateTime.now().toUtc().toIso8601String(),
+            capabilities: const [sw.AssistanceCapability.unknown],
+            source: sw.SourceMetadata(
+              datasetId: 'live-smoke',
+              title: '測試用資料',
+              dataMode: sw.DataMode.live,
+              sourceUrl: 'https://example.org/',
+              retrievedAt: DateTime.now().toUtc().toIso8601String(),
+              dataUpdatedAt: null,
+              license: null,
+              coverage: '只供冒煙測試',
+              limitations: const ['測試用資料，不是真實店家'],
+            ),
+          );
+      final stores = [
+        standIn('a', 25.0495, 121.5190),
+        standIn('b', 25.0440, 121.5200),
+      ];
+      final planner = NearestStorePlanner(
+        find: (o, {cancellation}) async => stores,
+        routeService: DefaultRouteService(
+          liveProvider: OsrmWalkingRouteProvider(
+            transport: IoJsonTransport(),
+            hasConsent: () => true,
+          ),
+        ),
+      );
+
+      final result = await planner.plan(
+        sw.Position(
+          coordinates: taipeiMain,
+          source: sw.PositionSource.gps,
+          accuracyMeters: 10,
+          observedAt: DateTime.now().toUtc().toIso8601String(),
+        ),
+        requestId: 'live-smoke-planner',
+        mode: sw.DataMode.live,
+      );
+
+      expect(
+        result.status,
+        NearestStoreStatus.found,
+        reason: '${result.reason}',
+      );
+      expect(result.store!.walkingRoute, isNotNull);
+      // ignore: avoid_print
+      print(
+        'Planner: ${result.store!.point.name}, walk '
+        '${result.store!.walkingRoute!.distanceMeters.round()} m, '
+        'link ${result.googleMapsUri}',
+      );
+      expect(result.googleMapsUri!.queryParameters['travelmode'], 'walking');
     },
     skip: live ? false : 'set SAFE_WALK_LIVE=1 to call the real services',
     timeout: const Timeout(Duration(seconds: 60)),
