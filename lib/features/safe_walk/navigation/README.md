@@ -66,6 +66,8 @@ if (nearest.isNotEmpty) {
 - 路線起訖點與請求相差超過 `maxEndpointSnapMeters`（500 m）、live 路線未驗證步行路網或 provider 名稱含 mock、途經點不合規，一律 `provider_unavailable`。
 - 途經據點：同時請求直接路線與經過據點的路線；繞路超過 `maxExtraDistanceMeters` 就只回直接路線並說明原因。
 - 取消：進入前、據點查詢中、請求中都會回 `cancelled`（傳輸層會關閉連線）；之後才到的結果或錯誤被忽略。同一個 service 較新的請求開始後，較舊請求完成時回 `cancelled`。
+- 便利商店查詢：各次呼叫擁有自己的鏡像／半徑請求；取消或回傳結果時會停止該次呼叫未使用的連線，不取消其他並行呼叫。
+- 便利商店快取：只保留成功完成的資料，依網格／半徑快取 5 分鐘，沿用實際取得時間；讀取快取不更新 `retrievedAt`／`availabilityCheckedAt`。過期就重查，失敗或取消不以舊資料冒充新結果。
 - 傳輸層：僅 HTTPS、不跟隨轉址、逾時 12 秒、回應上限 2 MB。
 - 所有結果（含失敗）都符合共用 Schema：失敗至少一則 warning、routes 為空。
 
