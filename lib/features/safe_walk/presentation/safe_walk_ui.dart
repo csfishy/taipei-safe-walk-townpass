@@ -16,7 +16,6 @@ abstract final class SwColors {
 
   /// 只在必須放白字的深色區塊使用（夜間情境卡）。
   static const brandDeep = TPColors.primary700;
-  static const brandDeeper = TPColors.primary800;
   static const brandSoft = TPColors.primary50;
   static const text = TPColors.grayscale900;
   static const textSecondary = TPColors.grayscale700;

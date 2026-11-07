@@ -95,7 +95,11 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
     }
     // 響鈴時手機震動（網頁沒有震動）；鈴聲音檔需另外核准，先不播放。
     HapticFeedback.vibrate();
-    _buzz = Timer.periodic(const Duration(milliseconds: 1500), (_) => HapticFeedback.vibrate());
+    // 跟光圈一樣響約 18 秒就停（12 次 × 1.5 秒），不會一直震。
+    _buzz = Timer.periodic(const Duration(milliseconds: 1500), (t) {
+      HapticFeedback.vibrate();
+      if (t.tick >= 11) t.cancel();
+    });
   }
 
   sw.CompanionScenario get _scenario => m5CompanionScenarios.firstWhere((c) => c.id == _s.scenarioId, orElse: () => m5CompanionScenarios.first);

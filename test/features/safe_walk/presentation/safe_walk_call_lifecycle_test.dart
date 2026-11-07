@@ -49,6 +49,17 @@ void main() {
     await t.pumpAndSettle();
   });
 
+  testWidgets('一直不接：震動約 18 秒後停止', (t) async {
+    await _open(t, _Spy());
+    await t.pump(const Duration(seconds: 20));
+    final after = _buzzes;
+    expect(after, 12, reason: '一開始 1 次＋每 1.5 秒 1 次，共 12 次');
+    await t.pump(const Duration(seconds: 10));
+    expect(_buzzes, after);
+    await t.tap(find.text('拒絕'));
+    await t.pumpAndSettle();
+  });
+
   testWidgets('拒絕：回到首頁，之後不再震動也不朗讀', (t) async {
     final speaker = _Spy();
     await _open(t, speaker);
