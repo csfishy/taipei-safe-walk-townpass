@@ -23,7 +23,7 @@ final class SupabaseRpcResponseTooLarge implements Exception {
   String toString() => 'Supabase RPC response too large';
 }
 
-/// Native read-only RPC caller using only the public client key from
+/// Native JSON RPC caller using only the public client key from
 /// [SafeWalkSupabaseConfig] (publishable or legacy anon; never service_role).
 /// Construction opens nothing. Not supported on Flutter web (dart:io).
 final class SupabaseRpcClient {

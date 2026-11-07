@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:town_pass/features/safe_walk/presentation/mock/safe_walk_demo_data.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_call_view.dart';
@@ -33,6 +35,8 @@ class SafeWalkFlow extends StatefulWidget {
     this.routeLoading = false,
     this.onPlanRoute,
     this.onReportsChanged,
+    this.onSaveReport,
+    this.onLoadReports,
     this.onStartChanged,
     this.crimeSpots = const [],
     this.crimeQueryStatus,
@@ -92,6 +96,10 @@ class SafeWalkFlow extends StatefulWidget {
   /// 每次規劃路線前，送出目前尚未解除的回報點（真實路線會避開以它們為中心的圓）。
   final ValueChanged<List<ReportSpot>>? onReportsChanged;
 
+  /// Live reports are shown only after the database confirms the write.
+  final Future<Anomaly> Function(Anomaly draft)? onSaveReport;
+  final Future<List<Anomaly>> Function()? onLoadReports;
+
   /// 犯罪參考位置與產品設定的 50 公尺避讓緩衝（非案發範圍）。
   final List<CrimeSpot> crimeSpots;
   final String? crimeQueryStatus;
@@ -148,6 +156,12 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
   sw.Position? _position;
   LatLng? _manualStart;
   int _editGeneration = 0;
+  int _reportsGeneration = 0;
+  bool _reportsLoading = false;
+  String? _reportsError;
+  final Map<String, Anomaly> _confirmedReports = {};
+  String? _lastPlannedReports;
+  bool _appActive = true;
 
   /// 目前導航的目標：null＝目的地（家／常用地點）；否則是求助地點 id。
   String? _targetPointId;
@@ -194,16 +208,26 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
   @override
   void dispose() {
     ++_editGeneration;
+    ++_reportsGeneration;
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _appActive = true;
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.hidden ||
         state == AppLifecycleState.detached) {
       ++_editGeneration;
+      _appActive = false;
+      ++_reportsGeneration;
+      if (_reportsLoading) {
+        setState(() {
+          _reportsLoading = false;
+          _reportsError = '回報資料載入已中斷，請重新載入；目前清單可能不完整。';
+        });
+      }
     }
   }
 
@@ -215,6 +239,10 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
     }
     if (old.mode != widget.mode) {
       ++_editGeneration;
+      ++_reportsGeneration;
+      _reportsLoading = false;
+      _reportsError = null;
+      _confirmedReports.clear();
       _anomalies = widget.mode == sw.DataMode.mock
           ? demoAnomalies()
           : <Anomaly>[];
@@ -281,6 +309,60 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
       ? demoAssistancePoints()
       : const <sw.AssistancePoint>[];
 
+  Future<void> _loadReports() async {
+    if (widget.mode != sw.DataMode.live) return;
+    final load = widget.onLoadReports;
+    if (load == null) {
+      setState(() => _reportsError = '回報資料庫尚未配置，無法載入已儲存的回報。');
+      return;
+    }
+    final generation = ++_reportsGeneration;
+    setState(() {
+      _reportsLoading = true;
+      _reportsError = null;
+    });
+    try {
+      final reports = await load();
+      if (!mounted || generation != _reportsGeneration) return;
+      setState(() {
+        _anomalies = {
+          for (final report in reports) report.id: report,
+          ..._confirmedReports,
+        }.values.toList();
+        _reportsLoading = false;
+      });
+      _planRoute();
+    } catch (_) {
+      if (!mounted || generation != _reportsGeneration) return;
+      setState(() {
+        _reportsLoading = false;
+        _reportsError = '回報資料載入失敗，請再試一次；目前清單可能不完整。';
+      });
+    }
+  }
+
+  Future<Anomaly> _saveReport(Anomaly draft) async {
+    final save = widget.onSaveReport;
+    if (save == null) throw StateError('Report storage unavailable');
+    final mode = widget.mode;
+    final report = await save(draft);
+    // Overlay confirmed writes on query results without cancelling the query:
+    // it may still contain other persisted reports needed for avoidance.
+    if (mounted && widget.mode == mode) {
+      setState(() {
+        _confirmedReports[report.id] = report;
+        _anomalies.removeWhere((item) => item.id == report.id);
+        _anomalies.add(report);
+      });
+      if (_isMapScreen(_screen) && _appActive) {
+        _planRoute();
+      } else {
+        widget.onReportsChanged?.call(_reportSpots);
+      }
+    }
+    return report;
+  }
+
   String? get _nearestPointName {
     final pts = _pointsState.points;
     if (pts.isEmpty) return null;
@@ -329,12 +411,19 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
     );
   }
 
+  List<ReportSpot> get _reportSpots => [
+    for (final a in _anomalies)
+      if (a.status != AnomalyStatus.cleared)
+        (id: a.id, center: sw.Coordinates(lat: a.at.lat, lng: a.at.lng)),
+  ];
+
+  String get _reportSignature => _anomalies
+      .map((a) => '${a.id}:${a.status.name}:${a.reportCount}')
+      .join('|');
+
   void _planRoute({sw.Coordinates? savedDestination}) {
-    widget.onReportsChanged?.call([
-      for (final a in _anomalies)
-        if (a.status != AnomalyStatus.cleared)
-          (id: a.id, center: sw.Coordinates(lat: a.at.lat, lng: a.at.lng)),
-    ]);
+    _lastPlannedReports = _reportSignature;
+    widget.onReportsChanged?.call(_reportSpots);
     if (savedDestination != null) _targetPointId = null;
     // 目標是求助地點時，重新規劃（例如回報變了）也是往那個地點。
     final target = _targetPointId == null
@@ -391,6 +480,8 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
     }
     if (!_isMapScreen(s) && _isMapScreen(_screen)) {
       ++_editGeneration;
+      ++_reportsGeneration;
+      _reportsLoading = false;
       _targetPointId = null;
       widget.onLeaveMap?.call();
     }
@@ -406,6 +497,23 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
 
   /// 打開地圖後的第一個查詢；路線與犯罪資料的同意會依序在這裡問。
   void _afterMapOpened(_Screen s) {
+    if (widget.mode == sw.DataMode.live && widget.onLoadReports != null) {
+      unawaited(_loadReportsThenPlan(s));
+      return;
+    }
+    unawaited(_loadReports());
+    _planOpenedMap(s);
+  }
+
+  Future<void> _loadReportsThenPlan(_Screen s) async {
+    await _loadReports();
+    if (!mounted || _screen != s) return;
+    // _loadReports also replans on success; retry failures still allow the user
+    // to navigate with an explicit incomplete-report disclosure.
+    if (_reportsError != null || s == _Screen.points) _planOpenedMap(s);
+  }
+
+  void _planOpenedMap(_Screen s) {
     if (s == _Screen.points && widget.mode == sw.DataMode.live) {
       widget.onRetryPoints?.call();
     } else {
@@ -415,6 +523,8 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
 
   void _openEmergency() {
     ++_editGeneration;
+    ++_reportsGeneration;
+    _reportsLoading = false;
     widget.onLeaveReport?.call();
     if (_isMapScreen(_screen)) widget.onLeaveMap?.call();
     _call = null;
@@ -488,11 +598,22 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
       canSetHome: widget.onHomeChanged != null,
       onStartChanged: widget.onStartChanged == null ? null : _setStart,
       anomalies: _anomalies,
+      isLive: widget.mode == sw.DataMode.live,
+      onSaveReport: widget.onSaveReport == null ? null : _saveReport,
+      reportsLoading: _reportsLoading,
+      reportsError: _reportsError,
+      onRetryReports: () => unawaited(_loadReports()),
       startView: start,
       onAnomaliesChanged: () {
         setState(() {});
         // 新增或解除回報後立刻重新規劃，路線馬上改道。
-        _planRoute();
+        if (_lastPlannedReports != _reportSignature) {
+          if (_isMapScreen(_screen) && _appActive) {
+            _planRoute();
+          } else {
+            widget.onReportsChanged?.call(_reportSpots);
+          }
+        }
       },
       places: _places,
       placeId: _placeId,
