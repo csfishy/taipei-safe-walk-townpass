@@ -581,4 +581,65 @@ void main() {
       },
     );
   });
+
+  group('alternatives (opt-in)', () {
+    Map<String, Object?> twoRoutes() {
+      final answer = osrmOk();
+      final alt = osrmOk(
+        distance: 420,
+        coordinates: const [
+          [121.5, 25.0],
+          [121.4995, 25.0006],
+          [121.501, 25.001],
+        ],
+      );
+      answer['routes'] = [
+        ...(answer['routes'] as List),
+        ...(alt['routes'] as List),
+      ];
+      return answer;
+    }
+
+    test('off by default: asks for no alternatives, returns one', () async {
+      final transport = FakeTransport((_, _) async => twoRoutes());
+      final routes = await provider(transport).findRoutes(request());
+      expect(transport.urls.single.queryParameters['alternatives'], 'false');
+      expect(routes.map((r) => r.id), ['osrm-direct']);
+    });
+
+    test('returns each server route unchanged and verified', () async {
+      final transport = FakeTransport((_, _) async => twoRoutes());
+      final routes = await OsrmWalkingRouteProvider(
+        transport: transport,
+        hasConsent: () => true,
+        requestAlternatives: true,
+      ).findRoutes(request());
+      expect(transport.urls.single.queryParameters['alternatives'], 'true');
+      expect(routes.map((r) => r.id), ['osrm-direct', 'osrm-alt-1']);
+      expect(routes[1].distanceMeters, 420);
+      expect(
+        routes[1].geometry.coordinates.map((c) => [c.longitude, c.latitude]),
+        [
+          [121.5, 25.0],
+          [121.4995, 25.0006],
+          [121.501, 25.001],
+        ],
+      );
+      expect(routes.every((r) => r.walkingNetworkVerified), isTrue);
+    });
+
+    test('a malformed alternative rejects the whole answer', () async {
+      final answer = osrmOk();
+      answer['routes'] = [...(answer['routes'] as List), 'bad'];
+      final transport = FakeTransport((_, _) async => answer);
+      await expectLater(
+        OsrmWalkingRouteProvider(
+          transport: transport,
+          hasConsent: () => true,
+          requestAlternatives: true,
+        ).findRoutes(request()),
+        throwsA(isA<WalkingRouteProviderUnavailable>()),
+      );
+    });
+  });
 }

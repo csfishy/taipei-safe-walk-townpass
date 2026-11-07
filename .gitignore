@@ -108,3 +108,8 @@ artifacts/
 *.apk
 assets/build-info.json
 coverage/
+
+# Crime reference data lives outside every checkout; include SQLite sidecars.
+.local-data/
+crime-reference-data/
+nnk-crime*.sqlite*

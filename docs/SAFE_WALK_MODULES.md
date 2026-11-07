@@ -1,6 +1,6 @@
 # 臺北安心行：五模組持續開發契約
 
-目標及正式驗收以 [Live MVP](SAFE_WALK_LIVE_MVP.md) 為準，現況見 [Readiness](SAFE_WALK_LIVE_READINESS.md)。初始化已合併，M3 已有畫面，M2 已有具體 Provider，M5 已有控制器／TTS；不再以「第一輪只有抽象／README」限制開發。
+現行政策以 [LIVE-FIRST／NO PRODUCTION MOCK](SAFE_WALK_LIVE_FIRST.md) 為準，正式驗收見 [Live MVP](SAFE_WALK_LIVE_MVP.md)，現況見 [Readiness](SAFE_WALK_LIVE_READINESS.md)。新功能直接完成真實 Provider 與正式 UI 的完整操作流程，不要求先 Mock／Demo／Prototype。main `7b99fea` 正式入口仍 Mock，#35 接線已由 #49 restore 移除，不能因規範改字就視為完成。初始化已合併，M3 已有畫面，M2 已有具體 Provider，M5 已有控制器／TTS；不再以「第一輪只有抽象／README」限制開發。
 
 協作採 [Feature-First／Soft Ownership／Contract-Based Integration](SAFE_WALK_COLLABORATION.md)。M1 小魚、M2 Steven、M3 莅紋、M4 信義、M5 奶爸是平台／導航／體驗／資料／陪伴的主要負責人，**不是獨占目錄修改權**。所有成員可跨五模組修改功能與測試，由功能主責完成完整流程；說明目的、影響檔案與原主責並協調同檔案重疊，普通接線不需小魚事前批准或代寫。
 
@@ -22,7 +22,7 @@ RouteService.planRoute(RouteRequest, cancellation) → RouteResult。沿用 requ
 
 DefaultRouteService／OsrmWalkingRouteProvider 已存在；pointLookup 透過平台 composition 注入，navigation 不能直接 import safety_data；任何功能主責可修改兩側。GeoJSON wire [lng, lat]，位置為具名 lat/lng，不能混淆。Live 用步行路網，不以直線補錯；途經 ID／模式／來源／已知關閉驗證保留。取消、撤回同意及換目的地使舊結果失效。
 
-RouteFollower 已有程序內 FollowUpdate／FollowStatus，消費 M1 Position，後續透過平台 composition 注入 UI；不新增 GPS watcher。NearestStorePlanner／OsmConvenienceStoreSource／googleMapsWalkingUri 已實作但尚未接正式 App；查詢同意與外部交接由功能主責跨平台接線，小魚提供領域諮詢。OSM 商店不直接視為認證救援。詳細見 navigation/README 與 [呈現契約](SAFE_WALK_NAVIGATION_PRESENTATION_CONTRACT.md)。
+RouteFollower 已有程序內 FollowUpdate／FollowStatus，消費 M1 Position，後續透過平台 composition 注入 UI；不新增 GPS watcher。NearestStorePlanner／OsmConvenienceStoreSource 已實作但尚未接正式 App；查詢同意由功能主責跨平台接線，小魚提供領域諮詢。既有 googleMapsWalkingUri 只是歷史實作，競賽正式功能不採 Google Maps。OSM 商店不直接視為認證救援。詳細見 navigation/README 與 [呈現契約](SAFE_WALK_NAVIGATION_PRESENTATION_CONTRACT.md)。
 
 ## M3｜正式 UI/UX
 
@@ -34,9 +34,9 @@ RouteFollower 已有程序內 FollowUpdate／FollowStatus，消費 M1 Position�
 
 SafetyDataParser.parseAssistancePoint／parseAreaStatistics 消費正規化 Map，回 shared models，先結構後語意驗證。SafetyDataRepository.getAssistancePoints／getAreaStatistics 接 required mode 與選用 cancellation，回 List；例外沿 Future 傳遞，空 List 只代表成功查詢無資料。
 
-Mock fixture／live 原始來源分開。sourceUrl、retrievedAt、dataUpdatedAt、license、coverage、limitations 保留；nullable 不補假值。ContractSafetyDataParser／MockSafetyDataRepository 及 violent_crime 真實來源 Repository 已存在，但一般真實據點 Repository 仍缺；M2 的 OSM source 不等於 M4 交付。全市犯罪 snapshot 不塞入 district-only AreaStatistics，不作即時道路風險。
+MockSafetyDataRepository 與人工 fixtures 只用於隔離測試，不得注入 Production。sourceUrl、retrievedAt、dataUpdatedAt、license、coverage、limitations 保留；nullable 不補假值。ContractSafetyDataParser 及 violent_crime 真實來源 Repository 已存在，但一般真實據點 Repository 仍缺；M2 的 OSM source 不等於 M4 完整交付。全市犯罪 snapshot 不塞入 district-only AreaStatistics，不作即時道路風險；競賽正式範圍不加入 AED。
 
-功能主責在平台 composition 將驗證過資料注入 lookup／UI；資料失敗、無資料、未配置分開。認可／營業／現場可協助為不同證據。
+功能主責在平台 composition 將驗證過真實資料注入 lookup／UI，完成使用者查詢、來源／日期顯示、錯誤與取消；只有 Parser／Repository 不算功能完成。資料失敗、無資料、未配置分開，未完成顯示 Unavailable＋原因＋下一步。認可／營業／現場可協助為不同證據。正式持久資料以 Supabase 主資料庫為整合方向；#44 仍開放，#39 僅合入 feature branch，不能算 main 已完成。身分／唯讀權限／RPC／RLS 仍依 Level C，不向 App 提供管理 key。
 
 ## M5｜控制器、TTS 與清理
 
@@ -48,6 +48,6 @@ LocalCompanionController 與 CompanionTtsSpeaker 已存在。裝置 TTS 經 M1 T
 
 ## 開發、審查與 Schema
 
-五個模組分支已建立，但新任務以完整使用者功能的小型短期 PR 為單位，不強制延續模組長分支。從最新 origin/main 或明列的未合併 parent head 建分支，不 force push／覆寫他人工作；各自可 AI Coding、測試、除錯及開 PR，不直接推 main。Mock 可獨立開發與回歸，正式目標是通過驗收後接入 Live。普通跨模組修改屬 A；套件／官方 route 等 B 合併前主責確認，不要求小魚親自實作；C 另依安全授權。
+五個模組分支已建立，但新任務以完整使用者功能的小型短期 PR 為單位，不強制延續模組長分支。從最新 origin/main 或明列的未合併 parent head 建分支，不 force push／覆寫他人工作；各自可 AI Coding、測試、除錯及開 PR，不直接推 main。Fake／Mock 回歸只限 Unit／Integration tests；正式入口不可選 Mock，不因標示 Demo 而例外，不以只改 readiness／flags 冒充完成。普通跨模組修改屬 A；套件／官方 route 等 B 合併前主責確認，不要求小魚親自實作；C 另依安全授權。
 
 Schema 1.0.0 維持單一來源、strict、nullable、模式隔離、官方回執 null 及語意。Unavailable 是能力語意，不加 wire enum。必要新 payload 欄位另開 Schema PR。PR 附真實 SHA／測試／skip／build／裝置證據；不自動 merge、不寫 upstream。後續任務依 [P0–P2 計畫](SAFE_WALK_LIVE_PLAN.md)。

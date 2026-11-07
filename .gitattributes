@@ -6,3 +6,11 @@
 *.py text eol=lf
 *.png binary
 *.otf binary
+
+# Defense in depth for git archive; CI also inspects actual Web/APK/IPA bytes.
+.local-data/** export-ignore
+**/.local-data/** export-ignore
+crime-reference-data/** export-ignore
+**/crime-reference-data/** export-ignore
+nnk-crime*.sqlite* export-ignore
+**/nnk-crime*.sqlite* export-ignore
