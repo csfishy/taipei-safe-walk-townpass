@@ -22,9 +22,17 @@ Uint8List buildCompanionRingtoneWav({int sampleRate = 16000}) {
       final age = t - start;
       final attack = math.min(1.0, age / 0.01);
       final release = math.min(1.0, (end - t) / 0.08);
-      v += math.sin(2 * math.pi * freq * t) * attack * release * math.exp(-age * 3);
+      v +=
+          math.sin(2 * math.pi * freq * t) *
+          attack *
+          release *
+          math.exp(-age * 3);
     }
-    pcm.setInt16(i * 2, (v * 0.5 * 32767).round().clamp(-32768, 32767), Endian.little);
+    pcm.setInt16(
+      i * 2,
+      (v * 0.5 * 32767).round().clamp(-32768, 32767),
+      Endian.little,
+    );
   }
   final dataLen = pcm.lengthInBytes;
   final out = ByteData(44 + dataLen);
@@ -72,7 +80,8 @@ final class CompanionRingtone {
   }) : _wav = wav ?? buildCompanionRingtoneWav();
 
   /// 預設使用裝置播放器。
-  factory CompanionRingtone.device() => CompanionRingtone(AudioplayersToneAdapter());
+  factory CompanionRingtone.device() =>
+      CompanionRingtone(AudioplayersToneAdapter());
 
   final CompanionToneAdapter _adapter;
   final Duration maxDuration;
@@ -80,12 +89,24 @@ final class CompanionRingtone {
   int _generation = 0;
   bool _disposed = false;
   Timer? _limit;
+  Future<void> _pendingStart = Future<void>.value();
+  Future<void> _pendingStop = Future<void>.value();
 
-  Future<void> start() async {
-    if (_disposed) return;
+  Future<void> start() {
+    if (_disposed) return Future<void>.value();
     final generation = ++_generation;
     _limit?.cancel();
     _limit = Timer(maxDuration, stop);
+    // Finish cleanup for an older delayed play before starting a newer ring.
+    // Otherwise the older completion's compensating stop kills the new ring.
+    return _pendingStart = _pendingStart.then((_) async {
+      await _pendingStop;
+      await _start(generation);
+    });
+  }
+
+  Future<void> _start(int generation) async {
+    if (_disposed || generation != _generation) return;
     try {
       await _adapter.playLoop(_wav);
     } catch (_) {
@@ -102,7 +123,7 @@ final class CompanionRingtone {
     _generation++;
     _limit?.cancel();
     _limit = null;
-    unawaited(_quietStop());
+    _pendingStop = Future.wait([_pendingStop, _quietStop()]).then((_) {});
   }
 
   Future<void> dispose() async {
@@ -129,19 +150,36 @@ final class AudioplayersToneAdapter implements CompanionToneAdapter {
   AudioplayersToneAdapter([AudioPlayer? player]) : _player = player;
 
   AudioPlayer? _player;
-  AudioPlayer get _p => _player ??= AudioPlayer();
+  bool _disposed = false;
+  int _generation = 0;
 
   @override
   Future<void> playLoop(Uint8List wav) async {
-    await _p.setReleaseMode(ReleaseMode.loop);
-    await _p.play(BytesSource(wav, mimeType: 'audio/wav'));
+    if (_disposed) return;
+    final generation = ++_generation;
+    final player = _player ??= AudioPlayer();
+    await player.setReleaseMode(ReleaseMode.loop);
+    if (_disposed || generation != _generation) return;
+    await player.play(BytesSource(wav, mimeType: 'audio/wav'));
+    if (_disposed || generation != _generation) {
+      // Use the original player: never create one after dispose.
+      try {
+        await player.stop();
+      } catch (_) {}
+    }
   }
 
   @override
-  Future<void> stop() async => _player?.stop();
+  Future<void> stop() async {
+    _generation++;
+    await _player?.stop();
+  }
 
   @override
   Future<void> dispose() async {
+    if (_disposed) return;
+    _disposed = true;
+    _generation++;
     final p = _player;
     _player = null;
     await p?.dispose();

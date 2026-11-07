@@ -8,7 +8,7 @@ import 'package:town_pass/features/safe_walk/presentation/safe_walk_speaker.dart
 /// M1 bridge from the view's speaker to M5's on-device TTS.
 ///
 /// Device speech only: no API key, network service or recording. Until the
-/// device confirms a Chinese voice it is unavailable and the view keeps its
+/// device confirms a suitable voice it is unavailable and the view keeps its
 /// text-only notice. After an emergency stop it stays silent for this route.
 final class TtsSafeWalkSpeaker implements SafeWalkRouteSpeaker, SafeWalkRinger {
   TtsSafeWalkSpeaker(this._tts, {CompanionRingtone? ringtone})
@@ -71,7 +71,12 @@ final class TtsSafeWalkSpeaker implements SafeWalkRouteSpeaker, SafeWalkRinger {
 
   @override
   Future<void> dispose() async {
-    await _ringtone?.dispose();
-    await _tts.dispose();
+    _lifecycleActive = false;
+    _emergencyStopped = true;
+    // Fence speech immediately, even if the native ringtone stop is delayed.
+    await Future.wait([
+      _tts.dispose(),
+      if (_ringtone != null) _ringtone.dispose(),
+    ]);
   }
 }

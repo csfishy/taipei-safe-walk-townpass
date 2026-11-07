@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:town_pass/features/safe_walk/companion/companion_ringtone.dart';
 import 'package:town_pass/features/safe_walk/companion/companion_tts.dart';
@@ -9,6 +10,7 @@ import 'package:town_pass/features/safe_walk/platform/integration/tts_safe_walk_
 class _Tone implements CompanionToneAdapter {
   final log = <String>[];
   Completer<void>? gate;
+  Completer<void>? stopGate;
   bool playing = false;
   Uint8List? wav;
 
@@ -23,6 +25,7 @@ class _Tone implements CompanionToneAdapter {
   @override
   Future<void> stop() async {
     log.add('stop');
+    await stopGate?.future;
     playing = false;
   }
 
@@ -32,12 +35,53 @@ class _Tone implements CompanionToneAdapter {
 
 class _Engine implements CompanionSpeechEngine {
   final spoken = <String>[];
+  int stops = 0;
   @override
   Future<bool> prepare(List<String> languages) async => true;
   @override
   Future<void> speak(String text) async => spoken.add(text);
   @override
-  Future<void> stop() async {}
+  Future<void> stop() async {
+    stops++;
+  }
+}
+
+class _Player extends Fake implements AudioPlayer {
+  final releaseGate = Completer<void>();
+  Completer<void>? playGate;
+  int plays = 0;
+  int stops = 0;
+  int disposals = 0;
+  bool playing = false;
+
+  @override
+  Future<void> setReleaseMode(ReleaseMode mode) => releaseGate.future;
+
+  @override
+  Future<void> play(
+    Source source, {
+    double? volume,
+    double? balance,
+    AudioContext? ctx,
+    Duration? position,
+    PlayerMode? mode,
+  }) async {
+    plays++;
+    await playGate?.future;
+    playing = true;
+  }
+
+  @override
+  Future<void> stop() async {
+    stops++;
+    playing = false;
+  }
+
+  @override
+  Future<void> dispose() async {
+    disposals++;
+    playing = false;
+  }
 }
 
 class _Failing implements CompanionToneAdapter {
@@ -91,6 +135,86 @@ void main() {
     expect(tone.playing, isFalse);
   });
 
+  test(
+    'restart waits for stale play cleanup before starting the new ring',
+    () async {
+      final tone = _Tone()..gate = Completer<void>();
+      final ring = CompanionRingtone(tone);
+      final first = ring.start();
+      await pumpEventQueue();
+      ring.stop();
+      final second = ring.start();
+      await pumpEventQueue();
+      expect(tone.log.where((e) => e == 'play'), hasLength(1));
+      tone.gate!.complete();
+      await Future.wait([first, second]);
+      expect(tone.playing, isTrue);
+      expect(tone.log.where((e) => e == 'play'), hasLength(2));
+      await ring.dispose();
+    },
+  );
+
+  test('restart waits for a delayed stop before playing again', () async {
+    final tone = _Tone();
+    final ring = CompanionRingtone(tone);
+    await ring.start();
+    tone.stopGate = Completer<void>();
+    ring.stop();
+    final restarted = ring.start();
+    await pumpEventQueue();
+    expect(tone.log.where((e) => e == 'play'), hasLength(1));
+    tone.stopGate!.complete();
+    await restarted;
+    expect(tone.playing, isTrue);
+    expect(tone.log.where((e) => e == 'play'), hasLength(2));
+    await ring.dispose();
+  });
+
+  group('native tone adapter cancellation', () {
+    test('stop during setup prevents playback', () async {
+      final player = _Player();
+      final adapter = AudioplayersToneAdapter(player);
+      final starting = adapter.playLoop(Uint8List(1));
+      await adapter.stop();
+      player.releaseGate.complete();
+      await starting;
+      expect(player.plays, 0);
+      expect(player.playing, isFalse);
+      await adapter.dispose();
+    });
+
+    test('dispose during setup cannot create a replacement player', () async {
+      final player = _Player();
+      final adapter = AudioplayersToneAdapter(player);
+      final starting = adapter.playLoop(Uint8List(1));
+      await adapter.dispose();
+      player.releaseGate.complete();
+      await starting;
+      await adapter.playLoop(Uint8List(1));
+      expect(player.plays, 0);
+      expect(player.disposals, 1);
+      expect(player.playing, isFalse);
+    });
+
+    test(
+      'stop during delayed playback stops its late completion too',
+      () async {
+        final player = _Player()..playGate = Completer<void>();
+        player.releaseGate.complete();
+        final adapter = AudioplayersToneAdapter(player);
+        final starting = adapter.playLoop(Uint8List(1));
+        await pumpEventQueue();
+        expect(player.plays, 1);
+        await adapter.stop();
+        player.playGate!.complete();
+        await starting;
+        expect(player.playing, isFalse);
+        expect(player.stops, 2);
+        await adapter.dispose();
+      },
+    );
+  });
+
   test('dispose 中途：遲到結果不發聲，重複 dispose 安全，之後 start 無效', () async {
     final tone = _Tone()..gate = Completer<void>();
     final ring = CompanionRingtone(tone);
@@ -109,7 +233,10 @@ void main() {
 
   test('響鈴逾時自動停止', () async {
     final tone = _Tone();
-    final ring = CompanionRingtone(tone, maxDuration: const Duration(milliseconds: 20));
+    final ring = CompanionRingtone(
+      tone,
+      maxDuration: const Duration(milliseconds: 20),
+    );
     await ring.start();
     expect(tone.playing, isTrue);
     await Future<void>.delayed(const Duration(milliseconds: 80));
@@ -127,7 +254,10 @@ void main() {
     Future<(TtsSafeWalkSpeaker, _Tone, _Engine)> make() async {
       final tone = _Tone();
       final engine = _Engine();
-      final s = TtsSafeWalkSpeaker(CompanionTtsSpeaker(engine), ringtone: CompanionRingtone(tone));
+      final s = TtsSafeWalkSpeaker(
+        CompanionTtsSpeaker(engine),
+        ringtone: CompanionRingtone(tone),
+      );
       await s.prepare();
       return (s, tone, engine);
     }
@@ -191,6 +321,21 @@ void main() {
       await s.dispose();
       expect(tone.playing, isFalse);
       expect(tone.log, contains('dispose'));
+    });
+
+    test('dispose fences TTS before a slow ringtone stop completes', () async {
+      final (s, tone, engine) = await make();
+      tone.stopGate = Completer<void>();
+      final disposing = s.dispose();
+      expect(s.available, isFalse);
+      s.speak('must not play during disposal');
+      s.startRing();
+      await pumpEventQueue();
+      expect(engine.spoken, isEmpty);
+      expect(engine.stops, greaterThan(0));
+      expect(tone.log.where((e) => e == 'play'), isEmpty);
+      tone.stopGate!.complete();
+      await disposing;
     });
   });
 }
