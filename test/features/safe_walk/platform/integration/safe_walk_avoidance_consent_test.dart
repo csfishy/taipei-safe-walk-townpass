@@ -231,9 +231,13 @@ Future<void> _start(WidgetTester tester, {bool crime = true}) async {
 }
 
 Future<void> _openCrimeSettings(WidgetTester tester) async {
-  final sources = find.text('資料來源與授權').last;
-  await tester.ensureVisible(sources);
-  await tester.tap(sources);
+  // 首頁內容可能超出一個畫面（例如附近協助者卡片），先捲到連結。
+  await tester.scrollUntilVisible(
+    find.text('資料來源與授權'),
+    200,
+    scrollable: find.byType(Scrollable).first,
+  );
+  await tester.tap(find.text('資料來源與授權').last);
   await tester.pumpAndSettle();
   await tester.tap(find.text('犯罪資料查詢設定'));
   await tester.pumpAndSettle();
