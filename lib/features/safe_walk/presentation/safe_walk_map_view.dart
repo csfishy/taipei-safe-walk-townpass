@@ -2218,6 +2218,10 @@ class _Legend extends StatelessWidget {
   final bool pointsView, showShortcut, live, crime;
   @override
   Widget build(BuildContext context) {
+    Widget group(String title) => Padding(
+      padding: const EdgeInsets.only(top: 6, bottom: 2),
+      child: Text(title, style: SwText.small.copyWith(color: SwColors.textSecondary)),
+    );
     Widget item(Widget key, String text) => Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
@@ -2241,19 +2245,9 @@ class _Legend extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text('圖例', style: SwText.bodyStrong),
-          if (pointsView)
-            item(
-              Container(
-                width: 12,
-                height: 12,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: SwColors.brand,
-                ),
-              ),
-              '求助地點',
-            )
-          else
+          // 依類別分組：路線、避讓範圍、地點。
+          if (!pointsView) ...[
+            group('路線'),
             item(
               Container(
                 width: 18,
@@ -2265,14 +2259,28 @@ class _Legend extends StatelessWidget {
               ),
               '建議路線',
             ),
-          if (showShortcut)
-            item(
-              Text(
-                '···',
-                style: SwText.bodyStrong.copyWith(color: TPColors.grayscale500),
+            if (live)
+              item(
+                Container(
+                  width: 18,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: TPColors.grayscale400,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                '其他可選路線',
               ),
-              '較短但經過異常',
-            ),
+            if (showShortcut)
+              item(
+                Text(
+                  '···',
+                  style: SwText.bodyStrong.copyWith(color: TPColors.grayscale500),
+                ),
+                '較短但經過異常',
+              ),
+          ],
+          group('避讓範圍'),
           item(
             const Icon(
               Icons.warning_rounded,
@@ -2281,18 +2289,6 @@ class _Legend extends StatelessWidget {
             ),
             live ? '異常回報（50 公尺避讓）' : '異常回報',
           ),
-          if (live && !pointsView)
-            item(
-              Container(
-                width: 18,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: TPColors.grayscale400,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              '其他可選路線',
-            ),
           if (crime)
             item(
               Container(
@@ -2315,10 +2311,23 @@ class _Legend extends StatelessWidget {
               ),
               '犯罪參考位置（50 公尺避讓緩衝區）',
             ),
+          group('地點'),
           item(
             const Icon(Icons.home_rounded, size: 18, color: SwColors.brand),
             '家',
           ),
+          if (pointsView)
+            item(
+              Container(
+                width: 12,
+                height: 12,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: SwColors.brand,
+                ),
+              ),
+              '求助地點',
+            ),
         ],
       ),
     );

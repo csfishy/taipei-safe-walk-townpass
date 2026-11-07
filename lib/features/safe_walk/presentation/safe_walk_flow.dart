@@ -49,10 +49,15 @@ class SafeWalkFlow extends StatefulWidget {
     this.reportBuilder,
     this.onLeaveReport,
     this.showMapTiles = true,
+    this.askMapTilesOnOpen = false,
   });
   final sw.DataMode mode;
   final bool allowRealCalls;
   final bool showMapTiles;
+
+  /// Official entry: ask once for the separate OSM tile consent when the map
+  /// opens. Nothing loads until the walker taps 同意載入.
+  final bool askMapTilesOnOpen;
 
   /// Reference status only: this entry does not start navigation or read GPS.
   final Widget Function(BuildContext context, VoidCallback onBack)?
@@ -311,7 +316,14 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> with WidgetsBindingObserver
       _callKey.currentState?.leave();
     }
     // 使用者明確打開地圖（點「安心行」主卡）時才請 M1 規劃路線；一進安心行不自動送出。
-    if (_isMapScreen(s) && !_isMapScreen(_screen)) _planRoute();
+    if (_isMapScreen(s) && !_isMapScreen(_screen)) {
+      _planRoute();
+      if (widget.askMapTilesOnOpen && widget.showMapTiles && widget.mode == sw.DataMode.live && !_mapTileConsent) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && _isMapScreen(_screen) && !_mapTileConsent) unawaited(_askMapTileConsent());
+        });
+      }
+    }
     if (!_isMapScreen(s) && _isMapScreen(_screen)) {
       ++_editGeneration;
       _mapTileConsent = false;
