@@ -2,7 +2,9 @@
 
 CI／Demo 資料庫 gate：兩份工作流的 runner-local PostGIS 初始化、雙重重設與安全測試都是必要檢查。遠端另以 **Repository Actions Variable `DEMO_DATABASE_RESET_ENABLED`** 控制；未設定或精確值 `false` 表示未啟用，遠端 job 預期跳過，全部檢查及建置成功後仍可執行既有 main prerelease／Pages，Summary 明示未重設遠端，不能宣稱 Demo 已就緒。精確值 `true` 才啟用 main 的單一遠端 reset；啟用後必須成功，缺白名單／Secrets／marker／角色或失敗、取消、非預期跳過都阻擋後續發布。其他值使配置檢查失敗。版本 tag 不重設共享 Demo。啟用須另完成 Level C 審查，見 [隔離資料庫重設](SAFE_WALK_DATABASE_RESET.md)。
 
-The product target is [Live MVP](SAFE_WALK_LIVE_MVP.md), with per-capability gates in [Readiness](SAFE_WALK_LIVE_READINESS.md). A successful build, prerelease or Pages deployment does not verify real providers or iPhone behavior. The current Demo preview is a snapshot, not a permanent Mock product requirement.
+The delivery policy is [LIVE-FIRST / NO PRODUCTION MOCK](SAFE_WALK_LIVE_FIRST.md), with full user-flow acceptance in [Live MVP](SAFE_WALK_LIVE_MVP.md) and per-capability evidence in [Readiness](SAFE_WALK_LIVE_READINESS.md). Production must use real providers or show Unavailable with the true blocker and next step; Fake, Mock and fixtures belong only in isolated Unit/Integration tests. New features do not require a prior Mock/Demo/Prototype. A successful build, prerelease or Pages deployment does not verify real providers or iPhone behavior.
+
+The current main baseline `7b99fea` still has a Mock production entry after #49 restored `3c433001` and removed #35's P0 wiring. This is a pending implementation gap, not a compliant delivery or a new runtime gate added by this document. #39 is merged into a feature branch, #44 remains open, and #47's explicit Demo activation fix is also pending; the #40 database gate described above remains in main. Competition delivery excludes Google Maps and AED functionality. Production switches, database permissions and deployment still require the applicable Level C review.
 
 The `check-and-build` workflow runs on main pushes, pull requests, matching `v*-pre.*` tags, and manual dispatch. Flutter is pinned to `.fvmrc`'s 3.47.6 and dependencies are installed with `--enforce-lockfile`; code generation runs on every clean checkout.
 

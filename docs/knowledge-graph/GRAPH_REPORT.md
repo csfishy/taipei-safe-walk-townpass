@@ -1,5 +1,7 @@
 # 臺北安心行 知識圖（精簡版）
 
+> 歷史適用範圍：本圖與以下報告保留原 `0ea9979` 快照，不會反映 #49 restore 後的 main `7b99fea`，也不是 Live 或測試證據。現行開發／正式交付依 [LIVE-FIRST／NO PRODUCTION MOCK](../SAFE_WALK_LIVE_FIRST.md)，不要求先 Mock／Prototype，Production 不接人工 fixtures；最新狀態依 [Readiness](../SAFE_WALK_LIVE_READINESS.md)。本次未重新生成圖或改寫原關係。
+
 - 範圍：`lib/features/safe_walk/`（M1–M5 程式）、臺北通入口 `tp_route.dart` 與 `my_service_model.dart`、`docs/SAFE_WALK_*.md`、各模組 README、`AGENTS.md`。不含臺北通其他頁面、測試與圖片。
 - 打開 `graph.html`（需連網載入 vis-network）。點節點看連線；顏色＝群組，群組名稱前綴是模組（M1–M5）。
 - 用法：改共用參數前先看會影響哪些模組（例如 `SafeWalkFlow`）；找文件與程式對不上的地方；團隊文件的架構圖素材。
