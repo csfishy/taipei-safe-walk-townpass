@@ -180,6 +180,45 @@ final class NearbyEmergencyService {
     cancellation?.throwIfCancelled();
   }
 
+  /// Whether the backend stores guard areas.
+  bool get supportsGuardAreas => _transport is NearbyHelperAreas;
+
+  NearbyHelperAreas get _areas {
+    final transport = _transport;
+    if (transport is! NearbyHelperAreas) {
+      throw const NearbyAlertException('目前的後端不支援守護區');
+    }
+    return transport as NearbyHelperAreas;
+  }
+
+  Future<List<NearbyGuardArea>> fetchGuardAreas() => _areas.fetchGuardAreas();
+
+  Future<void> replaceGuardAreas(List<NearbyGuardArea> areas) =>
+      _areas.replaceGuardAreas(areas);
+
+  /// One fresh position, read because the person asked for it (for example to
+  /// set a guard area here). Throws [NearbyAlertException] with the reason when
+  /// no position can be read.
+  Future<sw.Coordinates> readCurrentPosition({
+    required sw.DataMode mode,
+    SafeWalkCancellation? cancellation,
+  }) async {
+    cancellation?.throwIfCancelled();
+    final result = await _whileActive(
+      _platform.getCurrentPosition(
+        mode: mode,
+        userInitiated: true,
+        cancellation: cancellation,
+      ),
+      cancellation,
+    );
+    cancellation?.throwIfCancelled();
+    if (result is! sw.LocationSuccess) {
+      throw NearbyAlertException((result as sw.LocationFailure).message);
+    }
+    return result.position.coordinates;
+  }
+
   Future<List<NearbyAlert>> fetchPendingAlerts(String helperId) =>
       _transport.fetchPendingAlerts(helperId);
 }

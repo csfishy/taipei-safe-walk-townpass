@@ -18,6 +18,15 @@ final class SafeWalkNearbyAlert {
   final DateTime createdAt;
 }
 
+/// A place where this person asked to be notified about SOS alerts. The centre
+/// is stored rounded to about 100 m.
+final class SafeWalkGuardArea {
+  const SafeWalkGuardArea({required this.center, required this.radiusMeters});
+
+  final sw.Coordinates center;
+  final int radiusMeters;
+}
+
 /// What the screens need from the helper side of "notify people nearby".
 /// M1 implements it; M3 only presents it. Alerts are delivered inside the app
 /// while it is open; there is no push, so nothing arrives when it is closed.
@@ -35,6 +44,19 @@ abstract interface class SafeWalkNearbyHelper implements Listenable {
 
   /// Alerts not yet dismissed, newest first.
   List<SafeWalkNearbyAlert> get incoming;
+
+  /// Whether the backend stores guard areas; the card shows that section only
+  /// when it does.
+  bool get guardAreasSupported;
+
+  /// This person's guard areas (at most 3), as stored.
+  List<SafeWalkGuardArea> get guardAreas;
+
+  /// Reads the current position, after the person confirmed, and adds a guard
+  /// area there with [radiusMeters] (500, 1000 or 2000).
+  Future<void> addGuardAreaHere(int radiusMeters);
+
+  Future<void> removeGuardArea(int index);
 
   /// Called only after the person confirmed the consent text.
   Future<void> enable();
@@ -58,6 +80,8 @@ class SafeWalkNearbyHelperCard extends StatefulWidget {
 
 class _SafeWalkNearbyHelperCardState extends State<SafeWalkNearbyHelperCard> {
   bool _confirming = false;
+  bool _addingArea = false;
+  int _radius = 500;
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
@@ -148,6 +172,7 @@ class _SafeWalkNearbyHelperCardState extends State<SafeWalkNearbyHelperCard> {
     if (helper.isOn) {
       return [
         ...status,
+        if (helper.guardAreasSupported) ..._areaSection(helper),
         _button('停止協助並刪除我的位置', Icons.stop_circle_outlined, () async {
           setState(() => _confirming = false);
           await helper.disable();
@@ -184,6 +209,109 @@ class _SafeWalkNearbyHelperCardState extends State<SafeWalkNearbyHelperCard> {
         Icons.notifications_active_rounded,
         () => setState(() => _confirming = true),
       ),
+    ];
+  }
+
+  static String _radiusLabel(int meters) =>
+      meters >= 1000 ? '${meters ~/ 1000} 公里' : '$meters 公尺';
+
+  List<Widget> _areaSection(SafeWalkNearbyHelper helper) {
+    final areas = helper.guardAreas;
+    return [
+      Text('守護區', style: SwText.bodyStrong),
+      const SizedBox(height: 4),
+      Text(
+        '求助發生在這些區域內時，會替你留下通知；你在 30 分鐘內開啟 App 就會看到。目前沒有推播，不會主動提醒你。',
+        style: SwText.secondary,
+      ),
+      const SizedBox(height: 8),
+      if (areas.isEmpty) ...[
+        Text('還沒有守護區。', style: SwText.body),
+        const SizedBox(height: 8),
+      ],
+      for (var i = 0; i < areas.length; i++) ...[
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                '${areas[i].center.lat.toStringAsFixed(3)}, '
+                '${areas[i].center.lng.toStringAsFixed(3)}・半徑 ${_radiusLabel(areas[i].radiusMeters)}',
+                style: SwText.body,
+              ),
+            ),
+            SwPressable(
+              onTap: () => helper.removeGuardArea(i),
+              color: SwColors.surface,
+              pressedColor: SwColors.brandSoft,
+              border: const BorderSide(color: SwColors.border),
+              radius: 12,
+              semanticsLabel: '移除守護區 ${i + 1}',
+              child: SizedBox(
+                width: 72,
+                height: swTouch,
+                child: Center(child: Text('移除', style: SwText.bodyStrong)),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+      ],
+      if (areas.length >= 3)
+        Text('最多 3 個守護區。', style: SwText.secondary)
+      else if (!_addingArea)
+        _button(
+          '把目前位置設為守護區',
+          Icons.add_location_alt_outlined,
+          () => setState(() => _addingArea = true),
+          filled: false,
+        )
+      else ...[
+        Text('範圍', style: SwText.bodyStrong),
+        const SizedBox(height: 4),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final r in const [500, 1000, 2000])
+              SwPressable(
+                onTap: () => setState(() => _radius = r),
+                selected: _radius == r,
+                color: _radius == r ? SwColors.brandSoft : SwColors.surface,
+                border: BorderSide(
+                  color: _radius == r ? SwColors.brand : SwColors.border,
+                  width: _radius == r ? 2 : 1,
+                ),
+                radius: 24,
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                semanticsLabel: '範圍 ${_radiusLabel(r)}',
+                child: SizedBox(
+                  height: swTouch,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [Text(_radiusLabel(r), style: SwText.bodyStrong)],
+                  ),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Text('會取得你目前的位置，四捨五入到約 100 公尺後存到伺服器，直到你移除它、停止協助或刪除帳號。', style: SwText.body),
+        const SizedBox(height: 4),
+        Text('若這是你的住家或公司，等於讓伺服器知道你大概的所在。', style: SwText.body),
+        const SizedBox(height: 8),
+        _button('確認設定', Icons.check_rounded, () async {
+          setState(() => _addingArea = false);
+          await helper.addGuardAreaHere(_radius);
+        }),
+        const SizedBox(height: 8),
+        _button(
+          '取消',
+          Icons.close_rounded,
+          () => setState(() => _addingArea = false),
+          filled: false,
+        ),
+      ],
+      const SizedBox(height: 12),
     ];
   }
 

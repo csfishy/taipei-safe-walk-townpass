@@ -422,4 +422,91 @@ void main() {
     );
     expect(net.sent, isEmpty);
   });
+
+  group('guard areas', () {
+    NearbyGuardArea area(double lat, int radius) => NearbyGuardArea(
+      center: sw.Coordinates(lat: lat, lng: 121.5654),
+      radiusMeters: radius,
+    );
+
+    test('replace sends only the areas, under the session', () async {
+      await transport.replaceGuardAreas([area(25.033, 500), area(25.05, 2000)]);
+      final call = net.sent.single;
+      expect(call.url.path, '/rest/v1/rpc/nearby_helper_set_areas');
+      expect(call.headers['authorization'], 'Bearer $_token');
+      expect(call.json, {
+        'p_areas': [
+          {'lat': 25.033, 'lng': 121.5654, 'radius_m': 500},
+          {'lat': 25.05, 'lng': 121.5654, 'radius_m': 2000},
+        ],
+      });
+    });
+
+    test('an empty list clears the areas', () async {
+      await transport.replaceGuardAreas(const []);
+      expect(net.sent.single.json, {'p_areas': <Object?>[]});
+    });
+
+    test(
+      'too many areas or an unsupported radius never reach the wire',
+      () async {
+        await expectLater(
+          transport.replaceGuardAreas([
+            for (var i = 0; i < 4; i++) area(25, 500),
+          ]),
+          throwsA(isA<NearbyAlertException>()),
+        );
+        await expectLater(
+          transport.replaceGuardAreas([area(25, 700)]),
+          throwsA(isA<NearbyAlertException>()),
+        );
+        expect(net.sent, isEmpty);
+      },
+    );
+
+    test('fetch parses the stored areas', () async {
+      net.body = jsonEncode([
+        {'lat': 25.033, 'lng': 121.566, 'radius_m': 1000},
+        {'lat': 25.05, 'lng': 121.57, 'radius_m': 500},
+      ]);
+      final areas = await transport.fetchGuardAreas();
+      expect(areas.map((a) => a.radiusMeters), [1000, 500]);
+      expect(areas.first.center.lat, 25.033);
+      expect(net.sent.single.url.path, '/rest/v1/rpc/nearby_helper_get_areas');
+      expect(net.sent.single.json, isEmpty);
+    });
+
+    test('malformed area bodies are rejected', () async {
+      for (final body in ['not json', '{}', '[{"lat":"x"}]', '[[]]']) {
+        net.body = body;
+        await expectLater(
+          transport.fetchGuardAreas(),
+          throwsA(isA<NearbyAlertException>()),
+          reason: body,
+        );
+      }
+    });
+
+    test('signed out: no area request is made', () async {
+      session.signedIn = false;
+      await expectLater(
+        transport.fetchGuardAreas(),
+        throwsA(isA<NearbyAlertException>()),
+      );
+      await expectLater(
+        transport.replaceGuardAreas([area(25, 500)]),
+        throwsA(isA<NearbyAlertException>()),
+      );
+      expect(net.sent, isEmpty);
+    });
+
+    test('the service exposes the capability only when the backend has it', () {
+      expect(transport, isA<NearbyHelperAreas>());
+      final service = NearbyEmergencyService(
+        platform: _Platform(),
+        transport: transport,
+      );
+      expect(service.supportsGuardAreas, isTrue);
+    });
+  });
 }

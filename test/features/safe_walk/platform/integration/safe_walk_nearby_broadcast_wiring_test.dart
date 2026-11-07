@@ -65,12 +65,23 @@ class _Platform implements PlatformService {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
-class _Transport implements NearbyAlertTransport {
+class _Transport implements NearbyAlertTransport, NearbyHelperAreas {
   final sent = <({sw.Coordinates location, int radius})>[];
   final optIns = <bool>[];
   List<NearbyAlert> alerts = [];
   int fetches = 0;
   int recipients = 2;
+  List<NearbyGuardArea> areas = [];
+  final replaced = <List<NearbyGuardArea>>[];
+
+  @override
+  Future<List<NearbyGuardArea>> fetchGuardAreas() async => areas;
+
+  @override
+  Future<void> replaceGuardAreas(List<NearbyGuardArea> next) async {
+    replaced.add(next);
+    areas = next;
+  }
 
   @override
   Future<int> sendEmergencyAlert({
@@ -327,6 +338,40 @@ void main() {
       final fetches = transport.fetches;
       await t.pump(const Duration(seconds: 60));
       expect(transport.fetches, fetches);
+      await t.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets('a joined helper can add and remove a guard area', (t) async {
+      final platform = _Platform();
+      final transport = _Transport();
+      await _pump(
+        t,
+        live: true,
+        platform: platform,
+        nearby: transport,
+        openEmergency: false,
+      );
+      await _tap(t, '加入附近協助者');
+      await _tap(t, '同意並加入');
+      await _show(t, find.text('守護區'));
+      expect(transport.replaced, isEmpty);
+
+      await _tap(t, '把目前位置設為守護區');
+      // Asking to add reads no position and stores nothing.
+      expect(platform.locations, 1);
+      expect(transport.replaced, isEmpty);
+      await _tap(t, '確認設定');
+      expect(platform.locations, 2);
+      expect(transport.replaced.single.single.radiusMeters, 500);
+      expect(transport.replaced.single.single.center.lat, _here.lat);
+      expect(
+        find.textContaining('25.033, 121.565・半徑 500 公尺', skipOffstage: false),
+        findsOneWidget,
+      );
+
+      await _tap(t, '移除');
+      expect(transport.replaced.last, isEmpty);
+      expect(find.text('還沒有守護區。', skipOffstage: false), findsOneWidget);
       await t.pumpWidget(const SizedBox.shrink());
     });
   });

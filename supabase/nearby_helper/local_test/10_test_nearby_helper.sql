@@ -112,7 +112,9 @@ begin
     'public.nearby_helper_opt_out()',
     'public.nearby_helper_report_location(double precision,double precision,real)',
     'public.nearby_sos_send(double precision,double precision,uuid)',
-    'public.nearby_helper_fetch_alerts()'
+    'public.nearby_helper_fetch_alerts()',
+    'public.nearby_helper_set_areas(jsonb)',
+    'public.nearby_helper_get_areas()'
   ] loop
     perform pg_temp.check(not has_function_privilege('anon', fn, 'EXECUTE'), 'anon cannot execute ' || fn);
     perform pg_temp.check(has_function_privilege('authenticated', fn, 'EXECUTE'), 'authenticated can execute ' || fn);
@@ -123,7 +125,7 @@ begin
     'authenticated cannot purge');
   foreach r in array array['anon', 'authenticated'] loop
     perform pg_temp.check(not has_schema_privilege(r, 'safe_walk_nearby', 'USAGE'), r || ' has no schema usage');
-    foreach tbl in array array['helper_profiles', 'helper_locations', 'alerts', 'alert_deliveries'] loop
+    foreach tbl in array array['helper_profiles', 'helper_locations', 'alerts', 'alert_deliveries', 'helper_areas'] loop
       perform pg_temp.check(
         not has_table_privilege(r, 'safe_walk_nearby.' || tbl, 'SELECT')
         and not has_table_privilege(r, 'safe_walk_nearby.' || tbl, 'INSERT')
@@ -371,6 +373,156 @@ begin
   reset role;
 end $t$;
 
+-- 6b. Guard areas ----------------------------------------------------------
+do $t$
+declare
+  b record;
+  n integer;
+  sender uuid := '00000000-0000-4000-8000-000000000008';
+  a_in uuid := '00000000-0000-4000-8000-000000000009';   -- area covers the SOS
+  a_out uuid := '00000000-0000-4000-8000-00000000000a';  -- area just misses it
+  n_in record;
+  n_out record;
+  got uuid[];
+  want uuid[];
+  r record;
+  base extensions.geography :=
+    extensions.st_setsrid(extensions.st_makepoint(121.5654, 25.0330), 4326)::extensions.geography;
+begin
+  select * into b from pts where name = 'sender';
+  insert into auth.users (id) values (a_in), (a_out);
+
+  select extensions.st_y(q.g::extensions.geometry) as lat,
+         extensions.st_x(q.g::extensions.geometry) as lng into n_in
+    from (select extensions.st_project(base, 1900, 0) as g) q;
+  select extensions.st_y(q.g::extensions.geometry) as lat,
+         extensions.st_x(q.g::extensions.geometry) as lng into n_out
+    from (select extensions.st_project(base, 2100, 0) as g) q;
+
+  -- Helpers set areas. a_in's covers the SOS (about 1.9 km away, radius 2 km);
+  -- a_out's does not (2.1 km). 'outside' and 'expired' have no usable live
+  -- position, 'same' also has one (it must still be notified only once).
+  perform pg_temp.as_user(a_in);
+  perform public.nearby_helper_opt_in('test.v1');
+  perform public.nearby_helper_set_areas(jsonb_build_array(
+    jsonb_build_object('lat', n_in.lat, 'lng', n_in.lng, 'radius_m', 2000)));
+  perform pg_temp.as_user(a_out);
+  perform public.nearby_helper_opt_in('test.v1');
+  perform public.nearby_helper_set_areas(jsonb_build_array(
+    jsonb_build_object('lat', n_out.lat, 'lng', n_out.lng, 'radius_m', 2000)));
+  for r in select * from pts where name in ('outside', 'expired', 'same') loop
+    perform pg_temp.as_user(r.uid);
+    perform public.nearby_helper_set_areas(jsonb_build_array(
+      jsonb_build_object('lat', b.lat, 'lng', b.lng, 'radius_m', 500)));
+  end loop;
+  -- far (501 m) has an area elsewhere that does not cover the SOS.
+  select * into r from pts where name = 'far';
+  perform pg_temp.as_user(r.uid);
+  perform public.nearby_helper_set_areas(jsonb_build_array(
+    jsonb_build_object('lat', b.lat - 0.03, 'lng', b.lng, 'radius_m', 1000)));
+  -- A helper who opted out cannot set areas.
+  perform pg_temp.as_user((select uid from pts where name = 'optout'));
+  perform pg_temp.expect_state($q$select public.nearby_helper_set_areas('[]'::jsonb)$q$, '42501');
+  perform pg_temp.expect_state($q$select * from public.nearby_helper_get_areas()$q$, '42501');
+  reset role;
+
+  -- Input checks (areas were just written, so move their timestamps back first).
+  update safe_walk_nearby.helper_areas set created_at = now() - interval '1 minute';
+  perform pg_temp.as_user(a_in);
+  perform pg_temp.expect_state($q$select public.nearby_helper_set_areas('{}'::jsonb)$q$, '22023');
+  perform pg_temp.expect_state($q$select public.nearby_helper_set_areas(null)$q$, '22023');
+  perform pg_temp.expect_state($q$select public.nearby_helper_set_areas('[{"lat":25,"lng":121,"radius_m":499}]')$q$, '22023');
+  perform pg_temp.expect_state($q$select public.nearby_helper_set_areas('[{"lat":25,"lng":121,"radius_m":2001}]')$q$, '22023');
+  perform pg_temp.expect_state($q$select public.nearby_helper_set_areas('[{"lat":25,"lng":121,"radius_m":500.5}]')$q$, '22023');
+  perform pg_temp.expect_state($q$select public.nearby_helper_set_areas('[{"lat":91,"lng":121,"radius_m":500}]')$q$, '22023');
+  perform pg_temp.expect_state($q$select public.nearby_helper_set_areas('[{"lat":25,"lng":181,"radius_m":500}]')$q$, '22023');
+  perform pg_temp.expect_state($q$select public.nearby_helper_set_areas('[{"lat":25,"radius_m":500}]')$q$, '22023');
+  perform pg_temp.expect_state($q$select public.nearby_helper_set_areas('[{"lat":"25","lng":121,"radius_m":500}]')$q$, '22023');
+  perform pg_temp.expect_state($q$select public.nearby_helper_set_areas('[1]')$q$, '22023');
+  perform pg_temp.expect_state(
+    $q$select public.nearby_helper_set_areas('[{"lat":25,"lng":121,"radius_m":500},{"lat":25,"lng":121,"radius_m":500},{"lat":25,"lng":121,"radius_m":500},{"lat":25,"lng":121,"radius_m":500}]')$q$,
+    '22023');
+  reset role;
+  perform pg_temp.check(
+    (select count(*) from safe_walk_nearby.helper_areas where user_id = a_in) = 1,
+    'rejected input leaves the stored areas untouched');
+
+  -- Centres are rounded to 3 decimals by the server; radius is kept.
+  perform pg_temp.as_user(a_in);
+  perform public.nearby_helper_set_areas(jsonb_build_array(
+    jsonb_build_object('lat', 25.03349, 'lng', 121.56551, 'radius_m', 1000)));
+  reset role;
+  select * into r from safe_walk_nearby.helper_areas where user_id = a_in;
+  perform pg_temp.check(
+    abs(extensions.st_y(r.center::extensions.geometry) - 25.033) < 1e-6
+    and abs(extensions.st_x(r.center::extensions.geometry) - 121.566) < 1e-6
+    and r.radius_m = 1000,
+    'centre is rounded to about 100 m and the radius is kept');
+  -- A second change right away is rate limited; later it replaces, not appends.
+  perform pg_temp.as_user(a_in);
+  perform pg_temp.expect_state(
+    $q$select public.nearby_helper_set_areas('[]'::jsonb)$q$, 'PT429');
+  reset role;
+  update safe_walk_nearby.helper_areas set created_at = now() - interval '1 minute';
+  perform pg_temp.as_user(a_in);
+  perform public.nearby_helper_set_areas(jsonb_build_array(
+    jsonb_build_object('lat', n_in.lat, 'lng', n_in.lng, 'radius_m', 2000)));
+  reset role;
+  perform pg_temp.check(
+    (select count(*) from safe_walk_nearby.helper_areas where user_id = a_in) = 1,
+    'setting areas replaces the previous ones');
+
+  -- Each person reads only their own areas.
+  perform pg_temp.as_user(a_out);
+  select count(*) into n from public.nearby_helper_get_areas();
+  perform pg_temp.check(n = 1, 'a helper reads only their own area');
+  reset role;
+
+  -- SOS from a non-helper at the base point.
+  perform pg_temp.as_user(sender);
+  n := public.nearby_sos_send(b.lat, b.lng, '20000000-0000-4000-8000-000000000001');
+  reset role;
+  select array_agg(recipient_id order by recipient_id) into got
+    from safe_walk_nearby.alert_deliveries d
+    join safe_walk_nearby.alerts a on a.id = d.alert_id
+    where a.client_request_id = '20000000-0000-4000-8000-000000000001';
+  select array_agg(uid order by uid) into want from (
+    select uid from pts where name in ('sender', 'near', 'same', 'outside', 'expired')
+    union all select a_in
+  ) w;
+  perform pg_temp.check(n = 6, format('six helpers are notified, got %s', n));
+  perform pg_temp.check(got = want,
+    'live-position helpers within 500 m and helpers whose guard area covers the SOS are notified; '
+    'far, the opted-out helper and the area that just misses are not');
+  perform pg_temp.check(
+    (select count(*) from safe_walk_nearby.alert_deliveries d
+       join safe_walk_nearby.alerts a on a.id = d.alert_id
+      where a.client_request_id = '20000000-0000-4000-8000-000000000001'
+        and d.recipient_id = (select uid from pts where name = 'same')) = 1,
+    'a helper matched by position and by area is notified once');
+
+  -- A helper reached only through a guard area can read the alert.
+  perform pg_temp.as_user(a_in);
+  select count(*) into n from public.nearby_helper_fetch_alerts();
+  perform pg_temp.check(n = 1, 'the guard-area helper sees the alert');
+  reset role;
+  perform pg_temp.as_user(a_out);
+  select count(*) into n from public.nearby_helper_fetch_alerts();
+  perform pg_temp.check(n = 0, 'the helper whose area misses sees nothing');
+  reset role;
+
+  -- Leaving deletes the guard areas along with the position.
+  perform pg_temp.as_user(a_in);
+  perform public.nearby_helper_opt_out();
+  reset role;
+  perform pg_temp.check(
+    not exists (select 1 from safe_walk_nearby.helper_areas where user_id = a_in),
+    'opting out deletes the guard areas');
+  perform pg_temp.as_user(a_in);
+  perform pg_temp.expect_state($q$select * from public.nearby_helper_get_areas()$q$, '42501');
+  reset role;
+end $t$;
+
 -- 7. Retention and account deletion ----------------------------------------
 do $t$
 declare
@@ -388,8 +540,9 @@ begin
   delete from auth.users where id = p.uid;
   perform pg_temp.check(
     not exists (select 1 from safe_walk_nearby.helper_profiles where user_id = p.uid)
-    and not exists (select 1 from safe_walk_nearby.helper_locations where user_id = p.uid),
-    'deleting the account removes the profile and position');
+    and not exists (select 1 from safe_walk_nearby.helper_locations where user_id = p.uid)
+    and not exists (select 1 from safe_walk_nearby.helper_areas where user_id = p.uid),
+    'deleting the account removes the profile, position and guard areas');
 end $t$;
 
 select 'ALL NEARBY HELPER SQL TESTS PASSED' as result;

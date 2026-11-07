@@ -35,7 +35,10 @@ abstract interface class NearbySession {
 /// composition explicitly supplies a [NearbySession], and the backend itself
 /// is Level C: it needs the team lead's authorization before any deployment.
 final class AuthenticatedNearbyAlertTransport
-    implements NearbyAlertTransport, NearbyAlertAvailability {
+    implements
+        NearbyAlertTransport,
+        NearbyAlertAvailability,
+        NearbyHelperAreas {
   AuthenticatedNearbyAlertTransport({
     required this._rpc,
     required this._session,
@@ -135,6 +138,52 @@ final class AuthenticatedNearbyAlertTransport
     } on Object {
       throw const NearbyAlertException('附近通知回應格式錯誤');
     }
+  }
+
+  @override
+  Future<List<NearbyGuardArea>> fetchGuardAreas() async {
+    final body = await _call('nearby_helper_get_areas', const {});
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(body);
+    } on FormatException {
+      throw const NearbyAlertException('附近通知回應格式錯誤');
+    }
+    if (decoded is! List) {
+      throw const NearbyAlertException('附近通知回應格式錯誤');
+    }
+    try {
+      return [
+        for (final row in decoded.cast<Map<String, dynamic>>())
+          NearbyGuardArea(
+            center: sw.Coordinates(
+              lat: (row['lat'] as num).toDouble(),
+              lng: (row['lng'] as num).toDouble(),
+            ),
+            radiusMeters: row['radius_m'] as int,
+          ),
+      ];
+    } on Object {
+      throw const NearbyAlertException('附近通知回應格式錯誤');
+    }
+  }
+
+  @override
+  Future<void> replaceGuardAreas(List<NearbyGuardArea> areas) async {
+    if (areas.length > nearbyGuardAreaMax ||
+        areas.any((a) => !nearbyGuardAreaRadii.contains(a.radiusMeters))) {
+      throw const NearbyAlertException('守護區的數量或範圍不正確');
+    }
+    await _call('nearby_helper_set_areas', {
+      'p_areas': [
+        for (final area in areas)
+          {
+            'lat': area.center.lat,
+            'lng': area.center.lng,
+            'radius_m': area.radiusMeters,
+          },
+      ],
+    });
   }
 
   /// One RPC under the current session. Failure messages never contain the

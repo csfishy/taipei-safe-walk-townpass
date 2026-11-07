@@ -98,7 +98,11 @@ team lead authorizes it (Level C).
 | [`local_test/10_test_nearby_helper.sql`](local_test/10_test_nearby_helper.sql) | **Local test only.** Assertions for privileges, identity, 499 m / 501 m boundary, expiry, opt-out deletion, idempotency, rate limits, retention and cascade deletion |
 
 RPCs: `nearby_helper_opt_in`, `nearby_helper_opt_out`, `nearby_helper_report_location`,
-`nearby_sos_send`, `nearby_helper_fetch_alerts`. `safe_walk_nearby.purge_expired()` is
+`nearby_sos_send`, `nearby_helper_fetch_alerts`, `nearby_helper_set_areas`,
+`nearby_helper_get_areas`. **Guard areas** (`helper_areas`): a helper may set up to 3 circles
+(500, 1000 or 2000 m, centre rounded to ~100 m by the server); an SOS also notifies a
+helper whose guard area covers it, once per helper. The server cannot verify that a centre
+is where the helper really is; see the design doc's known-risk note. `safe_walk_nearby.purge_expired()` is
 hygiene only (every read already filters on expiry) and is not exposed to API roles.
 
 Limits built in: location reports at most every 10 s; SOS at most one per 15 s and 5 per

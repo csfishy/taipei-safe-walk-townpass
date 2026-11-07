@@ -66,6 +66,29 @@ abstract interface class NearbyAlertAvailability {
   String? get currentUnavailableReason;
 }
 
+/// A place where a helper asks to be notified about an SOS even when their live
+/// position is unknown. The backend rounds [center] to about 100 m.
+final class NearbyGuardArea {
+  const NearbyGuardArea({required this.center, required this.radiusMeters});
+  final sw.Coordinates center;
+  final int radiusMeters;
+}
+
+/// Radii a helper can choose for a guard area, in metres.
+const nearbyGuardAreaRadii = [500, 1000, 2000];
+
+/// At most this many guard areas per helper.
+const nearbyGuardAreaMax = 3;
+
+/// Optional capability: transports whose backend stores guard areas.
+abstract interface class NearbyHelperAreas {
+  Future<List<NearbyGuardArea>> fetchGuardAreas();
+
+  /// Replaces all of the caller's guard areas with [areas] (at most
+  /// [nearbyGuardAreaMax]).
+  Future<void> replaceGuardAreas(List<NearbyGuardArea> areas);
+}
+
 /// Why [transport] cannot be used right now, or null when it can. Callers use
 /// this to refuse before collecting location.
 String? nearbyBackendUnavailableReason(NearbyAlertTransport transport) {

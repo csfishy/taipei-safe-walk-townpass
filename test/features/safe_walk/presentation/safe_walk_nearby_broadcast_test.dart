@@ -115,7 +115,7 @@ void main() {
     await _openEmergency(t, _available(calls));
     await _tap(t, '通知附近協助者');
     await _show(t, _t('確認通知'));
-    expect(_tc('500 公尺內已加入協助的人'), findsWidgets);
+    expect(_tc('設了守護區'), findsWidgets);
     expect(_tc('不是報警'), findsOneWidget);
     expect(_tc('110／119'), findsWidgets);
     expect(calls.count, 0);

@@ -27,6 +27,38 @@ class _Helper extends ChangeNotifier implements SafeWalkNearbyHelper {
   @override
   List<SafeWalkNearbyAlert> get incoming => alerts;
 
+  @override
+  bool guardAreasSupported = false;
+  @override
+  List<SafeWalkGuardArea> guardAreas = [];
+  final addedRadii = <int>[];
+  final removedIndexes = <int>[];
+
+  @override
+  Future<void> addGuardAreaHere(int radiusMeters) async {
+    addedRadii.add(radiusMeters);
+    change(
+      () => guardAreas = [
+        ...guardAreas,
+        SafeWalkGuardArea(
+          center: sw.Coordinates(lat: 25.033, lng: 121.566),
+          radiusMeters: radiusMeters,
+        ),
+      ],
+    );
+  }
+
+  @override
+  Future<void> removeGuardArea(int index) async {
+    removedIndexes.add(index);
+    change(
+      () => guardAreas = [
+        for (var i = 0; i < guardAreas.length; i++)
+          if (i != index) guardAreas[i],
+      ],
+    );
+  }
+
   void change(void Function() f) {
     f();
     notifyListeners();
@@ -237,6 +269,99 @@ void main() {
       final helper = _Helper()..alerts = [_alert('a1')];
       await _open(t, helper);
       await _show(t, _t('加入附近協助者'));
+      await expectLater(t, meetsGuideline(androidTapTargetGuideline));
+      await expectLater(t, meetsGuideline(labeledTapTargetGuideline));
+      await expectLater(t, meetsGuideline(textContrastGuideline));
+      handle.dispose();
+    });
+  });
+
+  group('guard areas on the joined card', () {
+    SafeWalkGuardArea area(double lat, int radius) => SafeWalkGuardArea(
+      center: sw.Coordinates(lat: lat, lng: 121.566),
+      radiusMeters: radius,
+    );
+
+    _Helper joined({bool supported = true}) => _Helper()
+      ..isOn = true
+      ..guardAreasSupported = supported;
+
+    testWidgets('not shown when the backend has no guard areas', (t) async {
+      await _open(t, joined(supported: false));
+      await _show(t, _t('停止協助並刪除我的位置'));
+      expect(_t('守護區'), findsNothing);
+      expect(_t('把目前位置設為守護區'), findsNothing);
+    });
+
+    testWidgets('empty: explains itself honestly, including that there is no '
+        'push', (t) async {
+      await _open(t, joined());
+      await _show(t, _t('守護區'));
+      expect(_t('還沒有守護區。'), findsOneWidget);
+      expect(_tc('30 分鐘內開啟 App 就會看到'), findsOneWidget);
+      expect(_tc('目前沒有推播，不會主動提醒你'), findsOneWidget);
+      expect(_t('把目前位置設為守護區'), findsOneWidget);
+    });
+
+    testWidgets('adding is two-step: radius and consent first, position '
+        'only after confirming', (t) async {
+      final helper = joined();
+      await _open(t, helper);
+      await _tap(t, '把目前位置設為守護區');
+      await _show(t, _t('確認設定'));
+      expect(_tc('四捨五入到約 100 公尺'), findsOneWidget);
+      expect(_tc('住家或公司'), findsOneWidget);
+      expect(_t('2 公里'), findsOneWidget);
+      expect(helper.addedRadii, isEmpty);
+
+      await _tap(t, '2 公里');
+      await _tap(t, '確認設定');
+      expect(helper.addedRadii, [2000]);
+      await _show(t, _tc('25.033, 121.566・半徑 2 公里'));
+      expect(_t('把目前位置設為守護區'), findsOneWidget);
+    });
+
+    testWidgets('cancelling the add changes nothing', (t) async {
+      final helper = joined();
+      await _open(t, helper);
+      await _tap(t, '把目前位置設為守護區');
+      await _tap(t, '取消');
+      expect(helper.addedRadii, isEmpty);
+      expect(_t('把目前位置設為守護區'), findsOneWidget);
+      expect(_t('確認設定'), findsNothing);
+    });
+
+    testWidgets('areas are listed and can be removed', (t) async {
+      final helper = joined()
+        ..guardAreas = [area(25.033, 500), area(25.05, 1000)];
+      await _open(t, helper);
+      await _show(t, _tc('25.033, 121.566・半徑 500 公尺'));
+      expect(_tc('25.050, 121.566・半徑 1 公里'), findsOneWidget);
+      // Each area has its own 「移除」; take the first row.
+      await _show(t, _t('移除').first);
+      await t.tap(_t('移除').first);
+      await t.pump();
+      await t.pump(const Duration(milliseconds: 400));
+      expect(helper.removedIndexes, [0]);
+      expect(_tc('25.033, 121.566・半徑 500 公尺'), findsNothing);
+      expect(_tc('25.050, 121.566・半徑 1 公里'), findsOneWidget);
+    });
+
+    testWidgets('at the limit of three there is no add button', (t) async {
+      final helper = joined()
+        ..guardAreas = [area(25.03, 500), area(25.04, 500), area(25.05, 500)];
+      await _open(t, helper);
+      await _show(t, _t('最多 3 個守護區。'));
+      expect(_t('把目前位置設為守護區'), findsNothing);
+    });
+
+    testWidgets('the guard-area section meets accessibility guidelines', (
+      t,
+    ) async {
+      final handle = t.ensureSemantics();
+      final helper = joined()..guardAreas = [area(25.033, 500)];
+      await _open(t, helper);
+      await _show(t, _t('把目前位置設為守護區'));
       await expectLater(t, meetsGuideline(androidTapTargetGuideline));
       await expectLater(t, meetsGuideline(labeledTapTargetGuideline));
       await expectLater(t, meetsGuideline(textContrastGuideline));
