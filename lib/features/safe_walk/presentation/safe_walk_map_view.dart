@@ -24,7 +24,7 @@ const _open = {
 const _openLong = {
   sw.OpeningStatus.open: '資料顯示營業中',
   sw.OpeningStatus.closed: '資料顯示未營業',
-  sw.OpeningStatus.unknown: '營業狀態未確認',
+  sw.OpeningStatus.unknown: '營業時間不確定',
 };
 
 enum MapStartView { route, points, report }
@@ -946,7 +946,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                 Text(
                   widget.pointsState.onRetry == null || rs.allowDemoFallback
                       ? '正在載入求助地點…'
-                      : '正在找附近營業中的店家並比較路線…',
+                      : '正在找附近的求助地點並比較路線…',
                   style: SwText.bodyStrong,
                 ),
                 const SizedBox(height: 8),
@@ -976,14 +976,19 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
           if (stores) ...[
             Semantics(
               header: true,
-              child: Text('附近營業中的店家', style: SwText.smallStrong),
+              child: Text('附近的求助地點', style: SwText.smallStrong),
             ),
-            Text('第一間是最安全、最快的；點一下可切換。', style: SwText.small),
+            Text(
+              '第一個最安全、最快；點一下可切換。營業時間不確定的最多列一個。',
+              style: SwText.small,
+            ),
             const SizedBox(height: 6),
             for (final (i, p) in points.indexed)
               if (_bestOf(ps.routes[p.id]) case final best?)
                 _RouteOption(
-                  label: p.name,
+                  label: p.availability == sw.OpeningStatus.unknown
+                      ? '${p.name}（營業時間不確定）'
+                      : p.name,
                   minutes: best.durationSeconds == null
                       ? null
                       : (best.durationSeconds! / 60).ceil(),

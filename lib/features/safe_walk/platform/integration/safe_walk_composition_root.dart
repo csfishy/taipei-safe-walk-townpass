@@ -4,6 +4,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:town_pass/features/safe_walk/navigation/avoid_area.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/crime_reference_wiring.dart';
 import 'package:town_pass/features/safe_walk/platform/supabase/safe_walk_supabase_config.dart';
@@ -14,9 +15,8 @@ import 'package:town_pass/features/safe_walk/navigation/default_json_transport.d
 import 'package:town_pass/features/safe_walk/navigation/default_route_service.dart';
 import 'package:town_pass/features/safe_walk/navigation/json_transport.dart';
 import 'package:town_pass/features/safe_walk/navigation/nearby_help.dart';
-import 'package:town_pass/features/safe_walk/navigation/nearest_point.dart';
 import 'package:town_pass/features/safe_walk/navigation/nearest_store_planner.dart';
-import 'package:town_pass/features/safe_walk/navigation/osm_convenience_store_source.dart';
+import 'package:town_pass/features/safe_walk/navigation/osm_help_point_snapshot.dart';
 import 'package:town_pass/features/safe_walk/navigation/osrm_walking_route_provider.dart';
 import 'package:town_pass/features/safe_walk/navigation/route_follower.dart';
 import 'package:town_pass/features/safe_walk/navigation/route_service.dart';
@@ -64,7 +64,8 @@ class SafeWalkCompositionRoot extends StatefulWidget {
     this.findStores,
   });
 
-  /// Nearby convenience stores; defaults to OpenStreetMap (Overpass) with
+  /// Nearby help points; defaults to the bundled OpenStreetMap snapshot of
+  /// convenience stores and police (opening hours read at lookup time).
   /// opening hours read. Tests inject a fake so nothing leaves the device.
   final NearbyPointFinder? findStores;
 
@@ -136,7 +137,15 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
   bool _nearbyLoading = false;
   String? _nearbyError;
   _RouteCancellation? _nearbyOperation;
-  late final OsmConvenienceStoreSource _stores;
+  /// Read once, on the first nearby lookup.
+  late final Future<OsmHelpPointSnapshot> _snapshot = rootBundle
+      .loadString('assets/safe_walk/osm_help_points_taipei.json')
+      .then(OsmHelpPointSnapshot.parse);
+
+  Future<List<sw.AssistancePoint>> _snapshotNear(
+    sw.Coordinates origin, {
+    SafeWalkCancellation? cancellation,
+  }) async => (await _snapshot).near(origin);
 
   /// Its own instance so store routes and the destination route do not
   /// cancel each other (each service keeps only its newest call).
@@ -384,12 +393,6 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
           )
         : osrm;
     _storeRoutes = widget.routeService ?? avoiding();
-    _stores = OsmConvenienceStoreSource(
-      transport: transport,
-      hasConsent: hasConsent,
-      only24Hours: false,
-      readOpeningHours: true,
-    );
     _navigation = SafeWalkNavigationController(
       routeService: widget.routeService ?? avoiding(),
       mode: widget.liveRoutes ? sw.DataMode.live : sw.DataMode.mock,
@@ -674,9 +677,10 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
 
   static const _nearbyCount = 3;
 
-  /// 最近求助地點: open convenience stores near the start (OSM opening hours:
-  /// open now and for the next 30 minutes), each routed like a destination
-  /// with the same avoiding routes, then ranked safest, then fastest.
+  /// 最近求助地點: convenience stores and police near the start from the
+  /// bundled OSM snapshot (closed ones dropped, at most one with unknown
+  /// hours), each routed like a destination with the same avoiding routes,
+  /// then ranked safest, then fastest.
   Future<void> _planNearby() async {
     if (!widget.liveRoutes ||
         !mounted ||
@@ -716,33 +720,33 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
             : '需要同意路線查詢並取得位置，才能找附近營業中的店家。',
       );
     }
-    final List<NearestPoint> stores;
+    final List<sw.AssistancePoint> stores;
     try {
-      final points = await (widget.findStores ?? _stores.findNear)(
+      final points = await (widget.findStores ?? _snapshotNear)(
         origin.coordinates,
         cancellation: operation,
       );
       if (!current()) return;
-      stores = nearestPoints(
-        origin: origin.coordinates,
-        points: points,
-        // A spare or two in case a store cannot be routed to.
-        limit: _nearbyCount + 2,
-        maxAvailabilityAge: const Duration(minutes: 10),
+      // Closed ones are dropped; at most one with unknown hours; one spare in
+      // case a place cannot be routed to.
+      stores = pickNearbyCandidates(
+        origin.coordinates,
+        points,
+        count: _nearbyCount + 1,
       );
     } on SafeWalkCancelledException {
       return;
     } catch (_) {
-      return fail('暫時查不到附近的店家，請稍後再試。');
+      return fail('暫時查不到附近的求助地點，請稍後再試。');
     }
     if (stores.isEmpty) {
       return fail(
-        '附近沒有資料標示營業中的便利商店（資料不完整，不代表附近沒有）。可以改走回家路線，或直接按緊急求助。',
+        '附近 2 公里內沒有資料標示營業中的便利商店或派出所（資料不完整，不代表附近沒有）。可以改走回家路線，或直接按緊急求助。',
       );
     }
     final all = [
       origin.coordinates,
-      for (final s in stores) s.point.coordinates,
+      for (final s in stores) s.coordinates,
     ];
     await _loadCrime(
       sw.Coordinates(
@@ -764,7 +768,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
         final result = await _storeRoutes.planRoute(
           _createRouteRequest(
             origin: origin,
-            destination: store.point.coordinates,
+            destination: store.coordinates,
           ),
           cancellation: operation,
         );
@@ -772,7 +776,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
         if (result is sw.RouteSuccess &&
             result.mode == sw.DataMode.live &&
             result.routes.isNotEmpty) {
-          options.add(NearbyHelpOption(point: store.point, route: result));
+          options.add(NearbyHelpOption(point: store, route: result));
         }
       } on SafeWalkCancelledException {
         return;
@@ -820,7 +824,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
       content: const Text(
         '會把起點、目的地及要避開的 50 公尺緩衝區傳給路線服務'
         '（valhalla1.openstreetmap.de、routing.openstreetmap.de）計算步行路線；'
-        '找最近求助地點時，另把約 1 公里格網的中心傳給 Overpass（overpass-api.de 等）查附近便利商店。'
+        '附近求助地點用 App 內建的 OpenStreetMap 快照查詢，不另外傳送位置。'
         '導航期間會在前景持續更新位置，用於路線跟隨與偏離後重新規劃；離開導航或進入背景即停止。'
         '系統定位權限與犯罪參考資料查詢會分別取得同意；可在地圖撤回路線查詢同意。',
       ),

@@ -4,7 +4,6 @@ import 'package:town_pass/features/safe_walk/navigation/cancellable.dart';
 import 'package:town_pass/features/safe_walk/navigation/consent.dart';
 import 'package:town_pass/features/safe_walk/navigation/coordinate_math.dart';
 import 'package:town_pass/features/safe_walk/navigation/json_transport.dart';
-import 'package:town_pass/features/safe_walk/navigation/opening_hours.dart';
 import 'package:town_pass/features/safe_walk/shared/contracts/cancellation.dart';
 import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart'
     as sw;
@@ -36,7 +35,6 @@ final class OsmConvenienceStoreSource {
     this.endpoints = defaultOverpassEndpoints,
     this.radiiMeters = const [1500, 8000],
     this.only24Hours = true,
-    this.readOpeningHours = false,
     DateTime Function()? clock,
   }) : _clock = clock ?? DateTime.now;
 
@@ -50,13 +48,6 @@ final class OsmConvenienceStoreSource {
   final List<String> endpoints;
   final List<double> radiiMeters;
   final bool only24Hours;
-
-  /// Also read common `opening_hours` values (e.g. `Mo-Su 07:00-23:00`):
-  /// a store counts as open only when it is open at retrieval time and stays
-  /// open for [stayOpenMargin]; unreadable or missing hours stay unknown.
-  final bool readOpeningHours;
-
-  static const Duration stayOpenMargin = Duration(minutes: 30);
   final DateTime Function() _clock;
   final Map<String, _CachedElements> _cache = {};
 
@@ -90,7 +81,7 @@ final class OsmConvenienceStoreSource {
             for (final element in result.elements)
               ?_toPoint(
                 element,
-                result.retrievedAt,
+                result.retrievedAt.toIso8601String(),
                 only24Hours,
               ),
           ];
@@ -189,10 +180,9 @@ final class OsmConvenienceStoreSource {
   /// Null for an element that is unusable; one bad record never drops the rest.
   sw.AssistancePoint? _toPoint(
     Map<String, Object?> element,
-    DateTime retrievedTime,
+    String retrievedAt,
     bool onlyOpenAllDay,
   ) {
-    final retrievedAt = retrievedTime.toIso8601String();
     try {
       final type = element['type'];
       final id = element['id'];
@@ -209,21 +199,8 @@ final class OsmConvenienceStoreSource {
       final name = rawName is String && rawName.trim().isNotEmpty
           ? rawName.trim()
           : '便利商店（無名稱）';
-      final hours = tagMap['opening_hours'];
-      final allDay = hours == '24/7';
-      final bool? readOpen = readOpeningHours && hours is String
-          ? openingHoursOpenFor(
-              hours,
-              taipeiTimeOf(retrievedTime),
-              stayOpenMargin,
-            )
-          : null;
-      final open = allDay || readOpen == true;
-      final status = open
-          ? sw.OpeningStatus.open
-          : readOpen == false
-          ? sw.OpeningStatus.closed
-          : sw.OpeningStatus.unknown;
+      final allDay = tagMap['opening_hours'] == '24/7';
+      final open = allDay;
 
       return sw.AssistancePoint(
         id: 'osm-$type-$id',
@@ -236,10 +213,8 @@ final class OsmConvenienceStoreSource {
           status: sw.UnconfirmedRecognitionStatus.unconfirmed,
           checkedAt: null,
         ),
-        availability: status,
-        availabilityCheckedAt: status == sw.OpeningStatus.unknown
-            ? null
-            : retrievedAt,
+        availability: open ? sw.OpeningStatus.open : sw.OpeningStatus.unknown,
+        availabilityCheckedAt: open ? retrievedAt : null,
         capabilities: const [sw.AssistanceCapability.unknown],
         source: sw.SourceMetadata(
           datasetId: 'osm-overpass-convenience-stores',
@@ -252,12 +227,10 @@ final class OsmConvenienceStoreSource {
           coverage: onlyOpenAllDay
               ? '查詢範圍內 OSM 標示 shop=convenience 且 opening_hours=24/7 的店'
               : '查詢範圍內 OSM 標示 shop=convenience 的店',
-          limitations: [
+          limitations: const [
             '社群編輯資料，非官方店家清單，也不是警方認可的求助據點',
             '營業時間來自 opening_hours 標籤，未經店家確認，不代表現在一定營業',
-            readOpeningHours
-                ? '未標示或無法判讀營業時間的店不列為營業中，清單不完整'
-                : '未標示營業時間的店不會出現在 24 小時結果中，清單不完整',
+            '未標示營業時間的店不會出現在 24 小時結果中，清單不完整',
           ],
         ),
       );

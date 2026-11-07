@@ -1235,7 +1235,7 @@ void main() {
         // Go to the first store: the three stores show as switchable options.
         await t.tap(find.text('帶我去這裡').first);
         await t.pumpAndSettle();
-        expect(find.text('附近營業中的店家'), findsOneWidget);
+        expect(find.text('附近的求助地點'), findsOneWidget);
         expect(find.textContaining('人工店家 d'), findsNothing);
         // The chosen store is the navigation target: same controller.
         expect(
