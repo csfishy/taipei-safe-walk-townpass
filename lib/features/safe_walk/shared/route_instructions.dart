@@ -125,48 +125,73 @@ typedef RouteProgress = ({
   double remainingMeters,
 });
 
-/// Snaps [at] to the closest vertex of [line] and measures ahead along it.
+/// Projects [at] onto the closest route segment and measures ahead along it.
+/// Distances exclude the sideways distance from the fix to the route. Reaching
+/// a vertex advances its instruction; approaching it does not.
 RouteProgress routeProgress(
   List<sw.GeoJsonCoordinate> line,
   List<RouteInstruction> steps,
   sw.Coordinates at,
 ) {
-  if (line.isEmpty) {
+  if (line.length < 2) {
     return (next: null, toNextMeters: 0, remainingMeters: 0);
   }
-  var nearest = 0;
+  final cumulative = <double>[0];
+  for (var i = 1; i < line.length; i++) {
+    cumulative.add(
+      cumulative.last +
+          _meters(
+            line[i - 1].latitude,
+            line[i - 1].longitude,
+            line[i].latitude,
+            line[i].longitude,
+          ),
+    );
+  }
+  if (cumulative.last == 0) {
+    return (next: null, toNextMeters: 0, remainingMeters: 0);
+  }
+
+  // A local equirectangular plane preserves the fraction along each short
+  // walking-route segment; cumulative lengths remain great-circle metres.
+  final longitudeScale = math.cos(at.lat * math.pi / 180);
+  var progress = 0.0;
   var best = double.infinity;
-  for (var i = 0; i < line.length; i++) {
-    final d = _meters(at.lat, at.lng, line[i].latitude, line[i].longitude);
-    if (d < best) {
-      best = d;
-      nearest = i;
+  for (var i = 0; i + 1 < line.length; i++) {
+    final ax = (line[i].longitude - at.lng) * longitudeScale;
+    final ay = line[i].latitude - at.lat;
+    final dx = (line[i + 1].longitude - line[i].longitude) * longitudeScale;
+    final dy = line[i + 1].latitude - line[i].latitude;
+    final lengthSquared = dx * dx + dy * dy;
+    final fraction = lengthSquared == 0
+        ? 0.0
+        : (-(ax * dx + ay * dy) / lengthSquared).clamp(0.0, 1.0);
+    final x = ax + fraction * dx;
+    final y = ay + fraction * dy;
+    final distanceSquared = x * x + y * y;
+    if (distanceSquared < best) {
+      best = distanceSquared;
+      progress = cumulative[i] + fraction * (cumulative[i + 1] - cumulative[i]);
     }
   }
+
   RouteInstruction? next;
   for (final s in steps) {
-    if (s.shapeIndex > nearest) {
+    final index = s.shapeIndex;
+    if (index >= 0 &&
+        index < cumulative.length &&
+        cumulative[index] > progress + 0.001) {
       next = s;
       break;
     }
   }
-  double along(int from, int to) {
-    var m = 0.0;
-    for (var i = from; i < to && i + 1 < line.length; i++) {
-      m += _meters(
-        line[i].latitude,
-        line[i].longitude,
-        line[i + 1].latitude,
-        line[i + 1].longitude,
-      );
-    }
-    return m;
-  }
 
   return (
     next: next,
-    toNextMeters: best + along(nearest, next?.shapeIndex ?? line.length - 1),
-    remainingMeters: best + along(nearest, line.length - 1),
+    toNextMeters:
+        (next == null ? cumulative.last : cumulative[next.shapeIndex]) -
+        progress,
+    remainingMeters: cumulative.last - progress,
   );
 }
 
