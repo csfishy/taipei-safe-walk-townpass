@@ -612,6 +612,189 @@ void main() {
     });
   });
 
+  group('report status depth: source, status, scope, date, limits', () {
+    Future<void> pumpPage(
+      WidgetTester t,
+      SafeWalkReportStatusController c,
+    ) async {
+      await t.pumpWidget(const SizedBox.shrink());
+      await t.pumpWidget(
+        MaterialApp(
+          home: SafeWalkReportStatusPage(
+            controller: c,
+            onBack: () {},
+            showMap: false,
+          ),
+        ),
+      );
+      await t.pumpAndSettle();
+    }
+
+    Finder status(String text) => find.byWidgetPredicate(
+      (w) =>
+          w is Text &&
+          w.key == const Key('report-query-status') &&
+          (w.data ?? '').contains(text),
+    );
+
+    testWidgets('loading', (t) async {
+      final pending = Completer<CrimeReferenceHttpResponse>();
+      final db = _Db()..answer = () => pending.future;
+      final c = SafeWalkReportStatusController(
+        repository: db.repository,
+        clock: () => _now,
+      );
+      await t.pumpWidget(
+        MaterialApp(
+          home: SafeWalkReportStatusPage(
+            controller: c,
+            onBack: () {},
+            showMap: false,
+          ),
+        ),
+      );
+      await t.pump();
+      expect(c.queryStatus, ReportQueryStatus.loading);
+      expect(status('查詢中'), findsOneWidget);
+      pending.complete(CrimeReferenceHttpResponse(200, jsonEncode(_body())));
+      await t.pumpAndSettle();
+    });
+
+    testWidgets('ok: per-item source, scope, date and limits', (t) async {
+      final c = SafeWalkReportStatusController(
+        repository: _Db().repository,
+        reviewedAreas: [_area()],
+        clock: () => _now,
+      );
+      await pumpPage(t, c);
+      expect(c.queryStatus, ReportQueryStatus.ok);
+      expect(status('正常'), findsOneWidget);
+      expect(find.textContaining('來源：人工測試來源'), findsOneWidget);
+      expect(find.textContaining('截至 2026-09-30'), findsWidgets);
+      expect(find.textContaining('僅此已核對邊界內（人工範圍）'), findsOneWidget);
+      expect(find.textContaining('不是即時資訊'), findsWidgets);
+      expect(find.textContaining('行政區統計也不是路段分數'), findsOneWidget);
+      expect(find.byKey(const ValueKey('report-area-area-1')), findsOneWidget);
+    });
+
+    testWidgets('empty database is not safe', (t) async {
+      final db = _Db()
+        ..answer = () async =>
+            CrimeReferenceHttpResponse(200, jsonEncode(_body(total: 0)));
+      final c = SafeWalkReportStatusController(
+        repository: db.repository,
+        clock: () => _now,
+      );
+      await pumpPage(t, c);
+      expect(c.queryStatus, ReportQueryStatus.empty);
+      expect(status('無紀錄'), findsOneWidget);
+      expect(find.textContaining('不代表這些地方沒有風險或安全'), findsOneWidget);
+    });
+
+    testWidgets('no reviewed area says so and is not safe', (t) async {
+      final c = SafeWalkReportStatusController(
+        repository: _Db().repository,
+        clock: () => _now,
+      );
+      await pumpPage(t, c);
+      expect(c.queryStatus, ReportQueryStatus.ok);
+      final none = find.byKey(const Key('report-no-areas'));
+      expect(none, findsOneWidget);
+      expect(find.textContaining('尚無任何經審查的警示區域'), findsOneWidget);
+      expect(find.textContaining('不代表這些地方沒有風險或安全'), findsOneWidget);
+      expect(find.textContaining('目前很安全'), findsNothing);
+    });
+
+    testWidgets('error: failed, timeout and not configured', (t) async {
+      final failing = _Db()
+        ..answer = () async => const CrimeReferenceHttpResponse(503, '{}');
+      final c = SafeWalkReportStatusController(
+        repository: failing.repository,
+        reviewedAreas: [_area()],
+        clock: () => _now,
+      );
+      await pumpPage(t, c);
+      expect(c.queryStatus, ReportQueryStatus.error);
+      expect(status('錯誤'), findsOneWidget);
+      expect(find.textContaining('查詢失敗'), findsOneWidget);
+      expect(find.byKey(const ValueKey('report-area-area-1')), findsNothing);
+      expect(find.byKey(const Key('report-retry')), findsOneWidget);
+
+      final none = SafeWalkReportStatusController(
+        repository: CrimeReferenceRepository(transport: null),
+        clock: () => _now,
+      );
+      await pumpPage(t, none);
+      expect(none.queryStatus, ReportQueryStatus.error);
+      expect(status('錯誤'), findsOneWidget);
+
+      final slow = _Db()
+        ..answer = () => Completer<CrimeReferenceHttpResponse>().future;
+      final timeout = SafeWalkReportStatusController(
+        repository: slow.repository,
+        timeout: const Duration(milliseconds: 20),
+        clock: () => _now,
+      );
+      await t.pumpWidget(const SizedBox.shrink());
+      await t.pumpWidget(
+        MaterialApp(
+          home: SafeWalkReportStatusPage(
+            controller: timeout,
+            onBack: () {},
+            showMap: false,
+          ),
+        ),
+      );
+      await t.pump(const Duration(milliseconds: 50));
+      await t.pump();
+      expect(timeout.queryStatus, ReportQueryStatus.error);
+      expect(find.textContaining('查詢逾時'), findsOneWidget);
+    });
+
+    testWidgets('stale: old snapshot is labelled and still not safe', (
+      t,
+    ) async {
+      final c = SafeWalkReportStatusController(
+        repository: _Db().repository,
+        reviewedAreas: [_area()],
+        staleAfter: const Duration(days: 30),
+        // 39 days after the 2026-09-30 snapshot date.
+        clock: () => _now,
+      );
+      await pumpPage(t, c);
+      expect(c.queryStatus, ReportQueryStatus.stale);
+      expect(status('資料過舊'), findsOneWidget);
+      expect(find.byKey(const Key('report-stale-note')), findsOneWidget);
+      expect(find.textContaining('未列出的地點不代表安全'), findsWidgets);
+    });
+
+    test('stale boundary and unreadable date', () async {
+      Future<ReportQueryStatus> run(String asOf, Duration after) async {
+        final body = _body();
+        (body['snapshot']! as Map<String, Object?>)['asOfDate'] = asOf;
+        final db = _Db()
+          ..answer = () async =>
+              CrimeReferenceHttpResponse(200, jsonEncode(body));
+        final c = SafeWalkReportStatusController(
+          repository: db.repository,
+          staleAfter: after,
+          clock: () => _now,
+        );
+        await c.load();
+        return c.queryStatus;
+      }
+
+      expect(
+        await run('2026-11-01', const Duration(days: 30)),
+        ReportQueryStatus.ok,
+      );
+      expect(
+        await run('2026-09-30', const Duration(days: 30)),
+        ReportQueryStatus.stale,
+      );
+    });
+  });
+
   group('official composition entry', () {
     Future<void> pumpRoot(
       WidgetTester t, {

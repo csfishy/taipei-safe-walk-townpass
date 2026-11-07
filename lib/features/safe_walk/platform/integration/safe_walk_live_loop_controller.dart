@@ -527,12 +527,23 @@ enum ReportStatusStage {
   cancelled,
 }
 
+/// Query state shown to the user, derived from [ReportStatusStage] and the
+/// snapshot date. `empty` and `stale` are never presented as "safe".
+enum ReportQueryStatus { loading, ok, empty, error, stale }
+
 final class SafeWalkReportStatusController extends ChangeNotifier {
   SafeWalkReportStatusController({
     required this.repository,
     List<RouteReferenceArea> reviewedAreas = const [],
     this.timeout = const Duration(seconds: 15),
-  }) : reviewedAreas = List.unmodifiable(reviewedAreas);
+    this.staleAfter = const Duration(days: 90),
+    DateTime Function()? clock,
+  }) : reviewedAreas = List.unmodifiable(reviewedAreas),
+       _clock = clock ?? DateTime.now;
+
+  /// A snapshot whose `asOfDate` is older than this is labelled stale.
+  final Duration staleAfter;
+  final DateTime Function() _clock;
 
   final CrimeReferenceRepository repository;
 
@@ -546,6 +557,29 @@ final class SafeWalkReportStatusController extends ChangeNotifier {
   CrimeReferenceResult? get result => _result;
   CrimeReferenceFailure? _failure;
   CrimeReferenceFailure? get failure => _failure;
+
+  ReportQueryStatus get queryStatus {
+    switch (_stage) {
+      case ReportStatusStage.idle:
+      case ReportStatusStage.loading:
+        return ReportQueryStatus.loading;
+      case ReportStatusStage.notConfigured:
+      case ReportStatusStage.failed:
+      case ReportStatusStage.timeout:
+      case ReportStatusStage.cancelled:
+        return ReportQueryStatus.error;
+      case ReportStatusStage.answered:
+        final r = _result!;
+        if (r.totalMatching == 0) return ReportQueryStatus.empty;
+        final asOf = DateTime.tryParse(r.snapshot.asOfDate);
+        // An unreadable date cannot be shown to be fresh.
+        if (asOf == null ||
+            _clock().toUtc().difference(asOf.toUtc()) > staleAfter) {
+          return ReportQueryStatus.stale;
+        }
+        return ReportQueryStatus.ok;
+    }
+  }
 
   /// Areas are only shown once the database answered for this visit.
   List<RouteReferenceArea> get evidencedAreas =>

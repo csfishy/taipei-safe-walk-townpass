@@ -310,6 +310,11 @@ class _SafeWalkReportStatusPageState extends State<SafeWalkReportStatusPage> {
           children: [
             const Text('使用者回報尚未接上真實後端；本頁只查詢資料庫現況，不送出任何回報。'),
             const SizedBox(height: 8),
+            Text(
+              _statusLabel(_c.queryStatus),
+              key: const Key('report-query-status'),
+            ),
+            const SizedBox(height: 8),
             ...switch (_c.stage) {
               ReportStatusStage.idle || ReportStatusStage.loading => [
                 const LinearProgressIndicator(),
@@ -346,8 +351,21 @@ class _SafeWalkReportStatusPageState extends State<SafeWalkReportStatusPage> {
     },
   );
 
+  static String _statusLabel(ReportQueryStatus s) => switch (s) {
+    ReportQueryStatus.loading => '查詢狀態：查詢中',
+    ReportQueryStatus.ok => '查詢狀態：正常（資料庫已回應）',
+    ReportQueryStatus.empty => '查詢狀態：無紀錄（資料庫已回應，但沒有任何參考紀錄）',
+    ReportQueryStatus.error => '查詢狀態：錯誤（未取得資料庫現況）',
+    ReportQueryStatus.stale => '查詢狀態：資料過舊（資料庫已回應，但資料日期已久）',
+  };
+
+  static const _scopeText = '可信範圍：僅限已核對邊界的範圍；資料庫參考座標點不是範圍，行政區統計也不是路段分數。';
+  static const _limitText = '資料限制：官方公開案件的歷史參考資料，不是即時資訊；未列出的地點不代表安全。';
+
   List<Widget> _answered(CrimeReferenceResult r) {
     final areas = _c.evidencedAreas;
+    final status = _c.queryStatus;
+    final updated = r.snapshot.asOfDate;
     return [
       Text(
         r.totalMatching == 0
@@ -356,20 +374,52 @@ class _SafeWalkReportStatusPageState extends State<SafeWalkReportStatusPage> {
                   '共 ${r.totalMatching} 筆參考紀錄；本次取得 ${r.retrievedAt}。',
         key: const Key('report-status'),
       ),
+      if (status == ReportQueryStatus.stale)
+        const Text(
+          '資料已超過更新期限或日期無法判讀，僅供參考，請勿當作現況。',
+          key: Key('report-stale-note'),
+        ),
       for (final s in r.sources)
-        Text('來源：${s.name}｜${s.license}｜更新 ${s.dataUpdatedAt ?? '來源未提供'}'),
+        Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '來源：${s.name}｜${s.license}｜更新 ${s.dataUpdatedAt ?? '來源未提供'}',
+              ),
+              Text('更新日期：快照資料截至 $updated'),
+              const Text(_scopeText),
+              const Text(_limitText),
+            ],
+          ),
+        ),
       const SizedBox(height: 12),
       const Text('有證據的警示區域'),
       if (areas.isEmpty)
-        const Text(
-          '目前沒有經核對地理範圍的警示區域。資料庫中的參考座標點不是範圍，不會畫成警示區域。',
-          key: Key('report-no-areas'),
+        Text(
+          _c.reviewedAreas.isEmpty
+              ? '目前尚無任何經審查的警示區域（本版本沒有已核對的地理範圍）。這只表示尚未審查，不代表這些地方沒有風險或安全。資料庫中的參考座標點不是範圍，不會畫成警示區域。'
+              : '目前沒有帶地理範圍證據的警示區域。這不代表沒有風險或安全。',
+          key: const Key('report-no-areas'),
         )
       else ...[
         for (final a in areas)
-          Text(
-            '「${a.label}」：${a.evidence}',
+          Padding(
             key: ValueKey('report-area-${a.id}'),
+            padding: const EdgeInsets.only(top: 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('「${a.label}」：${a.evidence}'),
+                Text(
+                  '來源：邊界證據如上；參考資料 ${r.sources.map((s) => s.name).join('、')}',
+                ),
+                Text('可信範圍：僅此已核對邊界內（${a.label}）；邊界外不作任何判斷。'),
+                Text('更新日期：資料截至 $updated'),
+                const Text(_limitText),
+              ],
+            ),
           ),
         if (widget.showMap)
           SizedBox(
