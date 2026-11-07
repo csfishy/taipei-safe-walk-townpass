@@ -730,9 +730,9 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
 
   /// 最近求助地點: convenience stores and police near the start from the
   /// bundled OSM snapshot, only those recorded as open now. Each is routed
-  /// like a destination with the same avoiding routes and shown as soon as
-  /// its route is ready (nearest first); once all are in, they are ranked
-  /// safest, then fastest.
+  /// like a destination with the same avoiding routes. The three nearest are
+  /// shown nearest first: the nearest one's route options as soon as they
+  /// are ready, the others as they finish.
   Future<void> _planNearby() async {
     if (!widget.liveRoutes ||
         !mounted ||
@@ -784,7 +784,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
       stores = pickNearbyCandidates(
         origin.coordinates,
         points,
-        count: _nearbyCount + 1,
+        count: _nearbyCount,
         // Only places recorded as open now; unknown hours are left out.
         maxUnknown: 0,
       );
@@ -840,7 +840,8 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
       return fail('找到附近營業中的求助地點，但暫時無法規劃步行路線，請稍後再試。');
     }
     setState(() {
-      _nearby = rankNearbyHelp(options, [..._areas, ..._crimeAreas]);
+      // Nearest first; the walker picks among the three.
+      _nearby = List.unmodifiable(options);
       _nearbyLoading = false;
     });
   }

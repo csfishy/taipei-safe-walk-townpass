@@ -1255,15 +1255,15 @@ void main() {
     );
 
     testWidgets(
-      'nearby points: open stores only, safest-fastest first, three to switch',
+      'nearby points: three nearest open places, nearest first, switchable',
       (t) async {
         final platform = _livePlatform();
         final routes = _Routes(
           (r) async => _storeRoute(r, switch (r.destination.lat) {
-            25.002 => 300, // nearest but slowest
-            25.003 => 120, // fastest: ranked first
+            25.002 => 300, // nearest: shown first even though slower
+            25.003 => 120,
             25.004 => 200,
-            _ => 100, // 25.005: fourth store, never shown
+            _ => 100, // 25.005: fourth nearest, never routed
           }),
         );
         final db = _Db();
@@ -1294,7 +1294,11 @@ void main() {
         }
         expect(queries, hasLength(1));
         final map = t.widget<SafeWalkMapView>(find.byType(SafeWalkMapView));
-        expect(map.pointsState.points.map((p) => p.id), ['b', 'c', 'a']);
+        expect(map.pointsState.points.map((p) => p.id), ['a', 'b', 'c']);
+        expect(
+          routes.requests.where((r) => r.destination.lat == 25.005),
+          isEmpty,
+        );
         expect(map.pointsState.routes.keys, containsAll(['a', 'b', 'c']));
         expect(find.textContaining('人工店家 closed'), findsNothing);
 
@@ -1306,14 +1310,14 @@ void main() {
         // The chosen store is the navigation target: same controller.
         expect(
           t.widget<SafeWalkMapView>(find.byType(SafeWalkMapView)).targetPointId,
-          'b',
+          'a',
         );
-        await t.tap(find.text('人工店家 a').first);
+        await t.tap(find.text('人工店家 b').first);
         await t.pumpAndSettle();
-        expect(find.textContaining('5 分鐘'), findsWidgets);
+        expect(find.textContaining('2 分鐘'), findsWidgets);
         final after = t.widget<SafeWalkMapView>(find.byType(SafeWalkMapView));
-        expect(after.targetPointId, 'a');
-        expect(after.routeState.result, same(after.pointsState.routes['a']));
+        expect(after.targetPointId, 'b');
+        expect(after.routeState.result, same(after.pointsState.routes['b']));
         // Start navigation: the card waits for a position, then can end.
         await t.tap(find.text('開始導覽'));
         await t.pumpAndSettle();

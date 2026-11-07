@@ -1071,7 +1071,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
             Text(
               ps.loading
                   ? '先顯示最近的地點，其他地點的路線還在計算…'
-                  : '只列資料標示營業中的地點；第一個最安全、最快，點一下可切換。',
+                  : '離你最近、資料標示營業中的地點；點一下可切換。',
               style: SwText.small,
             ),
             const SizedBox(height: 6),
