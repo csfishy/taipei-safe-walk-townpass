@@ -360,6 +360,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
   // Route following: one follower per option; re-plan only when off all of them.
   sw.Coordinates? _destination;
   sw.RouteResult? _followed;
+  sw.RouteSuccess? _guidancePreview;
   List<RouteFollower> _followers = const [];
   StreamSubscription<sw.Position>? _watch;
   sw.Position? _livePosition;
@@ -454,6 +455,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
   /// subscription. Cancellation, failure and leaving navigation still stop it.
   void _syncFollowing() {
     final result = _navigation.routeResult;
+    if (result is sw.RouteSuccess) _guidancePreview = result;
     if (!widget.liveRoutes ||
         _manualOrigin != null ||
         !_navigationActive ||
@@ -548,6 +550,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     ++_boundaryRevision;
     _operation?.cancel();
     _operation = null;
+    _guidancePreview = null;
     _locationRequest?.cancel();
     _locationRequest = null;
     _stopFollowing();
@@ -931,6 +934,32 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     if (!_lifetime.isCancelled && _foreground) _navigationActive = true;
   }
 
+  /// Ending guidance stops all work but keeps the last route as a preview.
+  /// A fresh explicit start may resume following that route.
+  void _endGuidance() {
+    final preview = _guidancePreview;
+    _navigationActive = false;
+    ++_boundaryRevision;
+    _operation?.cancel();
+    _operation = null;
+    _locationRequest?.cancel();
+    _locationRequest = null;
+    _nearbyOperation?.cancel();
+    _nearbyOperation = null;
+    _nearbyLoading = false;
+    _stopFollowing();
+    _navigation.cancelRoute();
+    if (preview != null) _navigation.showRoute(preview);
+    if (mounted) setState(() {});
+  }
+
+  void _startGuidance() {
+    if (!mounted || !_foreground || _lifetime.isCancelled) return;
+    _openNavigation();
+    _followed = null;
+    _syncFollowing();
+  }
+
   void _closeNavigation() {
     _navigationActive = false;
     _destination = null;
@@ -1157,6 +1186,8 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
         route: widget.liveRoutes ? _navigation.routeResult : null,
         livePosition: _livePosition,
         onLeaveMap: _closeNavigation,
+        onStartNavigation: _startGuidance,
+        onEndNavigation: _endGuidance,
         crimeSpots: _crimeSpots,
         crimeQueryStatus: widget.liveRoutes ? _crimeQueryStatus : null,
         onManageCrimeConsent: widget.liveRoutes && !widget.consentGranted

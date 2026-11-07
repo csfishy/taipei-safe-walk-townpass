@@ -168,6 +168,8 @@ class SafeWalkMapView extends StatefulWidget {
     this.showMapTiles = true,
     this.targetPointId,
     this.onTarget,
+    this.onStartNavigation,
+    this.onEndNavigation,
   });
 
   /// 目前導航目標的求助地點 id；null＝目的地。是它時 [routeState] 就是往這個地點的路線。
@@ -175,6 +177,7 @@ class SafeWalkMapView extends StatefulWidget {
 
   /// 使用者換了導航目標（求助地點；null＝回目的地）。
   final ValueChanged<sw.AssistancePoint?>? onTarget;
+  final VoidCallback? onStartNavigation, onEndNavigation;
 
   /// 犯罪參考位置及產品設定的避讓緩衝（紫色，非案發範圍）。
   final List<CrimeSpot> crimeSpots;
@@ -239,8 +242,20 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
   @override
   void didUpdateWidget(SafeWalkMapView old) {
     super.didUpdateWidget(old);
-    if (old.routeState.result != widget.routeState.result ||
-        !mapEquals(old.pointsState.routes, widget.pointsState.routes)) {
+    final currentPoint = _pointIndex == null || old.pointsState.points.isEmpty
+        ? null
+        : old
+              .pointsState
+              .points[_pointIndex! % old.pointsState.points.length]
+              .id;
+    final oldRoute = currentPoint == null || old.targetPointId == currentPoint
+        ? old.routeState.result
+        : old.pointsState.routes[currentPoint];
+    final nextRoute =
+        currentPoint == null || widget.targetPointId == currentPoint
+        ? widget.routeState.result
+        : widget.pointsState.routes[currentPoint];
+    if (oldRoute != nextRoute || old.placeId != widget.placeId) {
       _routeChoice = 0;
     }
     // 地點陸續出現、最後再依安全與時間重排：畫面停在使用者正在看的那一個。
@@ -347,13 +362,15 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
 
   /// 導覽中的資訊框：下一個指示、距離，和剩餘距離與時間。
   Widget _navSheet(RouteState rs, String destination) {
-    final best = rs.best!;
+    final best = rs.best;
     final position = widget.position;
-    final progress = position == null
+    final instructions = best == null ? null : routeInstructions[best];
+    final hasInstructions = instructions != null && instructions.isNotEmpty;
+    final progress = position == null || best == null
         ? null
         : routeProgress(
             best.geometry.coordinates,
-            routeInstructions[best] ?? const [],
+            instructions ?? const [],
             position.coordinates,
           );
     String distance(double m) => m >= 1000
@@ -361,7 +378,12 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
         : '${(m / 10).round() * 10} 公尺';
     final next = progress?.next;
     final (String now, String then) = switch (progress) {
+      _ when best == null => (
+        rs.loading ? '路線重新規劃中…' : '暫時無法導覽',
+        rs.loading ? '可隨時結束導覽。' : rs.failReason,
+      ),
       null => ('等待定位…', '請確認已開啟定位；位置更新後就會顯示下一個指示。'),
+      _ when !hasInstructions => ('此路線未提供轉向指示', '請依地圖路線及現場路況行走。'),
       _ when next == null => (
         '前往$destination',
         '${distance(progress.toNextMeters)}後抵達',
@@ -371,6 +393,22 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
         '接著${next.follow}',
       ),
     };
+    final line = best?.geometry.coordinates;
+    final totalMeters = line == null || line.isEmpty
+        ? 0.0
+        : routeProgress(
+            line,
+            const [],
+            sw.Coordinates(lat: line.first.latitude, lng: line.first.longitude),
+          ).remainingMeters;
+    final duration = best?.durationSeconds;
+    final remainingMinutes =
+        duration == null || progress == null || totalMeters <= 0
+        ? null
+        : (duration *
+                  (progress.remainingMeters / totalMeters).clamp(0.0, 1.0) /
+                  60)
+              .ceil();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -408,7 +446,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
         if (progress != null) ...[
           const SizedBox(height: 8),
           Text(
-            '剩 ${distance(progress.remainingMeters)}・約 ${(progress.remainingMeters / 1.2 / 60).ceil().clamp(1, 999)} 分鐘・偏離路線會自動重新規劃',
+            '剩 ${distance(progress.remainingMeters)}・${remainingMinutes == null ? '時間未知' : '約 $remainingMinutes 分鐘（依路線服務時間比例估計）'}・偏離路線會自動重新規劃',
             style: SwText.small,
           ),
         ],
@@ -416,7 +454,10 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
         SwSecondaryAction(
           label: '結束導覽',
           icon: Icons.close_rounded,
-          onTap: () => setState(() => _navigating = false),
+          onTap: () {
+            widget.onEndNavigation?.call();
+            setState(() => _navigating = false);
+          },
         ),
       ],
     );
@@ -591,7 +632,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
         '${anomalyCategoryLabel[detail.category]}・${anomalyStatusLabel[detail.status]}',
         _detailSheet(detail),
       ),
-      _ when _navigating && routed && rs.best != null => (
+      _ when _navigating => (
         '導覽中',
         _navSheet(rs, isHome ? place.label : point?.name ?? '求助地點'),
       ),
@@ -1069,9 +1110,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
               child: Text('附近的求助地點', style: SwText.smallStrong),
             ),
             Text(
-              ps.loading
-                  ? '先顯示最近的地點，其他地點的路線還在計算…'
-                  : '離你最近、資料標示營業中的地點；點一下可切換。',
+              ps.loading ? '先顯示最近的地點，其他地點的路線還在計算…' : '離你最近、資料標示營業中的地點；點一下可切換。',
               style: SwText.small,
             ),
             const SizedBox(height: 6),
@@ -1177,6 +1216,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
               label: '開始導覽',
               icon: Icons.navigation_rounded,
               onTap: () => setState(() {
+                widget.onStartNavigation?.call();
                 _navigating = true;
                 _size = _SheetSize.normal;
               }),
