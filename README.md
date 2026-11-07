@@ -98,7 +98,7 @@ Android／iOS 開發使用 `flutter run -d 裝置ID`，先安裝對應 SDK、模
 | [Safe Walk CI](https://github.com/csfishy/taipei-safe-walk-townpass/actions/workflows/safe_walk.yml) | PR、main／migration push、手動執行；Schema 一致性、模組／工具分析、完整測試與原始診斷報告；可手動選擇 Android debug build |
 | [check-and-build](https://github.com/csfishy/taipei-safe-walk-townpass/actions/workflows/build.yml) | PR、main push、`v*-pre.*` tag、手動執行；檢查後產生 Android APK／unsigned iOS IPA／Web 預覽產物 |
 
-每次 **push 到 main**，檢查及三平台建置全部通過，且上方 Demo gate 已符合後，會自動發布 GitHub prerelease，版本包含 run number 與 commit，例如 `v0.0.12-pre.42.g31cb0ac12345`；一次推送多個 commits 時只建置最後一個。符合 pubspec 版本的手動預發佈 tag 仍支援發布且不重設共享 Demo。PR／manual run 不建立 Release；main 手動執行在旗標啟用時也須完成重設，Pages 仍依既有設定及最新來源檢查。不要覆寫已發布 tag。完整規則見 [建置與部署](docs/BUILDS.md)。
+每次 **push 到 main**，檢查及三平台建置全部通過，且上方 Demo gate 已符合後，會自動發布 GitHub prerelease，版本包含 run number 與 commit，例如 `v0.0.12-pre.r0000000042.g31cb0ac12345`；`r` 後的十位數補零，讓 GitHub Releases 清單按新舊正確排序，原生 build number 仍為整數。一次推送多個 commits 時只建置最後一個。符合 pubspec 版本的手動預發佈 tag 仍支援發布且不重設共享 Demo。PR／manual run 不建立 Release；main 手動執行在旗標啟用時也須完成重設，Pages 仍依既有設定及最新來源檢查。不要覆寫已發布 tag。完整規則見 [建置與部署](docs/BUILDS.md)。
 
 本機可在完成相同 metadata／pub get／generation 後建置；以下 iOS 範例的純數字版本對應目前 pubspec：
 
