@@ -61,6 +61,7 @@ SafeWalkFlow(
 
 - `flutter analyze lib/features/safe_walk/presentation test/features/safe_walk/presentation`：無問題。
 - `flutter test test/features/safe_walk/presentation`：7 項流程測試通過（首頁、緊急求助不撥號、地圖已繞開與文字路線、最近求助地點與資訊框收合、求助地點載入／錯誤／空值、來電只朗讀對方、簡訊報警示範傳送）。
+- 無障礙自動檢查：`safe_walk_a11y_test.dart` 對首頁、地圖、附近求助地點、模擬來電、緊急求助檢查點擊區域 ≥ 48、可點元件有讀屏名稱、文字對比（Flutter 內建 guideline）。不等於 TalkBack／VoiceOver 實測。
 - 設計截圖：`M3_SCREENSHOTS=1 flutter test test/features/safe_walk/presentation/safe_walk_screenshots_test.dart --update-goldens`，產出 `screenshots/*.png`；CI 預設略過。
 - 本機預覽：`flutter create --platforms=web .` 後執行 `flutter run -d web-server -t lib/features/safe_walk/presentation/preview/safe_walk_preview_main.dart`（`web/` 只在本機，不提交）。
 - 未驗：實機、TownPass App 內接線、讀屏、真實朗讀。

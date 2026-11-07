@@ -12,7 +12,7 @@ class SafeWalkHomeView extends StatelessWidget {
 
   static const _entries = [
     (SafeWalkEntry.map, Icons.home_rounded, '安心回家', '看回家路線，避開別人回報的狀況'),
-    (SafeWalkEntry.call, Icons.phone_in_talk_rounded, '模擬來電', '假裝家人打來陪你講電話，路上比較安心'),
+    (SafeWalkEntry.call, Icons.phone_in_talk_rounded, '模擬來電', '假裝家人來電陪你，路上更安心'),
     (SafeWalkEntry.points, Icons.local_police_rounded, '附近求助地點', '警察局、便利商店等可以求助的地方'),
     (SafeWalkEntry.report, Icons.campaign_rounded, '回報狀況', '看到打架、暗路、施工，標給大家知道'),
   ];

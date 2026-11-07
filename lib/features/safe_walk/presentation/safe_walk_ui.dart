@@ -328,7 +328,9 @@ class SwSecondaryAction extends StatelessWidget {
         children: [
           Icon(icon, color: SwColors.textSecondary),
           const SizedBox(width: 8),
-          Flexible(child: Text(label, style: SwText.bodyStrong)),
+          Flexible(
+            child: Text(label, maxLines: 1, softWrap: false, overflow: TextOverflow.fade, style: SwText.bodyStrong),
+          ),
         ],
       ),
     ),
@@ -362,10 +364,9 @@ class SwActionBar extends StatelessWidget {
         }
         return Row(
           children: [
-            Flexible(child: secondary),
-            const SizedBox(width: 16),
-            const Spacer(),
-            SwSosButton(onTap: onEmergency),
+            secondary,
+            const SizedBox(width: 12),
+            Expanded(child: SwSosButton(onTap: onEmergency, expand: true)),
           ],
         );
       },

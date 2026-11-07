@@ -215,6 +215,18 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                     child: _legend ? _Legend(pointsView: _pointsView, showShortcut: isHome && !_pointsView) : const SizedBox.shrink(),
                   ),
                 ),
+                if (!_picking && _pin == null && detail == null)
+                  Positioned(
+                    right: 12,
+                    bottom: 12,
+                    child: _ReportFab(
+                      onTap: () => setState(() {
+                        _picking = true;
+                        _toast = null;
+                        _expanded = true;
+                      }),
+                    ),
+                  ),
                 if (_picking && _pin == null)
                   Positioned(
                     left: 16,
@@ -291,22 +303,13 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                   ],
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              if (!isHome) SwChip(label: '下一個求助地點', icon: Icons.swap_horiz_rounded, onTap: widget.pointsState.points.length < 2 ? null : () => setState(() => _pointIndex = _pointIndex! + 1)),
-              SwChip(
-                label: '回報狀況',
-                icon: Icons.campaign_outlined,
-                onTap: () => setState(() {
-                  _picking = true;
-                  _toast = null;
-                }),
-              ),
+              if (!isHome) ...[
+                const SizedBox(width: 8),
+                Tooltip(
+                  message: '換下一個求助地點',
+                  child: _SwapButton(onTap: widget.pointsState.points.length < 2 ? null : () => setState(() => _pointIndex = _pointIndex! + 1)),
+                ),
+              ],
             ],
           ),
           const SizedBox(height: 12),
@@ -702,9 +705,19 @@ class _StepsToggle extends StatelessWidget {
         children: [
           const Icon(Icons.format_list_numbered_rounded, color: SwColors.brandDeep),
           const SizedBox(width: 8),
-          Text('文字路線', style: SwText.bodyStrong),
+          Flexible(
+            child: Text('文字路線', maxLines: 1, softWrap: false, overflow: TextOverflow.fade, style: SwText.bodyStrong),
+          ),
           const Spacer(),
-          Text(open ? '收合' : '$count 個步驟', style: SwText.secondary.copyWith(color: SwColors.brandDeep)),
+          Flexible(
+            child: Text(
+              open ? '收合' : '$count 個步驟',
+              maxLines: 1,
+              softWrap: false,
+              overflow: TextOverflow.fade,
+              style: SwText.secondary.copyWith(color: SwColors.brandDeep),
+            ),
+          ),
           AnimatedRotation(
             turns: open ? .5 : 0,
             duration: SwMotion.of(context, 200),
@@ -1011,5 +1024,59 @@ class _BottomBar extends StatelessWidget {
   Widget build(BuildContext context) => SwActionBar(
     secondary: SwSecondaryAction(icon: Icons.phone_in_talk_outlined, label: '模擬來電', onTap: onCall),
     onEmergency: onEmergency,
+  );
+}
+
+/// 換下一個求助地點：圖示鈕（交換箭頭），旁邊就是地點名稱，語意清楚；讀屏與長按提示「換下一個求助地點」。
+class _SwapButton extends StatelessWidget {
+  const _SwapButton({required this.onTap});
+  final VoidCallback? onTap;
+  @override
+  Widget build(BuildContext context) => DecoratedBox(
+    decoration: BoxDecoration(shape: BoxShape.circle, boxShadow: onTap == null ? null : SwShadow.card),
+    child: SwPressable(
+      onTap: onTap,
+      color: onTap == null ? TPColors.grayscale100 : SwColors.brandSoft,
+      pressedColor: TPColors.primary100,
+      border: BorderSide(color: onTap == null ? SwColors.border : SwColors.brand),
+      radius: swTouch / 2,
+      semanticsLabel: '換下一個求助地點',
+      child: SizedBox(
+        width: swTouch,
+        height: swTouch,
+        child: Icon(Icons.swap_horiz_rounded, color: onTap == null ? SwColors.textSecondary : SwColors.brandDeep),
+      ),
+    ),
+  );
+}
+
+/// 地圖上的「回報狀況」浮動按鈕：白底膠囊＋陰影，靠近拇指，點了就進入「在地圖上選位置」。
+class _ReportFab extends StatelessWidget {
+  const _ReportFab({required this.onTap});
+  final VoidCallback onTap;
+  @override
+  Widget build(BuildContext context) => DecoratedBox(
+    decoration: BoxDecoration(borderRadius: BorderRadius.circular(24), boxShadow: SwShadow.float),
+    child: SwPressable(
+      onTap: onTap,
+      color: SwColors.surface,
+      pressedColor: SwColors.warnBg,
+      radius: 24,
+      semanticsLabel: '回報狀況，在地圖上標出異常',
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: SizedBox(
+        height: swTouch,
+        child: ExcludeSemantics(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.campaign_rounded, color: SwColors.warnText),
+              const SizedBox(width: 6),
+              Text('回報狀況', maxLines: 1, softWrap: false, style: SwText.bodyStrong),
+            ],
+          ),
+        ),
+      ),
+    ),
   );
 }

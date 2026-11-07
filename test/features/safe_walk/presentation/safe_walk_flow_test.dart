@@ -65,10 +65,10 @@ void main() {
     expect(find.textContaining('7-ELEVEN'), findsNothing);
     await t.tap(find.text('最近求助地點'));
     await t.pumpAndSettle();
-    expect(find.text('下一個求助地點'), findsOneWidget);
+    expect(find.bySemanticsLabel('換下一個求助地點'), findsOneWidget);
     await t.tap(find.bySemanticsLabel('收合資訊框'));
     await t.pumpAndSettle();
-    expect(find.text('下一個求助地點'), findsNothing);
+    expect(find.bySemanticsLabel('換下一個求助地點'), findsNothing);
     expect(find.bySemanticsLabel(RegExp('展開資訊框')), findsOneWidget);
   });
 
