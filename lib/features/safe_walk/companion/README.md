@@ -26,3 +26,13 @@ state 只有 idle／playing／paused／ended／error。audioSrc 為 null 表示�
 `companion_service.dart` 保留抽象接點，`companion_state.dart` 保留純轉移邏輯。控制器與 fake 測試不代表 native audio adapter、正式資產、裝置播放、錄音或 M3 UI 已完成。
 
 分支 `feat/m5-companion` 已由共同 Flutter base `40c72e7` 建立；M5 仍只修改 companion 與對應測試目錄。
+
+## 裝置 TTS 與驗證邊界
+
+`companion_tts.dart` 另提供文字朗讀，不冒稱真人來電。Android 只選 `getVoices` 明示 `network_required=0` 且沒有 `notInstalled` 的中文語音；iOS 從已安裝的 `AVSpeechSynthesisVoice.speechVoices()` 清單以 identifier 選取，原生 `AVSpeechSynthesizer` 在裝置上合成。設定語音成功才可用；沒有符合條件的語音、Web 與未驗證的平台保持文字預覽，不自行下載語音或外送文字。
+
+依據：[Android Voice](https://developer.android.com/reference/android/speech/tts/Voice)、[Apple Speech synthesis](https://developer.apple.com/documentation/avfoundation/speech-synthesis) 與 [Apple 已安裝語音說明](https://developer.apple.com/videos/play/wwdc2020/10022/)。欄位映射已核對 lock 中 `flutter_tts 4.2.5` 的原生實作。
+
+插件的完成／取消／錯誤事件沒有 utterance ID，因此共用裝置 driver 在停止中的舊語句收到 terminal 與 stop 回覆前，不送出新語句。等待上限一秒；若無法確認，driver 保持文字預覽直到 App 重啟。尚未開始發聲的語句可能沒有原生取消回呼，亦採此保守處理。每個路線的取消 ticket 及 owner 獨立，離開或 SOS 後的排隊朗讀不能重啟，舊路線的延遲 stop 不能停止新路線。
+
+回歸使用 fake engine、mock platform channel 與 Widget lifecycle，不是實機播放驗收。iPhone 靜音鍵、實際語音品質、OS 中斷與廠商 callback 順序仍需實機確認；不把單元測試視為所有裝置皆可朗讀。
