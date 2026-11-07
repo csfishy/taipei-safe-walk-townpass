@@ -85,13 +85,19 @@ void main() {
     );
     await tester.tap(find.text('安心行'));
     await tester.pumpAndSettle();
-    expect(find.text('尚未同意犯罪資料查詢；未送出座標。'), findsNothing, reason: '不在資訊框下方顯示狀態');
+    expect(find.byKey(const Key('crime-query-status')), findsOneWidget);
     for (final name in ['路線查詢設定', '犯罪資料查詢設定']) {
       final link = find.text('資料來源與授權').last;
       await tester.ensureVisible(link);
       await tester.tap(link);
       await tester.pumpAndSettle();
-      expect(find.textContaining('尚未同意犯罪資料查詢；未送出座標。'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(BottomSheet),
+          matching: find.textContaining('尚未同意犯罪資料查詢；未送出座標。'),
+        ),
+        findsOneWidget,
+      );
       await tester.tap(find.text(name));
       await tester.pumpAndSettle();
     }
@@ -151,7 +157,13 @@ void main() {
       await tester.ensureVisible(link);
       await tester.tap(link);
       await tester.pumpAndSettle();
-      expect(find.textContaining(status), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(BottomSheet),
+          matching: find.textContaining(status),
+        ),
+        findsOneWidget,
+      );
       expect(find.textContaining('已同意路線查詢'), findsOneWidget);
       expect(find.textContaining('未同意行程範圍查詢'), findsOneWidget);
     });

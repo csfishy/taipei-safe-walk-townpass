@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// 使用者的「家」。本儲存服務只寫入裝置設定，不傳送網路請求或寫日誌。
-/// 地圖檢視另需使用者同意載入第三方圖磚；不承諾排除系統備份。
+/// 地圖檢視會自動載入第三方圖磚；不承諾排除系統備份。
 /// [toString] 刻意不含座標，避免意外被 print／log 印出。
 final class HomeLocation {
   const HomeLocation._(this.lat, this.lng);
