@@ -120,6 +120,8 @@ jobs:
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose build/app/outputs/flutter-apk/app-release.apk
           mkdir -p artifacts
           cp build/app/outputs/flutter-apk/app-release.apk artifacts/taipei-safe-walk-townpass-android-prerelease.apk
+      - name: Verify APK source metadata and compiled arm64 payload
+        run: python3 tool/verify_native_release.py android artifacts/taipei-safe-walk-townpass-android-prerelease.apk
       - uses: actions/upload-artifact@v4
         with:
           name: prerelease-android
@@ -160,6 +162,8 @@ jobs:
           cp -R "$APP" "$RUNNER_TEMP/ipa/Payload/"
           ditto -c -k --keepParent "$RUNNER_TEMP/ipa/Payload" artifacts/taipei-safe-walk-townpass-ios-unsigned.ipa
           unzip -t artifacts/taipei-safe-walk-townpass-ios-unsigned.ipa
+      - name: Verify unsigned IPA identity, version and arm64 payload
+        run: python3 tool/verify_native_release.py ios artifacts/taipei-safe-walk-townpass-ios-unsigned.ipa
       - uses: actions/upload-artifact@v4
         with:
           name: prerelease-ios
