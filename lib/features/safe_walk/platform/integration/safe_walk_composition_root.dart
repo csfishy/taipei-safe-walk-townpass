@@ -468,6 +468,22 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     }
   }
 
+  /// Same pattern as the crime setting: a dialog to agree or decline.
+  /// Declining cancels any route work in flight.
+  Future<void> _manageRoutingConsent() async {
+    if (!mounted || !_foreground || _lifetime.isCancelled) return;
+    // Changing the setting stops route work in flight; it resumes only after
+    // the walker agrees and plans again.
+    _invalidateOperation();
+    final prompt = _routingConsentPrompt ??= _askRoutingConsent();
+    final agreed = await prompt;
+    if (identical(_routingConsentPrompt, prompt)) _routingConsentPrompt = null;
+    if (!mounted || !_foreground || _lifetime.isCancelled || agreed == null) {
+      return;
+    }
+    _setRoutingConsent(agreed);
+  }
+
   Future<void> _manageCrimeConsent() async {
     if (!mounted || !_foreground || _lifetime.isCancelled) return;
     if (!_crime.isConfigured) {
@@ -830,8 +846,10 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
         onManageCrimeConsent: widget.liveRoutes
             ? () => unawaited(_manageCrimeConsent())
             : null,
-        onRevokeRoutingConsent: widget.liveRoutes
-            ? () => _setRoutingConsent(false)
+        routingConsent: _navigation.hasRoutingConsent,
+        crimeConsent: _hasCrimeConsent,
+        onManageRoutingConsent: widget.liveRoutes
+            ? () => unawaited(_manageRoutingConsent())
             : null,
         onStartChanged: widget.liveRoutes
             ? (origin) {

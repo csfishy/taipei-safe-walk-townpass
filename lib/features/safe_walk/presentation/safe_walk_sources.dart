@@ -60,8 +60,14 @@ const swDataSources = <SwDataSource>[
   ),
 ];
 
-/// 從下方彈出的「資料來源與授權」說明。
-Future<void> showSwDataSources(BuildContext context) =>
+/// 一個查詢設定（例如路線查詢、犯罪資料查詢）；點了開啟同意視窗。
+typedef SwQuerySetting = ({IconData icon, String label, VoidCallback onTap});
+
+/// 從下方彈出的「資料來源與授權」說明；[settings] 放在最上方。
+Future<void> showSwDataSources(
+  BuildContext context, {
+  List<SwQuerySetting> settings = const [],
+}) =>
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -89,6 +95,45 @@ Future<void> showSwDataSources(BuildContext context) =>
                 ),
               ),
               const SizedBox(height: 12),
+              if (settings.isNotEmpty) ...[
+                Semantics(
+                  header: true,
+                  child: Text('查詢設定', style: SwText.heading),
+                ),
+                const SizedBox(height: 8),
+                for (final setting in settings)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: SwPressable(
+                      onTap: () {
+                        Navigator.of(sheet).pop();
+                        setting.onTap();
+                      },
+                      color: SwColors.bg,
+                      border: const BorderSide(color: SwColors.border),
+                      radius: 10,
+                      semanticsLabel: setting.label,
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: SizedBox(
+                        height: 56,
+                        child: Row(
+                          children: [
+                            Icon(setting.icon, color: SwColors.brand),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(setting.label, style: SwText.bodyStrong),
+                            ),
+                            const Icon(
+                              Icons.chevron_right_rounded,
+                              color: SwColors.textSecondary,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 12),
+              ],
               Semantics(
                 header: true,
                 child: Text('資料來源與授權', style: SwText.heading),
@@ -140,10 +185,13 @@ class _SourceRow extends StatelessWidget {
 
 /// 小型文字連結：開啟資料來源與授權。點擊範圍 ≥ 48。
 class SwSourcesLink extends StatelessWidget {
-  const SwSourcesLink({super.key});
+  const SwSourcesLink({super.key, this.settings = const []});
+
+  /// 查詢設定，顯示在資料來源與授權的最上方。
+  final List<SwQuerySetting> settings;
   @override
   Widget build(BuildContext context) => SwPressable(
-    onTap: () => showSwDataSources(context),
+    onTap: () => showSwDataSources(context, settings: settings),
     radius: 8,
     semanticsLabel: '資料來源與授權',
     padding: const EdgeInsets.symmetric(horizontal: 4),

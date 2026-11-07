@@ -7,8 +7,7 @@ import 'package:town_pass/features/safe_walk/presentation/safe_walk_home_view.da
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_map_view.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_speaker.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_ui.dart';
-import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart'
-    as sw;
+import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart' as sw;
 
 enum _Screen { home, map, points, report, call, emergency, homeSetting }
 
@@ -33,7 +32,9 @@ class SafeWalkFlow extends StatefulWidget {
     this.crimeSpots = const [],
     this.crimeQueryStatus,
     this.onManageCrimeConsent,
-    this.onRevokeRoutingConsent,
+    this.onManageRoutingConsent,
+    this.routingConsent = false,
+    this.crimeConsent = false,
     this.livePosition,
     this.onLeaveMap,
     this.speaker = const UnavailableSpeaker(),
@@ -67,7 +68,8 @@ class SafeWalkFlow extends StatefulWidget {
   /// 犯罪參考位置與產品設定的 50 公尺避讓緩衝（非案發範圍）。
   final List<CrimeSpot> crimeSpots;
   final String? crimeQueryStatus;
-  final VoidCallback? onManageCrimeConsent, onRevokeRoutingConsent;
+  final VoidCallback? onManageCrimeConsent, onManageRoutingConsent;
+  final bool routingConsent, crimeConsent;
 
   /// 使用者指定起點（null＝改回 GPS）；之後的路線規劃從這裡出發。
   final ValueChanged<sw.Coordinates?>? onStartChanged;
@@ -83,8 +85,7 @@ class SafeWalkFlow extends StatefulWidget {
   final Future<sw.LocationResult> Function()? onLocate;
 
   /// M1：使用者選 110／119 時呼叫 PlatformService.requestEmergency(userInitiated: true)。
-  final Future<sw.EmergencyActionResult> Function(sw.EmergencyChannel channel)?
-  onEmergency;
+  final Future<sw.EmergencyActionResult> Function(sw.EmergencyChannel channel)? onEmergency;
 
   /// M1：使用者確認簡訊內容後，交給手機開啟簡訊 App；null 時只模擬傳送畫面。
   final Future<bool> Function(String body)? onSendSms;
@@ -101,8 +102,7 @@ class SafeWalkFlow extends StatefulWidget {
   State<SafeWalkFlow> createState() => _SafeWalkFlowState();
 }
 
-class _SafeWalkFlowState extends State<SafeWalkFlow>
-    with WidgetsBindingObserver {
+class _SafeWalkFlowState extends State<SafeWalkFlow> with WidgetsBindingObserver {
   _Screen _screen = _Screen.home;
   _Screen _back = _Screen.home;
   bool _forward = true;
@@ -113,9 +113,7 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
   void _setStart(LatLng? at) {
     ++_editGeneration;
     setState(() => _manualStart = at);
-    widget.onStartChanged?.call(
-      at == null ? null : sw.Coordinates(lat: at.lat, lng: at.lng),
-    );
+    widget.onStartChanged?.call(at == null ? null : sw.Coordinates(lat: at.lat, lng: at.lng));
     _planRoute();
   }
 
@@ -144,9 +142,7 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused ||
-        state == AppLifecycleState.hidden ||
-        state == AppLifecycleState.detached) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden || state == AppLifecycleState.detached) {
       ++_editGeneration;
     }
   }
@@ -159,12 +155,8 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
     }
     if (old.mode != widget.mode) {
       ++_editGeneration;
-      _anomalies = widget.mode == sw.DataMode.mock
-          ? demoAnomalies()
-          : <Anomaly>[];
-      _demoPoints = widget.mode == sw.DataMode.mock
-          ? demoAssistancePoints()
-          : const <sw.AssistancePoint>[];
+      _anomalies = widget.mode == sw.DataMode.mock ? demoAnomalies() : <Anomaly>[];
+      _demoPoints = widget.mode == sw.DataMode.mock ? demoAssistancePoints() : const <sw.AssistancePoint>[];
     }
   }
 
@@ -175,18 +167,13 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
     }
     final i = _places.indexWhere((p) => p.isHome);
     final h = widget.homeLocation;
-    final next = h == null
-        ? demoPlaces().first
-        : SavedPlace('home', '家', LatLng(h.lat, h.lng));
+    final next = h == null ? demoPlaces().first : SavedPlace('home', '家', LatLng(h.lat, h.lng));
     if (i >= 0) {
       _places[i] = next;
     }
   }
 
-  bool _isMapScreen(_Screen screen) =>
-      screen == _Screen.map ||
-      screen == _Screen.points ||
-      screen == _Screen.report;
+  bool _isMapScreen(_Screen screen) => screen == _Screen.map || screen == _Screen.points || screen == _Screen.report;
 
   Future<void> _editPlace(String id, String name, LatLng at) async {
     final generation = ++_editGeneration;
@@ -207,47 +194,26 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
       _placeId = id;
     });
     _planRoute(
-      savedDestination: id == 'home'
-          ? sw.Coordinates(lat: at.lat, lng: at.lng)
-          : null,
+      savedDestination: id == 'home' ? sw.Coordinates(lat: at.lat, lng: at.lng) : null,
     );
   }
 
-  SavedPlace get _place =>
-      _places.firstWhere((p) => p.id == _placeId, orElse: () => _places.first);
+  SavedPlace get _place => _places.firstWhere((p) => p.id == _placeId, orElse: () => _places.first);
   // Live mode never shows invented danger points or stand-in assistance points.
-  late List<Anomaly> _anomalies = widget.mode == sw.DataMode.mock
-      ? demoAnomalies()
-      : <Anomaly>[];
-  late List<sw.AssistancePoint> _demoPoints = widget.mode == sw.DataMode.mock
-      ? demoAssistancePoints()
-      : const <sw.AssistancePoint>[];
+  late List<Anomaly> _anomalies = widget.mode == sw.DataMode.mock ? demoAnomalies() : <Anomaly>[];
+  late List<sw.AssistancePoint> _demoPoints = widget.mode == sw.DataMode.mock ? demoAssistancePoints() : const <sw.AssistancePoint>[];
 
   String? get _nearestPointName {
     final pts = _pointsState.points;
     if (pts.isEmpty) return null;
     final position = widget.livePosition ?? _position;
     if (position == null && widget.mode == sw.DataMode.live) return null;
-    final from = position == null
-        ? DemoGeo.start
-        : LatLng(position.coordinates.lat, position.coordinates.lng);
-    final sorted = [...pts]
-      ..sort(
-        (a, b) =>
-            metersBetween(
-              from,
-              LatLng(a.coordinates.lat, a.coordinates.lng),
-            ).compareTo(
-              metersBetween(from, LatLng(b.coordinates.lat, b.coordinates.lng)),
-            ),
-      );
+    final from = position == null ? DemoGeo.start : LatLng(position.coordinates.lat, position.coordinates.lng);
+    final sorted = [...pts]..sort((a, b) => metersBetween(from, LatLng(a.coordinates.lat, a.coordinates.lng)).compareTo(metersBetween(from, LatLng(b.coordinates.lat, b.coordinates.lng))));
     return sorted.first.name;
   }
 
-  bool get _missingLiveHome =>
-      widget.mode == sw.DataMode.live &&
-      _place.isHome &&
-      widget.homeLocation == null;
+  bool get _missingLiveHome => widget.mode == sw.DataMode.live && _place.isHome && widget.homeLocation == null;
 
   RouteState get _routeState {
     if (_missingLiveHome) {
@@ -263,25 +229,16 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
         allowDemoFallback: false,
       );
     }
-    return RouteState(
-      result: widget.route,
-      loading: widget.routeLoading,
-      allowDemoFallback: widget.mode == sw.DataMode.mock,
-      onRetry: widget.onPlanRoute == null ? null : _planRoute,
-    );
+    return RouteState(result: widget.route, loading: widget.routeLoading, allowDemoFallback: widget.mode == sw.DataMode.mock, onRetry: widget.onPlanRoute == null ? null : _planRoute);
   }
 
   void _planRoute({sw.Coordinates? savedDestination}) {
     if (_missingLiveHome && savedDestination == null) return;
     widget.onReportsChanged?.call([
       for (final a in _anomalies)
-        if (a.status != AnomalyStatus.cleared)
-          (id: a.id, center: sw.Coordinates(lat: a.at.lat, lng: a.at.lng)),
+        if (a.status != AnomalyStatus.cleared) (id: a.id, center: sw.Coordinates(lat: a.at.lat, lng: a.at.lng)),
     ]);
-    widget.onPlanRoute?.call(
-      savedDestination ??
-          sw.Coordinates(lat: _place.at.lat, lng: _place.at.lng),
-    );
+    widget.onPlanRoute?.call(savedDestination ?? sw.Coordinates(lat: _place.at.lat, lng: _place.at.lng));
   }
 
   void _selectPlace(String id) {
@@ -292,11 +249,7 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
   }
 
   PointsState get _pointsState => PointsState(
-    points:
-        widget.points ??
-        (widget.pointsLoading || widget.pointsError != null
-            ? const []
-            : _demoPoints),
+    points: widget.points ?? (widget.pointsLoading || widget.pointsError != null ? const [] : _demoPoints),
     loading: widget.pointsLoading,
     error: widget.pointsError,
     onRetry: widget.onRetryPoints,
@@ -330,9 +283,7 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
     widget.speaker.stop();
     setState(() {
       _forward = true;
-      _back = _screen == _Screen.call || _screen == _Screen.emergency
-          ? _Screen.home
-          : _screen;
+      _back = _screen == _Screen.call || _screen == _Screen.emergency ? _Screen.home : _screen;
       _emergencyMessage = null;
       _screen = _Screen.emergency;
     });
@@ -354,10 +305,7 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
       _position = result is sw.LocationSuccess ? result.position : null;
       _emergencyError = result is sw.LocationFailure;
       _emergencyMessage = switch (result) {
-        sw.LocationSuccess() =>
-          widget.mode == sw.DataMode.mock
-              ? '已取得示範位置；不是真實定位，未傳送給任何人。'
-              : '已取得位置；尚未傳送給任何人。',
+        sw.LocationSuccess() => widget.mode == sw.DataMode.mock ? '已取得示範位置；不是真實定位，未傳送給任何人。' : '已取得位置；尚未傳送給任何人。',
         sw.LocationFailure(:final message) => message,
       };
     });
@@ -383,7 +331,9 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
       crimeSpots: widget.crimeSpots,
       crimeQueryStatus: widget.crimeQueryStatus,
       onManageCrimeConsent: widget.onManageCrimeConsent,
-      onRevokeRoutingConsent: widget.onRevokeRoutingConsent,
+      onManageRoutingConsent: widget.onManageRoutingConsent,
+      routingConsent: widget.routingConsent,
+      crimeConsent: widget.crimeConsent,
       destinationConfigured: !_missingLiveHome,
       onStartChanged: widget.onStartChanged == null ? null : _setStart,
       anomalies: _anomalies,
@@ -397,11 +347,7 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
       placeId: _placeId,
       onSelectPlace: _selectPlace,
       onAddPlace: (name, at) {
-        final p = SavedPlace(
-          'place-${DateTime.now().microsecondsSinceEpoch}',
-          name,
-          at,
-        );
+        final p = SavedPlace('place-${DateTime.now().microsecondsSinceEpoch}', name, at);
         setState(() => _places.add(p));
         _selectPlace(p.id);
       },
@@ -419,9 +365,7 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
       _Screen.home => SafeWalkHomeView(
         destination: _place.label,
         homeSet: widget.homeLocation != null,
-        onEditHome: widget.onHomeChanged == null
-            ? null
-            : () => _go(_Screen.homeSetting),
+        onEditHome: widget.onHomeChanged == null ? null : () => _go(_Screen.homeSetting),
         avoided: avoidedCount(_anomalies),
         onBack: widget.onExit,
         onEmergency: _openEmergency,
@@ -433,14 +377,9 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
         }),
       ),
       _Screen.homeSetting => SafeWalkHomeSettingView(
-        initial: widget.homeLocation == null
-            ? null
-            : LatLng(widget.homeLocation!.lat, widget.homeLocation!.lng),
-        onSave: (at) =>
-            widget.onHomeChanged!(sw.Coordinates(lat: at.lat, lng: at.lng)),
-        onClear: widget.homeLocation == null
-            ? null
-            : () => widget.onHomeChanged!(null),
+        initial: widget.homeLocation == null ? null : LatLng(widget.homeLocation!.lat, widget.homeLocation!.lng),
+        onSave: (at) => widget.onHomeChanged!(sw.Coordinates(lat: at.lat, lng: at.lng)),
+        onClear: widget.homeLocation == null ? null : () => widget.onHomeChanged!(null),
         onBack: () => _go(_Screen.home),
       ),
       _Screen.map => map(),
@@ -457,7 +396,8 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
         onEmergency: _openEmergency,
       ),
       _Screen.emergency => SafeWalkEmergencyView(
-        mode: widget.mode,
+        // The official entry with real routes is Live: no simulated SMS success.
+        mode: widget.onPlanRoute != null ? sw.DataMode.live : widget.mode,
         allowRealCalls: widget.allowRealCalls,
         position: widget.livePosition ?? _position,
         statusMessage: _emergencyMessage,
@@ -474,11 +414,7 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
       canPop: _screen == _Screen.home,
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) {
-          _go(
-            _screen == _Screen.emergency || _screen == _Screen.call
-                ? _back
-                : _Screen.home,
-          );
+          _go(_screen == _Screen.emergency || _screen == _Screen.call ? _back : _Screen.home);
         }
       },
       // 換頁：往深一層由右滑入，返回由左滑入；緊急求助由下方升起，強調「這是另一種狀態」。
@@ -487,9 +423,7 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
         switchInCurve: SwMotion.curve,
         switchOutCurve: Curves.easeIn,
         transitionBuilder: (c, a) {
-          final begin = _screen == _Screen.emergency
-              ? const Offset(0, .12)
-              : Offset(_forward ? .12 : -.12, 0);
+          final begin = _screen == _Screen.emergency ? const Offset(0, .12) : Offset(_forward ? .12 : -.12, 0);
           return FadeTransition(
             opacity: a,
             child: SlideTransition(

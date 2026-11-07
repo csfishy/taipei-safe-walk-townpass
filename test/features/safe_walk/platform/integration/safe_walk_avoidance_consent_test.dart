@@ -203,7 +203,7 @@ void _interrupt(WidgetTester tester, String reason) {
     case 'destination':
       _scope(tester).onDestinationChanged();
     case 'routing consent':
-      _flow(tester).onRevokeRoutingConsent!();
+      _flow(tester).onManageRoutingConsent!();
   }
 }
 
