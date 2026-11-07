@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_flow.dart';
+import 'package:town_pass/features/safe_walk/presentation/assets/safe_walk_card_assets.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_speaker.dart';
 
 final _skip = Platform.environment['M3_SCREENSHOTS'] == null;
@@ -45,6 +46,14 @@ Future<void> _app(WidgetTester t, {SafeWalkSpeaker speaker = const UnavailableSp
     theme: ThemeData(fontFamily: 'PingFangTC'),
     home: SafeWalkFlow(speaker: speaker, onExit: () {}),
   ));
+  // Memory images decode outside the fake test clock; finish before capturing.
+  await t.runAsync(() async {
+    final context = t.element(find.byType(SafeWalkFlow));
+    await Future.wait([
+      precacheImage(MemoryImage(swCardSkyline), context),
+      precacheImage(MemoryImage(swCardStars), context),
+    ]);
+  });
   await t.pumpAndSettle();
 }
 
