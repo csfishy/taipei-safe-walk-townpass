@@ -1,0 +1,134 @@
+[
+  {
+    "schemaVersion": "1.0.0",
+    "id": "walk-home-night",
+    "label": "晚上走路回家",
+    "disclosure": "模擬通話，未聯絡任何人",
+    "steps": [
+      {
+        "id": "line-1",
+        "text": "喂，你到哪了？我剛好在等你電話。",
+        "audioSrc": null,
+        "pauseAfterMs": 3000
+      },
+      {
+        "id": "line-2",
+        "text": "嗯嗯，那你繼續走，邊走邊跟我講話。",
+        "audioSrc": null,
+        "pauseAfterMs": 2500
+      },
+      {
+        "id": "line-3",
+        "text": "旁邊亮不亮？往人多、有燈的那邊走。",
+        "audioSrc": null,
+        "pauseAfterMs": 3500
+      },
+      {
+        "id": "line-4",
+        "text": "我在聽，你不用急，慢慢講。",
+        "audioSrc": null,
+        "pauseAfterMs": 3000
+      },
+      {
+        "id": "line-5",
+        "text": "快到的時候跟我說一聲，我不掛電話。",
+        "audioSrc": null,
+        "pauseAfterMs": 3000
+      },
+      {
+        "id": "line-6",
+        "text": "要是真的覺得不對勁，馬上用求助，別管這通電話。",
+        "audioSrc": null,
+        "pauseAfterMs": 2000
+      }
+    ]
+  },
+  {
+    "schemaVersion": "1.0.0",
+    "id": "scenario-rideshare",
+    "label": "叫車回家",
+    "disclosure": "模擬通話，未聯絡任何人",
+    "steps": [
+      {
+        "id": "line-1",
+        "text": "喂，你上車了嗎？",
+        "audioSrc": null,
+        "pauseAfterMs": 3000
+      },
+      {
+        "id": "line-2",
+        "text": "好好好，那你大概幾點到？",
+        "audioSrc": null,
+        "pauseAfterMs": 3000
+      },
+      {
+        "id": "line-3",
+        "text": "你走哪條路？",
+        "audioSrc": null,
+        "pauseAfterMs": 3000
+      },
+      {
+        "id": "line-4",
+        "text": "好，我在等你，你到了打給我。",
+        "audioSrc": null,
+        "pauseAfterMs": 2500
+      },
+      {
+        "id": "line-5",
+        "text": "不用說話也沒關係，我在線上。",
+        "audioSrc": null,
+        "pauseAfterMs": 4000
+      },
+      {
+        "id": "line-6",
+        "text": "快到了記得跟我說一聲。",
+        "audioSrc": null,
+        "pauseAfterMs": 2500
+      }
+    ]
+  },
+  {
+    "schemaVersion": "1.0.0",
+    "id": "late-night-transit-wait",
+    "label": "深夜公車站或捷運出口等車",
+    "disclosure": "模擬通話，未聯絡任何人",
+    "steps": [
+      {
+        "id": "line-1",
+        "text": "喂？我在。你在哪個站等車？",
+        "audioSrc": null,
+        "pauseAfterMs": 3500
+      },
+      {
+        "id": "line-2",
+        "text": "嗯，我聽到了。你旁邊有人嗎？",
+        "audioSrc": null,
+        "pauseAfterMs": 3000
+      },
+      {
+        "id": "line-3",
+        "text": "沒關係，我陪你等。車還要多久？",
+        "audioSrc": null,
+        "pauseAfterMs": 3000
+      },
+      {
+        "id": "line-4",
+        "text": "你站在有燈的地方嗎？亮一點比較好。",
+        "audioSrc": null,
+        "pauseAfterMs": 2500
+      },
+      {
+        "id": "line-5",
+        "text": "嗯嗯。說說話，我在，不著急。",
+        "audioSrc": null,
+        "pauseAfterMs": 4000
+      },
+      {
+        "id": "line-6",
+        "text": "車來了記得跟我說。我繼續陪你。",
+        "audioSrc": null,
+        "pauseAfterMs": 2500
+      }
+    ]
+  }
+]
