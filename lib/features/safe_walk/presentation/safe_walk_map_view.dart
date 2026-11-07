@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:town_pass/features/safe_walk/presentation/demo_map.dart';
 import 'package:town_pass/features/safe_walk/presentation/mock/safe_walk_demo_data.dart';
+import 'package:town_pass/features/safe_walk/presentation/safe_walk_sources.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_ui.dart';
 import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart' as sw;
 import 'package:town_pass/util/tp_colors.dart';
@@ -480,6 +481,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
             alignment: Alignment.topCenter,
             child: _stepsOpen ? _StepsList(steps: routeSteps(path), arrive: destName, home: isHome) : const SizedBox(width: double.infinity),
           ),
+          const Align(alignment: Alignment.centerLeft, child: SwSourcesLink()),
         ],
       ],
     );
