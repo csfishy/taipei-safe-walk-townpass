@@ -2,7 +2,6 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:town_pass/features/safe_walk/presentation/assets/safe_walk_card_assets.dart';
 import 'package:flutter/material.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_ui.dart';
-import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart' as sw;
 import 'package:town_pass/util/tp_app_bar.dart';
 import 'package:town_pass/util/tp_colors.dart';
 
@@ -11,7 +10,7 @@ enum SafeWalkEntry { map, call, points, report }
 /// 入口頁：比照臺北通開啟服務時的樣式——上方主色長條＋右上關閉；
 /// 時間情境卡、「安心行」主卡（臺北天際線插圖）、其他功能一項一行、最下方緊急求助。
 class SafeWalkHomeView extends StatelessWidget {
-  const SafeWalkHomeView({super.key, required this.onOpen, required this.onEmergency, required this.avoided, this.destination = '家', this.onBack, this.now, this.mode = sw.DataMode.mock});
+  const SafeWalkHomeView({super.key, required this.onOpen, required this.onEmergency, required this.avoided, this.destination = '家', this.onBack, this.now});
   final ValueChanged<SafeWalkEntry> onOpen;
   final VoidCallback onEmergency;
 
@@ -19,7 +18,6 @@ class SafeWalkHomeView extends StatelessWidget {
   final VoidCallback? onBack;
   final int avoided;
   final String destination;
-  final sw.DataMode mode;
 
   /// 測試可固定時間；正式由裝置時間決定。
   final DateTime? now;
@@ -58,14 +56,14 @@ class SafeWalkHomeView extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
               children: [
                 Semantics(header: true, label: '臺北安心行', child: const SizedBox.shrink()),
-                _ContextCard(now: t, live: mode == sw.DataMode.live),
+                _ContextCard(now: t),
                 const SizedBox(height: 16),
-                _GoHomeCard(destination: destination, avoided: avoided, live: mode == sw.DataMode.live, onTap: () => onOpen(SafeWalkEntry.map)),
+                _GoHomeCard(destination: destination, avoided: avoided, onTap: () => onOpen(SafeWalkEntry.map)),
                 const SizedBox(height: 24),
                 Semantics(header: true, child: Text('其他功能', style: SwText.bodyStrong)),
                 const SizedBox(height: 12),
-                for (final (id, icon, name, desc) in _more) ...[_FeatureRow(icon: icon, name: name, desc: mode == sw.DataMode.live && (id == SafeWalkEntry.points || id == SafeWalkEntry.report) ? '尚未配置' : desc, onTap: () => onOpen(id)), const SizedBox(height: 10)],
-                Text(mode == sw.DataMode.live ? '步行路線預覽・需同意後開始，尚未完成實機驗收' : '目前為示範資料，未連線真實服務', style: SwText.small),
+                for (final (id, icon, name, desc) in _more) ...[_FeatureRow(icon: icon, name: name, desc: desc, onTap: () => onOpen(id)), const SizedBox(height: 10)],
+                Text('目前為示範資料，未連線真實服務', style: SwText.small),
               ],
             ),
           ),
@@ -78,9 +76,8 @@ class SafeWalkHomeView extends StatelessWidget {
 
 /// 時間情境卡：圖示｜分隔線｜時間與一句建議。夜間（18–06 點）改深色並提醒走明亮的路。
 class _ContextCard extends StatelessWidget {
-  const _ContextCard({required this.now, this.live = false});
+  const _ContextCard({required this.now});
   final DateTime now;
-  final bool live;
   @override
   Widget build(BuildContext context) {
     final night = now.hour >= 18 || now.hour < 6;
@@ -100,7 +97,7 @@ class _ContextCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text('$hhmm・${night ? '天色已暗' : '白天'}', style: SwText.bodyStrong.copyWith(color: night ? SwColors.onDeep : SwColors.text)),
-                  Text(live ? '選擇目的地，再確認定位與第三方查詢同意' : (night ? '建議走明亮的大路，需要時開模擬來電' : '出門前先看看沿路有沒有回報'), style: SwText.body.copyWith(color: night ? TPColors.primary100 : SwColors.textSecondary)),
+                  Text(night ? '建議走明亮的大路，需要時開模擬來電' : '出門前先看看沿路有沒有回報', style: SwText.body.copyWith(color: night ? TPColors.primary100 : SwColors.textSecondary)),
                 ],
               ),
             ),
@@ -113,10 +110,9 @@ class _ContextCard extends StatelessWidget {
 
 /// Figma 主卡：左下透明文字動作、右下原始天際線插圖。
 class _GoHomeCard extends StatefulWidget {
-  const _GoHomeCard({required this.destination, required this.avoided, required this.onTap, this.live = false});
+  const _GoHomeCard({required this.destination, required this.avoided, required this.onTap});
   final String destination;
   final int avoided;
-  final bool live;
   final VoidCallback onTap;
 
   @override
@@ -131,7 +127,7 @@ class _GoHomeCardState extends State<_GoHomeCard> {
   @override
   Widget build(BuildContext context) => Semantics(
     button: true,
-    label: widget.live ? '步行路線預覽，選擇目的地，點擊開始' : '示範：安心行，前往${widget.destination}，已繞開 ${widget.avoided} 個異常回報，點擊開始',
+    label: '示範：安心行，前往${widget.destination}，已繞開 ${widget.avoided} 個異常回報，點擊開始',
     child: DecoratedBox(
       decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), boxShadow: SwShadow.float),
       child: ClipRRect(
@@ -175,7 +171,7 @@ class _GoHomeCardState extends State<_GoHomeCard> {
                                 SvgPicture.string(swCardNavigationSvg, width: 26, height: 26),
                                 const SizedBox(width: 10),
                                 Flexible(
-                                  child: Text(widget.live ? '選擇目的地' : '點擊開始', style: SwText.bodyStrong.copyWith(color: TPColors.white)),
+                                  child: Text('點擊開始', style: SwText.bodyStrong.copyWith(color: TPColors.white)),
                                 ),
                               ],
                             ),
