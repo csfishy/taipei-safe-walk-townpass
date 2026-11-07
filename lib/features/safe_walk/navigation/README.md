@@ -29,6 +29,7 @@ M1 將完整據點 lookup／provider 注入本模組；不得直接 import M4 �
 | `json_transport.dart`、`io_json_transport.dart`、`unsupported_json_transport.dart`、`default_json_transport.dart` | 不需新套件的 HTTPS JSON 客戶端（`dart:io`；web 預覽自動改為「不可用」） |
 | `consent.dart`、`cancellable.dart` | 同意例外；取消／搶先完成的小工具 |
 | `mock_walking_route_provider.dart` | 只供 `DataMode.mock`（App 預設的示範模式），標示未驗證路網、禁止實地導航 |
+| `route_follower.dart` | `RouteFollower`：把 M1 提供的位置對到路線上，算出已走／剩餘距離、剩餘時間、行進方向、偏離路線、抵達；純計算，不讀 GPS |
 | `coordinate_math.dart` | 純 Dart：haversine 距離、折線長度、lat/lng ⇄ GeoJSON `[lng, lat]`、座標範圍檢查 |
 
 ## 接線方式（給 M1）
@@ -56,6 +57,30 @@ if (nearest.isNotEmpty) {
 ```
 
 `hasConsent` 每次請求都會重新讀取，可隨時撤回。
+
+## 跟隨（follow）
+
+`RouteFollower(route)` 對一條 `RouteCandidate` 逐筆處理 M1 給的 `Position`（`update()`，或把 M1 的 stream 交給 `follow()`），每次回 `FollowUpdate`：
+
+| 欄位 | 意義 |
+|---|---|
+| `status` | `onRoute`／`offRoute`／`arrived`／`positionRejected` |
+| `snapped` | 路線上最近的點 |
+| `cameraCenter` | 地圖該置中的位置＝使用者真實位置（不是吸附點，避免把偏離的人畫成在路線上） |
+| `distanceAlongMeters`／`remainingMeters`／`progress` | 已走、剩餘、0–1 進度 |
+| `remainingSeconds` | 路線時間依剩餘距離比例估算；供應商沒給時間就是 null |
+| `bearingDegrees` | 路線在該點的行進方向（0＝北、順時針），給「跟隨朝向」的地圖用 |
+| `shouldReroute` | 偏離路線，需重新呼叫 `planRoute()`（起點用目前位置） |
+
+- 偏離門檻預設 40 m；GPS 誤差更大時改用 2×精度，避免訊號飄移就誤判。抵達半徑預設 30 m，抵達後維持到 `reset()`。
+- 過期、不合規或精度超過 100 m 的定位會被忽略（`positionRejected`，數值沿用上一筆），不會把進度拉走。
+- 路線有重疊（來回、繞圈）時優先往前匹配，進度不會倒退跳回去。
+- **不自己取得位置**：M1 要在使用者明確操作後才開始連續定位、導航結束就停止；這個類別只吃 M1 給的值。目前 `PlatformService` 只有單次 `getCurrentPosition`，連續定位串流需 M1 新增。
+
+### 「真的地圖」還缺什麼（不在 M2）
+
+- 目前 M3 的 `DemoMap` 是手繪的示意圖（虛構區域），不是真實地圖；要顯示真實底圖需 M1 同意並加入地圖套件（`pubspec.yaml` 由 M1 管理），再由 M3 在 `presentation/` 做地圖 Widget。底圖用 OpenStreetMap 圖磚時須顯示 © OpenStreetMap contributors，且公共圖磚伺服器不適合正式大量使用。
+- M3 的地圖把 `cameraCenter` 當中心、`bearingDegrees` 當朝向，用 `snapped` 以後的路線段畫「剩餘路線」即可跟隨。
 
 ## 行為
 

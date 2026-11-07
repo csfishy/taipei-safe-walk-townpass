@@ -7,6 +7,7 @@ import 'package:town_pass/features/safe_walk/navigation/json_transport.dart';
 import 'package:town_pass/features/safe_walk/navigation/nearest_point.dart';
 import 'package:town_pass/features/safe_walk/navigation/osm_convenience_store_source.dart';
 import 'package:town_pass/features/safe_walk/navigation/osrm_walking_route_provider.dart';
+import 'package:town_pass/features/safe_walk/navigation/route_follower.dart';
 import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart'
     as sw;
 
@@ -61,6 +62,31 @@ void main() {
       expect(route.walkingNetworkVerified, isTrue);
       expect(route.distanceMeters, inInclusiveRange(4500, 9000));
       expect(route.durationSeconds, isNotNull);
+
+      // Walk the real geometry point by point: progress must only advance and
+      // the walk must end as arrived.
+      final follower = RouteFollower(route);
+      var previous = double.infinity;
+      FollowUpdate? last;
+      for (final c in route.geometry.coordinates) {
+        last = follower.update(
+          sw.Position(
+            coordinates: sw.Coordinates(lat: c.latitude, lng: c.longitude),
+            source: sw.PositionSource.mock,
+            accuracyMeters: 5,
+            observedAt: null,
+          ),
+        );
+        expect(last.status, isNot(FollowStatus.offRoute));
+        expect(last.remainingMeters, lessThanOrEqualTo(previous + 1));
+        previous = last.remainingMeters;
+      }
+      expect(last!.status, FollowStatus.arrived);
+      expect(last.remainingMeters, lessThan(30));
+      // ignore: avoid_print
+      print(
+        'Follower: walked ${route.geometry.coordinates.length} points, arrived',
+      );
     },
     skip: live ? false : 'set SAFE_WALK_LIVE=1 to call the real services',
     timeout: const Timeout(Duration(seconds: 60)),
