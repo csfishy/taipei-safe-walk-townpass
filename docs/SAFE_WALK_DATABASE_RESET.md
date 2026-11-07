@@ -2,6 +2,8 @@
 
 初始化機制由 PR #40 引入，原實作基準為 main `c441070`。2026-11-08 的啟用門檻修正以 main `e263aa9` 為基準：#40 讓尚未配置專用 Demo 的 main run 也必跑遠端 job，因缺配置而阻擋既有發布。本修正保留必要的本機資料庫驗證，將遠端重設改為獨立、明確的 Level C 啟用步驟。影響 M1 的 CI 與部署門檻，交小魚／隊長及安全／隱私審查；不自行合併、配置 Secrets 或啟用遠端。既有 revert PR #45 在本修正提出時仍開放，本修正以替代修復 PR 提交，不自行關閉它。
 
+依 [LIVE-FIRST／NO PRODUCTION MOCK](SAFE_WALK_LIVE_FIRST.md)，Demo／seed 僅用於隔離測試，不是 Production 使用者資料來源；主 App 不消費 `safe_walk_demo`。PR #47 已合併至 main `752dd96`，遠端 reset 須明確啟用；持久 `crime_reference` 不在 reset 範圍。
+
 ## 資料盤點與範圍
 
 - PR #40 前的 Supabase client 透過 PostgREST，只有 `supabase/nearby_emergency.sql` 定義 `public.helpers`、`public.emergency_alerts`、`public.alert_recipients` 與三個 RPC，當時沒有 Supabase CLI config、正式 migrations 或 seed。#40 新增 `supabase/demo/` 的隔離 migrations／seed；Repository 定義不證明遠端已部署哪些表。

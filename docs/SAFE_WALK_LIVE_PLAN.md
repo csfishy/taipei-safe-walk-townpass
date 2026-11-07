@@ -1,5 +1,25 @@
 # 臺北安心行：Live MVP 後續工程計畫
 
+## 現行執行方式（2026-11-08）
+
+依 [LIVE-FIRST／NO PRODUCTION MOCK](SAFE_WALK_LIVE_FIRST.md) 與 [Live MVP](SAFE_WALK_LIVE_MVP.md)，新功能從真實 Provider 與完整正式操作流程開始，不要求先交 Mock／Demo／Prototype。工作可切增量 PR，但 Adapter、Parser、單頁展示或 readiness／flag 改字都不算功能完成；未接線／未驗部分用 [Readiness](SAFE_WALK_LIVE_READINESS.md) 的五種狀態記錄，Production 回 Unavailable＋原因＋下一步。Fake／Mock／fixtures 僅限 Unit／Integration tests，不可進入正式資料來源或入口選項。
+
+本輪基線 main `7b99fea` 經 #49 restore 至 `3c433001`，#35 的 P0 接線已移除，正式入口仍 Mock；因此不能以「曾合併」跳過修復與重新驗證。#39 合入 feature branch，不是 main；#44 仍開放，正式持久資料以 Supabase 主資料庫為整合方向，後續須先核對實際 PR/head，再完成權限與流程。本階段為文件 PR，程式基線證據見 [正式接線盤點](SAFE_WALK_LIVE_WIRING_AUDIT.md)；以下是後續程式工作，不能列為已實作或實測。
+
+| 優先工作 | 完整交付範圍 | 必要證據與邊界 |
+|---|---|---|
+| 真實導航正常入口 | TownPass 正常入口→使用者選／換目的地→主動 GPS→獨立外傳同意→真 OSRM→實際 geometry／距離／nullable 時間→正式地圖→刷新／取消／錯誤／背景／SOS | 完成 Provider、Controller、Flow 與 RouteFollower 接線；驗無同意不外送、遲到結果不復活，補真 Provider 與 iPhone。未完成能力 Unavailable，正式入口不留 Mock 選項。 |
+| 真實公共資料與持久化 | 合法來源→來源／Parser／Repository→經審查的 Supabase 主庫→正式查詢／途經／地圖，保留日期、授權、範圍、空／錯誤及更新狀態 | 核對 #44 與來源的實際內容，補可信匯入與驗證、權限負向測試；正式唯讀／身分／RPC／RLS／敏感位置依 Level C。管理 key 不進 App，競賽不加入 AED。 |
+| 裝置 TTS 完整流程 | 使用者開始→實際本機播放或無引擎文字預覽→停止／離開／背景／SOS 中斷，回前景不擅自續播 | 沿用既有引擎與 lifecycle；fake engine 只作測試，補真 iPhone 的 voice／音量／中斷證據，不要求麥克風或雲端音訊。 |
+| 使用者主動求助交接 | SOS 先停語音／導航→使用者選擇→系統撥號器或已核對官方入口→交接失敗／取消可理解 | 只承諾介面已開，officialReceipt null；測試用 fake launcher，不真撥緊急號碼或送案，不順帶啟用 SMS／陌生人通知。 |
+| Production Readiness 與發布 | 各項完整流程有相同 SHA 的實測→服務條款／容量／更新／隱私／監測／簽署／復原→授權發布 | PASS／FAIL／SKIP／未執行分開，CI build 不等於 Provider／iPhone 驗收。已驗收能力可獨立使用，其他 BLOCKED 不作全域 Mock 理由；正式開關依 Level C。 |
+
+所有成員可跨 M1–M5 完成同一功能，保留 DI、canonical Schema、正常 module guard、TownPass 官方殼與 Flutter 3.47.6。競賽不採 Google Maps，舊外部 URI 不作此計畫的正式方案。真實 SMS／附近通知仍 BLOCKED，至可信身分、ownership、RLS/RPC、防濫用、保留刪除、同意及後端／裝置驗收全部完成；自動警消派遣仍須官方授權。維持 #40 現行資料庫 gate，#47 尚待合併，不能以本文件啟用遠端重設或權限。
+
+## 歷史：原 P0–P2 排程與提示詞
+
+以下至文末保留原 `03f98f2`／`65ee6f7` 計畫與當時增量，不是現行 main 已完成清單，也不是要求先 Demo 的新任務。原 Google Maps／AED／公開 Mock 方案已由本文前段的範圍與 [現行交付政策](SAFE_WALK_LIVE_FIRST.md) 取代；舊 SHA／測試敘述不改寫。
+
 依 [Live MVP](SAFE_WALK_LIVE_MVP.md) 與 [Readiness](SAFE_WALK_LIVE_READINESS.md)，本次只交規格；每項後續任務開獨立 PR，不自動 merge。Owner 代表責任分配，不代表已取得新的外部帳號／派遣授權。共同前置：同步 origin/main、保留 M3 設計、單一 Schema 與模組 guard；新 wire 欄位才另開 Schema PR。
 
 審查更新（2026-11-07）：原始計畫依 `03f98f2` 盤點；main `65ee6f7dd9c07710ecf18084b1975b6998287b3e` 已合併 #26 speaker lifecycle 修正與回歸。P1-C 接續裝置驗收與剩餘缺口，不重做已合併修正；#28／#29 仍未合併，後續先核對各自 PR，不將其提案當已完成。

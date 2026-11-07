@@ -2,7 +2,9 @@
 
 兩份工作流都必須先驗 runner-local disposable PostGIS 的 migrations／雙重 reset／seed／權限；這些本機測試不受遠端啟用旗標影響，失敗仍阻擋後續檢查與編譯。Safe Walk CI 不接遠端 Secrets。只有 check-and-build 可在 main 檢查及三平台建置全部通過後，依 **Repository Actions Variable `DEMO_DATABASE_RESET_ENABLED`** 執行一次專用 Demo 重設。未設定或精確值 `false` 時，遠端預期跳過，Summary 揭露未重設，既有不依賴該資料庫的 main prerelease／Pages 可繼續；精確值 `true` 啟用後，缺配置、失敗、取消或非預期跳過都阻擋相關發布／部署。其他旗標值視為配置錯誤。白名單預設空、遠端啟用仍待 Level C，詳見 [資料庫重設](SAFE_WALK_DATABASE_RESET.md)；下方初始化敘述保留歷史範圍。
 
-現行功能驗收以 [Live MVP](SAFE_WALK_LIVE_MVP.md)／[Readiness](SAFE_WALK_LIVE_READINESS.md) 為準；下文「本次只追加」「未修改 UI」及初始化執行結果是歷史範圍。最新工作流已有 M3 Widget／原生入口及 TTS 等程式，CI 通過仍不代表真實 Provider 或 iPhone 驗收。
+現行功能驗收依 [LIVE-FIRST／NO PRODUCTION MOCK](SAFE_WALK_LIVE_FIRST.md)、[Live MVP](SAFE_WALK_LIVE_MVP.md)／[Readiness](SAFE_WALK_LIVE_READINESS.md)：正式交付要有真 Provider 至正式 UI 的完整流程，Production 不選 Mock、不用 fixtures 或模擬 fallback；未完成為 Unavailable＋原因＋下一步。Unit／Integration tests 可使用隔離 Fake／Mock、人工 seed／native fixture，它們不證明真 Provider 或 iPhone。PASS、FAIL、SKIP、未執行分開回報，不以改 readiness／flags 冒充完成。
+
+本輪 main `7b99fea` 的正式入口仍 Mock，#35 接線已由 #49 restore 移除，不能因 CI 綠燈宣稱符合新政策。#39 僅合入 feature branch、#44 仍開放；#47 的 Demo 啟用修正仍待合併，main 保有 #40 強制 gate。下文「本次只追加」「未修改 UI」與初始化結果均屬歷史範圍，不禁止後續完整真功能或跨模組修改。一般 feature 使用正常 module guard，不關閉必要 CI；正式開關與 Supabase 權限仍依 Level C。
 
 後續跨平台預覽交付另見 [Checks, prereleases and GitHub Pages](BUILDS.md)。`check-and-build` 會保留本文件的 Schema／完整測試／嚴格 scoped 門檻，另以 errors/warnings fatal、既有 style infos advisory 的全專案分析作建置閘門，建置 APK／unsigned IPA／Web 並處理預發佈與 Pages。原 Safe Walk CI／Codemagic 在 pub get 前新增產生必要的 build-info asset；以下初始化時的驗證敘述仍為歷史紀錄，不代表新的部署已執行。
 
