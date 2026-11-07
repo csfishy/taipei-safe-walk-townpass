@@ -13,6 +13,9 @@ class MainActivity : FlutterActivity() {
         super.configureFlutterEngine(flutterEngine)
         // Safe Walk SOS: request an SMS without opening the messaging app.
         // Dart side: lib/features/safe_walk/platform/nearby_emergency/sms_sender.dart
+        // Codes: handed = submission call returned; no_permission / invalid =
+        // no submission attempted; failed = submission outcome is unknown.
+        // None of these codes confirms that any message part was sent/delivered.
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "safe_walk/sms")
             .setMethodCallHandler { call, result ->
                 if (call.method != "send") {
@@ -22,14 +25,16 @@ class MainActivity : FlutterActivity() {
                 val number = call.argument<String>("number")
                 val body = call.argument<String>("body")
                 if (number.isNullOrBlank() || body.isNullOrBlank()) {
-                    result.success(false)
+                    result.success("invalid")
                     return@setMethodCallHandler
                 }
                 if (checkSelfPermission(Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED) {
                     // Never resume this request after permission is granted: the
                     // user must start a new SOS action with fresh consent/location.
                     requestPermissions(arrayOf(Manifest.permission.SEND_SMS), 1001)
-                    result.success(false)
+                    // The OS may not show a dialog (for example after repeated
+                    // denial); report missing permission, not a displayed prompt.
+                    result.success("no_permission")
                     return@setMethodCallHandler
                 }
                 try {
@@ -40,12 +45,12 @@ class MainActivity : FlutterActivity() {
                         SmsManager.getDefault()
                     }
                     sms.sendMultipartTextMessage(number, null, sms.divideMessage(body), null, null)
-                    // No sent/delivery PendingIntents are registered. True means
+                    // No sent/delivery PendingIntents are registered. handed means
                     // only that this submission call returned without an exception;
                     // the carrier can still reject it or fail to deliver it later.
-                    result.success(true)
+                    result.success("handed")
                 } catch (e: Exception) {
-                    result.success(false)
+                    result.success("failed")
                 }
             }
     }

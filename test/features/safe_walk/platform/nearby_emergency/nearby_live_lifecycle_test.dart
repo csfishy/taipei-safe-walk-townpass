@@ -79,10 +79,14 @@ class _Transport implements NearbyAlertTransport {
 
 class _Sms implements SmsSender {
   int calls = 0;
+  SmsHandoffStatus status = SmsHandoffStatus.handedToSystem;
   @override
-  Future<bool> send({required String number, required String body}) async {
+  Future<SmsHandoffStatus> send({
+    required String number,
+    required String body,
+  }) async {
     calls++;
-    return true;
+    return status;
   }
 }
 
@@ -171,6 +175,23 @@ void main() {
     expect(h.transport.polls, 0);
     expect(_status(tester), contains('尚未確認發送或送達'));
   });
+
+  testWidgets(
+    'missing SMS permission is shown without claiming a dialog or retrying',
+    (tester) async {
+      final h = _Harness();
+      h.sms.status = SmsHandoffStatus.permissionRequired;
+      await h.pump(tester, nearbyAvailable: false);
+      await _tap(tester, 'consent-location');
+      await _tap(tester, 'consent-sms');
+      await _tap(tester, 'sos');
+
+      expect(_status(tester), contains('缺少簡訊權限，本次未提交簡訊'));
+      expect(_status(tester), isNot(contains('已要求權限')));
+      await tester.pump(const Duration(seconds: 1));
+      expect(h.sms.calls, 1);
+    },
+  );
 
   for (final interruption in ['cancel', 'background', 'leave', 'consent']) {
     testWidgets('$interruption prevents sending after delayed GPS completes', (

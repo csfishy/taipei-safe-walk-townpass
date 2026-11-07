@@ -74,9 +74,12 @@ class _Sms implements SmsSender {
   final sent = <({String number, String body})>[];
 
   @override
-  Future<bool> send({required String number, required String body}) async {
+  Future<SmsHandoffStatus> send({
+    required String number,
+    required String body,
+  }) async {
     sent.add((number: number, body: body));
-    return true;
+    return SmsHandoffStatus.handedToSystem;
   }
 }
 

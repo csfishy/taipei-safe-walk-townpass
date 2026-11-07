@@ -16,6 +16,7 @@ final class EmergencyDispatchResult {
     required this.nearbyRecipients,
     required this.smsSubmitted,
     required this.located,
+    this.smsStatus,
     this.nearbyRequested = false,
     this.smsRequested = false,
     this.cancelled = false,
@@ -29,6 +30,10 @@ final class EmergencyDispatchResult {
   /// True only when system acceptance is known; false can mean unknown.
   /// Sending and delivery remain unconfirmed even when this is true.
   final bool smsSubmitted;
+
+  /// Null when no SMS attempt started. An interrupted/failed pending request
+  /// remains [SmsHandoffStatus.outcomeUnknown], never a claim of no side effects.
+  final SmsHandoffStatus? smsStatus;
 
   @Deprecated('Use smsSubmitted; system acceptance does not prove delivery.')
   bool get smsSent => smsSubmitted;
@@ -74,6 +79,7 @@ final class EmergencyDispatch {
     var nearbyRequested = false;
     var smsRequested = false;
     var smsSubmitted = false;
+    SmsHandoffStatus? smsStatus;
     var cancelled = false;
     String? nearbyNote;
     String? smsNote;
@@ -86,6 +92,7 @@ final class EmergencyDispatch {
       ].whereType<String>().where((value) => value.isNotEmpty).join('；'),
       nearbyRecipients: recipients,
       smsSubmitted: smsSubmitted,
+      smsStatus: smsStatus,
       located: located,
       nearbyRequested: nearbyRequested,
       smsRequested: smsRequested,
@@ -213,9 +220,10 @@ final class EmergencyDispatch {
     if (!_validFix(position)) return finish('位置已過期，未提出簡訊發送要求');
 
     smsRequested = true;
+    smsStatus = SmsHandoffStatus.outcomeUnknown;
     smsNote = '已向系統提出簡訊發送要求，尚未確認發送或送達';
     try {
-      smsSubmitted = await _awaitActive(
+      smsStatus = await _awaitActive(
         _sms.send(
           number: normalizeEmergencyPhone(contact),
           body: buildEmergencyMessage(
@@ -226,9 +234,14 @@ final class EmergencyDispatch {
         ),
         cancellation,
       );
-      if (!smsSubmitted) {
-        smsNote = '系統未接受簡訊發送要求，請檢查裝置能力及簡訊權限';
-      }
+      smsSubmitted = smsStatus == SmsHandoffStatus.handedToSystem;
+      smsNote = switch (smsStatus) {
+        SmsHandoffStatus.handedToSystem => '已向系統提出簡訊發送要求，尚未確認發送或送達',
+        SmsHandoffStatus.permissionRequired => '缺少簡訊權限，本次未提交簡訊；請先確認權限，再重新操作',
+        SmsHandoffStatus.invalidRequest => '簡訊收件人或內容無效，本次未提交簡訊',
+        SmsHandoffStatus.unavailable => '此裝置未提供簡訊傳送能力；請改用電話求助',
+        SmsHandoffStatus.outcomeUnknown => '簡訊發送要求結果未確認，請勿視為已發送或送達',
+      };
     } on SafeWalkCancelledException {
       cancelled = true;
       return finish(cancellationNote());

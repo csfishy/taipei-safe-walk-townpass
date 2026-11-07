@@ -93,11 +93,14 @@ class _Unavailable extends _Transport implements UnavailableNearbyAlertBackend {
 
 class _Sms implements SmsSender {
   int calls = 0;
-  Future<bool> Function()? handler;
+  Future<SmsHandoffStatus> Function()? handler;
   @override
-  Future<bool> send({required String number, required String body}) {
+  Future<SmsHandoffStatus> send({
+    required String number,
+    required String body,
+  }) {
     calls++;
-    return handler?.call() ?? Future.value(true);
+    return handler?.call() ?? Future.value(SmsHandoffStatus.handedToSystem);
   }
 }
 
@@ -342,7 +345,7 @@ void main() {
 
   test('cancellation during SMS preserves attempted status without claiming delivery', () async {
     final h = _Harness();
-    final pending = Completer<bool>();
+    final pending = Completer<SmsHandoffStatus>();
     h.sms.handler = () => pending.future;
     final operation = h.run();
     await _settle();
@@ -351,11 +354,13 @@ void main() {
     final result = await operation;
     expect(result.smsRequested, isTrue);
     expect(result.smsSubmitted, isFalse);
+    expect(result.smsStatus, SmsHandoffStatus.outcomeUnknown);
     expect(result.nearbyRecipients, 2);
     expect(result.message, contains('尚未確認發送或送達'));
-    pending.complete(true);
+    pending.complete(SmsHandoffStatus.handedToSystem);
     await _settle();
     expect(h.sms.calls, 1);
+    expect(result.smsStatus, SmsHandoffStatus.outcomeUnknown);
   });
 
   test(
@@ -389,20 +394,83 @@ void main() {
     expect(h.sms.calls, 0);
   });
 
-  test('a rejected or failed SMS request never claims it was sent', () async {
-    for (final throws in [false, true]) {
-      final h = _Harness();
-      h.sms.handler = () => throws
-          ? Future.error(StateError('private body 25.03,121.56'))
-          : Future.value(false);
-      final result = await h.run();
-      expect(result.nearbyRecipients, 2);
-      expect(result.smsRequested, isTrue);
-      expect(result.smsSubmitted, isFalse);
-      expect(result.message, isNot(contains('25.03')));
-      expect(result.message, isNot(contains('已送簡訊')));
-      expect(result.message, contains(throws ? '結果未確認' : '系統未接受'));
-    }
+  test(
+    'an unknown or exceptional SMS result never claims it was sent',
+    () async {
+      for (final throws in [false, true]) {
+        final h = _Harness();
+        h.sms.handler = () => throws
+            ? Future.error(StateError('private body 25.03,121.56'))
+            : Future.value(SmsHandoffStatus.outcomeUnknown);
+        final result = await h.run();
+        expect(result.nearbyRecipients, 2);
+        expect(result.smsRequested, isTrue);
+        expect(result.smsSubmitted, isFalse);
+        expect(result.smsStatus, SmsHandoffStatus.outcomeUnknown);
+        expect(result.message, isNot(contains('25.03')));
+        expect(result.message, isNot(contains('已送簡訊')));
+        expect(result.message, contains('結果未確認'));
+        expect(result.message, isNot(contains('未提交簡訊')));
+      }
+    },
+  );
+
+  for (final outcome in {
+    SmsHandoffStatus.handedToSystem: '尚未確認發送或送達',
+    SmsHandoffStatus.permissionRequired: '缺少簡訊權限，本次未提交簡訊',
+    SmsHandoffStatus.invalidRequest: '簡訊收件人或內容無效，本次未提交簡訊',
+    SmsHandoffStatus.unavailable: '此裝置未提供簡訊傳送能力',
+  }.entries) {
+    test(
+      'preserves ${outcome.key} separately from completed nearby work',
+      () async {
+        final h = _Harness();
+        h.sms.handler = () async => outcome.key;
+        final result = await h.run();
+
+        expect(result.smsStatus, outcome.key);
+        expect(
+          result.smsSubmitted,
+          outcome.key == SmsHandoffStatus.handedToSystem,
+        );
+        expect(result.smsRequested, isTrue);
+        expect(result.nearbyRecipients, 2);
+        expect(result.message, contains(outcome.value));
+        expect(result.message, isNot(contains('已要求權限')));
+        expect(h.sms.calls, 1);
+      },
+    );
+  }
+
+  test('SMS status stays null when consent prevents an attempt', () async {
+    final h = _Harness()..smsConsent = false;
+    final result = await h.run();
+    expect(result.smsStatus, isNull);
+    expect(result.smsSubmitted, isFalse);
+    expect(result.smsRequested, isFalse);
+    expect(h.sms.calls, 0);
+  });
+
+  testWidgets('SMS timeout remains unknown even after a late handed result', (
+    tester,
+  ) async {
+    final h = _Harness();
+    final pending = Completer<SmsHandoffStatus>();
+    h.sms.handler = () => pending.future;
+    final operation = h.run();
+    await tester.pump();
+    expect(h.sms.calls, 1);
+    await tester.pump(const Duration(seconds: 16));
+    final result = await operation;
+    expect(result.smsStatus, SmsHandoffStatus.outcomeUnknown);
+    expect(result.smsSubmitted, isFalse);
+    expect(result.smsRequested, isTrue);
+    expect(result.message, contains('結果未確認'));
+    expect(result.message, isNot(contains('未提交簡訊')));
+    pending.complete(SmsHandoffStatus.handedToSystem);
+    await tester.pump();
+    expect(result.smsStatus, SmsHandoffStatus.outcomeUnknown);
+    expect(h.sms.calls, 1);
   });
 
   testWidgets(

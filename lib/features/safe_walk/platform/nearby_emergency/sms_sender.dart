@@ -1,32 +1,62 @@
 import 'package:flutter/services.dart';
 
+/// Submission outcomes only. No value confirms sending or delivery.
+enum SmsHandoffStatus {
+  /// The native submission call returned without a synchronous exception.
+  handedToSystem,
+
+  /// SMS permission was missing; this attempt did not submit a message.
+  /// The OS may require a new permission decision or a change in Settings.
+  permissionRequired,
+
+  /// The recipient or body was rejected before native submission.
+  invalidRequest,
+
+  /// No native SMS handler is available on this platform.
+  unavailable,
+
+  /// No reliable submission result was received. Side effects are unknown.
+  outcomeUnknown,
+}
+
 /// Requests a text message without opening the user's messaging app.
 abstract interface class SmsSender {
-  /// True only when the platform accepted the submission request.
-  /// This does not confirm that the message was sent or delivered.
-  Future<bool> send({required String number, required String body});
+  Future<SmsHandoffStatus> send({required String number, required String body});
 }
 
 /// Android: native SmsManager through the `safe_walk/sms` channel (MainActivity.kt).
-/// Other platforms return false, because they cannot send SMS silently.
+/// Platforms without this native handler return [SmsHandoffStatus.unavailable].
 final class ChannelSmsSender implements SmsSender {
   static const _channel = MethodChannel('safe_walk/sms');
 
   @override
-  Future<bool> send({required String number, required String body}) async {
+  Future<SmsHandoffStatus> send({
+    required String number,
+    required String body,
+  }) async {
     final destination = number.trim();
-    if (destination.isEmpty || body.trim().isEmpty) return false;
+    if (destination.isEmpty || body.trim().isEmpty) {
+      return SmsHandoffStatus.invalidRequest;
+    }
     try {
-      final ok = await _channel.invokeMethod<Object?>('send', {
+      final code = await _channel.invokeMethod<Object?>('send', {
         'number': destination,
         'body': body,
       });
-      // Malformed or absent native responses cannot establish submission.
-      return ok == true;
+      // Old boolean replies, malformed responses and absent responses do not
+      // establish an outcome under this typed channel contract.
+      return switch (code) {
+        'handed' => SmsHandoffStatus.handedToSystem,
+        'no_permission' => SmsHandoffStatus.permissionRequired,
+        'invalid' => SmsHandoffStatus.invalidRequest,
+        'failed' => SmsHandoffStatus.outcomeUnknown,
+        _ => SmsHandoffStatus.outcomeUnknown,
+      };
     } on MissingPluginException {
-      return false;
-    } on PlatformException {
-      return false;
+      return SmsHandoffStatus.unavailable;
+    } on Object {
+      // A platform/codec error does not prove that no SMS was submitted.
+      return SmsHandoffStatus.outcomeUnknown;
     }
   }
 }

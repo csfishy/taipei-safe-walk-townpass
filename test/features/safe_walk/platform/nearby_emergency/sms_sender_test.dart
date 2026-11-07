@@ -12,17 +12,17 @@ void main() {
   tearDown(() => messenger.setMockMethodCallHandler(channel, null));
 
   test(
-    'true records only a native submission request with the given body',
+    'handed records only a native submission request with the given body',
     () async {
       final calls = <MethodCall>[];
       messenger.setMockMethodCallHandler(channel, (call) async {
         calls.add(call);
-        return true;
+        return 'handed';
       });
 
       expect(
         await sender.send(number: ' 0000000000 ', body: 'synthetic test body'),
-        isTrue,
+        SmsHandoffStatus.handedToSystem,
       );
       expect(calls, hasLength(1));
       expect(calls.single.method, 'send');
@@ -33,10 +33,26 @@ void main() {
     },
   );
 
+  for (final response in {
+    'no_permission': SmsHandoffStatus.permissionRequired,
+    'invalid': SmsHandoffStatus.invalidRequest,
+    'failed': SmsHandoffStatus.outcomeUnknown,
+  }.entries) {
+    test('maps native ${response.key} without claiming delivery', () async {
+      messenger.setMockMethodCallHandler(channel, (_) async => response.key);
+      expect(
+        await sender.send(number: '0000000000', body: 'synthetic test body'),
+        response.value,
+      );
+    });
+  }
+
   for (final response in <Object?>[
+    true,
     false,
     null,
     'true',
+    'unexpected-status',
     1,
     <String, bool>{'sent': true},
   ]) {
@@ -44,29 +60,40 @@ void main() {
       messenger.setMockMethodCallHandler(channel, (_) async => response);
       expect(
         await sender.send(number: '0000000000', body: 'synthetic test body'),
-        isFalse,
+        SmsHandoffStatus.outcomeUnknown,
       );
     });
   }
 
-  test('platform rejection returns false without exposing the error', () async {
-    messenger.setMockMethodCallHandler(channel, (_) async {
-      throw PlatformException(
-        code: 'denied',
-        message: 'synthetic private detail',
+  test(
+    'platform error leaves the result unknown without exposing it',
+    () async {
+      messenger.setMockMethodCallHandler(channel, (_) async {
+        throw PlatformException(
+          code: 'denied',
+          message: 'synthetic private detail',
+        );
+      });
+      expect(
+        await sender.send(number: '0000000000', body: 'synthetic test body'),
+        SmsHandoffStatus.outcomeUnknown,
       );
-    });
+    },
+  );
+
+  test('a malformed platform envelope leaves the result unknown', () async {
+    messenger.setMockMessageHandler(channel.name, (_) async => ByteData(1));
     expect(
       await sender.send(number: '0000000000', body: 'synthetic test body'),
-      isFalse,
+      SmsHandoffStatus.outcomeUnknown,
     );
   });
 
-  test('an unsupported platform returns false', () async {
+  test('an unsupported platform reports unavailable', () async {
     messenger.setMockMethodCallHandler(channel, null);
     expect(
       await sender.send(number: '0000000000', body: 'synthetic test body'),
-      isFalse,
+      SmsHandoffStatus.unavailable,
     );
   });
 
@@ -74,13 +101,16 @@ void main() {
     var calls = 0;
     messenger.setMockMethodCallHandler(channel, (_) async {
       calls++;
-      return true;
+      return 'handed';
     });
     expect(
       await sender.send(number: '  ', body: 'synthetic test body'),
-      isFalse,
+      SmsHandoffStatus.invalidRequest,
     );
-    expect(await sender.send(number: '0000000000', body: '\n  '), isFalse);
+    expect(
+      await sender.send(number: '0000000000', body: '\n  '),
+      SmsHandoffStatus.invalidRequest,
+    );
     expect(calls, 0);
   });
 }
