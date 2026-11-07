@@ -38,3 +38,11 @@ class PreviewSpeaker implements SafeWalkSpeaker {
     _timer = null;
   }
 }
+
+/// 選配：能發出模擬來電鈴聲的 speaker。畫面只在 speaker 實作它時才響鈴，因此不影響既有 fake。
+/// 鈴聲只是「模擬陪伴」的提示音，不是真實來電。
+abstract interface class SafeWalkRinger {
+  /// 開始響鈴；之後的 [stopRing]、背景、SOS 都必須使遲到的播放失效。
+  void startRing();
+  void stopRing();
+}

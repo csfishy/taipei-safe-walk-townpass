@@ -26,12 +26,12 @@ class SafeWalkCallSession {
   String? scenarioId;
   int line = 0, seq = 0, seconds = 0;
 
-  /// 劇本最後一句已經回過了。
+  /// 已進入最後一句男性台詞，不再要求使用者回覆。
   bool finished = false;
   final List<_Entry> _log = [];
 }
 
-/// 模擬來電：M5 劇本一問一答——對方說一句，你回一句，對方才說下一句。只朗讀對方台詞；「自己輸入」是輸入對方要說的話。
+/// 模擬來電：三段英文男性角色台詞由 TTS 朗讀，兩段繁中台詞顯示供使用者照讀。
 class SafeWalkCallView extends StatefulWidget {
   const SafeWalkCallView({super.key, required this.speaker, required this.onEnd, required this.onEmergency, this.session});
 
@@ -73,6 +73,12 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> with WidgetsBindingO
 
   bool get _active => !_left && _foreground;
 
+  /// 鈴聲（speaker 支援時）：接聽、拒絕、離開、背景與 SOS 都要停。
+  void _stopRing() {
+    final ringer = widget.speaker;
+    if (ringer is SafeWalkRinger) (ringer as SafeWalkRinger).stopRing();
+  }
+
   void _stopTurn() {
     _gen++;
     _reply?.cancel();
@@ -94,6 +100,7 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> with WidgetsBindingO
   void leave() {
     if (_left) return;
     _left = true;
+    _stopRing();
     _stopTurn();
     _clock?.cancel();
     _buzz?.cancel();
@@ -118,7 +125,9 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> with WidgetsBindingO
       _scrollDown(jump: true);
       return;
     }
-    // 響鈴時手機震動（網頁沒有震動）；鈴聲音檔需另外核准，先不播放。
+    // 響鈴時手機震動（網頁沒有震動）；鈴聲由 speaker 以程式合成的原創音播放（模擬提示音）。
+    final ringer = widget.speaker;
+    if (ringer is SafeWalkRinger) (ringer as SafeWalkRinger).startRing();
     HapticFeedback.vibrate();
     // 跟光圈一樣響約 18 秒就停（12 次 × 1.5 秒），不會一直震。
     _buzz = Timer.periodic(const Duration(milliseconds: 1500), (t) {
@@ -143,6 +152,7 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> with WidgetsBindingO
       if (!_ringing) _startClock();
     } else {
       _foreground = false;
+      _stopRing();
       _stopTurn();
       _clock?.cancel();
       _buzz?.cancel();
@@ -152,7 +162,7 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> with WidgetsBindingO
 
   sw.CompanionScenario get _scenario => m5CompanionScenarios.firstWhere((c) => c.id == _s.scenarioId, orElse: () => m5CompanionScenarios.first);
 
-  /// 對方說完最後一句、你也回了之後，劇本結束。
+  /// 最後一句男性台詞已排入；不代表裝置已完成播放。
   bool get _scriptDone => _s.finished;
 
   List<String> get _replies => companionReplies[_scenario.id]?.elementAtOrNull(_s.line) ?? const ['好。'];
@@ -221,6 +231,7 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> with WidgetsBindingO
   void _answer() {
     if (!_active || !_ringing) return;
     _buzz?.cancel();
+    _stopRing();
     _s.answered = true;
     setState(() => _ringing = false);
     _s.line = 0;
@@ -316,6 +327,7 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> with WidgetsBindingO
       if (!mounted || !_active) return;
       setState(() {
         _s.line++;
+        _s.finished = _s.line == steps.length - 1;
         _waiting = false;
       });
       _say(steps[_s.line].text);
@@ -395,6 +407,8 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> with WidgetsBindingO
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
+                          const SizedBox(height: 4),
+                          Text('模擬通話，未聯絡任何人', style: SwText.small.copyWith(color: SwColors.onBrand)),
                         ],
                       ),
                     ),
@@ -509,6 +523,11 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> with WidgetsBindingO
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             note,
+            if (!_scriptDone && !_waiting)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text('請看著螢幕，大聲說出以下台詞，再點一下繼續', style: SwText.secondary),
+              ),
             if (!_scriptDone)
               SizedBox(
                 width: double.infinity,
@@ -517,6 +536,7 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> with WidgetsBindingO
           ],
         );
       case _Mode.template:
+        if (callTemplates.isEmpty) return Column(children: [note]);
         return ConstrainedBox(
           constraints: const BoxConstraints(maxHeight: 220),
           child: ListView(
@@ -767,7 +787,7 @@ class _IncomingState extends State<_Incoming> with SingleTickerProviderStateMixi
                             const SizedBox(height: 32),
                             Semantics(
                               liveRegion: true,
-                              label: '家人來電中',
+                              label: '$callerName 來電中',
                               child: ExcludeSemantics(
                                 child: Column(
                                   children: [
@@ -783,13 +803,13 @@ class _IncomingState extends State<_Incoming> with SingleTickerProviderStateMixi
                                             height: 104,
                                             alignment: Alignment.center,
                                             decoration: BoxDecoration(color: TPColors.white, shape: BoxShape.circle, boxShadow: SwShadow.float),
-                                            child: Text('家', style: SwText.title.copyWith(color: TPColors.primary700)),
+                                            child: Text('男', style: SwText.title.copyWith(color: TPColors.primary700)),
                                           ),
                                         ),
                                       ),
                                     ),
                                     const SizedBox(height: 16),
-                                    Text('家人', style: SwText.title.copyWith(color: SwColors.onBrand)),
+                                    Text(callerName, style: SwText.title.copyWith(color: SwColors.onBrand)),
                                     const SizedBox(height: 4),
                                     Row(
                                       mainAxisSize: MainAxisSize.min,

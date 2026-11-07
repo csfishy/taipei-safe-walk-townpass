@@ -6,9 +6,12 @@ body:
       value: '在提交問題之前，請閱讀並遵循以下說明：'
   - type: markdown
     attributes:
+      value: '正式入口應為 Live-only；真實服務失敗需呈現錯誤／Unavailable，不可 fallback 到 Mock。請提供來源 SHA、操作／同意步驟與實際資料狀態；不要上傳 Token、住家、聯絡人或真實定位。Fake 測試不等於裝置／Live 驗收。'
+  - type: markdown
+    attributes:
       value: |
         - 閱讀我們的所有文件，特別是我們的 [guideline](https://townpass.taipei/)，裡面可能已經有資訊可以幫助您解決您遇到的問題。
-        - 確認您的 issue 尚未有人[回報](https://github.com/taipei-doit/TownPass/issues)。
+        - 確認您的 issue 尚未有人[回報](https://github.com/csfishy/taipei-safe-walk-townpass/issues)。
         - 確認該問題在最新版的專案中尚未修復。
   - type: textarea
     id: description

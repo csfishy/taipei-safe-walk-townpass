@@ -23,7 +23,7 @@ abstract interface class CompanionSpeechEngine {
 final class CompanionTtsSpeaker {
   CompanionTtsSpeaker(
     this._engine, {
-    this.languages = const ['zh-TW', 'zh-CN'],
+    this.languages = const ['en-US', 'en-GB'],
   });
 
   final CompanionSpeechEngine _engine;
@@ -34,7 +34,7 @@ final class CompanionTtsSpeaker {
   int _generation = 0;
   Future<void>? _prepareFuture;
 
-  /// True only after the device confirmed a usable Chinese voice.
+  /// True only after the device confirmed a usable English voice.
   bool get available => _ready && !_disposed;
 
   /// Safe to call repeatedly; failures leave the speaker unavailable.

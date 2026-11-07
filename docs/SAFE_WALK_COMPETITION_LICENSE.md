@@ -2,6 +2,8 @@
 
 > 本文件保留查閱時的規則／授權證據與待確認事項；「本次初始化」「未修改 UI／未建立網站」是當時工作範圍，不是現行產品禁令。工程目標以 [Live MVP](SAFE_WALK_LIVE_MVP.md) 為準，原生入口、build／Pages 及功能狀態以目前程式／CI／Readiness 為準；必要授權限制繼續保留，不阻擋合法導航、查詢、TTS 與主動求助入口的開發。
 
+現行專案政策（2026-11-08）：依 [LIVE-FIRST／NO PRODUCTION MOCK](SAFE_WALK_LIVE_FIRST.md)，競賽正式功能不採 Google Maps、不加入 AED，也不以 Mock／Demo 資料替代正式完整流程。下方原規則查閱、引用及授權待確認事項保持歷史原文；外部規則若容許展示替身，不會放寬本專案 Production 無 Mock 的交付標準。Unit／Integration tests 可保留隔離 Fake／fixtures；本次沒有重新查閱或變更法律／主辦授權結論。
+
 查閱日期：**2026-11-07（Asia/Taipei）**。適用活動：**2026 臺北秋季程式設計節／城市通微服務大黑客松**。
 
 本文件記錄已查到的當年規則、官方技術資料及工程判讀。它不是主辦單位的准許函，也不是本專案授權相容性已完成法律審核的證明。**本次保留上游 `LICENSE`，沒有將官方 TownPass 改授權為 AGPL，也沒有宣稱獨立原生 App 已獲競賽核准。**

@@ -6,6 +6,7 @@ import 'package:town_pass/features/safe_walk/navigation/default_route_service.da
 import 'package:town_pass/features/safe_walk/navigation/json_transport.dart';
 import 'package:town_pass/features/safe_walk/navigation/osrm_walking_route_provider.dart';
 import 'package:town_pass/features/safe_walk/navigation/route_service.dart';
+import 'package:town_pass/features/safe_walk/platform/home_location/home_location_service.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_route_speaker.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/tts_safe_walk_speaker.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_navigation_controller.dart';
@@ -31,6 +32,7 @@ class SafeWalkCompositionRoot extends StatefulWidget {
     this.speaker,
     this.routeService,
     this.routeTransport,
+    this.homeLocationStore,
     this.onExit,
   });
 
@@ -46,6 +48,8 @@ class SafeWalkCompositionRoot extends StatefulWidget {
   /// Ownership transfers to this route, which disposes the speaker once.
   /// Defaults to on-device TTS; it stays text-only until a voice is confirmed.
   final SafeWalkRouteSpeaker? speaker;
+  /// 「家」的裝置儲存；預設用 SharedPreferences，測試可注入 fake。
+  final HomeLocationStore? homeLocationStore;
   final VoidCallback? onExit;
 
   @override
@@ -66,10 +70,35 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
   List<sw.AssistancePoint> _points = const [];
   bool _pointsLoading = true;
   String? _pointsError;
+  late final HomeLocationService _homeService;
+  sw.Coordinates? _home;
+  int _homeRevision = 0;
+
+  Future<void> _loadHome() async {
+    final revision = _homeRevision;
+    final home = await _homeService.load();
+    if (!mounted || home == null || revision != _homeRevision) return;
+    setState(() => _home = sw.Coordinates(lat: home.lat, lng: home.lng));
+  }
+
+  /// 使用者按儲存／移除時才寫入裝置；失敗會往上丟，由設定畫面顯示錯誤。
+  Future<void> _changeHome(sw.Coordinates? home) async {
+    ++_homeRevision;
+    if (home == null) {
+      await _homeService.clear();
+    } else {
+      await _homeService.save(home.lat, home.lng);
+    }
+    if (mounted) setState(() => _home = home);
+  }
 
   @override
   void initState() {
     super.initState();
+    _homeService = HomeLocationService(
+      widget.homeLocationStore ?? SharedPreferencesHomeLocationStore(),
+    );
+    unawaited(_loadHome());
     WidgetsBinding.instance.addObserver(this);
     _platform =
         widget.platform ??
@@ -319,6 +348,8 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
       speaker: _speaker,
       onLocate: _locate,
       onEmergency: _emergency,
+      homeLocation: _home,
+      onHomeChanged: _changeHome,
       onExit: _exit,
     ),
   );

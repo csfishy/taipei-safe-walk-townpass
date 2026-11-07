@@ -1,5 +1,7 @@
 # 臺北安心行：持續整合與 Live 交接
 
+> 歷史適用範圍：以下至文末是 2026-11-07、`03f98f2` 的整合快照，保留原 SHA、測試與當時模式，不是目前 main 新實測或正式 Mock 授權。2026-11-08 的 main 基線 `7b99fea` 已由 #49 restore，#35 正式 P0 接線不在目前檔案；#39 僅合入 feature branch、#44 仍開放。現行規範依 [LIVE-FIRST／NO PRODUCTION MOCK](SAFE_WALK_LIVE_FIRST.md)，不要求先 Mock／Demo，Production 不得使用 fixtures 或模擬 fallback；完整真流程尚未完成即 Unavailable＋原因＋下一步。更新現況見 [Readiness](SAFE_WALK_LIVE_READINESS.md)。
+
 快照：2026-11-07（Asia/Taipei），團隊 main 03f98f2b7b5254db73774c4d097eb4d610499c2c。現行驗收以 [Live MVP](SAFE_WALK_LIVE_MVP.md) 為準；本文件取代早期 M1 入口 PR 的「本輪只能 Mock」交付目標。初始化測試原始事實保留於 [歷史紀錄](SAFE_WALK_INITIALIZATION.md)，逐項文件變更見 [審查報告](SAFE_WALK_SPEC_AUDIT.md)。
 
 協作方式依 [開放協作規範](SAFE_WALK_COLLABORATION.md)：M1–M5 是主要聯絡人與技術位置，所有成員可跨模組修改功能及測試，由功能主責交付完整使用流程。一般接線／callback 不需小魚事先批准或親自寫；共用契約、套件、TownPass route／原生設定、CI／正式 UI 大改依 Level B 合併前確認，真實外部影響與正式部署開關依 Level C 授權／驗收。
