@@ -142,6 +142,8 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
     );
     final child = switch (_screen) {
       _Screen.home => SafeWalkHomeView(
+        homeMinutes: walkMinutes(routeMeters(DemoGeo.homeRoute)),
+        avoided: avoidedCount(_anomalies),
         onBack: widget.onExit,
         onEmergency: _openEmergency,
         onOpen: (e) => _go(switch (e) {

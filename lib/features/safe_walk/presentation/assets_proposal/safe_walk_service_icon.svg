@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40" fill="none">
+  <!-- 臺北安心行服務圖示提案：沿用臺北通服務圖示的線條＋品牌青色點綴風格（家＋路徑＋盾）。顏色取自 TPColors：grayscale800 #30383D、primary500 #5AB4C5。 -->
+  <path d="M8 18.5 20 9l12 9.5" stroke="#30383D" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M11 16.5V30h18V16.5" stroke="#30383D" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M20 17.5l5 2v3.6c0 3-2.1 5.4-5 6.2-2.9-.8-5-3.2-5-6.2v-3.6z" fill="#5AB4C5"/>
+  <path d="M17.6 23.4l1.7 1.7 3.2-3.3" stroke="#FFFFFF" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

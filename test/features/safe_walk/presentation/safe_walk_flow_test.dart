@@ -26,7 +26,7 @@ Future<void> _pump(WidgetTester t, Widget w) async {
 void main() {
   testWidgets('首頁只有四個入口、示範標示與緊急求助', (t) async {
     await _pump(t, const SafeWalkFlow());
-    for (final name in ['安心回家', '模擬來電', '附近求助地點', '回報狀況', '緊急求助', '示範模式（Mock）']) {
+    for (final name in ['安心回家', '開始回家', '模擬來電', '附近求助地點', '回報狀況', '緊急求助', '示範模式（Mock）']) {
       expect(find.text(name), findsWidgets, reason: name);
     }
   });
@@ -179,6 +179,7 @@ void main() {
         ));
         await t.pumpAndSettle();
         if (entry.isNotEmpty) {
+          if (find.text(entry).evaluate().isEmpty) await t.scrollUntilVisible(find.text(entry), 200, scrollable: find.byType(Scrollable).first);
           await t.tap(find.text(entry).first);
           await t.pump(const Duration(milliseconds: 400));
         }

@@ -57,6 +57,28 @@ SafeWalkFlow(
 - 朗讀需要 TTS 套件（pubspec 由 M1 管理）或 M5 Adapter。
 - 簡訊報警的收件號碼由 M1 決定；開啟簡訊 App 不代表警方已收到或受理。
 
+## 接入臺北通「服務」頁（給 M1，M3 不改官方檔案）
+
+臺北通的服務入口由 `lib/page/city_service/model/my_service_model.dart` 定義：每個服務是 `MyServiceItemId` 的一個值，點擊後由 `TPRoute.openUri()` 開啟；`destinationUrl` 用 `local://<路由>` 會走 App 內頁（官方的警政報案就是 `local://online_police`），其他網址則用 WebView。安心行是原生 Flutter 畫面，建議：
+
+1. `my_service_model.dart`：`MyServiceItemId` 加 `safeWalk`，並在 `MyServiceIdExt` 加：
+   ```dart
+   MyServiceItemId.safeWalk => MyServiceItem(
+     title: '臺北安心行',
+     description: '回家路線避開回報狀況、模擬來電、緊急求助',
+     icon: Assets.svg.iconSafeWalk.svg(),
+     category: MyServiceCategory.cityLife,
+     destinationUrl: 'local://safe_walk',
+   ),
+   ```
+2. `tp_route.dart`：加 `static const String safeWalk = '/safe_walk';` 與對應 `GetPage`，頁面為 `SafeWalkFlow(...)`（callbacks 見上方「給 M1 的接線需求」；路由名稱須與 `local://` 的 host 寫法一致，請比照 `online_police` 實測）。
+3. 圖示：`presentation/assets_proposal/safe_walk_service_icon.svg`（線條＋品牌青色點綴，色值取自 TPColors），由 M1 移到 `assets/svg/icon_safe_walk.svg` 後重新產生 `Assets`。
+4. 曝光位置（評審第一眼看得到）：加進「我的服務」預設置頂清單第一個；若有官方服務卡版位，可放在「城市生活」。
+
+## 語言（中／英）
+
+臺北通設定頁已有「語言」選項（`LanguageViewController`：繁中、English），但官方目前 `onIndexChange` 仍是 TODO，**整個 App 尚未實作切換**，文字都寫死中文。建議安心行先做「跟隨 App 語系」：M3 把畫面文字集中成中英對照表，依 `Localizations.localeOf(context)` 顯示；等 M1 在語言頁呼叫 `Get.updateLocale()` 後，安心行會自動跟著切換，不需要另做一顆語言鈕。
+
 ## 驗證
 
 - `flutter analyze lib/features/safe_walk/presentation test/features/safe_walk/presentation`：無問題。

@@ -339,8 +339,11 @@ class SwSecondaryAction extends StatelessWidget {
 
 /// 最底列：寬度足夠時「左次要、右緊急求助」；窄螢幕（畫面寬 < 360，扣掉左右留白後 < 328）或字級放大時改成上下排，緊急求助在上、滿寬。
 class SwActionBar extends StatelessWidget {
-  const SwActionBar({super.key, required this.secondary, required this.onEmergency});
-  final Widget secondary;
+  const SwActionBar({super.key, required Widget this.secondary, required this.onEmergency});
+
+  /// 只有緊急求助（例如首頁）。
+  const SwActionBar.single({super.key, required this.onEmergency}) : secondary = null;
+  final Widget? secondary;
   final VoidCallback onEmergency;
   @override
   Widget build(BuildContext context) => Container(
@@ -351,6 +354,7 @@ class SwActionBar extends StatelessWidget {
     padding: EdgeInsets.fromLTRB(16, 12, 16, 12 + MediaQuery.paddingOf(context).bottom),
     child: LayoutBuilder(
       builder: (context, box) {
+        if (secondary == null) return SwSosButton(onTap: onEmergency, expand: true);
         final bigText = MediaQuery.textScalerOf(context).scale(16) > 20;
         if (box.maxWidth < 328 || bigText) {
           return Column(
@@ -358,13 +362,13 @@ class SwActionBar extends StatelessWidget {
             children: [
               SwSosButton(onTap: onEmergency, expand: true),
               const SizedBox(height: 8),
-              secondary,
+              secondary!,
             ],
           );
         }
         return Row(
           children: [
-            secondary,
+            secondary!,
             const SizedBox(width: 12),
             Expanded(child: SwSosButton(onTap: onEmergency, expand: true)),
           ],

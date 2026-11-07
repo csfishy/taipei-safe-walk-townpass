@@ -110,8 +110,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
     final point = _pointIndex != null && points.isNotEmpty ? points[_pointIndex! % points.length] : null;
     final isHome = _pointIndex == null;
     final path = point != null ? DemoGeo.lRoute(_start, _at(point)) : (isHome ? DemoGeo.homeRoute : <LatLng>[]);
-    final active = widget.anomalies.where((a) => a.status != AnomalyStatus.cleared).toList();
-    final avoided = active.where((a) => (a.at.lng - 121.5).abs() < .00005 || ((a.at.lat - 25.001).abs() < .00005 && a.at.lng < 121.5006)).length;
+    final avoided = avoidedCount(widget.anomalies);
     final detail = _detailId == null ? null : widget.anomalies.where((a) => a.id == _detailId).firstOrNull;
     final picked = points.where((p) => p.id == _pickedPointId).firstOrNull ?? points.firstOrNull;
     final title = _pointsView ? '附近求助地點' : '${widget.position == null ? '示範起點' : '目前位置'} → ${isHome ? '家' : '求助地點'}';
@@ -167,7 +166,8 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                       children: [
                         SwRoundButton(icon: Icons.arrow_back_ios_new_rounded, label: '返回', onTap: widget.onBack),
                         const SizedBox(width: 8),
-                        Flexible(
+                        // 標題區佔滿中間，圖例／回報固定貼齊右邊。
+                        Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -199,7 +199,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                         ),
                         const SizedBox(width: 8),
                         if (_size != _SheetSize.full)
-                          Column(
+                          Row(
                             children: [
                               _MapTool(
                                 icon: _legend ? Icons.close_rounded : Icons.layers_outlined,
@@ -208,7 +208,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                                 selected: _legend,
                                 onTap: () => setState(() => _legend = !_legend),
                               ),
-                              const SizedBox(height: 8),
+                              const SizedBox(width: 8),
                               _MapTool(
                                 icon: Icons.campaign_rounded,
                                 caption: '回報',
@@ -230,8 +230,8 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                   ),
                 ),
                 Positioned(
-                  right: 76,
-                  top: MediaQuery.paddingOf(context).top + 8,
+                  right: 12,
+                  top: MediaQuery.paddingOf(context).top + 72,
                   child: AnimatedSwitcher(
                     duration: SwMotion.of(context, 180),
                     transitionBuilder: (c, a) => FadeTransition(
@@ -1159,8 +1159,8 @@ class _MapTool extends StatelessWidget {
         radius: 14,
         semanticsLabel: semantics,
         child: SizedBox(
-          width: 56,
-          height: 56,
+          width: 52,
+          height: 52,
           child: ExcludeSemantics(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,

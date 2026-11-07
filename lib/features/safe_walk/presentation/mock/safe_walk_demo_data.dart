@@ -134,6 +134,10 @@ class Anomaly {
   final sw.DataMode mode = sw.DataMode.mock;
 }
 
+/// 回家示範路線刻意不走西側 121.5000 那條街與北側西段；落在那裡、尚未解除的回報就是「已繞開」。
+int avoidedCount(List<Anomaly> list) =>
+    list.where((a) => a.status != AnomalyStatus.cleared && ((a.at.lng - 121.5).abs() < .00005 || ((a.at.lat - 25.001).abs() < .00005 && a.at.lng < 121.5006))).length;
+
 List<Anomaly> demoAnomalies() => [
   Anomaly(
     id: 'demo-anomaly-1',
