@@ -57,6 +57,50 @@ void main() {
     ]);
   });
 
+  test('does not start the next line before the current line completes', () async {
+    audio.autoComplete = false;
+
+    final start = controller.start(
+      scenario(audioSources: ['/audio/one.mp3', '/audio/two.mp3']),
+    );
+    await pumpEventQueue();
+
+    expect(audio.playedAssets, ['assets/companion/one.mp3']);
+    expect(events.single.state, sw.CompanionState.playing);
+
+    audio.playbacks.single.complete();
+    await pumpEventQueue();
+    expect(audio.playedAssets, [
+      'assets/companion/one.mp3',
+      'assets/companion/two.mp3',
+    ]);
+
+    audio.playbacks.last.complete();
+    await start;
+  });
+
+  test('reports playing on start acknowledgement, before completion', () async {
+    audio.autoStart = false;
+    audio.autoComplete = false;
+
+    final start = controller.start(
+      scenario(audioSources: ['/audio/one.mp3']),
+    );
+    await pumpEventQueue();
+    expect(events, isEmpty);
+
+    audio.playbacks.single.start();
+    await pumpEventQueue();
+    expect(events.single.state, sw.CompanionState.playing);
+
+    await controller.pause();
+    expect(audio.pauseCalls, 1);
+    expect(events.last.state, sw.CompanionState.paused);
+
+    audio.playbacks.single.complete();
+    await start;
+  });
+
   test('pause invalidates pending progression', () async {
     final delayed = Completer<void>();
     await subscription.cancel();
@@ -107,7 +151,7 @@ void main() {
   test('cancellation stops audio and ignores a late play result', () async {
     final cancellation = TestCancellation();
     final play = Completer<void>();
-    audio.playCompleter = play;
+    audio.adapterCompleter = play;
 
     final start = controller.start(
       scenario(audioSources: ['/audio/one.mp3']),
@@ -189,20 +233,28 @@ sw.CompanionScenario scenario({required List<String?> audioSources}) =>
 
 final class FakeAudioAdapter implements CompanionAudioAdapter {
   final List<String> playedAssets = [];
+  final List<FakePlayback> playbacks = [];
   int pauseCalls = 0;
   int stopCalls = 0;
   int disposeCalls = 0;
-  Completer<void>? playCompleter;
+  Completer<void>? adapterCompleter;
   Object? playError;
+  bool autoStart = true;
+  bool autoComplete = true;
 
   @override
-  Future<void> playAsset(
+  Future<CompanionPlayback> playAsset(
     String assetPath, {
     SafeWalkCancellation? cancellation,
   }) async {
     playedAssets.add(assetPath);
     if (playError case final error?) throw error;
-    await playCompleter?.future;
+    await adapterCompleter?.future;
+    final playback = FakePlayback();
+    playbacks.add(playback);
+    if (autoStart) playback.start();
+    if (autoComplete) playback.complete();
+    return playback;
   }
 
   @override
@@ -218,6 +270,26 @@ final class FakeAudioAdapter implements CompanionAudioAdapter {
   @override
   Future<void> dispose() async {
     disposeCalls++;
+  }
+}
+
+final class FakePlayback implements CompanionPlayback {
+  final Completer<void> _started = Completer<void>();
+  final Completer<void> _completed = Completer<void>();
+
+  @override
+  Future<void> get started => _started.future;
+
+  @override
+  Future<void> get completed => _completed.future;
+
+  void start() {
+    if (!_started.isCompleted) _started.complete();
+  }
+
+  void complete() {
+    start();
+    if (!_completed.isCompleted) _completed.complete();
   }
 }
 

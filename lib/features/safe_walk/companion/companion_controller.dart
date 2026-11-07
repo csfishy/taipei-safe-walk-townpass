@@ -41,6 +41,7 @@ final class LocalCompanionController implements CompanionController {
       StreamController<sw.CompanionEvent>.broadcast(sync: true);
 
   int _operation = 0;
+  Completer<void>? _activeInterruption;
   String? _scenarioId;
   sw.CompanionState _state = sw.CompanionState.idle;
   bool _disposed = false;
@@ -57,7 +58,10 @@ final class LocalCompanionController implements CompanionController {
     _ensureUsable();
     if (cancellation?.isCancelled == true) return;
 
-    final operation = ++_operation;
+    _invalidateOperation();
+    final operation = _operation;
+    final interruption = Completer<void>();
+    _activeInterruption = interruption;
     if (_state == sw.CompanionState.playing ||
         _state == sw.CompanionState.paused) {
       await _audio.stop();
@@ -77,36 +81,58 @@ final class LocalCompanionController implements CompanionController {
       final asset = source == null ? null : _resolveAsset(source);
       if (asset == null) {
         _emit(sw.CompanionState.ended, sw.CompanionReason.notConfigured);
+        _activeInterruption = null;
         return;
       }
 
       try {
-        final cancelled = await _awaitOrCancellation(
+        final playback = await _awaitValueOrInterruption(
           _audio.playAsset(asset, cancellation: cancellation),
           cancellation,
+          interruption.future,
         );
-        if (cancelled || !_isCurrent(operation)) {
+        if (playback == null || !_isCurrent(operation)) {
+          await _cancelOperation(operation);
+          return;
+        }
+        final cancelledBeforeStart = await _awaitOrInterruption(
+          playback.started,
+          cancellation,
+          interruption.future,
+        );
+        if (cancelledBeforeStart || !_isCurrent(operation)) {
           await _cancelOperation(operation);
           return;
         }
         _emit(sw.CompanionState.playing, sw.CompanionReason.user);
 
-        if (step.pauseAfterMs > 0) {
-          final delayCancelled = await _awaitOrCancellation(
-            _delay(Duration(milliseconds: step.pauseAfterMs)),
-            cancellation,
-          );
-          if (delayCancelled || !_isCurrent(operation)) {
-            await _cancelOperation(operation);
-            return;
-          }
+        final cancelledBeforeCompletion = await _awaitOrInterruption(
+          playback.completed,
+          cancellation,
+          interruption.future,
+        );
+        if (cancelledBeforeCompletion || !_isCurrent(operation)) {
+          await _cancelOperation(operation);
+          return;
+        }
+
+        final delayCancelled = await _awaitOrInterruption(
+          step.pauseAfterMs == 0
+              ? Future<void>.value()
+              : _delay(Duration(milliseconds: step.pauseAfterMs)),
+          cancellation,
+          interruption.future,
+        );
+        if (delayCancelled || !_isCurrent(operation)) {
+          await _cancelOperation(operation);
+          return;
         }
       } on SafeWalkCancelledException {
         await _cancelOperation(operation);
         return;
       } catch (_) {
         if (_isCurrent(operation)) {
-          ++_operation;
+          _invalidateOperation();
           await _audio.stop();
           _emit(sw.CompanionState.error, sw.CompanionReason.audioError);
         }
@@ -116,6 +142,7 @@ final class LocalCompanionController implements CompanionController {
 
     if (_isCurrent(operation)) {
       _emit(sw.CompanionState.ended, sw.CompanionReason.user);
+      _activeInterruption = null;
     }
   }
 
@@ -124,7 +151,7 @@ final class LocalCompanionController implements CompanionController {
     _ensureUsable();
     if (_state != sw.CompanionState.playing) return;
 
-    ++_operation;
+    _invalidateOperation();
     await _audio.pause();
     _emit(sw.CompanionState.paused, sw.CompanionReason.user);
   }
@@ -136,7 +163,7 @@ final class LocalCompanionController implements CompanionController {
   }
 
   Future<void> _stop(sw.CompanionStopReason reason) async {
-    ++_operation;
+    _invalidateOperation();
     await _audio.stop();
     if (_state == sw.CompanionState.ended ||
         _state == sw.CompanionState.error ||
@@ -157,25 +184,43 @@ final class LocalCompanionController implements CompanionController {
     await _events.close();
   }
 
-  Future<bool> _awaitOrCancellation(
+  Future<bool> _awaitOrInterruption(
     Future<void> work,
     SafeWalkCancellation? cancellation,
+    Future<void> interruption,
   ) async {
-    if (cancellation == null) {
-      await work;
-      return false;
-    }
-    if (cancellation.isCancelled) return true;
     return Future.any<bool>([
       work.then((_) => false),
-      cancellation.whenCancelled.then((_) => true),
+      interruption.then((_) => true),
+      if (cancellation != null)
+        cancellation.whenCancelled.then((_) => true),
     ]);
   }
 
+  Future<T?> _awaitValueOrInterruption<T>(
+    Future<T> work,
+    SafeWalkCancellation? cancellation,
+    Future<void> interruption,
+  ) => Future.any<T?>([
+    work.then<T?>((value) => value),
+    interruption.then<T?>((_) => null),
+    if (cancellation != null)
+      cancellation.whenCancelled.then<T?>((_) => null),
+  ]);
+
   Future<void> _cancelOperation(int operation) async {
     if (_operation != operation) return;
-    ++_operation;
+    _invalidateOperation();
     await _audio.stop();
+  }
+
+  void _invalidateOperation() {
+    _operation++;
+    final interruption = _activeInterruption;
+    _activeInterruption = null;
+    if (interruption != null && !interruption.isCompleted) {
+      interruption.complete();
+    }
   }
 
   bool _isCurrent(int operation) => !_disposed && _operation == operation;
