@@ -615,30 +615,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     bool Function()? isCurrent,
   }) async {
     bool current() => isCurrent?.call() ?? _isCurrent(operation);
-    if (!_navigation.hasRoutingConsent) {
-      final prompt = _routingConsentPrompt ??= _askRoutingConsent();
-      final agreed = await prompt;
-      if (identical(_routingConsentPrompt, prompt)) {
-        _routingConsentPrompt = null;
-      }
-      if (!current() || agreed != true) return null;
-      _setRoutingConsent(true);
-    }
-    if (!current() || !_navigation.hasRoutingConsent) return null;
-    if (_crime.isConfigured && !_crimeConsentAsked) {
-      final prompt = _crimeConsentPrompt ??= _askCrimeConsent();
-      final agreed = await prompt;
-      if (identical(_crimeConsentPrompt, prompt)) _crimeConsentPrompt = null;
-      if (!current()) return null;
-      _hasCrimeConsent = agreed == true;
-      _crimeConsentAsked = true;
-      setState(
-        () => _crimeQueryStatus = _hasCrimeConsent
-            ? '已同意犯罪參考查詢。'
-            : '未同意犯罪參考查詢；本次路線不套用犯罪參考避讓。',
-      );
-    }
-    if (!current() || !_navigation.hasRoutingConsent) return null;
+    if (!await _askConsents(current)) return null;
     final manual = _manualOrigin;
     if (manual != null) {
       return sw.Position(
@@ -673,6 +650,44 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
       return null;
     }
     return located.position;
+  }
+
+  /// Route consent, then (once) the crime query consent: one dialog at a
+  /// time. True when routing is allowed and the caller is still current.
+  Future<bool> _askConsents(bool Function() current) async {
+    if (!_navigation.hasRoutingConsent) {
+      final prompt = _routingConsentPrompt ??= _askRoutingConsent();
+      final agreed = await prompt;
+      if (identical(_routingConsentPrompt, prompt)) {
+        _routingConsentPrompt = null;
+      }
+      if (!current() || agreed != true) return false;
+      _setRoutingConsent(true);
+    }
+    if (!current() || !_navigation.hasRoutingConsent) return false;
+    if (_crime.isConfigured && !_crimeConsentAsked) {
+      final prompt = _crimeConsentPrompt ??= _askCrimeConsent();
+      final agreed = await prompt;
+      if (identical(_crimeConsentPrompt, prompt)) _crimeConsentPrompt = null;
+      if (!current()) return false;
+      _hasCrimeConsent = agreed == true;
+      _crimeConsentAsked = true;
+      setState(
+        () => _crimeQueryStatus = _hasCrimeConsent
+            ? '已同意犯罪參考查詢。'
+            : '未同意犯罪參考查詢；本次路線不套用犯罪參考避讓。',
+      );
+    }
+    return current() && _navigation.hasRoutingConsent;
+  }
+
+  /// Map opened without a destination: ask the consents now, send nothing.
+  Future<void> _askConsentsOnOpen() async {
+    if (!mounted || !_foreground || _lifetime.isCancelled) return;
+    _openNavigation();
+    await _askConsents(
+      () => mounted && _foreground && _navigationActive && !_lifetime.isCancelled,
+    );
   }
 
   static const _nearbyCount = 3;
@@ -1077,6 +1092,9 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
             : _points,
         pointRoutes: {for (final o in _nearby) o.point.id: o.route},
         onSelectPoint: widget.liveRoutes ? _selectPoint : null,
+        onAskConsents: widget.liveRoutes
+            ? () => unawaited(_askConsentsOnOpen())
+            : null,
         pointsLoading: widget.liveRoutes ? _nearbyLoading : _pointsLoading,
         pointsError: widget.liveRoutes ? _nearbyError : _pointsError,
         onRetryPoints: widget.liveRoutes

@@ -232,16 +232,6 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
   RouteState get _rs => widget.routeState.select(_routeChoice);
 
   @override
-  void initState() {
-    super.initState();
-    if (widget.startView == MapStartView.points) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _loadPointsIfNeeded();
-      });
-    }
-  }
-
-  @override
   void didUpdateWidget(SafeWalkMapView old) {
     super.didUpdateWidget(old);
     if (old.routeState.result != widget.routeState.result ||

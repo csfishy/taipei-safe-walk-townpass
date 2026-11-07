@@ -28,6 +28,7 @@ class SafeWalkFlow extends StatefulWidget {
     this.onRetryPoints,
     this.pointRoutes = const {},
     this.onSelectPoint,
+    this.onAskConsents,
     this.route,
     this.routeLoading = false,
     this.onPlanRoute,
@@ -79,6 +80,10 @@ class SafeWalkFlow extends StatefulWidget {
   /// M1: the walker chose this point as the target; navigate there with the
   /// route already planned for it.
   final ValueChanged<String>? onSelectPoint;
+
+  /// M1: ask for route and crime-query consent, one after the other, when the
+  /// map opens without a destination yet. Nothing is sent.
+  final VoidCallback? onAskConsents;
 
   /// 前往目前目的地的路線（M2 RouteService → M1 提供）。未配置時只有 Mock 使用示範路線；Live 顯示 unavailable。
   final sw.RouteResult? route;
@@ -352,10 +357,15 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> with WidgetsBindingObserver
     }
     // 使用者明確打開地圖（點「安心行」主卡）時才請 M1 規劃路線；一進安心行不自動送出。
     if (_isMapScreen(s) && !_isMapScreen(_screen)) {
-      _planRoute();
-      if (widget.askMapTilesOnOpen && widget.showMapTiles && widget.mode == sw.DataMode.live && !_mapTileConsent) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted && _isMapScreen(_screen) && !_mapTileConsent) unawaited(_askMapTileConsent());
+      final askTiles = widget.askMapTilesOnOpen && widget.showMapTiles && widget.mode == sw.DataMode.live && !_mapTileConsent;
+      if (!askTiles) {
+        _afterMapOpened(s);
+      } else {
+        // 一次問一個：先地圖圖磚，關掉後才問路線查詢、犯罪資料查詢。
+        WidgetsBinding.instance.addPostFrameCallback((_) async {
+          if (!mounted || !_isMapScreen(_screen)) return;
+          if (!_mapTileConsent) await _askMapTileConsent();
+          if (mounted && _isMapScreen(_screen)) _afterMapOpened(_screen);
         });
       }
     }
@@ -373,6 +383,18 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> with WidgetsBindingObserver
       }
       _screen = s;
     });
+  }
+
+  /// 打開地圖後的第一個查詢；路線與犯罪資料的同意會依序在這裡問。
+  void _afterMapOpened(_Screen s) {
+    if (s == _Screen.points && widget.mode == sw.DataMode.live) {
+      widget.onRetryPoints?.call();
+    } else if (_missingLiveHome && _place.isHome) {
+      // 還沒有目的地也先把同意問完，之後選目的地就直接規劃。
+      widget.onAskConsents?.call();
+    } else {
+      _planRoute();
+    }
   }
 
   void _openEmergency() {

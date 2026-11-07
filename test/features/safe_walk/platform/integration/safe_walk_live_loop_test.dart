@@ -1084,13 +1084,20 @@ void main() {
           reason: 'separate tile consent is asked, not granted',
         );
         expect(find.byType(TileLayer), findsNothing);
+        expect(find.text('規劃路線需要你的位置'), findsNothing);
         await t.tap(find.text('不載入'));
+        await t.pumpAndSettle();
+        // One at a time: the route consent follows the tile choice.
+        expect(find.text('規劃路線需要你的位置'), findsOneWidget);
+        await t.tap(find.text('不要'));
         await t.pumpAndSettle();
         expect(map(t).showMapTiles, isFalse);
         expect(find.byType(TileLayer), findsNothing);
         await leaveMap(t);
         await openMap(t);
         await t.tap(find.text('同意載入'));
+        await t.pumpAndSettle();
+        await t.tap(find.text('不要'));
         await t.pumpAndSettle();
         expect(map(t).showMapTiles, isTrue);
         expect(find.byType(TileLayer), findsOneWidget);

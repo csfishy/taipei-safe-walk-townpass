@@ -189,7 +189,10 @@ void main() {
       await t.pumpAndSettle();
       expect(find.byType(TileLayer), findsNothing);
       expect(find.text('請先返回首頁設定「家」的位置，再規劃回家路線。'), findsWidgets);
-      expect(find.text('規劃路線需要你的位置'), findsNothing);
+      // The route consent is asked next (one at a time); nothing is sent.
+      expect(find.text('規劃路線需要你的位置'), findsOneWidget);
+      await t.tap(find.text('不要'));
+      await t.pumpAndSettle();
       await back(t);
       await back(t);
       expect(find.byType(CityServiceView), findsOneWidget);
