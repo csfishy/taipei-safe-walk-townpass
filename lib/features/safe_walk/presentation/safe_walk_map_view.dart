@@ -878,6 +878,17 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
           Text('路線來源：${rs.best!.provider}', style: SwText.small),
         ],
         for (final warning in rs.warnings) Text(warning, style: SwText.small),
+        if (rs.live && widget.crimeQueryStatus != null) ...[
+          const SizedBox(height: 8),
+          Semantics(
+            liveRegion: true,
+            child: Text(
+              widget.crimeQueryStatus!,
+              key: const Key('crime-query-status'),
+              style: SwText.small,
+            ),
+          ),
+        ],
         Align(
           alignment: Alignment.centerLeft,
           child: SwSourcesLink(

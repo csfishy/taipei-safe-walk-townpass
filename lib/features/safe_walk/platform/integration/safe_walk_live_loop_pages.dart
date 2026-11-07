@@ -397,7 +397,8 @@ class _SafeWalkReportStatusPageState extends State<SafeWalkReportStatusPage> {
               ],
               ReportStatusStage.notConfigured => [
                 const Text(
-                  '犯罪參考資料庫未設定（SUPABASE_URL／公開金鑰），未查詢；不顯示示範資料。',
+                  '這個版本尚未啟用犯罪參考資料服務，因此尚未查詢。'
+                  '請更新至最新版本；若仍無法使用，請向服務維護者回報。',
                   key: Key('report-status'),
                 ),
               ],

@@ -4,7 +4,7 @@ CI／Demo 資料庫 gate：兩份工作流的 runner-local PostGIS 初始化、�
 
 The delivery policy is [LIVE-FIRST / NO PRODUCTION MOCK](SAFE_WALK_LIVE_FIRST.md), with full user-flow acceptance in [Live MVP](SAFE_WALK_LIVE_MVP.md) and per-capability evidence in [Readiness](SAFE_WALK_LIVE_READINESS.md). Production must use real providers or show Unavailable with the true blocker and next step; Fake, Mock and fixtures belong only in isolated Unit/Integration tests. New features do not require a prior Mock/Demo/Prototype. A successful build, prerelease or Pages deployment does not verify real providers or iPhone behavior.
 
-The current main baseline `7b99fea` still has a Mock production entry after #49 restored `3c433001` and removed #35's P0 wiring. This is a pending implementation gap, not a compliant delivery or a new runtime gate added by this document. #39 is merged into a feature branch, #44 remains open, and #47's explicit Demo activation fix is also pending; the #40 database gate described above remains in main. Competition delivery excludes Google Maps and AED functionality. Production switches, database permissions and deployment still require the applicable Level C review.
+Historical baseline `7b99fea` followed #49's restoration and had not yet restored Live wiring. That snapshot is not the current release state: native crime-query configuration and verification are described below and in [Supabase setup](SAFE_WALK_SUPABASE.md). Assess each release using its source commit and recorded evidence. Competition delivery excludes Google Maps and AED functionality. Production switches, database permissions and deployment still require the applicable Level C review.
 
 The `check-and-build` workflow runs on main pushes, pull requests, matching `v*-pre.*` tags, and manual dispatch. Flutter is pinned to `.fvmrc`'s 3.47.6 and dependencies are installed with `--enforce-lockfile`; code generation runs on every clean checkout.
 
@@ -31,12 +31,45 @@ dart run build_runner build
 flutter analyze --no-fatal-infos
 flutter test
 flutter test --platform chrome test/web_startup_test.dart
-flutter build apk --release
-flutter build ios --release --no-codesign
+# Set SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY in the local process first.
+dart tool/prepare_native_client_config.dart secrets/native-client.json
+flutter build apk --release --dart-define-from-file=secrets/native-client.json
+flutter build ios --release --no-codesign --dart-define-from-file=secrets/native-client.json
 flutter build web --release --base-href /taipei-safe-walk-townpass/ --no-web-resources-cdn
 ```
 
 Use a real Python 3 interpreter. On Windows, use `py -3` or an installed `python.exe` if `python3` is only an App Execution Alias; WSL is optional and must be installed separately. iOS compilation requires macOS. `assets/build-info.json` and Dart-generated sources are generated and ignored; generate metadata before `pub get`. Locked dependency versions are retained. Unsigned IPA packaging uses `ditto` to zip `Payload/Runner.app`, not App Store export.
+
+## Native public client configuration
+
+Android and iPhone release builds require the repository Actions variable
+`SUPABASE_URL` and Actions secret `SUPABASE_PUBLISHABLE_KEY`. The latter is a
+**public client key**, stored as a secret solely so GitHub masks it in runner
+logs; it is necessarily embedded in the installed app. Never use a service-role
+key, secret API key, database password, or administration token.
+
+After package setup, `tool/prepare_native_client_config.dart` validates these
+settings using the same `SafeWalkSupabaseConfig` parser as the app, then writes
+only the two accepted values to `$RUNNER_TEMP/native-client.json`. Both native
+build commands consume that file with `--dart-define-from-file`. A missing,
+invalid, or elevated key fails the native job before compilation and therefore
+blocks publication. The generated JSON is neither logged nor uploaded as an
+artifact. The native package verifier also checks that the expected URL and
+public key reached the compiled arm64 Flutter payload, without printing either
+value. Local `secrets/` files are ignored and must not be committed.
+
+Same-repository PR builds use the same configuration. Fork PRs do not receive
+the key secret, so their native jobs deliberately fail configuration validation;
+the shared unit-check job can still run. Do not substitute a dummy key to make
+an installable but unusable artifact. Maintainers can run the reviewed change
+on a trusted repository branch to validate native packages.
+
+This build check verifies configuration syntax, not remote availability. The
+reviewed read-only RPC, its permissions, snapshot validity, and an iPhone query
+must also be verified before calling the feature live. Existing installed apps
+need a newly built package; changing Actions settings alone cannot update their
+compile-time values. Web builds retain their existing disabled browser-query
+default and receive neither these values nor `SAFE_WALK_WEB_ROUTES=true`.
 
 ## GitHub Pages owner setup
 
