@@ -141,6 +141,7 @@ class SafeWalkMapView extends StatefulWidget {
   const SafeWalkMapView({
     super.key,
     required this.position,
+    this.heading,
     required this.pointsState,
     required this.anomalies,
     required this.onAnomaliesChanged,
@@ -208,6 +209,9 @@ class SafeWalkMapView extends StatefulWidget {
   /// 編輯常用地點的名稱與位置；null 時不顯示編輯。
   final Future<void> Function(String id, String name, LatLng at)? onEditPlace;
   final sw.Position? position;
+
+  /// 手機朝向（度，從北方順時針）；有值時目前位置畫成指向箭頭。
+  final double? heading;
   final PointsState pointsState;
   final List<Anomaly> anomalies;
   final VoidCallback onAnomaliesChanged, onBack, onCall, onEmergency;
@@ -681,6 +685,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                             ? path.first
                             : _start),
                     points: points,
+                    heading: widget.position == null ? null : widget.heading,
                     follow: _navigating && widget.position != null
                         ? LatLng(
                             widget.position!.coordinates.lat,
