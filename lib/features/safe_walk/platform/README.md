@@ -11,27 +11,29 @@
 - `requestEmergency({required mode, required channel, required userInitiated, required allowRealCalls, summary})` 回傳 `EmergencyActionResult`；使用者主動開啟 110／119 撥號或官方通報入口是可開發的合法交接能力。開啟撥號器不代表已接通，`officialReceipt` 保持 null。
 - 唯讀匯入 `shared/models/safe_walk_models.dart as sw`，不複製 Position 或建立第二套 payload；新增 wire 欄位需獨立 Schema 變更。
 
-## main 的實際狀況
+## P0 工作分支的實際狀況
 
-盤點基線為 `03f98f2b7b5254db73774c4d097eb4d610499c2c`（2026-11-07）。以下為已合併實作，不等於實機驗收完成。
+本輪從 main `c4410706292ab008774e7b559c98ac59be08708e`（2026-11-07）接續開發受控步行預覽；最終 SHA／PR／CI 待填。以下接線為 WIRED_NOT_VERIFIED，不等於已合併、發布或實機驗收完成，見 [P0 操作與證據](../../../../docs/SAFE_WALK_P0_LIVE_PREVIEW.md)。
 
 | 能力 | 已存在程式 | 正式流程仍缺少 |
 |---|---|---|
-| TownPass 入口 | `TPRoute.safeWalk` 已建立 `SafeWalkCompositionRoot`；官方 `GeoLocatorService` 由既有 `main.dart` 註冊 | 入口的 Live 能力選擇與誠實狀態 |
-| 原生位置 | `TownPassPlatformAdapter` lazy 呼叫既有 `GeoLocatorService.position()`，具操作/模式閘門、8 秒逾時、取消、權限與不可用映射 | composition 的 `_locate()` 固定 Mock；需要主動啟動導航/更新位置、定位同意 UI 及 iPhone 驗收 |
-| 導航控制 | `SafeWalkNavigationController` + `SafeWalkNavigationScope` 已組合 M2 `DefaultRouteService` 與 OSRM provider，保護 requestId、模式、取消及遲到回應 | root 固定 `DataMode.mock`、`livePresentationReady: false`、`liveProviderReady: false`；M3 Flow 尚未消費 scope 的路線/同意 callbacks |
-| 據點 | 目前注入 `MockSafetyDataRepository`，驗證同模式 snapshot 後供 M2 lookup | M4 真實據點 repository、來源/有效性與 Live UI；`_loadPoints()` 目前固定 Mock 並拒絕 Live 混入 |
-| 音訊 | 預設 `TtsSafeWalkSpeaker.device()` 已接 M5 裝置 TTS，SOS 優先 stop，離開時 dispose | iPhone 真聲音、無 voice 文字預覽、背景/回前景及非同步競態驗收；未合併 #26 須另審，不能當成本基線成果 |
+| TownPass 入口 | 原生 root 預設 Live 步行預覽，Mock 顯式隔離；進入不定位／查路線。官方 `GeoLocatorService` 沿用既有註冊 | iPhone 完整入口驗收；Web 預設 Live provider 未配置 |
+| 原生位置 | coordinator 在明確開始／重試、前景與兩份同意後，經 adapter lazy 呼叫 `GeoLocatorService.position()`；每次單次 GPS，有 8 秒逾時、取消、權限、精度與時效檢查 | 真 iPhone 首次授權／拒絕／服務關閉、位置與取消驗收；不補示範座標 |
+| 導航控制 | coordinator → 既有 controller → M2 OSRM，scope 交 M3 `SafeWalkLiveMapView`；保護 requestId、模式、撤回、背景／SOS／返回與遲到回應 | gates true 只表示受控預覽程式已接線，不是 LIVE_VERIFIED；真路線／UI／裝置證據待補 |
+| 據點 | Mock 模式保留 Mock repository；本輪 Live 不載入示範據點，附近據點／回報顯示未配置 | Live repository 的產品接線、來源／有效性與 UI；不將 M4 其他獨立成果視為本輪已啟用 |
+| 音訊 | 預設 `TtsSafeWalkSpeaker.device()` 已接 M5，保留已合併 #26 lifecycle 修正；SOS 優先 stop，離開 dispose | iPhone 真聲音、缺 voice 文字預覽、背景／回前景及中斷驗收 |
 | 系統求助交接 | `requestEmergency()` 契約與 Mock SOS 流程存在 | `TownPassPlatformAdapter` 尚無 dial/share/report adapter，任何旗標仍回 `not_configured`；需實作系統撥號/官方入口交接 |
 | 附近協助者 | service、RPC transport、匿名 UUID store 與 SQL 已合併；Supabase 有獨立唯讀連線檢查 | **BLOCKED**：可信身分、接收資格、ownership、RLS/RPC、頻率、防濫用、保留刪除與後端/裝置驗證；未接主 App |
 
-原生入口的 Mock 狀態是當前接線事實，不是永久規格。Mock 僅作為測試與未驗證功能的隔離模式；正式功能完成相應驗收後，必須能透過正式操作流程使用 Live Provider。不同能力應分別啟用，附近通知尚未就緒不能阻擋 GPS、路線、資料查詢、TTS 或使用者主動開啟官方求助入口。
+原生入口已由固定 Mock 改為受控 Live 預覽，Mock 保留為顯式獨立模式。不得以 Live 字樣替尚未驗收能力背書；查詢失敗／取消不切回 Mock。不同能力分別驗收，附近通知尚未就緒不能阻擋合法 GPS、路線、資料查詢、TTS 或主動系統求助入口的後續工程。
 
 ## 位置與同意
 
 位置失敗沿用 `denied`／`timeout`／`unavailable`／`unsupported`；取消可拋 `SafeWalkCancelledException`，由平台接線忽略過期回應或以 unavailable 加清楚訊息呈現，不新增 wire status。Adapter 拒絕缺少實測精度、native mocked、精度超過 100 公尺、超過 60 秒或超前 30 秒的位置；不得補 DemoGeo。
 
 定位權限與將起訖座標送往第三方 OSRM／Overpass 的同意必須分開。使用者撤回第三方同意、換目的地、取消、SOS、離開或背景中斷應取消目前路線並清除舊結果。navigation 只消費平台入口取得的位置，不另註冊 GPS watcher；必要時由使用者主動更新。位置及危難筆記不寫入日誌，正式流程不得默默外傳。
+
+本輪兩份同意預設 false；地圖點選／輸入座標只設定目的地，按「開始或重試預覽」才 `openNavigation` + `planDestination`。撤回任一同意、背景、返回、通話或 SOS 清位置／路線並鎖 inactive，回前景／再勾選不自動查詢。Live request 由 coordinator 以有效 GPS 建立，舊 request factory API 留給顯式 Mock；Web 預設未配置 Live 路由。
 
 ## 求助與附近通知的不同條件
 

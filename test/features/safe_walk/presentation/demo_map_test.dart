@@ -40,6 +40,44 @@ Future<void> showMap(
 }
 
 void main() {
+  testWidgets(
+    'Live neutral renderer excludes Demo home, anomalies and shortcut',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 320,
+              height: 400,
+              child: DemoMap(
+                liveRendering: true,
+                hasStart: false,
+                start: const LatLng(25.0478, 121.517),
+                points: demoAssistancePoints(),
+                anomalies: demoAnomalies(),
+                path: const [],
+                showShortcut: true,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<MarkerLayer>(find.byType(MarkerLayer)).markers,
+        isEmpty,
+      );
+      expect(
+        tester.widget<PolylineLayer>(find.byType(PolylineLayer)).polylines,
+        isEmpty,
+      );
+      final camera = MapCamera.of(tester.element(find.byType(MarkerLayer)));
+      expect(camera.center.latitude, closeTo(25.0478, 1e-9));
+      expect(camera.center.longitude, closeTo(121.517, 1e-9));
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
+
   const launcher = MethodChannel('plugins.flutter.io/url_launcher');
   test('production tiles retain the built-in HTTP cache', () async {
     final previous = DemoMap.tileProviderFactoryForTesting;

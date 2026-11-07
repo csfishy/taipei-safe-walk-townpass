@@ -2,7 +2,9 @@
 
 協作採 [Feature-First + Soft Ownership + Contract-Based Integration](SAFE_WALK_COLLABORATION.md)：五人皆可跨模組修改功能與測試，Owner 是主要聯絡人，不是作者限制。功能主責負責端到端接線；Level A 不需小魚事前批准，Level B 合併前找對應主責確認，真實外部作用／正式開關等 Level C 需隊長授權與安全驗收。以下技術資料流中的「M1 注入」「M3 呈現」指架構角色，任何成員可完成。
 
-現行目標是 [Live MVP](SAFE_WALK_LIVE_MVP.md)／Production Readiness；本次僅調整文件，不改執行期旗標。程式快照為團隊 main 03f98f2b7b5254db73774c4d097eb4d610499c2c（2026-11-07，Asia/Taipei）。初始化、五模組及原生入口均已存在；現況見 [Readiness](SAFE_WALK_LIVE_READINESS.md)，證據見 [規格審查](SAFE_WALK_SPEC_AUDIT.md)。
+現行目標是 [Live MVP](SAFE_WALK_LIVE_MVP.md)／Production Readiness。本文件原始架構盤點的程式快照為團隊 main `03f98f2b7b5254db73774c4d097eb4d610499c2c`（2026-11-07，Asia/Taipei）；該次文件變更沒有修改執行期旗標。初始化、五模組及原生入口均已存在；增量現況見 [Readiness](SAFE_WALK_LIVE_READINESS.md)，原盤點證據見 [規格審查](SAFE_WALK_SPEC_AUDIT.md)。
+
+P0 工作分支增量：正常入口已接入 `SafeWalkLiveNavigationCoordinator` → TownPass 單次 GPS → 既有 M2 controller／OSRM → Live scope／地圖；兩份同意預設 false、開始／重試才取位置，取消／背景／SOS／返回／撤回清除並使舊意圖失效。狀態為 WIRED_NOT_VERIFIED，最終 SHA／PR／CI 與 iPhone 證據待填，詳見 [P0 Live 預覽](SAFE_WALK_P0_LIVE_PREVIEW.md) 及更新的 [導航接線契約](SAFE_WALK_NAVIGATION_PRESENTATION_CONTRACT.md)。下文明列舊 SHA 的缺口是歷史盤點，不據此重做本輪接線或宣稱尚無 Live UI。
 
 ## 官方基底與模組
 
