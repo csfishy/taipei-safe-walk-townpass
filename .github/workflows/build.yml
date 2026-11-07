@@ -142,7 +142,8 @@ jobs:
           SUPABASE_URL: ${{ vars.SUPABASE_URL }}
           # Public client key stored as a secret only to mask runner logs.
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
-        run: dart run tool/prepare_native_client_config.dart "$RUNNER_TEMP/native-client.json"
+        # Pure Dart: do not trigger unrelated macOS native-asset build hooks.
+        run: dart tool/prepare_native_client_config.dart "$RUNNER_TEMP/native-client.json"
       - name: Build test-signed release APK
         run: flutter build apk --release --no-pub --dart-define-from-file="$RUNNER_TEMP/native-client.json" --build-name '${{ needs.check.outputs.version }}' --build-number "$GITHUB_RUN_NUMBER"
       - name: Verify and stage APK
@@ -184,7 +185,8 @@ jobs:
           SUPABASE_URL: ${{ vars.SUPABASE_URL }}
           # Public client key stored as a secret only to mask runner logs.
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
-        run: dart run tool/prepare_native_client_config.dart "$RUNNER_TEMP/native-client.json"
+        # Pure Dart: do not trigger unrelated macOS native-asset build hooks.
+        run: dart tool/prepare_native_client_config.dart "$RUNNER_TEMP/native-client.json"
       - name: Build unsigned iPhone device app
         run: flutter build ios --release --no-codesign --no-pub --dart-define-from-file="$RUNNER_TEMP/native-client.json" --build-name '${{ needs.check.outputs.build_name }}' --build-number "$GITHUB_RUN_NUMBER"
       - name: Package and verify unsigned IPA

@@ -4,7 +4,7 @@ CI／Demo 資料庫 gate：兩份工作流的 runner-local PostGIS 初始化、�
 
 The delivery policy is [LIVE-FIRST / NO PRODUCTION MOCK](SAFE_WALK_LIVE_FIRST.md), with full user-flow acceptance in [Live MVP](SAFE_WALK_LIVE_MVP.md) and per-capability evidence in [Readiness](SAFE_WALK_LIVE_READINESS.md). Production must use real providers or show Unavailable with the true blocker and next step; Fake, Mock and fixtures belong only in isolated Unit/Integration tests. New features do not require a prior Mock/Demo/Prototype. A successful build, prerelease or Pages deployment does not verify real providers or iPhone behavior.
 
-The current main baseline `7b99fea` still has a Mock production entry after #49 restored `3c433001` and removed #35's P0 wiring. This is a pending implementation gap, not a compliant delivery or a new runtime gate added by this document. #39 is merged into a feature branch, #44 remains open, and #47's explicit Demo activation fix is also pending; the #40 database gate described above remains in main. Competition delivery excludes Google Maps and AED functionality. Production switches, database permissions and deployment still require the applicable Level C review.
+Historical baseline `7b99fea` followed #49's restoration and had not yet restored Live wiring. That snapshot is not the current release state: native crime-query configuration and verification are described below and in [Supabase setup](SAFE_WALK_SUPABASE.md). Assess each release using its source commit and recorded evidence. Competition delivery excludes Google Maps and AED functionality. Production switches, database permissions and deployment still require the applicable Level C review.
 
 The `check-and-build` workflow runs on main pushes, pull requests, matching `v*-pre.*` tags, and manual dispatch. Flutter is pinned to `.fvmrc`'s 3.47.6 and dependencies are installed with `--enforce-lockfile`; code generation runs on every clean checkout.
 
@@ -32,7 +32,7 @@ flutter analyze --no-fatal-infos
 flutter test
 flutter test --platform chrome test/web_startup_test.dart
 # Set SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY in the local process first.
-dart run tool/prepare_native_client_config.dart secrets/native-client.json
+dart tool/prepare_native_client_config.dart secrets/native-client.json
 flutter build apk --release --dart-define-from-file=secrets/native-client.json
 flutter build ios --release --no-codesign --dart-define-from-file=secrets/native-client.json
 flutter build web --release --base-href /taipei-safe-walk-townpass/ --no-web-resources-cdn

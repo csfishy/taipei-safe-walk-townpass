@@ -13,7 +13,7 @@ int prepareNativeClientConfig(
 }) {
   if (arguments.length != 1 || arguments.single.isEmpty) {
     errors.writeln(
-      'Usage: dart run tool/prepare_native_client_config.dart <output.json>',
+      'Usage: dart tool/prepare_native_client_config.dart <output.json>',
     );
     return 64;
   }

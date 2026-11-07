@@ -9,7 +9,78 @@ import tempfile
 import unittest
 import zipfile
 
-from verify_native_release import PREVIEW_ID, read_client_config, validate_metadata, verify
+from verify_native_release import PREVIEW_ID, arm64_macho_slice, read_client_config, validate_metadata, verify
+
+
+ARM64 = 0x0100000C
+X64 = 0x01000007
+
+
+def macho(payload=b'', *, cpu=ARM64):
+    return struct.pack('<8I', 0xFEEDFACF, cpu, 0, 6, 0, 0, 0, 0) + payload
+
+
+def fat_macho(slices, *, fat64=False):
+    entry_size = 32 if fat64 else 20
+    result = bytearray(8 + entry_size * len(slices))
+    struct.pack_into('>II', result, 0, 0xCAFEBABF if fat64 else 0xCAFEBABE, len(slices))
+    for index, (cpu, image) in enumerate(slices):
+        offset = len(result)
+        result.extend(image)
+        entry = 8 + entry_size * index
+        if fat64:
+            struct.pack_into('>IIQQII', result, entry, cpu, 0, offset, len(image), 0, 0)
+        else:
+            struct.pack_into('>IIIII', result, entry, cpu, 0, offset, len(image), 0)
+    return bytes(result)
+
+
+class MachOArm64SliceTest(unittest.TestCase):
+    def test_thin_arm64(self):
+        image = macho(b'arm64-code')
+        self.assertEqual(arm64_macho_slice(image), image)
+
+    def test_fat32_and_fat64_select_only_the_arm64_image(self):
+        image = macho(b'arm64-code')
+        for fat64 in (False, True):
+            with self.subTest(fat64=fat64):
+                binary = fat_macho([(X64, macho(b'other-code', cpu=X64)), (ARM64, image)], fat64=fat64)
+                self.assertEqual(arm64_macho_slice(binary), image)
+
+    def test_missing_or_ambiguous_arm64_is_rejected(self):
+        for slices in ([(X64, macho(cpu=X64))], [(ARM64, macho()), (ARM64, macho())]):
+            with self.subTest(count=len(slices)), self.assertRaisesRegex(ValueError, 'one unambiguous arm64'):
+                arm64_macho_slice(fat_macho(slices))
+
+    def test_truncated_headers_tables_and_arm64_images_are_rejected(self):
+        for binary in (b'', b'\xca\xfe\xba', b'\xca\xfe\xba\xbe',
+                       struct.pack('>II', 0xCAFEBABE, 1),
+                       struct.pack('>II', 0xCAFEBABF, 1) + bytes(20),
+                       struct.pack('>II', 0xCAFEBABE, 0), macho()[:16],
+                       fat_macho([(ARM64, macho()[:16])])):
+            with self.subTest(length=len(binary)), self.assertRaises(ValueError):
+                arm64_macho_slice(binary)
+
+    def test_slice_bounds_and_table_overlap_are_rejected(self):
+        for fat64 in (False, True):
+            for offset, size in ((0, 32), (1000, 32), (40, 1000), (40, 0)):
+                binary = bytearray(fat_macho([(ARM64, macho())], fat64=fat64))
+                struct.pack_into('>QQ' if fat64 else '>II', binary, 16, offset, size)
+                with self.subTest(fat64=fat64, offset=offset, size=size), self.assertRaises(ValueError):
+                    arm64_macho_slice(binary)
+
+    def test_overlapping_slices_cannot_smuggle_other_architecture_settings(self):
+        binary = bytearray(fat_macho([(ARM64, macho()), (X64, macho(cpu=X64))]))
+        struct.pack_into('>I', binary, 20, 64)
+        with self.assertRaisesRegex(ValueError, 'slices overlap'):
+            arm64_macho_slice(binary)
+
+    def test_wrong_inner_architecture_and_load_command_bounds_are_rejected(self):
+        oversized_commands = bytearray(macho())
+        struct.pack_into('<I', oversized_commands, 20, 4096)
+        for image in (macho(cpu=X64), bytes(oversized_commands)):
+            with self.subTest(magic=image[:8]), self.assertRaises(ValueError):
+                arm64_macho_slice(fat_macho([(ARM64, image)]))
 
 
 class NativeReleaseMetadataTest(unittest.TestCase):
@@ -77,9 +148,8 @@ class NativeReleaseClientConfigurationTest(unittest.TestCase):
         self.metadata_path = self.root / 'metadata.json'
         self.metadata_path.write_text(json.dumps(self.metadata), encoding='utf-8')
 
-    def package(self, platform, compiled_values, *, wrapper_values=b''):
+    def package(self, platform, compiled_values, *, wrapper_values=b'', aot_image=None):
         path = self.root / (platform + '.zip')
-        mach_header = struct.pack('<II', 0xFEEDFACF, 0x0100000C)
         with zipfile.ZipFile(path, 'w') as package:
             if platform == 'android':
                 binary = bytearray(20)
@@ -97,8 +167,9 @@ class NativeReleaseClientConfigurationTest(unittest.TestCase):
                     'CFBundleVersion': '152',
                     'CFBundleExecutable': 'Runner',
                 }))
-                package.writestr(app + 'Runner', mach_header + wrapper_values)
-                package.writestr(app + 'Frameworks/App.framework/App', mach_header + compiled_values)
+                package.writestr(app + 'Runner', macho(wrapper_values))
+                package.writestr(app + 'Frameworks/App.framework/App',
+                                 macho(compiled_values) if aot_image is None else aot_image)
                 asset = app + 'Frameworks/App.framework/flutter_assets/assets/build-info.json'
             package.writestr(asset, json.dumps(self.metadata))
             package.writestr('unused-client-config.json', json.dumps(self.client))
@@ -119,6 +190,18 @@ class NativeReleaseClientConfigurationTest(unittest.TestCase):
             with self.subTest(platform=platform), self.assertRaisesRegex(ValueError, 'AOT payload is missing'):
                 verify(platform, self.package(platform, b'', wrapper_values=self.encoded_values()),
                        self.metadata_path, self.config)
+
+    def test_ios_fat32_and_fat64_configuration_in_arm64_is_accepted(self):
+        for fat64 in (False, True):
+            image = fat_macho([(X64, macho(cpu=X64)), (ARM64, macho(self.encoded_values()))], fat64=fat64)
+            with self.subTest(fat64=fat64), redirect_stdout(io.StringIO()):
+                verify('ios', self.package('ios', b'', aot_image=image), self.metadata_path, self.config)
+
+    def test_configuration_in_another_architecture_does_not_satisfy_arm64(self):
+        for fat64 in (False, True):
+            image = fat_macho([(X64, macho(self.encoded_values(), cpu=X64)), (ARM64, macho())], fat64=fat64)
+            with self.subTest(fat64=fat64), self.assertRaisesRegex(ValueError, 'AOT payload is missing'):
+                verify('ios', self.package('ios', b'', aot_image=image), self.metadata_path, self.config)
 
     def test_partial_or_wrong_configuration_is_rejected(self):
         for values in (self.client['SUPABASE_URL'].encode(),

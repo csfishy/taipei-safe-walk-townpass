@@ -164,7 +164,7 @@ void main() {
       final native = job(platform);
       expect(
         native,
-        contains('dart run tool/prepare_native_client_config.dart'),
+        contains('dart tool/prepare_native_client_config.dart'),
       );
       expect(native, contains('SUPABASE_URL: \${{ vars.SUPABASE_URL }}'));
       expect(
