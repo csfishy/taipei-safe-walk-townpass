@@ -332,7 +332,31 @@ void main() {
       await _pump(t, const SafeWalkFlow(routeLoading: true));
       await t.tap(find.text('安心行'));
       await t.pump(const Duration(milliseconds: 600));
-      expect(find.text('正在計算避開異常回報的路線…'), findsOneWidget);
+      expect(find.text('正在計算步行路線…'), findsOneWidget);
+      expect(find.textContaining('已繞開'), findsNothing);
+    });
+
+    testWidgets('Live 模式不出現示範異常回報、示範求助地點或「已繞開」數字', (t) async {
+      await _pump(t, const SafeWalkFlow(mode: sw.DataMode.live));
+      await t.tap(find.text('安心行'));
+      await t.pumpAndSettle();
+      expect(find.bySemanticsLabel(RegExp('照明不足|道路施工|打架衝突|可疑人士')), findsNothing);
+      expect(find.textContaining('示範求助據點'), findsNothing);
+      expect(find.textContaining('已繞開'), findsNothing);
+      expect(find.text('路線服務尚未配置'), findsWidgets);
+      expect(t.widget<SafeWalkMapView>(find.byType(SafeWalkMapView)).routeState.path, isNull);
+    });
+
+    testWidgets('同一個 flow 切換 Live 時清除已初始化的示範資料', (t) async {
+      await _pump(t, const SafeWalkFlow());
+      await t.tap(find.text('安心行'));
+      await t.pumpAndSettle();
+      expect(t.widget<SafeWalkMapView>(find.byType(SafeWalkMapView)).anomalies, isNotEmpty);
+      await t.pumpWidget(const MaterialApp(home: SafeWalkFlow(mode: sw.DataMode.live)));
+      await t.pumpAndSettle();
+      final map = t.widget<SafeWalkMapView>(find.byType(SafeWalkMapView));
+      expect(map.anomalies, isEmpty);
+      expect(map.pointsState.points, isEmpty);
       expect(find.textContaining('已繞開'), findsNothing);
     });
 

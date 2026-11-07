@@ -75,8 +75,18 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
   late final List<SavedPlace> _places = [...demoPlaces()];
   String _placeId = 'home';
   SavedPlace get _place => _places.firstWhere((p) => p.id == _placeId, orElse: () => _places.first);
-  late final List<Anomaly> _anomalies = demoAnomalies();
-  late final List<sw.AssistancePoint> _demoPoints = demoAssistancePoints();
+  // Live mode never shows invented danger points or stand-in assistance points.
+  late List<Anomaly> _anomalies = widget.mode == sw.DataMode.mock ? demoAnomalies() : <Anomaly>[];
+  late List<sw.AssistancePoint> _demoPoints = widget.mode == sw.DataMode.mock ? demoAssistancePoints() : const <sw.AssistancePoint>[];
+
+  @override
+  void didUpdateWidget(SafeWalkFlow oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.mode != widget.mode) {
+      _anomalies = widget.mode == sw.DataMode.mock ? demoAnomalies() : <Anomaly>[];
+      _demoPoints = widget.mode == sw.DataMode.mock ? demoAssistancePoints() : const <sw.AssistancePoint>[];
+    }
+  }
 
   String? get _nearestPointName {
     final pts = _pointsState.points;
@@ -86,7 +96,7 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
     return sorted.first.name;
   }
 
-  RouteState get _routeState => RouteState(result: widget.route, loading: widget.routeLoading, onRetry: widget.onPlanRoute == null ? null : _planRoute);
+  RouteState get _routeState => RouteState(result: widget.route, loading: widget.routeLoading, allowDemoFallback: widget.mode == sw.DataMode.mock, onRetry: widget.onPlanRoute == null ? null : _planRoute);
 
   void _planRoute() => widget.onPlanRoute?.call(sw.Coordinates(lat: _place.at.lat, lng: _place.at.lng));
 

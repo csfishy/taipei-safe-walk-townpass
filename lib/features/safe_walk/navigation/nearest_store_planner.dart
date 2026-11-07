@@ -1,6 +1,5 @@
 import 'package:town_pass/features/safe_walk/navigation/cancellable.dart';
 import 'package:town_pass/features/safe_walk/navigation/consent.dart';
-import 'package:town_pass/features/safe_walk/navigation/google_maps_link.dart';
 import 'package:town_pass/features/safe_walk/navigation/nearest_point.dart';
 import 'package:town_pass/features/safe_walk/navigation/route_service.dart';
 import 'package:town_pass/features/safe_walk/shared/contracts/cancellation.dart';
@@ -15,7 +14,7 @@ typedef NearbyPointFinder = Future<List<sw.AssistancePoint>> Function(
 });
 
 enum NearestStoreStatus {
-  /// [NearestStoreResult.store] and [NearestStoreResult.googleMapsUri] are set.
+  /// [NearestStoreResult.store] is set.
   found,
 
   /// The data holds no convenience store recorded as open. Not proof that
@@ -42,8 +41,7 @@ final class NearestStore {
   final double straightLineMeters;
 
   /// The walking route our own provider found, or null when no route service
-  /// was given or it could not route to this store. The Google Maps link
-  /// works without it.
+  /// was given or it could not route to this store.
   final sw.RouteCandidate? walkingRoute;
 }
 
@@ -51,17 +49,12 @@ final class NearestStoreResult {
   const NearestStoreResult._({
     required this.status,
     this.store,
-    this.googleMapsUri,
     this.reason,
     this.warnings = const [],
   });
 
   final NearestStoreStatus status;
   final NearestStore? store;
-
-  /// Opens Google Maps with walking navigation to [store]. Contains the
-  /// store's coordinates only, never the user's location.
-  final Uri? googleMapsUri;
 
   /// A fixed, user-readable reason when [status] is not `found`.
   final String? reason;
@@ -78,10 +71,9 @@ final class NearestStoreResult {
 ///    after another and pick the shortest real walk; if none can be routed,
 ///    fall back to the straight-line nearest and say so. (One at a time:
 ///    `DefaultRouteService` keeps only the newest call.)
-/// 3. Build a Google Maps walking link to the winner.
 ///
-/// It reads no GPS; [origin] comes from M1. The Google link works even when
-/// our own routing is unavailable.
+/// It reads no GPS; [origin] comes from M1. Guidance is only ever shown through
+/// the in-app OSM/OSRM flow; no external map app is launched.
 final class NearestStorePlanner {
   NearestStorePlanner({
     required this.find,
@@ -172,11 +164,10 @@ final class NearestStorePlanner {
         straightLineMeters: chosen.distanceMeters,
         walkingRoute: chosenRoute,
       ),
-      googleMapsUri: googleMapsWalkingUri(destination: point.coordinates),
       warnings: [
         ...point.source.limitations,
         if (service != null && chosenRoute == null)
-          '無法自行規劃步行路線，已依直線距離挑選；請以 Google 地圖的路線為準',
+          '無法規劃步行路線，僅依直線距離挑選，不是實際可走的路線；請留意現場路況',
         if (chosenRoute != null) ...chosenRoute.warnings,
       ],
     );
