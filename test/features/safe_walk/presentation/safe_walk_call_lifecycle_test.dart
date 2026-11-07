@@ -203,6 +203,22 @@ void main() {
     await t.pumpAndSettle();
   });
 
+  testWidgets('響鈴期間語音準備完成：接聽第一句使用真正的 speaker', (t) async {
+    final speaker = _Spy()..ready = false;
+    await _open(t, speaker);
+    expect(speaker.spoken, isEmpty);
+
+    speaker.ready = true;
+    t.element(find.byType(SafeWalkFlow)).markNeedsBuild();
+    await t.pump();
+    await t.tap(find.text('接聽'));
+    await t.pump(const Duration(milliseconds: 300));
+    final spoken = [...speaker.spoken];
+    await t.pumpWidget(const MaterialApp(home: SizedBox()));
+
+    expect(spoken, [m5CompanionScenarios.first.steps.first.text]);
+  });
+
   testWidgets('語音準備晚到：揭露更新後，手動重播使用真正的 speaker', (t) async {
     final speaker = _Spy()..ready = false;
     await _open(t, speaker);

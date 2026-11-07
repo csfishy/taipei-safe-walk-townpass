@@ -36,6 +36,7 @@ final class CompanionSpeakerAdapter implements SafeWalkRouteSpeaker {
   _SpeechCancellation? _active;
   int _generation = 0;
   bool _emergencyStopped = false;
+  bool _lifecycleActive = true;
   bool _disposed = false;
   Future<void>? _disposeFuture;
   Object? _lastError;
@@ -53,7 +54,7 @@ final class CompanionSpeakerAdapter implements SafeWalkRouteSpeaker {
   @override
   void speak(String text, {void Function()? onDone}) {
     if (_disposed) return;
-    if (_emergencyStopped) {
+    if (!_lifecycleActive || _emergencyStopped) {
       // Clear the view's text-preview indicator without restarting M5 work.
       onDone?.call();
       return;
@@ -104,6 +105,13 @@ final class CompanionSpeakerAdapter implements SafeWalkRouteSpeaker {
     unawaited(_observe(() => _controller.stop(sw.CompanionStopReason.user)));
   }
 
+  @override
+  void setLifecycleActive(bool active) {
+    if (_disposed || _lifecycleActive == active) return;
+    _lifecycleActive = active;
+    if (!active) stop();
+  }
+
   Future<void> pause() {
     if (_disposed) return Future<void>.value();
     _invalidate();
@@ -150,7 +158,10 @@ final class CompanionSpeakerAdapter implements SafeWalkRouteSpeaker {
   }
 
   bool _isCurrent(int generation) =>
-      !_disposed && !_emergencyStopped && _generation == generation;
+      !_disposed &&
+      _lifecycleActive &&
+      !_emergencyStopped &&
+      _generation == generation;
 }
 
 sw.CompanionScenario? _textPreview(String text) {

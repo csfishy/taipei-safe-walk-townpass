@@ -142,14 +142,11 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    final foreground = state == AppLifecycleState.resumed;
-    final speaker = _speaker;
-    if (speaker is TtsSafeWalkSpeaker) {
-      speaker.setForeground(foreground);
-    } else if (!foreground) {
-      _speaker.stop();
+    final active = state == AppLifecycleState.resumed;
+    _speaker.setLifecycleActive(active);
+    if (!active) {
+      _closeNavigation();
     }
-    if (!foreground) _closeNavigation();
     if (mounted) setState(() {});
   }
 
