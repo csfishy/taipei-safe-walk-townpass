@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:town_pass/features/safe_walk/presentation/mock/safe_walk_demo_data.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_call_view.dart';
@@ -28,7 +27,6 @@ class SafeWalkFlow extends StatefulWidget {
     this.onRetryPoints,
     this.pointRoutes = const {},
     this.onSelectPoint,
-    this.onAskConsents,
     this.route,
     this.routeLoading = false,
     this.onPlanRoute,
@@ -52,15 +50,10 @@ class SafeWalkFlow extends StatefulWidget {
     this.reportBuilder,
     this.onLeaveReport,
     this.showMapTiles = true,
-    this.askMapTilesOnOpen = false,
   });
   final sw.DataMode mode;
   final bool allowRealCalls;
   final bool showMapTiles;
-
-  /// Official entry: ask once for the separate OSM tile consent when the map
-  /// opens. Nothing loads until the walker taps 同意載入.
-  final bool askMapTilesOnOpen;
 
   /// Reference status only: this entry does not start navigation or read GPS.
   final Widget Function(BuildContext context, VoidCallback onBack)?
@@ -80,10 +73,6 @@ class SafeWalkFlow extends StatefulWidget {
   /// M1: the walker chose this point as the target; navigate there with the
   /// route already planned for it.
   final ValueChanged<String>? onSelectPoint;
-
-  /// M1: ask for route and crime-query consent, one after the other, when the
-  /// map opens without a destination yet. Nothing is sent.
-  final VoidCallback? onAskConsents;
 
   /// 前往目前目的地的路線（M2 RouteService → M1 提供）。未配置時只有 Mock 使用示範路線；Live 顯示 unavailable。
   final sw.RouteResult? route;
@@ -134,14 +123,14 @@ class SafeWalkFlow extends StatefulWidget {
   State<SafeWalkFlow> createState() => _SafeWalkFlowState();
 }
 
-class _SafeWalkFlowState extends State<SafeWalkFlow> with WidgetsBindingObserver {
+class _SafeWalkFlowState extends State<SafeWalkFlow>
+    with WidgetsBindingObserver {
   _Screen _screen = _Screen.home;
   _Screen _back = _Screen.home;
   bool _forward = true;
   sw.Position? _position;
   LatLng? _manualStart;
   int _editGeneration = 0;
-  bool _mapTileConsent = false;
 
   /// 目前導航的目標：null＝目的地（家／常用地點）；否則是求助地點 id。
   String? _targetPointId;
@@ -159,7 +148,9 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> with WidgetsBindingObserver
   void _setStart(LatLng? at) {
     ++_editGeneration;
     setState(() => _manualStart = at);
-    widget.onStartChanged?.call(at == null ? null : sw.Coordinates(lat: at.lat, lng: at.lng));
+    widget.onStartChanged?.call(
+      at == null ? null : sw.Coordinates(lat: at.lat, lng: at.lng),
+    );
     _planRoute();
   }
 
@@ -190,9 +181,10 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> with WidgetsBindingObserver
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden || state == AppLifecycleState.detached) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.detached) {
       ++_editGeneration;
-      if (mounted) setState(() => _mapTileConsent = false);
     }
   }
 
@@ -204,8 +196,12 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> with WidgetsBindingObserver
     }
     if (old.mode != widget.mode) {
       ++_editGeneration;
-      _anomalies = widget.mode == sw.DataMode.mock ? demoAnomalies() : <Anomaly>[];
-      _demoPoints = widget.mode == sw.DataMode.mock ? demoAssistancePoints() : const <sw.AssistancePoint>[];
+      _anomalies = widget.mode == sw.DataMode.mock
+          ? demoAnomalies()
+          : <Anomaly>[];
+      _demoPoints = widget.mode == sw.DataMode.mock
+          ? demoAssistancePoints()
+          : const <sw.AssistancePoint>[];
     }
   }
 
@@ -250,11 +246,14 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> with WidgetsBindingObserver
       _placeId = id;
     });
     _planRoute(
-      savedDestination: id == 'home' ? sw.Coordinates(lat: at.lat, lng: at.lng) : null,
+      savedDestination: id == 'home'
+          ? sw.Coordinates(lat: at.lat, lng: at.lng)
+          : null,
     );
   }
 
-  SavedPlace get _place => _places.firstWhere((p) => p.id == _placeId, orElse: () => _places.first);
+  SavedPlace get _place =>
+      _places.firstWhere((p) => p.id == _placeId, orElse: () => _places.first);
   // Live mode never shows invented danger points or stand-in assistance points.
   late List<Anomaly> _anomalies = widget.mode == sw.DataMode.mock
       ? demoAnomalies()
@@ -268,8 +267,19 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> with WidgetsBindingObserver
     if (pts.isEmpty) return null;
     final position = widget.livePosition ?? _position;
     if (position == null && widget.mode == sw.DataMode.live) return null;
-    final from = position == null ? DemoGeo.start : LatLng(position.coordinates.lat, position.coordinates.lng);
-    final sorted = [...pts]..sort((a, b) => metersBetween(from, LatLng(a.coordinates.lat, a.coordinates.lng)).compareTo(metersBetween(from, LatLng(b.coordinates.lat, b.coordinates.lng))));
+    final from = position == null
+        ? DemoGeo.start
+        : LatLng(position.coordinates.lat, position.coordinates.lng);
+    final sorted = [...pts]
+      ..sort(
+        (a, b) =>
+            metersBetween(
+              from,
+              LatLng(a.coordinates.lat, a.coordinates.lng),
+            ).compareTo(
+              metersBetween(from, LatLng(b.coordinates.lat, b.coordinates.lng)),
+            ),
+      );
     return sorted.first.name;
   }
 
@@ -303,7 +313,8 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> with WidgetsBindingObserver
   void _planRoute({sw.Coordinates? savedDestination}) {
     widget.onReportsChanged?.call([
       for (final a in _anomalies)
-        if (a.status != AnomalyStatus.cleared) (id: a.id, center: sw.Coordinates(lat: a.at.lat, lng: a.at.lng)),
+        if (a.status != AnomalyStatus.cleared)
+          (id: a.id, center: sw.Coordinates(lat: a.at.lat, lng: a.at.lng)),
     ]);
     if (savedDestination != null) _targetPointId = null;
     // 目標是求助地點時，重新規劃（例如回報變了）也是往那個地點。
@@ -357,22 +368,11 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> with WidgetsBindingObserver
     }
     // 使用者明確打開地圖（點「安心行」主卡）時才請 M1 規劃路線；一進安心行不自動送出。
     if (_isMapScreen(s) && !_isMapScreen(_screen)) {
-      final askTiles = widget.askMapTilesOnOpen && widget.showMapTiles && widget.mode == sw.DataMode.live && !_mapTileConsent;
-      if (!askTiles) {
-        _afterMapOpened(s);
-      } else {
-        // 一次問一個：先地圖圖磚，關掉後才問路線查詢、犯罪資料查詢。
-        WidgetsBinding.instance.addPostFrameCallback((_) async {
-          if (!mounted || !_isMapScreen(_screen)) return;
-          if (!_mapTileConsent) await _askMapTileConsent();
-          if (mounted && _isMapScreen(_screen)) _afterMapOpened(_screen);
-        });
-      }
+      _afterMapOpened(s);
     }
     if (!_isMapScreen(s) && _isMapScreen(_screen)) {
       ++_editGeneration;
       _targetPointId = null;
-      _mapTileConsent = false;
       widget.onLeaveMap?.call();
     }
     if (s == _Screen.home) _call = null;
@@ -389,9 +389,6 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> with WidgetsBindingObserver
   void _afterMapOpened(_Screen s) {
     if (s == _Screen.points && widget.mode == sw.DataMode.live) {
       widget.onRetryPoints?.call();
-    } else if (_missingLiveHome && _place.isHome) {
-      // 還沒有目的地也先把同意問完，之後選目的地就直接規劃。
-      widget.onAskConsents?.call();
     } else {
       _planRoute();
     }
@@ -399,7 +396,6 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> with WidgetsBindingObserver
 
   void _openEmergency() {
     ++_editGeneration;
-    _mapTileConsent = false;
     widget.onLeaveReport?.call();
     if (_isMapScreen(_screen)) widget.onLeaveMap?.call();
     _call = null;
@@ -431,7 +427,10 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> with WidgetsBindingObserver
       _position = result is sw.LocationSuccess ? result.position : null;
       _emergencyError = result is sw.LocationFailure;
       _emergencyMessage = switch (result) {
-        sw.LocationSuccess() => widget.mode == sw.DataMode.mock ? '已取得示範位置；不是真實定位，未傳送給任何人。' : '已取得位置；尚未傳送給任何人。',
+        sw.LocationSuccess() =>
+          widget.mode == sw.DataMode.mock
+              ? '已取得示範位置；不是真實定位，未傳送給任何人。'
+              : '已取得位置；尚未傳送給任何人。',
         sw.LocationFailure(:final message) => message,
       };
     });
@@ -446,33 +445,12 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> with WidgetsBindingObserver
     });
   }
 
-  /// Same agree/decline dialog as the route and crime query settings.
-  Future<void> _askMapTileConsent() async {
-    final agreed = await showDialog<bool>(
-      context: context,
-      builder: (dialog) => AlertDialog(
-        title: const Text('地圖載入設定'),
-        content: const Text('載入地圖會向 OpenStreetMap（tile.openstreetmap.org）請求目前檢視範圍的圖磚，對方會看到檢視範圍與 IP。'),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(dialog).pop(false), child: const Text('不載入')),
-          TextButton(onPressed: () => Navigator.of(dialog).pop(true), child: const Text('同意載入')),
-        ],
-      ),
-    );
-    if (agreed != null && mounted) setState(() => _mapTileConsent = agreed);
-  }
-
   @override
   Widget build(BuildContext context) {
     Widget map({MapStartView start = MapStartView.route}) => SafeWalkMapView(
       key: ValueKey(start),
       position: widget.livePosition ?? _position,
-      showMapTiles:
-          widget.showMapTiles &&
-          (widget.mode == sw.DataMode.mock || _mapTileConsent),
-      onMapTileConsent: widget.showMapTiles && widget.mode == sw.DataMode.live
-          ? () => unawaited(_askMapTileConsent())
-          : null,
+      showMapTiles: widget.showMapTiles,
       pointsState: _pointsState,
       routeState: _routeState,
       targetPointId: _targetPointId,
@@ -578,7 +556,11 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> with WidgetsBindingObserver
       canPop: _screen == _Screen.home,
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) {
-          _go(_screen == _Screen.emergency || _screen == _Screen.call ? _back : _Screen.home);
+          _go(
+            _screen == _Screen.emergency || _screen == _Screen.call
+                ? _back
+                : _Screen.home,
+          );
         }
       },
       // 換頁：往深一層由右滑入，返回由左滑入；緊急求助由下方升起，強調「這是另一種狀態」。

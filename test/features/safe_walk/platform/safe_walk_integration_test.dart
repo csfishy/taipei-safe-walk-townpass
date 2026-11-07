@@ -182,17 +182,10 @@ void main() {
       expect(flow.route, isNull);
       await t.tap(find.text('安心行'));
       await t.pumpAndSettle();
-      // The official entry asks for the separate OSM tile consent; declining
-      // keeps the map blank.
-      expect(find.text('地圖載入設定'), findsOneWidget);
-      await t.tap(find.text('不載入'));
-      await t.pumpAndSettle();
-      expect(find.byType(TileLayer), findsNothing);
+      expect(find.text('地圖載入設定'), findsNothing);
+      expect(find.byType(TileLayer), findsOneWidget);
       expect(find.text('請先返回首頁設定「家」的位置，再規劃回家路線。'), findsWidgets);
-      // The route consent is asked next (one at a time); nothing is sent.
-      expect(find.text('規劃路線需要你的位置'), findsOneWidget);
-      await t.tap(find.text('不要'));
-      await t.pumpAndSettle();
+      expect(find.text('規劃路線需要你的位置'), findsNothing);
       await back(t);
       await back(t);
       expect(find.byType(CityServiceView), findsOneWidget);

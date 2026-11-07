@@ -34,7 +34,6 @@ class SafeWalkHomeSettingView extends StatefulWidget {
 class _SafeWalkHomeSettingViewState extends State<SafeWalkHomeSettingView> {
   LatLng? _pin;
   bool _busy = false;
-  bool _mapEnabled = false;
   String? _error;
 
   @override
@@ -62,7 +61,10 @@ class _SafeWalkHomeSettingViewState extends State<SafeWalkHomeSettingView> {
   Future<void> _openAttribution() async {
     const url = 'https://www.openstreetmap.org/copyright';
     try {
-      if (await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication)) {
+      if (await launchUrl(
+        Uri.parse(url),
+        mode: LaunchMode.externalApplication,
+      )) {
         return;
       }
     } catch (_) {
@@ -87,80 +89,54 @@ class _SafeWalkHomeSettingViewState extends State<SafeWalkHomeSettingView> {
             child: Stack(
               children: [
                 Positioned.fill(
-                  child: !_mapEnabled
-                      ? Center(
-                          child: SingleChildScrollView(
-                            child: Padding(
-                              padding: const EdgeInsets.all(24),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    '載入地圖會向 OpenStreetMap 請求檢視範圍；編輯時範圍包含已儲存的家。是否載入？',
-                                    style: SwText.body,
-                                  ),
-                                  const SizedBox(height: 16),
-                                  SwPrimaryButton(
-                                    label: '載入地圖',
-                                    icon: Icons.map_outlined,
-                                    onTap: () =>
-                                        setState(() => _mapEnabled = true),
-                                  ),
-                                ],
+                  child: FlutterMap(
+                    options: MapOptions(
+                      initialCenter: pin == null
+                          ? _kDefaultCenter
+                          : ll.LatLng(pin.lat, pin.lng),
+                      initialZoom: pin == null ? 14 : 17,
+                      minZoom: 3,
+                      maxZoom: 19,
+                      backgroundColor: SwColors.surface,
+                      interactionOptions: const InteractionOptions(
+                        flags:
+                            InteractiveFlag.pinchZoom |
+                            InteractiveFlag.drag |
+                            InteractiveFlag.flingAnimation,
+                      ),
+                      onTap: _busy
+                          ? null
+                          : (_, at) => setState(
+                              () => _pin = LatLng(at.latitude, at.longitude),
+                            ),
+                    ),
+                    children: [
+                      TileLayer(
+                        urlTemplate:
+                            'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                        userAgentPackageName: 'town_pass',
+                        maxNativeZoom: 19,
+                        tileProvider: DemoMap.createTileProvider(),
+                      ),
+                      if (pin != null)
+                        MarkerLayer(
+                          markers: [
+                            Marker(
+                              point: ll.LatLng(pin.lat, pin.lng),
+                              width: 48,
+                              height: 48,
+                              alignment: Alignment.topCenter,
+                              child: const Icon(
+                                Icons.home_rounded,
+                                size: 40,
+                                color: SwColors.brandText,
+                                semanticLabel: '家的位置',
                               ),
                             ),
-                          ),
-                        )
-                      : FlutterMap(
-                          options: MapOptions(
-                            initialCenter: pin == null
-                                ? _kDefaultCenter
-                                : ll.LatLng(pin.lat, pin.lng),
-                            initialZoom: pin == null ? 14 : 17,
-                            minZoom: 3,
-                            maxZoom: 19,
-                            backgroundColor: SwColors.surface,
-                            interactionOptions: const InteractionOptions(
-                              flags:
-                                  InteractiveFlag.pinchZoom |
-                                  InteractiveFlag.drag |
-                                  InteractiveFlag.flingAnimation,
-                            ),
-                            onTap: _busy
-                                ? null
-                                : (_, at) => setState(
-                                    () => _pin = LatLng(
-                                      at.latitude,
-                                      at.longitude,
-                                    ),
-                                  ),
-                          ),
-                          children: [
-                            TileLayer(
-                              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                              userAgentPackageName: 'town_pass',
-                              maxNativeZoom: 19,
-                              tileProvider: DemoMap.createTileProvider(),
-                            ),
-                            if (pin != null)
-                              MarkerLayer(
-                                markers: [
-                                  Marker(
-                                    point: ll.LatLng(pin.lat, pin.lng),
-                                    width: 48,
-                                    height: 48,
-                                    alignment: Alignment.topCenter,
-                                    child: const Icon(
-                                      Icons.home_rounded,
-                                      size: 40,
-                                      color: SwColors.brandText,
-                                      semanticLabel: '家的位置',
-                                    ),
-                                  ),
-                                ],
-                              ),
                           ],
                         ),
+                    ],
+                  ),
                 ),
                 SafeArea(
                   bottom: false,
@@ -205,7 +181,7 @@ class _SafeWalkHomeSettingViewState extends State<SafeWalkHomeSettingView> {
                     style: SwText.secondary,
                   ),
                   Text(
-                    '載入地圖會向 OpenStreetMap 請求目前檢視範圍的圖磚。',
+                    '地圖自動載入 OpenStreetMap 圖磚，服務會收到檢視範圍與 IP；編輯時範圍包含已儲存的家。',
                     style: SwText.secondary,
                   ),
                   TextButton(

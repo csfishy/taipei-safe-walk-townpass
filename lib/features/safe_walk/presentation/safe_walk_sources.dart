@@ -23,6 +23,7 @@ const swDataSources = <SwDataSource>[
     title: '地圖底圖',
     provider: '© OpenStreetMap contributors',
     license: 'ODbL 1.0（開放資料庫授權）',
+    note: '地圖圖磚自動載入，不再詢問。OpenStreetMap（tile.openstreetmap.org）會收到目前檢視範圍與 IP。',
     url: 'https://www.openstreetmap.org/copyright',
   ),
   SwDataSource(

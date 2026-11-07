@@ -165,7 +165,6 @@ class SafeWalkMapView extends StatefulWidget {
     this.crimeConsent = false,
     this.destinationConfigured = true,
     this.showMapTiles = true,
-    this.onMapTileConsent,
     this.targetPointId,
     this.onTarget,
   });
@@ -188,7 +187,6 @@ class SafeWalkMapView extends StatefulWidget {
   final bool crimeConsent;
   final bool destinationConfigured;
   final bool showMapTiles;
-  final VoidCallback? onMapTileConsent;
 
   /// 使用者在地圖上指定的起點；null＝用目前位置（GPS）。
   final LatLng? manualStart;
@@ -240,9 +238,12 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
   @override
   void didUpdateWidget(SafeWalkMapView old) {
     super.didUpdateWidget(old);
-    if (old.routeState.result != widget.routeState.result ||
-        old.pointsState.routes != widget.pointsState.routes) {
-      _routeChoice = 0;
+    if (old.routeState.result != widget.routeState.result) _routeChoice = 0;
+    // 地點陸續出現、最後再依安全與時間重排：畫面停在使用者正在看的那一個。
+    final target = widget.targetPointId;
+    if (target != null && _pointIndex != null) {
+      final i = _sorted.indexWhere((p) => p.id == target);
+      if (i >= 0) _pointIndex = i;
     }
     final detail = _crimeDetail;
     if (detail != null) {
@@ -1020,7 +1021,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
               onTap: _showPoints,
             ),
           ],
-        ] else if (!isHome && ps.loading)
+        ] else if (!isHome && ps.loading && points.isEmpty)
           Semantics(
             liveRegion: true,
             child: Column(
@@ -1061,7 +1062,12 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
               header: true,
               child: Text('附近的求助地點', style: SwText.smallStrong),
             ),
-            Text('第一個最安全、最快；點一下可切換。營業時間不確定的最多列一個。', style: SwText.small),
+            Text(
+              ps.loading
+                  ? '先顯示最近的地點，其他地點的路線還在計算…'
+                  : '只列資料標示營業中的地點；第一個最安全、最快，點一下可切換。',
+              style: SwText.small,
+            ),
             const SizedBox(height: 6),
             for (final (i, p) in points.indexed)
               if (_bestOf(ps.routes[p.id]) case final best?)
@@ -1197,6 +1203,17 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
           Text('路線來源：${rs.best!.provider}', style: SwText.small),
         ],
         for (final warning in rs.warnings) Text(warning, style: SwText.small),
+        if (rs.live && widget.crimeQueryStatus != null) ...[
+          const SizedBox(height: 8),
+          Semantics(
+            liveRegion: true,
+            child: Text(
+              widget.crimeQueryStatus!,
+              key: const Key('crime-query-status'),
+              style: SwText.small,
+            ),
+          ),
+        ],
         Align(
           alignment: Alignment.centerLeft,
           child: SwSourcesLink(
@@ -1206,7 +1223,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                   icon: Icons.alt_route_rounded,
                   label: '路線查詢設定',
                   status: widget.routingConsent
-                      ? '已同意路線查詢；可在此撤回。系統定位權限與圖磚載入分別設定。'
+                      ? '已同意路線查詢；可在此撤回。系統定位權限另行設定，地圖圖磚自動載入。'
                       : '未同意路線查詢；不會傳送起點、目的地與避讓緩衝。',
                   onTap: widget.onManageRoutingConsent!,
                 ),
@@ -1220,15 +1237,6 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                       widget.crimeQueryStatus!,
                   ].join('\n'),
                   onTap: widget.onManageCrimeConsent!,
-                ),
-              if (widget.onMapTileConsent != null)
-                (
-                  icon: Icons.map_outlined,
-                  label: '地圖載入設定',
-                  status: widget.showMapTiles
-                      ? '已同意載入地圖圖磚；可在此撤回。'
-                      : '未同意載入地圖圖磚。',
-                  onTap: widget.onMapTileConsent!,
                 ),
             ],
           ),
@@ -1808,7 +1816,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
     sw.AssistancePoint? picked,
   ) {
     final ps = widget.pointsState;
-    if (ps.loading) return const SwSkeleton();
+    if (ps.loading && points.isEmpty) return const SwSkeleton();
     if (ps.error != null) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,

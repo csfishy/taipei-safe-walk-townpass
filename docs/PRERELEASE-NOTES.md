@@ -2,7 +2,17 @@ Town Pass 開發預覽，從本 release 記錄的 source commit 建立；實際�
 
 正式交付依 [LIVE-FIRST／NO PRODUCTION MOCK](SAFE_WALK_LIVE_FIRST.md) 與 [Live MVP](SAFE_WALK_LIVE_MVP.md)，能力是否完成以 [Readiness](SAFE_WALK_LIVE_READINESS.md) 及相同 build SHA 的實際證據為準。Production 僅提供真能力或 Unavailable＋真實原因＋下一步，Fake／Mock／fixtures 僅限隔離測試，清楚標示 Demo 也不能替代正式流程。安裝包／網站可開啟不等於 Live 已驗收。
 
-本次規範基線 main `7b99fea` 經 #49 restore 後正式入口仍 Mock，#35 舊接線已移除；這是待修現況，不可將此版本宣稱為已完成的 Live 產品。#39 僅合入 feature branch，#44 仍開放；未合併程式或文件中的目標不算此 release 的成果。每個 release 應以自身 source commit 列出已驗、未驗、失敗與 skip，沒有裝置證據就明列未驗；競賽正式功能不採 Google Maps、不加入 AED。
+包含 [#64](https://github.com/csfishy/taipei-safe-walk-townpass/pull/64) 的原生版本會在建置時驗證並注入犯罪參考查詢所需的公開 Supabase 設定；缺少設定時停止原生建置，不再產出缺少該設定的原生預覽包。App 的「犯罪資料查詢設定」在服務未配置時會顯示說明，查詢進度與失敗原因也會顯示於路線面板。保留 M3 地圖與原有模擬真人通話設計；本次修正不變更通話流程。
+
+已透過 App 相同的唯讀 Repository、傳輸及解析器實查既有 Supabase，確認快照包含 2,542 筆來源紀錄、10 個來源。另在 Flutter 測試環境以真實 RPC 查詢，驗證指定範圍產生 17 個參考標記及 17 個 50 公尺產品緩衝；該測試使用人工起終點、隔離路線／TTS／儲存邊界，未取得裝置 GPS，**不代表 iPhone 實機驗收**。這些數字是本次驗證範圍的結果，不是所有使用者都會看到的標記數；無座標的紀錄不會補造地圖位置。證據與限制見 [Supabase 實際查詢紀錄](SAFE_WALK_SUPABASE.md)。
+
+iPhone 更新後的操作步驟：
+
+1. 下載本次新 IPA，完成適當簽署後安裝，並核對 release 的版本與 source commit；舊安裝包不會因後端可用而自動取得新的建置設定。
+2. 進入「臺北安心行」地圖，在「資料來源與授權」開啟「犯罪資料查詢設定」，確認並同意查詢。
+3. 重新規劃路線，依操作授予定位及路線查詢同意，查看犯罪參考查詢狀態與取得的標記。只變更同意設定不會立即查詢；重新規劃才會查詢該行程範圍。
+
+50 公尺是產品避讓緩衝，不是官方犯罪邊界、精確案發範圍或安全保證；歷史資料不代表即時道路風險。每個 release 以自身 source commit 及實際驗證結果為準，沒有裝置證據就明列未驗；競賽正式功能不採 Google Maps、不加入 AED。
 
 - Android APK：Flutter Release build，使用可拋棄的 Android Debug 測試金鑰簽署；不是正式商店簽章。不同 CI build 的金鑰可能不同，更新前可能需要移除舊預覽版。
 - iOS IPA：真實 iPhone arm64 Release build，封裝 `Payload/Runner.app`，沒有簽章／provisioning profile；安裝前需要適當簽署，不能直接用 TestFlight 安裝。

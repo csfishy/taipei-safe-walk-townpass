@@ -298,6 +298,69 @@ Future<void> _ready(
 }
 
 void main() {
+  group('standalone maps load without tile confirmation', () {
+    testWidgets('route map loads after location without enabling queries', (
+      t,
+    ) async {
+      final platform = _Platform();
+      final routes = _Routes();
+      final db = _Db();
+      final c = _loop(platform: platform, routes: routes, db: db)
+        ..setLocationConsent(true);
+      addTearDown(c.dispose);
+      await c.locate();
+      expect(c.origin, isNotNull);
+      t.view.physicalSize = const Size(900, 3000);
+      t.view.devicePixelRatio = 1;
+      addTearDown(t.view.reset);
+      await t.pumpWidget(
+        MaterialApp(
+          home: SafeWalkLiveRoutePage(
+            controller: c,
+            onBack: () {},
+            onEmergency: () {},
+          ),
+        ),
+      );
+      await t.pumpAndSettle();
+      expect(find.byType(TileLayer), findsOneWidget);
+      expect(find.byKey(const Key('live-consent-map')), findsNothing);
+      expect(c.routingConsent, isFalse);
+      expect(c.referenceConsent, isFalse);
+      expect(platform.calls, 1);
+      expect(routes.requests, isEmpty);
+      expect(db.calls, isEmpty);
+      await t.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets('report map loads reviewed areas without a tile switch', (
+      t,
+    ) async {
+      final db = _Db();
+      final c = SafeWalkReportStatusController(
+        repository: db.repository,
+        reviewedAreas: [_area()],
+        clock: () => _now,
+      );
+      addTearDown(c.dispose);
+      t.view.physicalSize = const Size(900, 3000);
+      t.view.devicePixelRatio = 1;
+      addTearDown(t.view.reset);
+      await t.pumpWidget(
+        MaterialApp(
+          home: SafeWalkReportStatusPage(controller: c, onBack: () {}),
+        ),
+      );
+      await t.pumpAndSettle();
+      expect(find.byType(TileLayer), findsOneWidget);
+      expect(find.byKey(const Key('report-map-consent')), findsNothing);
+      expect(find.textContaining('檢視範圍與 IP'), findsOneWidget);
+      expect(db.calls, hasLength(1));
+      expect(db.calls.single['p_limit'], 1);
+      await t.pumpWidget(const SizedBox.shrink());
+    });
+  });
+
   group('live loop: consent and the connected flow', () {
     test('no GPS read without location consent', () async {
       final platform = _Platform();
@@ -1002,7 +1065,6 @@ void main() {
       List<RouteReferenceArea> areas = const [],
       bool showMap = false,
       sw.Coordinates? home,
-      bool askTiles = false,
       List<sw.AssistancePoint>? stores,
       List<sw.Coordinates>? storeQueries,
     }) async {
@@ -1019,7 +1081,6 @@ void main() {
             crimeRepository: db.repository,
             reviewedAreas: areas,
             showLiveMap: showMap,
-            askMapTilesOnOpen: askTiles,
             findStores: (origin, {cancellation}) async {
               storeQueries?.add(origin);
               return stores ?? const [];
@@ -1064,7 +1125,7 @@ void main() {
     }
 
     testWidgets(
-      'opening the map asks for OSM tiles once; nothing loads until 同意載入',
+      'map tiles load directly on entry, re-entry, resume and return from SOS',
       (t) async {
         final platform = _livePlatform();
         final routes = _Routes();
@@ -1075,33 +1136,31 @@ void main() {
           routes: routes,
           db: db,
           showMap: true,
-          askTiles: true,
         );
         await openMap(t);
-        expect(
-          find.text('地圖載入設定'),
-          findsOneWidget,
-          reason: 'separate tile consent is asked, not granted',
-        );
-        expect(find.byType(TileLayer), findsNothing);
-        expect(find.text('規劃路線需要你的位置'), findsNothing);
-        await t.tap(find.text('不載入'));
-        await t.pumpAndSettle();
-        // One at a time: the route consent follows the tile choice.
-        expect(find.text('規劃路線需要你的位置'), findsOneWidget);
-        await t.tap(find.text('不要'));
-        await t.pumpAndSettle();
-        expect(map(t).showMapTiles, isFalse);
-        expect(find.byType(TileLayer), findsNothing);
+        void expectDirectMap() {
+          expect(find.text('地圖載入設定'), findsNothing);
+          expect(find.text('同意載入'), findsNothing);
+          expect(find.text('不載入'), findsNothing);
+          expect(map(t).showMapTiles, isTrue);
+          expect(find.byType(TileLayer), findsOneWidget);
+        }
+
+        expectDirectMap();
         await leaveMap(t);
         await openMap(t);
-        await t.tap(find.text('同意載入'));
+        expectDirectMap();
+        t.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+        await t.pump();
+        t.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
         await t.pumpAndSettle();
-        await t.tap(find.text('不要'));
+        expectDirectMap();
+        map(t).onEmergency();
         await t.pumpAndSettle();
-        expect(map(t).showMapTiles, isTrue);
-        expect(find.byType(TileLayer), findsOneWidget);
-        expect(platform.calls, 0, reason: 'tile consent never reads GPS');
+        await t.binding.handlePopRoute();
+        await t.pumpAndSettle();
+        expectDirectMap();
+        expect(platform.calls, 0, reason: 'loading tiles never reads GPS');
         expect(routes.requests, isEmpty);
         expect(db.calls, isEmpty);
         await t.pumpWidget(const SizedBox.shrink());
@@ -1327,56 +1386,48 @@ void main() {
       },
     );
 
-    testWidgets(
-      'saved home requires routing consent and does not grant OSM tile consent',
-      (t) async {
-        final platform = _livePlatform();
-        final routes = _Routes();
-        final db = _Db();
-        await pumpRoot(
-          t,
-          platform: platform,
-          routes: routes,
-          db: db,
-          showMap: true,
-          home: _destination,
-        );
-        await openMap(t);
-        expect(map(t).showMapTiles, isFalse);
-        expect(find.byType(TileLayer), findsNothing);
-        expect(platform.calls, 0);
-        await runLoop(t, referenceConsent: false);
-        expect(
-          routes.requests.single.destination.toJson(),
-          _destination.toJson(),
-        );
-        expect(platform.calls, 1);
-        expect(db.calls, isEmpty);
-        expect(map(t).showMapTiles, isFalse);
-        expect(find.byType(TileLayer), findsNothing);
-        // Map loading is a setting in 資料來源與授權, like the query settings.
-        Future<void> tileSetting(String choice) async {
-          final link = find.text('資料來源與授權').last;
-          await t.ensureVisible(link);
-          await t.tap(link);
-          await t.pumpAndSettle();
-          await t.tap(find.text('地圖載入設定'));
-          await t.pumpAndSettle();
-          await t.tap(find.text(choice));
-          await t.pumpAndSettle();
-        }
-
-        await tileSetting('同意載入');
-        expect(map(t).showMapTiles, isTrue);
-        expect(find.byType(TileLayer), findsOneWidget);
-        await tileSetting('不載入');
-        expect(find.byType(TileLayer), findsNothing);
-        expect(platform.calls, 1);
-        expect(routes.requests, hasLength(1));
-        expect(db.calls, isEmpty);
-        await t.pumpWidget(const SizedBox.shrink());
-      },
-    );
+    testWidgets('tiles load independently of routing and crime query consent', (
+      t,
+    ) async {
+      final platform = _livePlatform();
+      final routes = _Routes();
+      final db = _Db();
+      await pumpRoot(
+        t,
+        platform: platform,
+        routes: routes,
+        db: db,
+        showMap: true,
+        home: _destination,
+      );
+      await openMap(t);
+      expect(map(t).showMapTiles, isTrue);
+      expect(find.byType(TileLayer), findsOneWidget);
+      expect(platform.calls, 0);
+      expect(routes.requests, isEmpty);
+      expect(db.calls, isEmpty);
+      await runLoop(t, referenceConsent: false);
+      expect(
+        routes.requests.single.destination.toJson(),
+        _destination.toJson(),
+      );
+      expect(platform.calls, 1);
+      expect(db.calls, isEmpty);
+      expect(map(t).showMapTiles, isTrue);
+      expect(find.byType(TileLayer), findsOneWidget);
+      final link = find.text('資料來源與授權').last;
+      await t.ensureVisible(link);
+      await t.tap(link);
+      await t.pumpAndSettle();
+      expect(find.text('地圖載入設定'), findsNothing);
+      expect(find.text('路線查詢設定'), findsOneWidget);
+      expect(find.text('犯罪資料查詢設定'), findsOneWidget);
+      expect(find.textContaining('地圖圖磚自動載入，不再詢問'), findsOneWidget);
+      expect(platform.calls, 1);
+      expect(routes.requests, hasLength(1));
+      expect(db.calls, isEmpty);
+      await t.pumpWidget(const SizedBox.shrink());
+    });
 
     testWidgets('unset Live home contains no demo coordinates or route', (
       t,
@@ -1397,7 +1448,7 @@ void main() {
       await t.pumpWidget(const SizedBox.shrink());
     });
 
-    testWidgets('home settings does not automatically read GPS or load tiles', (
+    testWidgets('home settings loads tiles directly without reading GPS', (
       t,
     ) async {
       final platform = _livePlatform();
@@ -1406,8 +1457,8 @@ void main() {
       await pumpRoot(t, platform: platform, routes: routes, db: db);
       await t.tap(find.text('設定「家」'));
       await t.pumpAndSettle();
-      expect(find.text('載入地圖'), findsOneWidget);
-      expect(find.byType(TileLayer), findsNothing);
+      expect(find.text('載入地圖'), findsNothing);
+      expect(find.byType(TileLayer), findsOneWidget);
       expect(platform.calls, 0);
       expect(routes.requests, isEmpty);
       expect(db.calls, isEmpty);

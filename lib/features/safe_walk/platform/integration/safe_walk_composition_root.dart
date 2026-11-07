@@ -60,7 +60,6 @@ class SafeWalkCompositionRoot extends StatefulWidget {
     this.watchPosition,
     this.reviewedAreas = const [],
     this.showLiveMap = true,
-    this.askMapTilesOnOpen = false,
     this.findStores,
   });
 
@@ -80,11 +79,8 @@ class SafeWalkCompositionRoot extends StatefulWidget {
   /// Independently reviewed boundaries for the reference-information page.
   final List<RouteReferenceArea> reviewedAreas;
 
-  /// Tests can disable map tiles without changing production consent checks.
+  /// Tests can disable map tiles without changing route/reference consent checks.
   final bool showLiveMap;
-
-  /// Ask for the separate OSM tile consent when the map opens (official entry).
-  final bool askMapTilesOnOpen;
 
   final PlatformService? platform;
   final SafetyDataRepository? safetyData;
@@ -214,6 +210,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
       },
     );
   }
+
   List<AvoidArea> _crimeAreas = const [];
   List<CrimeSpot> _crimeSpots = const [];
   bool _hasCrimeConsent = false;
@@ -303,11 +300,41 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
       });
     } on SafeWalkCancelledException {
       return;
+    } on CrimeReferenceQueryException catch (error) {
+      if (!_isCurrent(operation) || !_hasCrimeConsent) return;
+      setState(
+        () => _crimeQueryStatus =
+            '犯罪參考資料查詢失敗：${_crimeFailureMessage(error.failure)}'
+            '本次路線未套用犯罪參考避讓。',
+      );
+    } on ArgumentError {
+      if (!_isCurrent(operation) || !_hasCrimeConsent) return;
+      setState(
+        () => _crimeQueryStatus =
+            '犯罪參考資料查詢失敗：查詢範圍過大或條件不適用，請縮短行程後重新規劃。'
+            '本次路線未套用犯罪參考避讓。',
+      );
     } catch (_) {
       if (!isCurrent() || !_hasCrimeConsent) return;
-      setState(() => _crimeQueryStatus = '犯罪參考資料查詢失敗；本次路線未套用犯罪參考避讓，請重試。');
+      setState(
+        () => _crimeQueryStatus = '犯罪參考資料查詢失敗；請重新規劃路線以重試。本次路線未套用犯罪參考避讓。',
+      );
     }
   }
+
+  static String _crimeFailureMessage(
+    CrimeReferenceFailure failure,
+  ) => switch (failure) {
+    CrimeReferenceFailure.network => '網路連線失敗，請確認網路後重新規劃路線。',
+    CrimeReferenceFailure.timeout => '查詢逾時，請稍後重新規劃路線。',
+    CrimeReferenceFailure.unauthorized => '資料服務拒絕存取，請更新 App；若仍無法使用，請向服務維護者回報。',
+    CrimeReferenceFailure.interfaceMissing => '資料查詢服務尚未開放，請稍後再試或向服務維護者回報。',
+    CrimeReferenceFailure.invalidArgument => '查詢條件不適用，請調整起點與目的地後重新規劃。',
+    CrimeReferenceFailure.snapshotUnavailable => '犯罪參考資料暫時無法取得，請稍後再試或向服務維護者回報。',
+    CrimeReferenceFailure.serverUnavailable => '資料服務忙碌或暫時中斷，請稍後重新規劃路線。',
+    CrimeReferenceFailure.invalidResponse =>
+      '資料內容無法驗證，已停止顯示；請更新 App 或向服務維護者回報。',
+  };
 
   String _precisionLabel(CrimeSpatialPrecision precision) =>
       switch (precision) {
@@ -571,6 +598,23 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     if (!mounted || !_foreground || _lifetime.isCancelled) return;
     if (!_crime.isConfigured) {
       setState(() => _crimeQueryStatus = '犯罪參考資料尚未配置；路線未套用犯罪參考避讓。');
+      await showDialog<void>(
+        context: context,
+        builder: (dialog) => AlertDialog(
+          title: const Text('犯罪資料查詢暫時無法使用'),
+          content: const Text(
+            '這個版本尚未啟用犯罪參考資料服務。請更新至最新版本；'
+            '若仍無法使用，請向服務維護者回報。'
+            '你仍可規劃步行路線，但路線不會套用犯罪參考避讓。',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialog).pop(),
+              child: const Text('知道了'),
+            ),
+          ],
+        ),
+      );
       return;
     }
     _openNavigation();
@@ -681,21 +725,13 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     return current() && _navigation.hasRoutingConsent;
   }
 
-  /// Map opened without a destination: ask the consents now, send nothing.
-  Future<void> _askConsentsOnOpen() async {
-    if (!mounted || !_foreground || _lifetime.isCancelled) return;
-    _openNavigation();
-    await _askConsents(
-      () => mounted && _foreground && _navigationActive && !_lifetime.isCancelled,
-    );
-  }
-
   static const _nearbyCount = 3;
 
   /// 最近求助地點: convenience stores and police near the start from the
-  /// bundled OSM snapshot (closed ones dropped, at most one with unknown
-  /// hours), each routed like a destination with the same avoiding routes,
-  /// then ranked safest, then fastest.
+  /// bundled OSM snapshot, only those recorded as open now. Each is routed
+  /// like a destination with the same avoiding routes and shown as soon as
+  /// its route is ready (nearest first); once all are in, they are ranked
+  /// safest, then fastest.
   Future<void> _planNearby() async {
     if (!widget.liveRoutes ||
         !mounted ||
@@ -748,6 +784,8 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
         origin.coordinates,
         points,
         count: _nearbyCount + 1,
+        // Only places recorded as open now; unknown hours are left out.
+        maxUnknown: 0,
       );
     } on SafeWalkCancelledException {
       return;
@@ -792,6 +830,9 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
             result.mode == sw.DataMode.live &&
             result.routes.isNotEmpty) {
           options.add(NearbyHelpOption(point: store, route: result));
+          // Show each place as soon as its route is ready (nearest first);
+          // the others keep loading behind it.
+          setState(() => _nearby = List.unmodifiable(options));
         }
       } on SafeWalkCancelledException {
         return;
@@ -801,7 +842,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
       }
     }
     if (options.isEmpty) {
-      return fail('找到附近營業中的店家，但暫時無法規劃步行路線，請稍後再試。');
+      return fail('找到附近營業中的求助地點，但暫時無法規劃步行路線，請稍後再試。');
     }
     setState(() {
       _nearby = rankNearbyHelp(options, [..._areas, ..._crimeAreas]);
@@ -1092,16 +1133,12 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
             : _points,
         pointRoutes: {for (final o in _nearby) o.point.id: o.route},
         onSelectPoint: widget.liveRoutes ? _selectPoint : null,
-        onAskConsents: widget.liveRoutes
-            ? () => unawaited(_askConsentsOnOpen())
-            : null,
         pointsLoading: widget.liveRoutes ? _nearbyLoading : _pointsLoading,
         pointsError: widget.liveRoutes ? _nearbyError : _pointsError,
         onRetryPoints: widget.liveRoutes
             ? () => unawaited(_planNearby())
             : () => unawaited(_loadPoints()),
         showMapTiles: widget.showLiveMap,
-        askMapTilesOnOpen: widget.askMapTilesOnOpen,
         reportBuilder: _report == null
             ? null
             : (context, onBack) => SafeWalkReportStatusPage(
