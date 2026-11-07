@@ -90,9 +90,6 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
 
   void _planRoute() => widget.onPlanRoute?.call(sw.Coordinates(lat: _place.at.lat, lng: _place.at.lng));
 
-  /// 目前目的地的路線：沒配置時用示範路線（示範起點）；計算中或失敗時為 null。
-  List<LatLng>? get _placePath => _routeState.configured ? _routeState.path : placeRoute(DemoGeo.start, _place);
-
   void _selectPlace(String id) {
     if (id == _placeId) return;
     setState(() => _placeId = id);
@@ -190,7 +187,6 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
     );
     final child = switch (_screen) {
       _Screen.home => SafeWalkHomeView(
-        homeMinutes: _routeState.minutes ?? walkMinutes(routeMeters(_placePath ?? placeRoute(DemoGeo.start, _place))),
         destination: _place.label,
         avoided: avoidedCount(_anomalies),
         onBack: widget.onExit,

@@ -10,13 +10,13 @@ enum SafeWalkEntry { map, call, points, report }
 /// 入口頁：比照臺北通開啟服務時的樣式——上方主色長條＋右上關閉；
 /// 時間情境卡、「安心行」主卡（臺北天際線插圖）、其他功能一項一行、最下方緊急求助。
 class SafeWalkHomeView extends StatelessWidget {
-  const SafeWalkHomeView({super.key, required this.onOpen, required this.onEmergency, required this.homeMinutes, required this.avoided, this.destination = '家', this.onBack, this.now});
+  const SafeWalkHomeView({super.key, required this.onOpen, required this.onEmergency, required this.avoided, this.destination = '家', this.onBack, this.now});
   final ValueChanged<SafeWalkEntry> onOpen;
   final VoidCallback onEmergency;
 
   /// 關閉安心行、回到臺北通（右上 ✕）。
   final VoidCallback? onBack;
-  final int homeMinutes, avoided;
+  final int avoided;
   final String destination;
 
   /// 測試可固定時間；正式由裝置時間決定。
@@ -58,7 +58,7 @@ class SafeWalkHomeView extends StatelessWidget {
                 Semantics(header: true, label: '臺北安心行', child: const SizedBox.shrink()),
                 _ContextCard(now: t),
                 const SizedBox(height: 16),
-                _GoHomeCard(destination: destination, minutes: homeMinutes, avoided: avoided, onTap: () => onOpen(SafeWalkEntry.map)),
+                _GoHomeCard(destination: destination, avoided: avoided, onTap: () => onOpen(SafeWalkEntry.map)),
                 const SizedBox(height: 24),
                 Semantics(header: true, child: Text('其他功能', style: SwText.bodyStrong)),
                 const SizedBox(height: 12),
@@ -110,9 +110,9 @@ class _ContextCard extends StatelessWidget {
 
 /// Figma 主卡：左下透明文字動作、右下原始天際線插圖。
 class _GoHomeCard extends StatefulWidget {
-  const _GoHomeCard({required this.destination, required this.minutes, required this.avoided, required this.onTap});
+  const _GoHomeCard({required this.destination, required this.avoided, required this.onTap});
   final String destination;
-  final int minutes, avoided;
+  final int avoided;
   final VoidCallback onTap;
 
   @override

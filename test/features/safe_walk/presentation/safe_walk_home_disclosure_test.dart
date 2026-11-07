@@ -14,7 +14,6 @@ void main() {
           home: SafeWalkHomeView(
             onOpen: (_) {},
             onEmergency: () {},
-            homeMinutes: 12,
             avoided: 2,
           ),
         ),
