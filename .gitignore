@@ -103,3 +103,8 @@ app.*.map.json
 *.keystore
 **/key.properties
 **/secrets/
+artifacts/
+*.ipa
+*.apk
+assets/build-info.json
+coverage/

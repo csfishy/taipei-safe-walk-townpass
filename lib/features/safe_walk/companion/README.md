@@ -19,6 +19,10 @@ state 只有 idle／playing／paused／ended／error。audioSrc 為 null 表示�
 
 ## 第一輪交付
 
-後續交付純控制器與 fake adapter 的無音檔、暫停、停止、求助中斷、取消競態、延遲播放、清理及重複 dispose 測試。本次 `companion_service.dart` 是抽象接點，另有 `companion_state.dart` 純轉移邏輯：開始播放的回執、暫停回執與中止訊號分開。狀態測試通過不代表錄音、計時器或播放資源已驗收；目前沒有具體控制器／播放功能。
+`companion_controller.dart` 提供注入式 `LocalCompanionController`：依序協調已核准的本地音訊、暫停、明確停止、求助中斷、取消競態、延遲結果失效與重複 dispose。`CompanionPlayback.started` 與 `completed` 分別確認真正開始及正常播完；控制器只在 started 後發布 playing，並等 completed 後才計算句後間隔及進入下一句。wire `/audio/...` 必須先由建構式注入的 allow-list resolver 轉成 bundled asset；null 或未核准來源只發布 `not_configured`，不交給播放器。
 
-預定分支 `feat/m5-companion`：**pending**，待初始化 PR 審查並由使用者確認合併後，才從共同 Flutter base 建立。
+對應 fake adapter 測試涵蓋無音檔、未核准來源、順序播放、暫停、求助中斷、取消競態、播放 milestone 同時失敗、遲到 pause、關閉柵欄、音訊錯誤、清理與重複 dispose。所有 pause／stop 回覆在發布事件前重新確認 operation；dispose 在第一個 await 前封鎖新操作。共用契約沒有 cancellation 專屬的 companion reason，因此合作式取消會停止音訊並使遲到結果失效，但不偽造 wire event；呼叫端若有明確原因，應使用 `stop(reason)`。
+
+`companion_service.dart` 保留抽象接點，`companion_state.dart` 保留純轉移邏輯。控制器與 fake 測試不代表 native audio adapter、正式資產、裝置播放、錄音或 M3 UI 已完成。
+
+分支 `feat/m5-companion` 已由共同 Flutter base `40c72e7` 建立；M5 仍只修改 companion 與對應測試目錄。
