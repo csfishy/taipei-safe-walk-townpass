@@ -1,8 +1,5 @@
 # M4｜信義：資料 Parser、Repository 與 fixtures
 
-目前主要目標已調整為 **犯罪資訊地理化、官方警示區域與步行路線避讓**；取消 AED 開發，不合併 AED 分支。[犯罪警示資料與地理化](../../../../docs/SAFE_WALK_CRIME_WARNING_DATA.md) 說明三份真實 CSV、原始文字、定位可信度、已核對公共場所範圍與不能定位的紀錄。保留既有暴力犯罪月統計，只作全市歷史資訊，不進路段風險計算；以下 AssistancePoint／一般資料契約為既有相容能力，不是本輪 AED 交付要求。
-
-
 所有成員均可跨 M1～M5 修改功能與相應測試，自行 AI Coding、除錯及建立 PR。修改其他模組時說明目的、影響檔案及原主要負責人，先核對進行中的 PR 避免同時改同一檔；普通 Level A 變更不需小魚事前批准，Level B 合併前確認；Level C 合併前須隊長明確授權及安全／隱私審查，正式啟用前完成適用驗收。完整規則見 [開放協作](../../../../docs/SAFE_WALK_COLLABORATION.md)。
 
 先讀根目錄 AGENTS、[Live MVP 規格](../../../../docs/SAFE_WALK_LIVE_MVP.md)、[上線條件](../../../../docs/SAFE_WALK_LIVE_READINESS.md)及 [五人模組契約](../../../../docs/SAFE_WALK_MODULES.md)。初始化文件僅作歷史參考。信義是真實公共安全資料主要負責人；功能主責可跨來源、組合根與畫面完成資料流程。普通轉換／callback 屬 Level A，實際改共用契約或新增依賴屬 Level B，重大正式 UI 改版由莅紋確認；色彩仍依既有規範。
