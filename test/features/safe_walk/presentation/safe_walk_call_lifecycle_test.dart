@@ -124,9 +124,9 @@ void main() {
     expect(_buzzes, after);
   });
 
-  testWidgets('M5 劇本一問一答：對方不會自己一直講；你回一句它才接下一句；說完會提示', (t) async {
+  testWidgets('單一嚇阻劇本依序完成三段男性 TTS 與兩段女性照讀稿', (t) async {
     final speaker = _Spy();
-    final ride = m5CompanionScenarios.firstWhere((c) => c.id == 'scenario-rideshare');
+    final ride = m5CompanionScenarios.single;
     await _open(t, speaker);
     await t.tap(find.textContaining('情境：'));
     await t.pumpAndSettle();
@@ -141,12 +141,12 @@ void main() {
     await t.pump(const Duration(seconds: 20));
     expect(speaker.spoken, hasLength(1), reason: '沒回覆時對方不會自己一直說下去');
 
-    for (var i = 0; i < ride.steps.length; i++) {
+    for (var i = 0; i < companionReplies[ride.id]!.length; i++) {
       await t.tap(find.text(companionReplies[ride.id]![i].first).last);
       await t.pump(const Duration(seconds: 1));
     }
-    expect(speaker.spoken, ride.steps.map((s) => s.text).toList(), reason: '每回一句，對方照劇本接下一句');
-    expect(find.textContaining('對方說完了'), findsOneWidget);
+    expect(speaker.spoken, ride.steps.map((s) => s.text).toList(), reason: '兩段繁中照讀稿之間依序播放三段英文台詞');
+    expect(find.textContaining('嚇阻台詞已播放完畢'), findsOneWidget);
 
     await t.tap(find.text('結束通話'));
     await t.pumpAndSettle();
@@ -156,49 +156,14 @@ void main() {
     await _open(t, _Spy());
     await t.tap(find.text('接聽'));
     await t.pump(const Duration(milliseconds: 300));
-    final reply = companionReplies['walk-home-night']!.first.first;
+    final reply = companionReplies['stalker-deterrence']!.first.first;
     expect(find.text(reply), findsOneWidget);
     await t.tap(find.byTooltip('收合回覆區'));
     await t.pumpAndSettle();
     expect(find.text(reply), findsNothing);
-    await t.tap(find.text('快速回覆'));
+    await t.tap(find.text('照著說'));
     await t.pumpAndSettle();
     expect(find.text(reply), findsOneWidget);
-    await t.tap(find.text('結束通話'));
-    await t.pumpAndSettle();
-  });
-
-  testWidgets('完整句子：對方先回應你說的話，再接劇本下一句；劇本說完後仍會回應', (t) async {
-    final speaker = _Spy();
-    final night = m5CompanionScenarios.first;
-    await _open(t, speaker);
-    await t.tap(find.text('接聽'));
-    await t.pump(const Duration(milliseconds: 300));
-    await t.tap(find.text('完整句子'));
-    await t.pump(const Duration(milliseconds: 300));
-    final said = callTemplates[0];
-    await t.tap(find.text(said));
-    await t.pump(const Duration(seconds: 1));
-    expect(speaker.spoken.last, callTemplateAcks[said], reason: '先回應你說的話');
-    speaker.finish();
-    await t.pump(const Duration(seconds: 5));
-    expect(speaker.spoken.last, night.steps[1].text, reason: '再接劇本下一句');
-
-    // 用快速回覆把劇本走完
-    await t.tap(find.text('快速回覆'));
-    await t.pump(const Duration(milliseconds: 300));
-    for (var i = 1; i < night.steps.length; i++) {
-      await t.tap(find.text(companionReplies[night.id]![i].first).last);
-      await t.pump(const Duration(seconds: 1));
-    }
-    expect(find.textContaining('對方說完了'), findsOneWidget);
-    final before = speaker.spoken.length;
-    await t.tap(find.text('完整句子'));
-    await t.pump(const Duration(milliseconds: 300));
-    await t.tap(find.text(callTemplates[1]));
-    await t.pump(const Duration(seconds: 5));
-    expect(speaker.spoken.length, before + 1, reason: '劇本說完後只回應一句');
-    expect(speaker.spoken.last, callTemplateAcks[callTemplates[1]]);
     await t.tap(find.text('結束通話'));
     await t.pumpAndSettle();
   });
@@ -237,34 +202,13 @@ void main() {
     expect(spoken, [m5CompanionScenarios.first.steps.first.text]);
   });
 
-  testWidgets('完整句子的回應要等朗讀完成，不以字數倒數截斷', (t) async {
-    final speaker = _Spy();
-    await _open(t, speaker);
-    await t.tap(find.text('接聽'));
-    await t.pump(const Duration(milliseconds: 300));
-    await t.tap(find.text('完整句子'));
-    await t.pump(const Duration(milliseconds: 300));
-    await t.tap(find.text(callTemplates.first));
-    await t.pump(const Duration(seconds: 1));
-    await t.pump(const Duration(seconds: 10));
-    final beforeDone = [...speaker.spoken];
-    speaker.finish();
-    await t.pump();
-    await t.pump(const Duration(milliseconds: 100));
-    final afterDone = [...speaker.spoken];
-    await t.pumpWidget(const MaterialApp(home: SizedBox()));
-
-    expect(beforeDone, [m5CompanionScenarios.first.steps.first.text, callTemplateAcks[callTemplates.first]]);
-    expect(afterDone.last, m5CompanionScenarios.first.steps[1].text);
-  });
-
   testWidgets('背景取消待回覆；回前景不自動朗讀，仍可手動重播', (t) async {
     final speaker = _Spy();
     addTearDown(() => t.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed));
     await _open(t, speaker);
     await t.tap(find.text('接聽'));
     await t.pump(const Duration(milliseconds: 300));
-    await t.tap(find.text(companionReplies['walk-home-night']!.first.first));
+    await t.tap(find.text(companionReplies['stalker-deterrence']!.first.first));
     await t.pump(const Duration(milliseconds: 100));
     t.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
     await t.pump(const Duration(seconds: 2));
@@ -282,22 +226,4 @@ void main() {
     expect(afterReplay, [...inBackground, m5CompanionScenarios.first.steps.first.text]);
   });
 
-  testWidgets('手動輸入會取消尚未執行的劇本回覆，不被下一句蓋過', (t) async {
-    final speaker = _Spy();
-    await _open(t, speaker);
-    await t.tap(find.text('接聽'));
-    await t.pump(const Duration(milliseconds: 300));
-    await t.tap(find.text(companionReplies['walk-home-night']!.first.first));
-    await t.pump(const Duration(milliseconds: 100));
-    await t.tap(find.text('自己輸入'));
-    await t.pump(const Duration(milliseconds: 300));
-    await t.enterText(find.byType(TextField), '這是手動台詞。');
-    await t.pump();
-    await t.tap(find.text('讓對方說'));
-    await t.pump(const Duration(seconds: 2));
-    final spoken = [...speaker.spoken];
-    await t.pumpWidget(const MaterialApp(home: SizedBox()));
-
-    expect(spoken, [m5CompanionScenarios.first.steps.first.text, '這是手動台詞。']);
-  });
 }

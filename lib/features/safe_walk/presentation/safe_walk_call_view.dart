@@ -26,12 +26,12 @@ class SafeWalkCallSession {
   String? scenarioId;
   int line = 0, seq = 0, seconds = 0;
 
-  /// 劇本最後一句已經回過了。
+  /// 劇本最後一句男性台詞已播放。
   bool finished = false;
   final List<_Entry> _log = [];
 }
 
-/// 模擬來電：M5 劇本一問一答——對方說一句，你回一句，對方才說下一句。只朗讀對方台詞；「自己輸入」是輸入對方要說的話。
+/// 模擬來電：三段英文男性角色台詞由 TTS 朗讀，兩段繁中台詞顯示供使用者照讀。
 class SafeWalkCallView extends StatefulWidget {
   const SafeWalkCallView({super.key, required this.speaker, required this.onEnd, required this.onEmergency, this.session});
 
@@ -152,7 +152,7 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> with WidgetsBindingO
 
   sw.CompanionScenario get _scenario => m5CompanionScenarios.firstWhere((c) => c.id == _s.scenarioId, orElse: () => m5CompanionScenarios.first);
 
-  /// 對方說完最後一句、你也回了之後，劇本結束。
+  /// 最後一句男性台詞播放後，劇本結束。
   bool get _scriptDone => _s.finished;
 
   List<String> get _replies => companionReplies[_scenario.id]?.elementAtOrNull(_s.line) ?? const ['好。'];
@@ -313,6 +313,7 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> with WidgetsBindingO
       if (!mounted || !_active) return;
       setState(() {
         _s.line++;
+        _s.finished = _s.line == steps.length - 1;
         _waiting = false;
       });
       _say(steps[_s.line].text);
@@ -412,7 +413,7 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> with WidgetsBindingO
               children: [
                 Row(
                   children: [
-                    for (final (m, label) in [(_Mode.quick, '快速回覆'), (_Mode.template, '完整句子'), (_Mode.input, '自己輸入')])
+                    for (final (m, label) in [(_Mode.quick, '照著說')])
                       Expanded(
                         child: Semantics(
                           selected: _panelOpen && _mode == m,
@@ -489,7 +490,7 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> with WidgetsBindingO
     final note = _waiting || _scriptDone
         ? Padding(
             padding: const EdgeInsets.only(bottom: 8),
-            child: Text(_waiting ? '對方回應中，請稍候' : '對方說完了，可以結束通話，或用「完整句子」繼續聊', style: SwText.secondary),
+            child: Text(_waiting ? '對方回應中，請稍候' : '嚇阻台詞已播放完畢；如仍有危險，請立即求助', style: SwText.secondary),
           )
         : const SizedBox.shrink();
     switch (_mode) {
@@ -497,11 +498,17 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> with WidgetsBindingO
         return Column(
           children: [
             note,
+            if (!_scriptDone && !_waiting)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text('請看著螢幕，大聲說出以下台詞，再點一下繼續', style: SwText.secondary),
+              ),
             if (!_scriptDone)
               for (final r in _replies) option(r),
           ],
         );
       case _Mode.template:
+        if (callTemplates.isEmpty) return Column(children: [note]);
         return ConstrainedBox(
           constraints: const BoxConstraints(maxHeight: 220),
           child: ListView(shrinkWrap: true, children: [note, for (final t in callTemplates) option(t)]),
@@ -703,7 +710,7 @@ class _IncomingState extends State<_Incoming> with SingleTickerProviderStateMixi
                             const SizedBox(height: 32),
                             Semantics(
                               liveRegion: true,
-                              label: '家人來電中',
+                              label: '$callerName 來電中',
                               child: ExcludeSemantics(
                                 child: Column(
                                   children: [
@@ -719,13 +726,13 @@ class _IncomingState extends State<_Incoming> with SingleTickerProviderStateMixi
                                             height: 104,
                                             alignment: Alignment.center,
                                             decoration: BoxDecoration(color: TPColors.white, shape: BoxShape.circle, boxShadow: SwShadow.float),
-                                            child: Text('家', style: SwText.title.copyWith(color: TPColors.primary700)),
+                                            child: Text('男', style: SwText.title.copyWith(color: TPColors.primary700)),
                                           ),
                                         ),
                                       ),
                                     ),
                                     const SizedBox(height: 16),
-                                    Text('家人', style: SwText.title.copyWith(color: SwColors.onBrand)),
+                                    Text(callerName, style: SwText.title.copyWith(color: SwColors.onBrand)),
                                     const SizedBox(height: 4),
                                     Row(
                                       mainAxisSize: MainAxisSize.min,

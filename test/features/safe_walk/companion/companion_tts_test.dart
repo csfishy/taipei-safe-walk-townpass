@@ -34,7 +34,7 @@ void main() {
       final speaker = CompanionTtsSpeaker(engine);
       await Future.wait([speaker.prepare(), speaker.prepare()]);
       expect(engine.prepareCalls, 1);
-      expect(engine.languages, ['zh-TW', 'zh-CN']);
+      expect(engine.languages, ['en-US', 'en-GB']);
       expect(speaker.available, isTrue);
     });
 

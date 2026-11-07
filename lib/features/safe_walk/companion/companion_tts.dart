@@ -21,7 +21,7 @@ abstract interface class CompanionSpeechEngine {
 /// Reads one line at a time. A new [speak] or [stop] invalidates the previous
 /// line, so a late completion can never clear the indicator of a newer line.
 final class CompanionTtsSpeaker {
-  CompanionTtsSpeaker(this._engine, {this.languages = const ['zh-TW', 'zh-CN']});
+  CompanionTtsSpeaker(this._engine, {this.languages = const ['en-US', 'en-GB']});
 
   final CompanionSpeechEngine _engine;
   final List<String> languages;
@@ -31,7 +31,7 @@ final class CompanionTtsSpeaker {
   int _generation = 0;
   Future<void>? _prepareFuture;
 
-  /// True only after the device confirmed a usable Chinese voice.
+  /// True only after the device confirmed a usable English voice.
   bool get available => _ready && !_disposed;
 
   /// Safe to call repeatedly; failures leave the speaker unavailable.
