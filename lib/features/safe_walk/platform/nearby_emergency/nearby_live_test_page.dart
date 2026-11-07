@@ -1,23 +1,26 @@
 import 'package:flutter/material.dart';
+import 'package:town_pass/features/safe_walk/platform/nearby_emergency/emergency_contact.dart';
+import 'package:town_pass/features/safe_walk/platform/nearby_emergency/emergency_dispatch.dart';
 import 'package:town_pass/features/safe_walk/platform/nearby_emergency/nearby_alert_transport.dart';
 import 'package:town_pass/features/safe_walk/platform/nearby_emergency/nearby_emergency_service.dart';
 import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart'
     as sw;
 
-/// Standalone live test page for nearby helper alerts. It is not part of the
-/// mock Safe Walk shell and is only used by `nearby_live_test_main.dart`.
-///
-/// Pressing the buttons sends the phone's real location to opted-in devices
-/// within the radius. Use it only with devices you control.
+/// Live Safe Walk SOS page. SOS sends the real location to opted-in nearby
+/// devices and to the preset contact. Use it only with devices you control.
 class NearbyLiveTestPage extends StatefulWidget {
   const NearbyLiveTestPage({
     super.key,
     required this.service,
+    required this.dispatch,
+    required this.contacts,
     required this.helperId,
   });
 
-  /// Null when live testing is not configured. Nothing is sent in that case.
+  /// Null when live mode is not configured. Nothing is sent in that case.
   final NearbyEmergencyService? service;
+  final EmergencyDispatch? dispatch;
+  final EmergencyContactStore? contacts;
   final String helperId;
 
   @override
@@ -25,12 +28,32 @@ class NearbyLiveTestPage extends StatefulWidget {
 }
 
 class _NearbyLiveTestPageState extends State<NearbyLiveTestPage> {
+  final _phone = TextEditingController();
   bool _optedIn = false;
   bool _busy = false;
   String _status = '尚未操作。';
   List<NearbyAlert> _alerts = const [];
 
   NearbyEmergencyService? get _service => widget.service;
+  bool get _configured => _service != null && widget.dispatch != null;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadContact();
+  }
+
+  @override
+  void dispose() {
+    _phone.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadContact() async {
+    final stored = await widget.contacts?.read();
+    if (!mounted || stored == null) return;
+    setState(() => _phone.text = stored);
+  }
 
   Future<void> _run(Future<void> Function() action) async {
     if (_busy) return;
@@ -44,10 +67,20 @@ class _NearbyLiveTestPageState extends State<NearbyLiveTestPage> {
     }
   }
 
+  Future<void> _saveContact() => _run(() async {
+    final input = _phone.text;
+    if (!isValidEmergencyPhone(input)) {
+      setState(() => _status = '電話格式不正確，請輸入 8 到 15 位數字。');
+      return;
+    }
+    await widget.contacts!.write(input);
+    if (!mounted) return;
+    setState(() => _status = '已儲存緊急聯絡人（只存在這支手機上）。');
+  });
+
   Future<void> _toggleOptIn() => _run(() async {
-    final service = _service!;
     final next = !_optedIn;
-    await service.setHelperOptIn(
+    await _service!.setHelperOptIn(
       mode: sw.DataMode.live,
       helperId: widget.helperId,
       enabled: next,
@@ -63,19 +96,12 @@ class _NearbyLiveTestPageState extends State<NearbyLiveTestPage> {
   });
 
   Future<void> _sos() => _run(() async {
-    final result = await _service!.triggerEmergency(
+    final result = await widget.dispatch!.sos(
       mode: sw.DataMode.live,
       senderId: widget.helperId,
-      userInitiated: true,
     );
     if (!mounted) return;
-    setState(() {
-      _status = switch (result) {
-        NearbyEmergencySent(:final recipientCount) =>
-          '已送出：$recipientCount 位附近的求助者會收到你的位置。',
-        NearbyEmergencyNotSent(:final message) => '未送出：$message',
-      };
-    });
+    setState(() => _status = result.message);
   });
 
   Future<void> _checkAlerts() => _run(() async {
@@ -89,9 +115,9 @@ class _NearbyLiveTestPageState extends State<NearbyLiveTestPage> {
 
   @override
   Widget build(BuildContext context) {
-    final enabled = _service != null && !_busy;
+    final enabled = _configured && !_busy;
     return Scaffold(
-      appBar: AppBar(title: const Text('附近求助 真實測試')),
+      appBar: AppBar(title: const Text('安心行 緊急求助（真實）')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -100,24 +126,39 @@ class _NearbyLiveTestPageState extends State<NearbyLiveTestPage> {
             child: const Padding(
               padding: EdgeInsets.all(12),
               child: Text(
-                '警告：按下後會把你目前的真實位置送給 500 公尺內已開啟協助的裝置。'
-                '只用於你自己控制的測試裝置，不要用在真實危急情況。',
+                '警告：SOS 會把你目前的真實座標送給緊急聯絡人，'
+                '並通知 500 公尺內已開啟協助的裝置。'
+                '只用於你自己控制的裝置，不要用在真實危急情況。',
               ),
             ),
           ),
           const SizedBox(height: 12),
-          if (_service == null)
+          if (!_configured)
             const Text('未設定 SUPABASE_URL、SUPABASE_ANON_KEY 或 NEARBY_LIVE_ENABLED=true，所有按鈕已停用。'),
           const SizedBox(height: 8),
-          FilledButton(
-            onPressed: enabled ? _toggleOptIn : null,
-            child: Text(_optedIn ? '關閉協助附近的人' : '開啟協助附近的人（分享一次位置）'),
+          TextField(
+            controller: _phone,
+            keyboardType: TextInputType.phone,
+            decoration: const InputDecoration(
+              labelText: '緊急聯絡人電話',
+              border: OutlineInputBorder(),
+            ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
+          OutlinedButton(
+            onPressed: enabled ? _saveContact : null,
+            child: const Text('儲存緊急聯絡人'),
+          ),
+          const SizedBox(height: 16),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: const Color(0xFFB3261E)),
             onPressed: enabled ? _sos : null,
-            child: const Text('SOS 通知附近求助者（送出位置）'),
+            child: const Text('SOS：送出座標給聯絡人並通知附近'),
+          ),
+          const SizedBox(height: 12),
+          FilledButton(
+            onPressed: enabled ? _toggleOptIn : null,
+            child: Text(_optedIn ? '關閉協助附近的人' : '開啟協助附近的人（分享一次位置）'),
           ),
           const SizedBox(height: 12),
           OutlinedButton(
