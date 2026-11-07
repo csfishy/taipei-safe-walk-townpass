@@ -13,6 +13,16 @@ class MainActivity : FlutterActivity() {
         super.configureFlutterEngine(flutterEngine)
         // Safe Walk SOS: send an SMS without opening the messaging app.
         // Dart side: lib/features/safe_walk/platform/nearby_emergency/sms_sender.dart
+        //
+        // Result codes (strings, mapped to SmsHandoffStatus on the Dart side):
+        //   "handed"         SmsManager accepted the message. Sent and delivery are NOT confirmed.
+        //   "no_permission"  SEND_SMS was missing. Permission was requested. Nothing sent.
+        //   "invalid"        Missing number or body. Nothing sent.
+        //   "failed"         SmsManager threw. Nothing confirmed as sent.
+        //
+        // No sent/delivery PendingIntents are passed, so per-part results are not
+        // observed. A single sendMultipartTextMessage call hands all parts to the
+        // system together, so a partial send cannot be detected here.
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "safe_walk/sms")
             .setMethodCallHandler { call, result ->
                 if (call.method != "send") {
@@ -22,13 +32,13 @@ class MainActivity : FlutterActivity() {
                 val number = call.argument<String>("number")
                 val body = call.argument<String>("body")
                 if (number.isNullOrBlank() || body.isNullOrBlank()) {
-                    result.success(false)
+                    result.success("invalid")
                     return@setMethodCallHandler
                 }
                 if (checkSelfPermission(Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED) {
                     // First use: ask once. The user taps SOS again after granting.
                     requestPermissions(arrayOf(Manifest.permission.SEND_SMS), 1001)
-                    result.success(false)
+                    result.success("no_permission")
                     return@setMethodCallHandler
                 }
                 try {
@@ -39,9 +49,9 @@ class MainActivity : FlutterActivity() {
                         SmsManager.getDefault()
                     }
                     sms.sendMultipartTextMessage(number, null, sms.divideMessage(body), null, null)
-                    result.success(true)
+                    result.success("handed")
                 } catch (e: Exception) {
-                    result.success(false)
+                    result.success("failed")
                 }
             }
     }

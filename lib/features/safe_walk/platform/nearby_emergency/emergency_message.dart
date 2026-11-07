@@ -2,7 +2,8 @@ import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart
     as sw;
 
 /// Builds the SMS body sent to the preset contact. Coordinates are written
-/// exactly, with a Google Maps link. No photos are included.
+/// exactly, with an OpenStreetMap link (the competition build does not use
+/// Google Maps links). No photos are included.
 String buildEmergencyMessage({
   required sw.Coordinates location,
   required DateTime sentAt,
@@ -20,7 +21,11 @@ String buildEmergencyMessage({
   return '【臺北安心行 緊急求助】我可能需要協助。\n'
       '時間：$time\n'
       '座標：$lat, $lng$accuracy\n'
-      '地圖：https://maps.google.com/?q=$lat,$lng';
+      '地圖：${openStreetMapUrl(lat, lng)}';
 }
+
+/// OpenStreetMap link for a coordinate pair already formatted to 6 decimals.
+String openStreetMapUrl(String lat, String lng) =>
+    'https://www.openstreetmap.org/?mlat=$lat&mlon=$lng#map=17/$lat/$lng';
 
 String _two(int value) => value.toString().padLeft(2, '0');

@@ -1,28 +1,51 @@
 import 'package:flutter/services.dart';
 
+/// What the platform reported for one SMS attempt. None of these values means
+/// the message was delivered: Android only confirms the hand-off to SmsManager.
+enum SmsHandoffStatus {
+  /// SmsManager accepted the message. Sent and delivery are not confirmed.
+  handedToSystem,
+
+  /// SEND_SMS was missing. The permission was requested and nothing was sent.
+  permissionRequested,
+
+  /// The platform rejected the request or threw. Nothing was sent.
+  failed,
+
+  /// This platform cannot send SMS silently (or the channel is missing).
+  unavailable,
+}
+
 /// Sends a text message without opening the user's messaging app.
 abstract interface class SmsSender {
-  /// True only when the platform accepted the message for sending.
-  Future<bool> send({required String number, required String body});
+  Future<SmsHandoffStatus> send({required String number, required String body});
 }
 
 /// Android: native SmsManager through the `safe_walk/sms` channel (MainActivity.kt).
-/// Other platforms return false, because they cannot send SMS silently.
+/// Other platforms return [SmsHandoffStatus.unavailable], because they cannot
+/// send SMS silently.
 final class ChannelSmsSender implements SmsSender {
   static const _channel = MethodChannel('safe_walk/sms');
 
   @override
-  Future<bool> send({required String number, required String body}) async {
+  Future<SmsHandoffStatus> send({
+    required String number,
+    required String body,
+  }) async {
     try {
-      final ok = await _channel.invokeMethod<bool>('send', {
+      final code = await _channel.invokeMethod<String>('send', {
         'number': number,
         'body': body,
       });
-      return ok ?? false;
+      return switch (code) {
+        'handed' => SmsHandoffStatus.handedToSystem,
+        'no_permission' => SmsHandoffStatus.permissionRequested,
+        _ => SmsHandoffStatus.failed,
+      };
     } on MissingPluginException {
-      return false;
+      return SmsHandoffStatus.unavailable;
     } on PlatformException {
-      return false;
+      return SmsHandoffStatus.failed;
     }
   }
 }

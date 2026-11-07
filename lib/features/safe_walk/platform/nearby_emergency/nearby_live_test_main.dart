@@ -1,12 +1,22 @@
 // Live Safe Walk SOS entry. It does not touch the mock Safe Walk shell.
 //
-// Run on devices you control:
+// The live path is OFF by default. Both flags must be set to build it:
 // flutter run -t lib/features/safe_walk/platform/nearby_emergency/nearby_live_test_main.dart \
 //   --dart-define=NEARBY_LIVE_ENABLED=true \
+//   --dart-define=NEARBY_UNSAFE_ANON_RPC_ENABLED=true \
 //   --dart-define=SUPABASE_URL=https://<project-ref>.supabase.co \
 //   --dart-define=SUPABASE_ANON_KEY=<publishable-key>
 //
-// Leave NEARBY_LIVE_ENABLED unset in any shared build; every button then stays disabled.
+// WARNING: NEARBY_UNSAFE_ANON_RPC_ENABLED exists only for devices you control.
+// The Supabase RPCs it enables are called with the public anon key and an
+// arbitrary anonymous helper UUID. The SQL does not bind sender or recipient to
+// a trusted identity or ownership, so anyone with the key can call them.
+// Do not enable this in a shared or public build until the backend requires
+// authenticated identity, binds sender/recipient ownership, rejects
+// unauthorized and cross-account calls (verified), and limits location retention.
+// Backend and SQL changes are out of scope for this client change.
+//
+// With either flag unset, every button stays disabled and no RPC is made.
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart' as geo;
 import 'package:town_pass/features/safe_walk/platform/nearby_emergency/anonymous_helper_id.dart';
@@ -19,6 +29,9 @@ import 'package:town_pass/features/safe_walk/platform/nearby_emergency/sms_sende
 import 'package:town_pass/features/safe_walk/platform/townpass_platform_adapter.dart';
 
 const _liveEnabled = bool.fromEnvironment('NEARBY_LIVE_ENABLED');
+
+/// Off by default. See the warning above before turning it on.
+const _unsafeAnonRpcEnabled = bool.fromEnvironment('NEARBY_UNSAFE_ANON_RPC_ENABLED');
 const _supabaseUrl = String.fromEnvironment('SUPABASE_URL');
 const _supabaseAnonKey = String.fromEnvironment('SUPABASE_ANON_KEY');
 
@@ -55,8 +68,10 @@ class _BootstrapState extends State<_Bootstrap> {
   Future<_Setup> _load() async {
     final helperId = await loadOrCreateHelperId(SharedPreferencesHelperIdStore());
     final contacts = SharedPreferencesEmergencyContactStore();
-    final configured =
-        _liveEnabled && _supabaseUrl.isNotEmpty && _supabaseAnonKey.isNotEmpty;
+    final configured = _liveEnabled &&
+        _unsafeAnonRpcEnabled &&
+        _supabaseUrl.isNotEmpty &&
+        _supabaseAnonKey.isNotEmpty;
     if (!configured) {
       return (service: null, dispatch: null, contacts: contacts, helperId: helperId);
     }

@@ -1,6 +1,5 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
+import 'package:town_pass/features/safe_walk/navigation/cancellable.dart';
 import 'package:town_pass/features/safe_walk/platform/nearby_emergency/emergency_contact.dart';
 import 'package:town_pass/features/safe_walk/platform/nearby_emergency/emergency_dispatch.dart';
 import 'package:town_pass/features/safe_walk/platform/nearby_emergency/nearby_alert_transport.dart';
@@ -12,6 +11,10 @@ import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart
 
 /// Live Safe Walk SOS page. SOS sends the real location to opted-in nearby
 /// devices and to the preset contact. Use it only with devices you control.
+///
+/// Nothing polls in the background. Alerts are checked only when the user taps
+/// the check button. Leaving the page, backgrounding it, or revoking help
+/// cancels an SOS that is still in flight.
 class NearbyLiveTestPage extends StatefulWidget {
   const NearbyLiveTestPage({
     super.key,
@@ -19,11 +22,7 @@ class NearbyLiveTestPage extends StatefulWidget {
     required this.dispatch,
     required this.contacts,
     required this.helperId,
-    this.pollInterval = const Duration(seconds: 10),
   });
-
-  /// How often to check for nearby alerts while the page is open.
-  final Duration pollInterval;
 
   /// Null when live mode is not configured. Nothing is sent in that case.
   final NearbyEmergencyService? service;
@@ -35,45 +34,58 @@ class NearbyLiveTestPage extends StatefulWidget {
   State<NearbyLiveTestPage> createState() => _NearbyLiveTestPageState();
 }
 
-class _NearbyLiveTestPageState extends State<NearbyLiveTestPage> {
+class _NearbyLiveTestPageState extends State<NearbyLiveTestPage>
+    with WidgetsBindingObserver {
   final _phone = TextEditingController();
   bool _optedIn = false;
   bool _busy = false;
+  bool _sosInFlight = false;
+  bool _foreground = true;
+  ManualCancellation? _sosCancellation;
   String _status = '尚未操作。';
   List<NearbyAlert> _alerts = const [];
 
   NearbyEmergencyService? get _service => widget.service;
   bool get _configured => _service != null && widget.dispatch != null;
 
-  NearbyAlertWatcher? _watcher;
-  StreamSubscription<NearbyAlert>? _alertSub;
-
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadContact();
-    final service = widget.service;
-    if (service != null) {
-      _watcher = NearbyAlertWatcher(
-        service: service,
-        helperId: widget.helperId,
-        interval: widget.pollInterval,
-      );
-      _alertSub = _watcher!.alerts.listen(_showAlertPopup);
-      _watcher!.start();
-    }
   }
 
   @override
   void dispose() {
-    _alertSub?.cancel();
-    _watcher?.dispose();
+    WidgetsBinding.instance.removeObserver(this);
+    _cancelSos();
     _phone.dispose();
     super.dispose();
   }
 
+  /// `inactive` is ignored on purpose: the system location-permission dialog
+  /// causes it, and that must not cancel the SOS it was requested for.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _foreground = state == AppLifecycleState.resumed;
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached ||
+        state == AppLifecycleState.hidden) {
+      _cancelSos();
+    }
+  }
+
+  /// Stops an in-flight SOS. It returns at its next checkpoint and sends no
+  /// further SMS or alert. An RPC already on the wire cannot be recalled.
+  void _cancelSos() {
+    final cancellation = _sosCancellation;
+    if (cancellation == null) return;
+    _sosCancellation = null;
+    cancellation.cancel();
+  }
+
   void _showAlertPopup(NearbyAlert alert) {
-    if (!mounted) return;
+    if (!mounted || !_foreground) return;
     showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -126,31 +138,50 @@ class _NearbyLiveTestPageState extends State<NearbyLiveTestPage> {
     setState(() => _status = '已儲存緊急聯絡人（只存在這支手機上）。');
   });
 
-  Future<void> _toggleOptIn() => _run(() async {
+  Future<void> _toggleOptIn() {
     final next = !_optedIn;
-    await _service!.setHelperOptIn(
-      mode: sw.DataMode.live,
-      helperId: widget.helperId,
-      enabled: next,
-      userInitiated: true,
-    );
-    if (!mounted) return;
-    setState(() {
-      _optedIn = next;
-      _status = next
-          ? '已開啟協助：你的位置已送出一次，附近求助會通知你。'
-          : '已關閉協助：你的位置已從資料庫移除。';
+    // Revoking help stops any SOS still in flight, even while another action is busy.
+    if (!next) _cancelSos();
+    return _run(() async {
+      await _service!.setHelperOptIn(
+        mode: sw.DataMode.live,
+        helperId: widget.helperId,
+        enabled: next,
+        userInitiated: true,
+      );
+      if (!mounted) return;
+      setState(() {
+        _optedIn = next;
+        _status = next
+            ? '已開啟協助：你的位置已送出一次，附近求助會通知你。'
+            : '已關閉協助：你的位置已從資料庫移除。';
+      });
     });
-  });
+  }
 
-  Future<void> _sos() => _run(() async {
-    final result = await widget.dispatch!.sos(
-      mode: sw.DataMode.live,
-      senderId: widget.helperId,
-    );
-    if (!mounted) return;
-    setState(() => _status = result.message);
-  });
+  Future<void> _sos() async {
+    if (_busy || _sosInFlight || !_configured) return;
+    final cancellation = ManualCancellation();
+    _sosCancellation = cancellation;
+    setState(() {
+      _sosInFlight = true;
+      _status = '求助進行中（離開頁面、切到背景或關閉協助會停止）…';
+    });
+    try {
+      final result = await widget.dispatch!.sos(
+        mode: sw.DataMode.live,
+        senderId: widget.helperId,
+        cancellation: cancellation,
+      );
+      if (!mounted) return;
+      setState(() => _status = result.message);
+    } catch (error) {
+      if (mounted) setState(() => _status = '操作失敗：$error');
+    } finally {
+      if (identical(_sosCancellation, cancellation)) _sosCancellation = null;
+      if (mounted) setState(() => _sosInFlight = false);
+    }
+  }
 
   Future<void> _checkAlerts() => _run(() async {
     final alerts = await _service!.fetchPendingAlerts(widget.helperId);
@@ -159,11 +190,12 @@ class _NearbyLiveTestPageState extends State<NearbyLiveTestPage> {
       _alerts = alerts;
       _status = alerts.isEmpty ? '目前沒有新的附近求助。' : '收到 ${alerts.length} 則附近求助。';
     });
+    if (alerts.isNotEmpty) _showAlertPopup(alerts.first);
   });
 
   @override
   Widget build(BuildContext context) {
-    final enabled = _configured && !_busy;
+    final idle = _configured && !_busy;
     return Scaffold(
       appBar: AppBar(title: const Text('安心行 緊急求助（真實）')),
       body: ListView(
@@ -194,23 +226,25 @@ class _NearbyLiveTestPageState extends State<NearbyLiveTestPage> {
           ),
           const SizedBox(height: 8),
           OutlinedButton(
-            onPressed: enabled ? _saveContact : null,
+            onPressed: idle && !_sosInFlight ? _saveContact : null,
             child: const Text('儲存緊急聯絡人'),
           ),
           const SizedBox(height: 16),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: const Color(0xFFB3261E)),
-            onPressed: enabled ? _sos : null,
+            onPressed: idle && !_sosInFlight ? _sos : null,
             child: const Text('SOS：送出座標給聯絡人並通知附近'),
           ),
           const SizedBox(height: 12),
           FilledButton(
-            onPressed: enabled ? _toggleOptIn : null,
+            onPressed: _configured && (!_busy || (_optedIn && _sosInFlight))
+                ? _toggleOptIn
+                : null,
             child: Text(_optedIn ? '關閉協助附近的人' : '開啟協助附近的人（分享一次位置）'),
           ),
           const SizedBox(height: 12),
           OutlinedButton(
-            onPressed: enabled ? _checkAlerts : null,
+            onPressed: idle ? _checkAlerts : null,
             child: const Text('查看收到的附近求助'),
           ),
           const SizedBox(height: 16),

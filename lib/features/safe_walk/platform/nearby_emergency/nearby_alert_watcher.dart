@@ -1,10 +1,12 @@
 import 'dart:async';
 
+import 'package:town_pass/features/safe_walk/platform/nearby_emergency/emergency_message.dart';
 import 'package:town_pass/features/safe_walk/platform/nearby_emergency/nearby_alert_transport.dart';
 import 'package:town_pass/features/safe_walk/platform/nearby_emergency/nearby_emergency_service.dart';
 
-/// Polls for alerts addressed to this helper while the app is open and emits
-/// each alert once. Background delivery needs push notifications (not built).
+/// Polls for alerts addressed to this helper and emits each alert once.
+/// The live test page never calls [start]; it checks only on a user tap.
+/// Background delivery needs push notifications (not built).
 final class NearbyAlertWatcher {
   NearbyAlertWatcher({
     required this._service,
@@ -56,17 +58,17 @@ final class NearbyAlertWatcher {
   }
 }
 
-/// Popup text for a nearby alert: exact coordinates and a Google Maps link.
+/// Popup text for a nearby alert: exact coordinates and an OpenStreetMap link.
 String nearbyAlertPopupText(NearbyAlert alert) {
   final lat = alert.location.lat.toStringAsFixed(6);
   final lng = alert.location.lng.toStringAsFixed(6);
   return '求助位置：$lat, $lng\n'
       '範圍：${alert.radiusMeters} 公尺內\n'
-      '地圖：https://maps.google.com/?q=$lat,$lng';
+      '地圖：${openStreetMapUrl(lat, lng)}';
 }
 
 String nearbyAlertMapUrl(NearbyAlert alert) {
   final lat = alert.location.lat.toStringAsFixed(6);
   final lng = alert.location.lng.toStringAsFixed(6);
-  return 'https://maps.google.com/?q=$lat,$lng';
+  return openStreetMapUrl(lat, lng);
 }

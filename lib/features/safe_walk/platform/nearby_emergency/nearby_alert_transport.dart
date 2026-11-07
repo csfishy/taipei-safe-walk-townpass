@@ -52,6 +52,13 @@ abstract interface class NearbyAlertTransport {
 /// Supabase (PostgREST RPC) implementation. Configure with
 /// `--dart-define=SUPABASE_URL=...` and `--dart-define=SUPABASE_ANON_KEY=...`.
 /// Keys are never committed to the repository.
+///
+/// SECURITY: this calls the existing anonymous security-definer RPCs with the
+/// public anon key and a client-chosen anonymous helper UUID. The backend does
+/// not yet bind sender/recipient to a trusted identity or ownership. Do not
+/// enable it outside a controlled test (nearby_live_test_main.dart gates it
+/// behind NEARBY_UNSAFE_ANON_RPC_ENABLED). Fixing that needs backend auth and
+/// ownership checks first; this client change does not do it.
 final class SupabaseNearbyAlertTransport implements NearbyAlertTransport {
   SupabaseNearbyAlertTransport({
     required this.baseUrl,
