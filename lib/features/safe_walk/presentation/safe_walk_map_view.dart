@@ -226,7 +226,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                                 ),
                               ),
                               const SizedBox(height: 6),
-                              const SwMockBadge(),
+                              const SwMockBadge(text: '示範路線／非即時導航'),
                             ],
                           ),
                         ),

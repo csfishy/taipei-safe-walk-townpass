@@ -1,4 +1,5 @@
 import 'package:get/get.dart';
+import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_composition_root.dart';
 import 'package:town_pass/page/account/account_view.dart';
 import 'package:town_pass/page/account/account_view_controller.dart';
 import 'package:town_pass/page/activity_detail/activity_detail_view.dart';
@@ -54,6 +55,7 @@ abstract class TPRoute {
   static const String qrCodeScan = '/qr_code_scan';
   static const String service = '/service';
   static const String serviceEdit = '/service_edit';
+  static const String safeWalk = '/safe_walk';
   static const String setting = '/setting';
   static const String settingStartPage = '/setting_start_page';
   static const String subscription = '/subscription';
@@ -76,6 +78,10 @@ abstract class TPRoute {
       binding: BindingsBuilder(() {
         Get.put<AccountViewController>(AccountViewController());
       }),
+    ),
+    GetPage(
+      name: safeWalk,
+      page: () => const SafeWalkCompositionRoot(),
     ),
     GetPage(
       name: basicInfo,

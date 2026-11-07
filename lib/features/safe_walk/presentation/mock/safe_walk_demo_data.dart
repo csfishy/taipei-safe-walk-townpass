@@ -121,7 +121,7 @@ sw.AssistancePoint _point(String id, String name, sw.AssistancePointKind kind, d
 
 List<sw.AssistancePoint> demoAssistancePoints() => [
   _point('demo-point-1', '示範求助據點 A（非真實機關）', sw.AssistancePointKind.publicFacility, 25.001, 121.501, sw.OpeningStatus.unknown),
-  _point('demo-point-m3-1', '示範據點 B：派出所（非真實機關）', sw.AssistancePointKind.police, 25.0002, 121.5008, sw.OpeningStatus.open),
+  _point('demo-point-m3-1', '示範據點 B：派出所（非真實機關）', sw.AssistancePointKind.police, 25.0002, 121.5008, sw.OpeningStatus.unknown),
   _point('demo-point-m3-2', '示範據點 C：便利商店（非真實商店）', sw.AssistancePointKind.convenienceStore, 25.0005, 121.4997, sw.OpeningStatus.unknown),
 ];
 

@@ -19,7 +19,7 @@ def verify(platform, package_path, metadata_path):
     expected = json.loads(Path(metadata_path).read_text(encoding='utf-8'))
     require(expected.get('preview') is True, 'Expected preview build metadata')
     require(re.fullmatch(r'[0-9a-f]{40}', expected.get('commit', '')), 'Invalid source commit')
-    require(re.fullmatch(r'\d+\.\d+\.\d+-pre\.\d+', expected.get('version', '')), 'Expected prerelease version')
+    require(re.fullmatch(r'\d+\.\d+\.\d+-pre\.\d+(?:\.g[0-9a-f]{12})?', expected.get('version', '')), 'Expected prerelease version')
     require(str(expected.get('buildNumber', '')).isdigit(), 'Invalid build number')
 
     with zipfile.ZipFile(package_path) as package:

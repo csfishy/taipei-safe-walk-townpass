@@ -200,7 +200,12 @@ class _SmsReportCardState extends State<_SmsReportCard> {
   Future<void> _send() async {
     setState(() => _step = _SmsStep.sending);
     // Mock 一律只在本地模擬，即使 M1 已注入 sender 也不呼叫，避免帶位置的內容外傳。
-    final ok = _usesSender ? await widget.onSend!(_body) : await Future.delayed(const Duration(milliseconds: 900), () => true);
+    bool ok;
+    try {
+      ok = _usesSender ? await widget.onSend!(_body) : await Future.delayed(const Duration(milliseconds: 900), () => true);
+    } catch (_) {
+      ok = false;
+    }
     if (mounted) setState(() => _step = ok ? _SmsStep.sent : _SmsStep.failed);
   }
 
@@ -354,7 +359,7 @@ class _SmsReportCardState extends State<_SmsReportCard> {
               ),
             ),
             const SizedBox(width: 12),
-            Expanded(child: Text(mock ? '簡訊已送出（示範）' : '已開啟簡訊 App', style: SwText.heading.copyWith(fontSize: 20))),
+            Expanded(child: Text(mock ? '示範完成／未傳送簡訊' : '已開啟簡訊 App', style: SwText.heading.copyWith(fontSize: 20))),
           ],
         ),
         const SizedBox(height: 8),

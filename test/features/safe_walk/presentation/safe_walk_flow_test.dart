@@ -52,7 +52,7 @@ void main() {
     await t.tap(find.text('安心回家'));
     await t.pumpAndSettle();
     expect(find.textContaining('已繞開'), findsOneWidget);
-    expect(find.text('示範模式・未通知任何人'), findsOneWidget);
+    expect(find.text('示範路線／非即時導航'), findsOneWidget);
     await t.tap(find.text('文字路線'));
     await t.pumpAndSettle();
     expect(find.text('抵達家'), findsOneWidget);
@@ -131,7 +131,7 @@ void main() {
     expect(find.text('傳送中…'), findsOneWidget);
     await t.pump(const Duration(seconds: 1));
     await t.pumpAndSettle();
-    expect(find.text('簡訊已送出（示範）'), findsOneWidget);
+    expect(find.text('示範完成／未傳送簡訊'), findsOneWidget);
   });
 
   testWidgets('[P2] Mock 模式即使注入 sender 也不呼叫外部簡訊', (t) async {
@@ -150,7 +150,7 @@ void main() {
     await t.pump(const Duration(seconds: 1));
     await t.pumpAndSettle();
     expect(sent, 0);
-    expect(find.text('簡訊已送出（示範）'), findsOneWidget);
+    expect(find.text('示範完成／未傳送簡訊'), findsOneWidget);
   });
 
   testWidgets('[P2] 回覆倒數中按 SOS，不會在求助畫面重新朗讀', (t) async {

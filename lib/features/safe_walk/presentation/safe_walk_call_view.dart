@@ -82,6 +82,7 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
 
   @override
   void dispose() {
+    leave();
     _clock?.cancel();
     _reply?.cancel();
     widget.speaker.stop();
@@ -91,7 +92,7 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
   }
 
   void _speak(_Entry e) {
-    if (_left) return;
+    if (_left || !widget.speaker.available) return;
     final gen = _gen;
     setState(() => _speaking = e.key);
     widget.speaker.speak(
@@ -105,6 +106,7 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
 
   void _toggle(_Entry e) {
     if (_speaking == e.key) {
+      _gen++;
       widget.speaker.stop();
       setState(() => _speaking = null);
     } else {
@@ -141,7 +143,7 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
   }
 
   void _scrollDown() => WidgetsBinding.instance.addPostFrameCallback((_) {
-    if (_scroll.hasClients) _scroll.animateTo(_scroll.position.maxScrollExtent, duration: const Duration(milliseconds: 200), curve: Curves.easeOut);
+    if (!_left && _scroll.hasClients) _scroll.animateTo(_scroll.position.maxScrollExtent, duration: const Duration(milliseconds: 200), curve: Curves.easeOut);
   });
 
   @override

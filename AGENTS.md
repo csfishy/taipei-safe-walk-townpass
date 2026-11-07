@@ -2,6 +2,15 @@
 
 任何模組工作前先讀 `docs/SAFE_WALK_ARCHITECTURE.md`、`docs/SAFE_WALK_INITIALIZATION.md`、`docs/SAFE_WALK_SCHEMA.md`、`docs/SAFE_WALK_MODULES.md`、`docs/SAFE_WALK_COLOR_SPEC.md` 及所屬模組 README。
 
+## 目前階段：M1 TownPass 入口整合
+
+- 初始化及 M3 畫面、M5 控制器已透過各自 PR 進入共同 main；下節「初始化」限制記錄當時範圍，不撤銷使用者本輪明確授權。
+- 使用者已授權 M1 在 `integration/m1-townpass-entry` 新增 TownPass 城市服務入口、GetX route 與模組組合接線，交 PR 至 main；不得自行合併、發布新版或移動既有 `v0.0.12-pre.1` tag。
+- 跨模組實作依賴只集中在 M1 管理的 `lib/features/safe_walk/platform/integration/`；其他模組繼續只依賴自身與 shared。入口所需官方城市服務／route 檔案由 M1 最小修改，不能因此重做官方殼、登入、Theme 或品牌。
+- M3 仍是正式 UI/UX 設計負責人。M1 只接入已合併畫面與服務；必要的狀態／誠實文案調整須記錄理由，不代替 M3 重新設計版面。
+- 預設 mock、真實撥號關閉；M2 真導航、M4 live AED、M5 正式音檔／native audio 尚未接入時明示未配置，不將其他分支未合併成果當成已完成。
+- 本輪範圍、裝置測試與 PR artifact 交付見 `docs/SAFE_WALK_INTEGRATION.md`。舊初始化文件的 pending／無 UI 描述是歷史紀錄，當前狀態以本輪整合文件及實際 PR 為準。
+
 ## 本次初始化的明確邊界
 
 - 本專案以官方 TownPass Flutter 為主要 App；原 React Repository 是 Legacy 歷史與契約參考，不再是主要 App。
