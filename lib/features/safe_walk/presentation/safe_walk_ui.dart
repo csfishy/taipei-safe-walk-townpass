@@ -25,12 +25,14 @@ abstract final class SwColors {
 
 /// 字級：以臺北通 TPTextStyles 為基礎，次要資訊至少 16，照顧長輩閱讀。
 abstract final class SwText {
-  static TextStyle title = TPTextStyles.h2SemiBold.copyWith(color: SwColors.text);
-  static TextStyle heading = TPTextStyles.h3SemiBold.copyWith(fontSize: 18, color: SwColors.text);
-  static TextStyle body = TPTextStyles.h3Regular.copyWith(color: SwColors.text, height: 1.5);
-  static TextStyle bodyStrong = TPTextStyles.h3SemiBold.copyWith(color: SwColors.text, height: 1.5);
-  static TextStyle secondary = TPTextStyles.h3Regular.copyWith(color: SwColors.textSecondary, height: 1.5);
-  static TextStyle small = TPTextStyles.bodyRegular.copyWith(color: SwColors.textSecondary, height: 1.5);
+  // 與臺北通 TPText 一致：英文與數字用 Roboto，中文落到 PingFangTC（Roboto 沒有中文字）。
+  static TextStyle _tp(TextStyle s) => s.copyWith(fontFamily: 'Roboto', fontFamilyFallback: const ['PingFangTC']);
+  static TextStyle title = _tp(TPTextStyles.h2SemiBold.copyWith(color: SwColors.text));
+  static TextStyle heading = _tp(TPTextStyles.titleSemiBold.copyWith(color: SwColors.text));
+  static TextStyle body = _tp(TPTextStyles.h3Regular.copyWith(color: SwColors.text, height: 1.5));
+  static TextStyle bodyStrong = _tp(TPTextStyles.h3SemiBold.copyWith(color: SwColors.text, height: 1.5));
+  static TextStyle secondary = _tp(TPTextStyles.h3Regular.copyWith(color: SwColors.textSecondary, height: 1.5));
+  static TextStyle small = _tp(TPTextStyles.bodyRegular.copyWith(color: SwColors.textSecondary, height: 1.5));
 }
 
 const double swTouch = 48;

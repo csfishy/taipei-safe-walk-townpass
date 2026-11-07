@@ -224,7 +224,7 @@ void main() {
       await back(t);
       await t.tap(find.text('模擬來電'));
       await t.pumpAndSettle();
-      expect(find.text('語音尚未配置，只顯示文字'), findsOneWidget);
+      expect(find.text('語音尚未配置，播放為無聲示範'), findsOneWidget);
       expect(companion.starts, 0);
       await t.tap(find.text('緊急求助').first);
       await t.pumpAndSettle();

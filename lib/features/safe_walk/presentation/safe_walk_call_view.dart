@@ -48,7 +48,9 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
   final _draft = TextEditingController();
   final _scroll = ScrollController();
   Timer? _clock, _reply;
-  bool _pipLeft = false;
+
+  /// 臺北通尚未配置語音時，用無聲示範（依字數計時）呈現播放樣式；不呼叫 M1／M5 的喇叭。
+  late final SafeWalkSpeaker _voice = widget.speaker.available ? widget.speaker : PreviewSpeaker();
 
   /// 已離開（或正在離開）此畫面；之後的計時器、朗讀與 onDone 一律忽略。
   bool _left = false;
@@ -63,7 +65,8 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
     _gen++;
     _reply?.cancel();
     _clock?.cancel();
-    widget.speaker.stop();
+    _voice.stop();
+    if (!identical(_voice, widget.speaker)) widget.speaker.stop();
   }
 
   void _leaveThen(VoidCallback go) {
@@ -85,17 +88,17 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
     leave();
     _clock?.cancel();
     _reply?.cancel();
-    widget.speaker.stop();
+    _voice.stop();
     _draft.dispose();
     _scroll.dispose();
     super.dispose();
   }
 
   void _speak(_Entry e) {
-    if (_left || !widget.speaker.available) return;
+    if (_left) return;
     final gen = _gen;
     setState(() => _speaking = e.key);
-    widget.speaker.speak(
+    _voice.speak(
       e.text,
       onDone: () {
         if (!mounted || _left || gen != _gen) return;
@@ -107,7 +110,7 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
   void _toggle(_Entry e) {
     if (_speaking == e.key) {
       _gen++;
-      widget.speaker.stop();
+      _voice.stop();
       setState(() => _speaking = null);
     } else {
       _speak(e);
@@ -124,7 +127,7 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
 
   void _respond(String text) {
     if (_waiting || _left) return;
-    widget.speaker.stop();
+    _voice.stop();
     setState(() {
       _speaking = null;
       _log.add(_Entry('u${_seq++}', false, text));
@@ -207,52 +210,21 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 const SwMockBadge(text: FakeCallScript.disclosure),
-                Text(widget.speaker.available ? '台詞由手機語音朗讀' : '語音尚未配置，只顯示文字', style: SwText.small),
+                Text(widget.speaker.available ? '台詞由手機語音朗讀' : '語音尚未配置，播放為無聲示範', style: SwText.small),
               ],
             ),
           ),
           const Divider(height: 1, color: SwColors.border),
+          // 邊聊邊看路：上方固定一條「下一步」導航（小地圖＋下一步怎麼走），對話在下面捲動，互不遮擋。
+          _NextStep(start: start, points: widget.points, anomalies: widget.anomalies, onTap: () => _leaveThen(widget.onMap)),
+          const Divider(height: 1, color: SwColors.border),
           Expanded(
-            child: LayoutBuilder(
-              builder: (context, box) {
-                final pipW = (box.maxWidth * .36).clamp(120.0, 180.0);
-                final pipH = pipW * 1.1;
-                // 地圖小視窗獨立一列放在對話上方，對話捲動時不會被蓋住；左右滑可換邊。
-                final voice = widget.speaker.available;
-                return Column(
-                  children: [
-                    AnimatedAlign(
-                      duration: SwMotion.of(context, 260),
-                      curve: SwMotion.curve,
-                      alignment: _pipLeft ? Alignment.centerLeft : Alignment.centerRight,
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
-                        child: SizedBox(
-                          width: pipW,
-                          height: pipH,
-                          child: GestureDetector(
-                            onHorizontalDragEnd: (d) {
-                              final v = d.primaryVelocity ?? 0;
-                              if (v.abs() > 100) setState(() => _pipLeft = v < 0);
-                            },
-                            child: _Pip(start: start, points: widget.points, anomalies: widget.anomalies, onTap: () => _leaveThen(widget.onMap)),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const Divider(height: 1, color: SwColors.border),
-                    Expanded(
-                      child: ListView.separated(
-                        controller: _scroll,
-                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-                        itemCount: _log.length,
-                        separatorBuilder: (_, _) => const SizedBox(height: 12),
-                        itemBuilder: (_, i) => _Bubble(entry: _log[i], speaking: _speaking == _log[i].key, replay: voice, onTap: _log[i].caller && voice ? () => _toggle(_log[i]) : null),
-                      ),
-                    ),
-                  ],
-                );
-              },
+            child: ListView.separated(
+              controller: _scroll,
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+              itemCount: _log.length,
+              separatorBuilder: (_, _) => const SizedBox(height: 12),
+              itemBuilder: (_, i) => _Bubble(entry: _log[i], speaking: _speaking == _log[i].key, silent: !widget.speaker.available, onTap: _log[i].caller ? () => _toggle(_log[i]) : null),
             ),
           ),
           Container(
@@ -365,12 +337,12 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
 }
 
 class _Bubble extends StatelessWidget {
-  const _Bubble({required this.entry, required this.speaking, required this.onTap, this.replay = true});
+  const _Bubble({required this.entry, required this.speaking, required this.onTap, this.silent = false});
   final _Entry entry;
   final bool speaking;
 
-  /// 沒有語音（臺北通尚未配置）時不顯示「點一下重播」。
-  final bool replay;
+  /// 臺北通尚未配置語音：播放樣式照樣呈現，但文字註明是無聲示範。
+  final bool silent;
   final VoidCallback? onTap;
 
   @override
@@ -389,7 +361,7 @@ class _Bubble extends StatelessWidget {
           entry.text,
           style: SwText.heading.copyWith(fontSize: 20, fontWeight: FontWeight.w500, height: 1.5, color: caller ? SwColors.text : SwColors.onDeep),
         ),
-        if (caller && replay) ...[
+        if (caller) ...[
           const SizedBox(height: 4),
           Row(
             mainAxisSize: MainAxisSize.min,
@@ -397,7 +369,7 @@ class _Bubble extends StatelessWidget {
               Icon(speaking ? Icons.graphic_eq_rounded : Icons.replay_rounded, size: 18, color: speaking ? SwColors.brandDeep : SwColors.textSecondary),
               const SizedBox(width: 4),
               Text(
-                speaking ? '朗讀中・點一下停止' : '點一下重播',
+                speaking ? (silent ? '播放中（無聲示範）・點一下停止' : '朗讀中・點一下停止') : '點一下重播',
                 style: SwText.small.copyWith(color: speaking ? SwColors.brandDeep : SwColors.textSecondary, fontWeight: speaking ? FontWeight.w700 : FontWeight.w400),
               ),
             ],
@@ -436,64 +408,83 @@ class _Bubble extends StatelessWidget {
   }
 }
 
-/// 像 Google Maps 縮小時的子母畫面：浮在對話上、可左右滑到另一側，點一下回到完整地圖。
-class _Pip extends StatelessWidget {
-  const _Pip({required this.start, required this.points, required this.anomalies, required this.onTap});
+/// 上方導航條：左邊小地圖（點了回到地圖），右邊寫下一步怎麼走與剩餘時間。示範路線，非即時導航。
+class _NextStep extends StatelessWidget {
+  const _NextStep({required this.start, required this.points, required this.anomalies, required this.onTap});
   final LatLng start;
   final List<sw.AssistancePoint> points;
   final List<Anomaly> anomalies;
   final VoidCallback onTap;
+  static const _turn = {StepDir.north: 0.0, StepDir.east: .25, StepDir.south: .5, StepDir.west: .75};
 
   @override
   Widget build(BuildContext context) {
-    final meters = routeMeters(DemoGeo.homeRoute);
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 1.25, end: 1),
-      duration: SwMotion.of(context, 320),
-      curve: SwMotion.curve,
-      builder: (_, s, child) => Transform.scale(scale: s, alignment: Alignment.topRight, child: child),
-      child: Semantics(
-        button: true,
-        label: '縮小的地圖，回家約 ${walkMinutes(meters)} 分鐘，點一下回到地圖',
-        child: Container(
-          clipBehavior: Clip.antiAlias,
-          decoration: BoxDecoration(color: SwColors.surface, borderRadius: BorderRadius.circular(16), boxShadow: SwShadow.float),
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: onTap,
-              child: ExcludeSemantics(
-                child: Stack(
-                  children: [
-                    Positioned.fill(
-                      child: IgnorePointer(
-                        child: DemoMap(start: start, points: points, anomalies: anomalies, path: DemoGeo.homeRoute, compact: true),
-                      ),
+    final steps = routeSteps(DemoGeo.homeRoute);
+    final now = steps.first;
+    final then = steps.length > 1 ? '接著往${stepDirLabel[steps[1].dir]}' : '接著抵達家';
+    final minutes = walkMinutes(routeMeters(DemoGeo.homeRoute));
+    return Material(
+      color: SwColors.surface,
+      child: InkWell(
+        onTap: onTap,
+        child: Semantics(
+          button: true,
+          label: '下一步：往${stepDirLabel[now.dir]}走約 ${now.meters} 公尺，$then。回家約 $minutes 分鐘。點一下打開地圖',
+          child: ExcludeSemantics(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 10, 16, 10),
+              child: Row(
+                children: [
+                  Container(
+                    width: 84,
+                    height: 84,
+                    clipBehavior: Clip.antiAlias,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: SwColors.border),
                     ),
-                    Positioned(
-                      left: 6,
-                      top: 6,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(color: SwColors.brandDeep, borderRadius: BorderRadius.circular(10)),
-                        child: Text(
-                          '${walkMinutes(meters)} 分',
-                          style: SwText.small.copyWith(color: SwColors.onDeep, fontWeight: FontWeight.w700),
+                    child: Stack(
+                      children: [
+                        Positioned.fill(
+                          child: IgnorePointer(
+                            child: DemoMap(start: start, points: points, anomalies: anomalies, path: DemoGeo.homeRoute, compact: true),
+                          ),
                         ),
-                      ),
+                        Positioned(
+                          right: 4,
+                          bottom: 4,
+                          child: Container(
+                            width: 24,
+                            height: 24,
+                            decoration: BoxDecoration(color: SwColors.surface, shape: BoxShape.circle, boxShadow: SwShadow.card),
+                            child: const Icon(Icons.open_in_full_rounded, size: 14, color: SwColors.text),
+                          ),
+                        ),
+                      ],
                     ),
-                    Positioned(
-                      right: 6,
-                      top: 6,
-                      child: Container(
-                        width: 28,
-                        height: 28,
-                        decoration: BoxDecoration(color: SwColors.surface, shape: BoxShape.circle, boxShadow: SwShadow.card),
-                        child: const Icon(Icons.open_in_full_rounded, size: 16, color: SwColors.text),
-                      ),
+                  ),
+                  const SizedBox(width: 12),
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: const BoxDecoration(color: SwColors.brandDeep, shape: BoxShape.circle),
+                    child: RotationTransition(
+                      turns: AlwaysStoppedAnimation(_turn[now.dir]!),
+                      child: const Icon(Icons.arrow_upward_rounded, color: SwColors.onDeep, size: 26),
                     ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text('往${stepDirLabel[now.dir]}走 ${now.meters} 公尺', style: SwText.heading.copyWith(fontSize: 20)),
+                        Text('$then・回家約 $minutes 分', style: SwText.secondary),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
           ),

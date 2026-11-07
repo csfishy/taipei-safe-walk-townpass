@@ -19,6 +19,12 @@ Future<void> _fonts() async {
   final root = Platform.environment['FLUTTER_ROOT'] ?? File(Platform.resolvedExecutable).parent.parent.parent.parent.parent.parent.path;
   final icons = FontLoader('MaterialIcons')..addFont(File('$root/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf').readAsBytes().then((b) => ByteData.view(b.buffer)));
   await icons.load();
+  // 測試環境的 'Roboto' 預設是方塊字型；載入真的 Roboto，英數才會跟臺北通（TPText）一樣。
+  final roboto = FontLoader('Roboto');
+  for (final w in ['regular', 'medium', 'bold']) {
+    roboto.addFont(File('$root/bin/cache/artifacts/material_fonts/roboto-$w.ttf').readAsBytes().then((b) => ByteData.view(b.buffer)));
+  }
+  await roboto.load();
 }
 
 class _Speaking implements SafeWalkSpeaker {
