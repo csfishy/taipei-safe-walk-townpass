@@ -5,6 +5,8 @@
 - 用法：改共用參數前先看會影響哪些模組（例如 `SafeWalkFlow`）；找文件與程式對不上的地方；團隊文件的架構圖素材。
 - 這是 main `0ea9979`（PR #22 合併後，11/7 21:06）的快照，程式改了要重跑 graphify。`lib/features/safe_walk/companion/README.md` 在 #22 更新後尚未重新抽取，不在圖中。
 
+這是歷史快照與探索工具，不是功能已接線、Live 驗收或測試通過的證據。`INFERRED` 關係、群組與建議問題屬於推論，文件概念也可能保留初始化時的舊敘述，不取代模組責任規格。PR #31 合併後，現況以[逐能力 Readiness](../SAFE_WALK_LIVE_READINESS.md)、實際 main 程式及對應驗證證據為準；本圖不會自動更新。
+
 # Graph Report - townpass-repo  (2026-11-07)
 
 ## Corpus Check
