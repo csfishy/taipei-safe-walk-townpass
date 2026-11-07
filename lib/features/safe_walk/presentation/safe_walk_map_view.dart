@@ -101,10 +101,16 @@ class SafeWalkMapView extends StatefulWidget {
     this.manualStart,
     this.onStartChanged,
     this.crimeSpots = const [],
+    this.crimeConsent,
+    this.onCrimeConsentChanged,
   });
 
   /// 犯罪紀錄區（紫色），與回報點一起避開。
   final List<CrimeSpot> crimeSpots;
+
+  /// 犯罪參考資料查詢同意（null＝不提供）；在目的地選單可隨時關閉。
+  final bool? crimeConsent;
+  final ValueChanged<bool>? onCrimeConsentChanged;
 
   /// 使用者在地圖上指定的起點；null＝用目前位置（GPS）。
   final LatLng? manualStart;
@@ -410,7 +416,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                       opacity: a,
                       child: ScaleTransition(scale: a, alignment: Alignment.topRight, child: c),
                     ),
-                    child: _legend ? _Legend(pointsView: _pointsView, showShortcut: atHome && demoHome && !_pointsView) : const SizedBox.shrink(),
+                    child: _legend ? _Legend(pointsView: _pointsView, showShortcut: atHome && demoHome && !_pointsView, live: rs.live, crime: widget.crimeConsent == true || widget.crimeSpots.isNotEmpty) : const SizedBox.shrink(),
                   ),
                 ),
                 if (_picking && _pin == null)
@@ -580,14 +586,16 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
   /// 真實路線：起訖在回報範圍內的提醒、可選路線、找不到避讓路線時改去求助地點。
   List<Widget> _avoidSection(RouteState rs) {
     final open = widget.anomalies.where((a) => a.status != AnomalyStatus.cleared).toList();
-    int passes(sw.RouteCandidate r) => open.where((a) => routePassesWithin(r.geometry.coordinates, a.at, reportAvoidRadiusMeters)).length;
-    final noClear = open.isNotEmpty && rs.options.isNotEmpty && rs.options.every((r) => passes(r) > 0);
+    int passes(sw.RouteCandidate r) =>
+        open.where((a) => routePassesWithin(r.geometry.coordinates, a.at, reportAvoidRadiusMeters)).length +
+        widget.crimeSpots.where((c) => routePassesWithin(r.geometry.coordinates, c.at, reportAvoidRadiusMeters)).length;
+    final noClear = (open.isNotEmpty || widget.crimeSpots.isNotEmpty) && rs.options.isNotEmpty && rs.options.every((r) => passes(r) > 0);
     return [
       if (rs.insideWarning != null) ...[
         const SizedBox(height: 8),
         SwMockBadge(text: '你目前在回報範圍內'),
       ],
-      if (rs.options.length > 1) ...[
+      if (rs.options.isNotEmpty) ...[
         const SizedBox(height: 12),
         Semantics(header: true, child: Text('選擇路線', style: SwText.smallStrong)),
         const SizedBox(height: 6),
@@ -680,6 +688,18 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                         _detailId = null;
                         if (_size == _SheetSize.collapsed) _size = _SheetSize.normal;
                       });
+                      Navigator.of(sheetContext).pop();
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                if (widget.crimeConsent != null && widget.onCrimeConsentChanged != null) ...[
+                  _StartChoice(
+                    icon: Icons.policy_outlined,
+                    label: widget.crimeConsent! ? '查詢犯罪參考資料：開（點此關閉）' : '查詢犯罪參考資料：關（點此開啟）',
+                    selected: widget.crimeConsent!,
+                    onTap: () {
+                      widget.onCrimeConsentChanged!(!widget.crimeConsent!);
                       Navigator.of(sheetContext).pop();
                     },
                   ),
@@ -907,7 +927,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
             last: i == AnomalyStatus.values.length - 1,
             text:
                 '${anomalyStatusLabel[st]}${st == AnomalyStatus.forwardedDemo
-                    ? ''
+                    ? '（示範，未實際送出）'
                     : st == AnomalyStatus.cleared
                     ? '（警方確認後移除）'
                     : ''}',
@@ -1510,8 +1530,8 @@ class _Toast extends StatelessWidget {
 }
 
 class _Legend extends StatelessWidget {
-  const _Legend({required this.pointsView, required this.showShortcut});
-  final bool pointsView, showShortcut;
+  const _Legend({required this.pointsView, required this.showShortcut, this.live = false, this.crime = false});
+  final bool pointsView, showShortcut, live, crime;
   @override
   Widget build(BuildContext context) {
     Widget item(Widget key, String text) => Padding(
@@ -1552,7 +1572,27 @@ class _Legend extends StatelessWidget {
               '建議路線',
             ),
           if (showShortcut) item(Text('···', style: SwText.bodyStrong.copyWith(color: TPColors.grayscale500)), '較短但經過異常'),
-          item(const Icon(Icons.warning_rounded, size: 18, color: SwColors.warnMark), '異常回報'),
+          if (live && !pointsView)
+            item(
+              Container(
+                width: 18,
+                height: 4,
+                decoration: BoxDecoration(color: TPColors.grayscale400, borderRadius: BorderRadius.circular(2)),
+              ),
+              '其他可選路線',
+            ),
+          item(const Icon(Icons.warning_rounded, size: 18, color: SwColors.warnMark), live ? '異常回報（50 公尺範圍）' : '異常回報'),
+          if (crime)
+            item(
+              Container(
+                width: 18,
+                height: 18,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(shape: BoxShape.circle, color: crimeMarkColor.withValues(alpha: .14), border: Border.all(color: crimeMarkColor)),
+                child: Container(width: 6, height: 6, decoration: const BoxDecoration(shape: BoxShape.circle, color: crimeMarkColor)),
+              ),
+              '犯罪紀錄區（參考位置）',
+            ),
           item(const Icon(Icons.home_rounded, size: 18, color: SwColors.brand), '家'),
         ],
       ),
@@ -1646,7 +1686,7 @@ class _RouteOption extends StatelessWidget {
     child: SwPressable(
       onTap: onTap,
       radius: 12,
-      semanticsLabel: '$label，$minutes 分鐘，$meters 公尺，${passes == 0 ? '不經過回報點' : '經過 $passes 個回報點'}${selected ? '，已選擇' : ''}',
+      semanticsLabel: '$label，$minutes 分鐘，$meters 公尺，${passes == 0 ? '不經過回報點或犯罪紀錄區' : '經過 $passes 個回報點或犯罪紀錄區'}${selected ? '，已選擇' : ''}',
       child: AnimatedContainer(
         duration: SwMotion.of(context, 180),
         constraints: const BoxConstraints(minHeight: 56),
@@ -1665,7 +1705,7 @@ class _RouteOption extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(label, style: SwText.bodyStrong),
-                  Text(passes == 0 ? '不經過回報點' : '經過 $passes 個回報點', style: SwText.small.copyWith(color: passes == 0 ? SwColors.brandText : SwColors.warnText)),
+                  Text(passes == 0 ? '不經過回報點或犯罪紀錄區' : '經過 $passes 個回報點或犯罪紀錄區', style: SwText.small.copyWith(color: passes == 0 ? SwColors.brandText : SwColors.warnText)),
                 ],
               ),
             ),

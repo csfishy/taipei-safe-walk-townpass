@@ -1,8 +1,12 @@
 import 'dart:async';
+import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:town_pass/features/safe_walk/navigation/avoid_area.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/crime_reference_wiring.dart';
+import 'package:town_pass/features/safe_walk/platform/supabase/safe_walk_supabase_config.dart';
+import 'package:town_pass/features/safe_walk/platform/supabase/web_rpc_post.dart';
 import 'package:town_pass/features/safe_walk/safety_data/crime_reference/crime_reference_models.dart';
 import 'package:town_pass/features/safe_walk/safety_data/crime_reference/crime_reference_repository.dart';
 import 'package:town_pass/features/safe_walk/navigation/default_json_transport.dart';
@@ -116,13 +120,81 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
 
   /// Crime reference records near the route (purple "犯罪紀錄區"), avoided
   /// together with reports. Reference coordinates only, not incident points.
-  late final CrimeReferenceRepository _crime =
-      CrimeReferenceWiring.fromEnvironment().repository;
+  /// Local web preview only (`--dart-define=SAFE_WALK_WEB_ROUTES=true`).
+  static const _webRoutes = bool.fromEnvironment('SAFE_WALK_WEB_ROUTES');
+
+  late final CrimeReferenceRepository _crime = _crimeRepository();
+
+  /// Phones use M1's dart:io client. The local web preview (built with
+  /// SAFE_WALK_WEB_ROUTES) posts the same reviewed RPC through browser fetch.
+  static CrimeReferenceRepository _crimeRepository() {
+    if (!kIsWeb || !_webRoutes) {
+      return CrimeReferenceWiring.fromEnvironment().repository;
+    }
+    final SafeWalkSupabaseConfig config;
+    try {
+      config = SafeWalkSupabaseConfig.fromEnvironment();
+    } on SupabaseConfigurationException {
+      return CrimeReferenceRepository(transport: null);
+    }
+    return CrimeReferenceRepository(
+      transport: (arguments) async {
+        final (status, body) = await webRpcPost(
+          config.url.resolve('/rest/v1/rpc/$crimeReferenceRpcFunction'),
+          {
+            ...config.requestHeaders,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          jsonEncode(arguments),
+        );
+        return CrimeReferenceHttpResponse(status, body);
+      },
+    );
+  }
   List<AvoidArea> _crimeAreas = const [];
   List<CrimeSpot> _crimeSpots = const [];
 
-  Future<void> _loadCrime(sw.Coordinates a, sw.Coordinates b) async {
-    if (!_crime.isConfigured) return;
+  /// Separate, revocable consent for sending the route box to the crime
+  /// reference database. null = not asked yet.
+  bool? _crimeConsent;
+
+  /// The current planning operation. Every new plan, leaving the map,
+  /// backgrounding, SOS or exit cancels it; late answers are then dropped.
+  _RouteCancellation? _op;
+  bool _foreground = true;
+
+  void _cancelOp() {
+    _op?.cancel();
+    _op = null;
+  }
+
+  /// Rechecked after every await and before anything is sent.
+  bool _opValid(_RouteCancellation op) =>
+      identical(op, _op) &&
+      !op.isCancelled &&
+      !_lifetime.isCancelled &&
+      mounted &&
+      _foreground &&
+      _navigationActive &&
+      _navigation.hasRoutingConsent;
+
+  void _setCrimeConsent(bool consent) {
+    _crimeConsent = consent;
+    if (!consent) {
+      _crimeAreas = const [];
+      if (mounted) setState(() => _crimeSpots = const []);
+    }
+  }
+
+  Future<void> _loadCrime(
+    sw.Coordinates a,
+    sw.Coordinates b,
+    _RouteCancellation op,
+  ) async {
+    if (!_crime.isConfigured || _crimeConsent != true || !_opValid(op)) {
+      return;
+    }
     const m = 0.006; // ~600 m margin around the start/destination box
     try {
       final result = await _crime.query(
@@ -136,13 +208,13 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
           ),
           limit: crimeReferenceMaxLimit,
         ),
-        cancellation: _lifetime,
+        cancellation: op,
       );
+      if (!_opValid(op) || _crimeConsent != true) return;
       final located = [
         for (final r in result.records)
           if (r.latitude != null && r.longitude != null) r,
       ];
-      if (!mounted) return;
       setState(() {
         _crimeSpots = [
           for (final r in located)
@@ -225,7 +297,6 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
           (widget.liveRoutes
               ? AvoidingRouteService(
                   planner: ValhallaAvoidingRoutePlanner(
-                    transport: transport,
                     hasConsent: hasConsent,
                   ),
                   fallback: osrm,
@@ -312,7 +383,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
 
   /// Map opened, destination changed or retry: consent → GPS → OSRM route.
   Future<void> _planTo(sw.Coordinates destination) async {
-    if (_lifetime.isCancelled || _askingConsent) return;
+    if (_lifetime.isCancelled || _askingConsent || !_foreground) return;
     if (!_navigation.hasRoutingConsent) {
       _askingConsent = true;
       final agreed = await _askRoutingConsent();
@@ -320,11 +391,21 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
       if (agreed != true || !mounted) return;
       _navigation.setRoutingConsent(true);
     }
+    if (_crime.isConfigured && _crimeConsent == null) {
+      _askingConsent = true;
+      final agreed = await _askCrimeConsent();
+      _askingConsent = false;
+      if (!mounted) return;
+      _setCrimeConsent(agreed == true);
+    }
+    _cancelOp();
+    final op = _op = _RouteCancellation();
     _destination = destination;
     _openNavigation();
     final manual = _manualOrigin;
     if (manual != null) {
-      await _loadCrime(manual, destination);
+      await _loadCrime(manual, destination, op);
+      if (!_opValid(op)) return;
       await _planRoute(
         _createRouteRequest(
           origin: sw.Position(
@@ -343,19 +424,21 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
       located = await _platform.getCurrentPosition(
         mode: _navigation.mode,
         userInitiated: true,
-        cancellation: _lifetime,
+        cancellation: op,
       );
     } on SafeWalkCancelledException {
       return;
     }
-    if (!mounted || _lifetime.isCancelled) return;
+    if (!_opValid(op)) return;
     if (located is! sw.LocationSuccess) {
+      if (!mounted) return;
       ScaffoldMessenger.maybeOf(context)?.showSnackBar(
         SnackBar(content: Text((located as sw.LocationFailure).message)),
       );
       return;
     }
-    await _loadCrime(located.position.coordinates, destination);
+    await _loadCrime(located.position.coordinates, destination, op);
+    if (!_opValid(op)) return;
     await _planRoute(
       _createRouteRequest(origin: located.position, destination: destination),
     );
@@ -366,8 +449,30 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     builder: (dialog) => AlertDialog(
       title: const Text('規劃路線需要你的位置'),
       content: const Text(
-        '會把你目前的位置、目的地和要避開的回報點，傳給 OpenStreetMap 步行路線服務'
-        '（valhalla1.openstreetmap.de、routing.openstreetmap.de）來計算路線，不會傳給其他人。',
+        '會把起點（你的位置或你選的點）、目的地和要避開的回報點，傳給 OpenStreetMap 步行路線服務'
+        '（valhalla1.openstreetmap.de、routing.openstreetmap.de），只用來計算步行路線。',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(dialog).pop(false),
+          child: const Text('不要'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(dialog).pop(true),
+          child: const Text('同意'),
+        ),
+      ],
+    ),
+  );
+
+  Future<bool?> _askCrimeConsent() => showDialog<bool>(
+    context: context,
+    builder: (dialog) => AlertDialog(
+      title: const Text('要一併查詢犯罪參考資料嗎？'),
+      content: const Text(
+        '會把包含起點與目的地的方框範圍（外擴約 600 公尺），傳給臺北安心行的資料庫服務（Supabase），'
+        '查詢北北基犯罪參考紀錄，在地圖上以紫色標出犯罪紀錄區並避開。'
+        '紀錄是地址或捷運出口的參考位置，不是精確案發地點。可隨時在「起點 → 目的地」選單關閉。',
       ),
       actions: [
         TextButton(
@@ -387,6 +492,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
   }
 
   void _closeNavigation() {
+    _cancelOp();
     _stopFollowing();
     _navigationActive = false;
     _navigation.cancelRoute();
@@ -396,11 +502,13 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     final active = state == AppLifecycleState.resumed;
     _speaker.setLifecycleActive(active);
+    if (active) _foreground = true;
     // `inactive` is transient (a system dialog, or the browser window losing
     // focus on web); only really leaving the app clears the route.
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.hidden ||
         state == AppLifecycleState.detached) {
+      _foreground = false;
       _closeNavigation();
     }
     if (mounted) setState(() {});
@@ -576,6 +684,8 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
         livePosition: _livePosition,
         onLeaveMap: _closeNavigation,
         crimeSpots: _crimeSpots,
+        crimeConsent: _crime.isConfigured ? (_crimeConsent ?? false) : null,
+        onCrimeConsentChanged: _setCrimeConsent,
         onStartChanged: widget.liveRoutes
             ? (origin) {
                 _manualOrigin = origin;

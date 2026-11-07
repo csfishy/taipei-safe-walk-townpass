@@ -4,7 +4,7 @@ import 'dart:math' as math;
 
 import 'package:town_pass/features/safe_walk/navigation/avoid_area.dart';
 import 'package:town_pass/features/safe_walk/navigation/coordinate_math.dart';
-import 'package:town_pass/features/safe_walk/navigation/json_transport.dart';
+import 'package:town_pass/features/safe_walk/navigation/json_post.dart';
 import 'package:town_pass/features/safe_walk/navigation/walking_route_provider.dart';
 import 'package:town_pass/features/safe_walk/shared/contracts/cancellation.dart';
 import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart'
@@ -20,18 +20,26 @@ import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart
 /// self-hosted [endpoint] is needed for production.
 final class ValhallaAvoidingRoutePlanner implements AvoidingRoutePlanner {
   ValhallaAvoidingRoutePlanner({
-    required this.transport,
     required this.hasConsent,
+    Future<(int, String)> Function(Uri url, String body)? post,
     Uri? endpoint,
     this.minInterval = const Duration(milliseconds: 1100),
     Future<void> Function(Duration)? wait,
   }) : endpoint = endpoint ?? Uri.parse(defaultEndpoint),
-       _wait = wait ?? Future<void>.delayed;
+       _wait = wait ?? Future<void>.delayed,
+       _post = post ?? postJsonText;
+
+  /// Valhalla rejects exclusions whose total circumference exceeds 10 km.
+  static const maxExcludeCircumferenceMeters = 9500.0;
+
+  /// Only areas this close to the shortest route are sent for exclusion.
+  static const corridorMeters = 300.0;
 
   static const defaultEndpoint = 'https://valhalla1.openstreetmap.de/route';
   static const providerId = 'valhalla-pedestrian';
 
-  final JsonTransport transport;
+  /// POSTs the JSON request (a long GET URL is rejected with 414).
+  final Future<(int, String)> Function(Uri url, String body) _post;
   final bool Function() hasConsent;
   final Uri endpoint;
 
@@ -63,43 +71,60 @@ final class ValhallaAvoidingRoutePlanner implements AvoidingRoutePlanner {
     ];
 
     // A circle holding the start or end cannot be avoided; leave it out.
-    List<List<List<double>>> polygons(double Function(AvoidArea) radius) => [
-      for (final a in areas)
-        if (!inside(a, origin, radius(a)) && !inside(a, destination, radius(a)))
-          _circle(a.center, radius(a)),
-    ];
-
-    final levels = <(AvoidLevel, List<List<List<double>>>)>[
-      (AvoidLevel.none, const []),
-      if (areas.isNotEmpty) ...[
-        (AvoidLevel.center, polygons((_) => AvoidArea.centerRadiusMeters)),
-        (AvoidLevel.full, polygons((a) => a.radiusMeters)),
-      ],
-    ];
+    bool avoidable(AvoidArea a, double r) =>
+        !inside(a, origin, r) && !inside(a, destination, r);
 
     final options = <AvoidRouteOption>[];
-    List<List<double>>? previous;
-    String? previousExcluded;
-    for (final (level, excluded) in levels) {
-      // Same exclusions as the level before give the same route; skip the call.
-      final key = jsonEncode(excluded);
-      if (key == previousExcluded && options.isNotEmpty) continue;
-      previousExcluded = key;
-      final line = await _route(origin, destination, excluded, cancellation);
-      if (line == null) continue;
-      if (previous != null && _sameLine(previous, line.coordinates)) continue;
-      previous = line.coordinates;
-      options.add(
-        AvoidRouteOption(
-          level: level,
-          route: _candidate(level, line, areas),
-          passedAreaIds: [
-            for (final a in areas)
-              if (_minDistance(line.coordinates, a.center) < a.radiusMeters)
-                a.id,
-          ],
-        ),
+    AvoidRouteOption option(AvoidLevel level, _Line line) => AvoidRouteOption(
+      level: level,
+      route: _candidate(level, line, areas),
+      passedAreaIds: [
+        for (final a in areas)
+          if (_minDistance(line.coordinates, a.center) < a.radiusMeters) a.id,
+      ],
+    );
+
+    final shortest = await _route(origin, destination, const [], cancellation);
+    if (shortest == null) {
+      return AvoidRoutePlan(
+        options: const [],
+        originInsideAreaIds: originInside,
+        destinationInsideAreaIds: destinationInside,
       );
+    }
+    options.add(option(AvoidLevel.none, shortest));
+
+    // Nearest areas to the shortest route first, within Valhalla's limit.
+    final near = [
+      for (final a in areas)
+        if (_minDistance(shortest.coordinates, a.center) <
+            a.radiusMeters + corridorMeters)
+          a,
+    ]..sort((x, y) => _minDistance(shortest.coordinates, x.center)
+        .compareTo(_minDistance(shortest.coordinates, y.center)));
+    final chosen = <AvoidArea>[];
+    var budget = maxExcludeCircumferenceMeters;
+    for (final a in near) {
+      final perimeter = 2 * math.pi * (a.radiusMeters / math.cos(math.pi / 8) + 2);
+      if (perimeter > budget) break;
+      budget -= perimeter;
+      chosen.add(a);
+    }
+
+    List<List<double>> previous = shortest.coordinates;
+    for (final (level, radius) in <(AvoidLevel, double Function(AvoidArea))>[
+      (AvoidLevel.center, (_) => AvoidArea.centerRadiusMeters),
+      (AvoidLevel.full, (a) => a.radiusMeters),
+    ]) {
+      final excluded = [
+        for (final a in chosen)
+          if (avoidable(a, radius(a))) _circle(a.center, radius(a)),
+      ];
+      if (excluded.isEmpty) continue;
+      final line = await _route(origin, destination, excluded, cancellation);
+      if (line == null || _sameLine(previous, line.coordinates)) continue;
+      previous = line.coordinates;
+      options.add(option(level, line));
     }
     return AvoidRoutePlan(
       options: options,
@@ -135,14 +160,13 @@ final class ValhallaAvoidingRoutePlanner implements AvoidingRoutePlanner {
       };
       final Object? json;
       try {
-        json = await transport.getJson(
-          endpoint.replace(queryParameters: {'json': jsonEncode(body)}),
-          cancellation: cancellation,
-        );
-      } on JsonTransportException catch (e) {
-        // Valhalla answers "no path" with HTTP 400.
-        if (e.failure == TransportFailure.httpStatus) return null;
-        throw const WalkingRouteProviderUnavailable();
+        final (status, text) = await _post(endpoint, jsonEncode(body));
+        // Valhalla answers "no path" (and other request problems) with 400.
+        if (status == 400) return null;
+        if (status != 200) throw const WalkingRouteProviderUnavailable();
+        json = jsonDecode(text);
+      } on WalkingRouteProviderUnavailable {
+        rethrow;
       } on SafeWalkCancelledException {
         rethrow;
       } catch (_) {
@@ -213,25 +237,26 @@ final class ValhallaAvoidingRoutePlanner implements AvoidingRoutePlanner {
       walkingNetworkVerified: true,
       explanations: [
         switch (level) {
-          AvoidLevel.none => '最短步行路線',
+          AvoidLevel.none => '最快路線',
           AvoidLevel.center => '不經過回報點中心',
-          AvoidLevel.full => '避開 $avoided 個回報點範圍',
+          AvoidLevel.full => '完全避開 $avoided 個範圍',
         },
       ],
       warnings: const ['依 OpenStreetMap 步行路網計算，不保證沿途安全或目前可通行'],
     );
   }
 
-  /// Regular 16-gon in GeoJSON `[lng, lat]` order, closed.
+  /// Regular octagon in GeoJSON `[lng, lat]` order, closed.
   static List<List<double>> _circle(sw.Coordinates c, double radiusMeters) {
-    final r = radiusMeters + 2; // edges just outside still count as clear
+    // Circumscribed octagon (edges never cut into the circle) plus 2 m.
+    final r = radiusMeters / math.cos(math.pi / 8) + 2;
     final dLat = r / 110540;
     final dLng = r / (111320 * math.cos(c.lat * math.pi / 180));
     return [
-      for (var k = 0; k <= 16; k++)
+      for (var k = 0; k <= 8; k++)
         [
-          c.lng + dLng * math.sin(2 * math.pi * k / 16),
-          c.lat + dLat * math.cos(2 * math.pi * k / 16),
+          _round6(c.lng + dLng * math.sin(2 * math.pi * k / 8)),
+          _round6(c.lat + dLat * math.cos(2 * math.pi * k / 8)),
         ],
     ];
   }
@@ -293,3 +318,5 @@ final class _Line {
   final List<List<double>> coordinates;
   final double? seconds;
 }
+
+double _round6(double v) => (v * 1e6).roundToDouble() / 1e6;

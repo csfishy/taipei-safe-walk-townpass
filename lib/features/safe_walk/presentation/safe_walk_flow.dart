@@ -30,6 +30,8 @@ class SafeWalkFlow extends StatefulWidget {
     this.onReportsChanged,
     this.onStartChanged,
     this.crimeSpots = const [],
+    this.crimeConsent,
+    this.onCrimeConsentChanged,
     this.livePosition,
     this.onLeaveMap,
     this.speaker = const UnavailableSpeaker(),
@@ -62,6 +64,10 @@ class SafeWalkFlow extends StatefulWidget {
 
   /// 路線附近的犯罪紀錄區（M1 查詢後提供）；地圖以紫色標示，路線會一起避開。
   final List<CrimeSpot> crimeSpots;
+
+  /// 是否查詢犯罪參考資料（null＝未設定資料庫，不顯示開關）；可隨時關閉。
+  final bool? crimeConsent;
+  final ValueChanged<bool>? onCrimeConsentChanged;
 
   /// 使用者指定起點（null＝改回 GPS）；之後的路線規劃從這裡出發。
   final ValueChanged<sw.Coordinates?>? onStartChanged;
@@ -211,6 +217,8 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
   }
 
   void _openEmergency() {
+    // SOS first cancels any location / route / crime query in flight.
+    widget.onLeaveMap?.call();
     _call = null;
     _callKey.currentState?.leave();
     widget.speaker.stop();
@@ -238,7 +246,7 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
       _position = result is sw.LocationSuccess ? result.position : null;
       _emergencyError = result is sw.LocationFailure;
       _emergencyMessage = switch (result) {
-        sw.LocationSuccess() => widget.mode == sw.DataMode.mock ? '已取得位置。' : '已取得位置；尚未傳送給任何人。',
+        sw.LocationSuccess() => widget.mode == sw.DataMode.mock ? '已取得示範位置；不是真實定位，未傳送給任何人。' : '已取得位置；尚未傳送給任何人。',
         sw.LocationFailure(:final message) => message,
       };
     });
@@ -263,6 +271,13 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
       routeState: _routeState,
       manualStart: _manualStart,
       crimeSpots: widget.crimeSpots,
+      crimeConsent: widget.crimeConsent,
+      onCrimeConsentChanged: widget.onCrimeConsentChanged == null
+          ? null
+          : (v) {
+              widget.onCrimeConsentChanged!(v);
+              _planRoute();
+            },
       onStartChanged: widget.onStartChanged == null ? null : _setStart,
       anomalies: _anomalies,
       startView: start,

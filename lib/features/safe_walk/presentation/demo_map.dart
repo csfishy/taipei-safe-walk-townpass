@@ -25,7 +25,7 @@ const _kUserAgentPackage = 'town_pass';
 ll.LatLng _ll(LatLng p) => ll.LatLng(p.lat, p.lng);
 
 /// 犯罪紀錄區用的紫色（臺北通色票沒有紫，取官方輔助色）。
-const _crime = Color(0xFF7B4BB7);
+const crimeMarkColor = Color(0xFF7B4BB7);
 
 class DemoMap extends StatelessWidget {
   /// Tests supply a fresh, non-network provider without changing app defaults.
@@ -150,7 +150,7 @@ class DemoMap extends StatelessWidget {
             width: 10,
             height: 10,
             decoration: BoxDecoration(
-              color: _crime,
+              color: crimeMarkColor,
               shape: BoxShape.circle,
               border: Border.all(color: SwColors.surface, width: 1.5),
             ),
@@ -267,8 +267,8 @@ class DemoMap extends StatelessWidget {
                   point: _ll(c.at),
                   radius: avoidRadiusMeters,
                   useRadiusInMeter: true,
-                  color: _crime.withValues(alpha: .14),
-                  borderColor: _crime,
+                  color: crimeMarkColor.withValues(alpha: .14),
+                  borderColor: crimeMarkColor,
                   borderStrokeWidth: 1.5,
                 ),
               for (final a in anomalies)

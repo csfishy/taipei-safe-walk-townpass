@@ -5,7 +5,6 @@ import 'package:town_pass/features/safe_walk/navigation/avoid_area.dart';
 import 'package:town_pass/features/safe_walk/navigation/json_transport.dart';
 import 'package:town_pass/features/safe_walk/navigation/valhalla_avoiding_route_planner.dart';
 import 'package:town_pass/features/safe_walk/navigation/walking_route_provider.dart';
-import 'package:town_pass/features/safe_walk/shared/contracts/cancellation.dart';
 import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart' as sw;
 
 // Straight east-west street at lat 25.0; the detour goes 300 m north.
@@ -66,9 +65,24 @@ void main() {
     expect(plan.options.map((o) => o.level), [AvoidLevel.none]);
   });
 
+  test('only areas near the shortest route are sent, within the 10 km circumference limit', () async {
+    final t = _Fake((body) => body.containsKey('exclude_polygons') ? _detour : _direct);
+    final many = [
+      for (var i = 0; i < 60; i++) _area('near-$i', 25.0, 121.5005 + i * 0.00015), // along the street
+      _area('far', 25.02, 121.505), // ~2 km north
+    ];
+    await _planner(t).plan(origin: _origin, destination: _dest, areas: many);
+    final sent = (t.bodies[2]['exclude_polygons'] as List).length;
+    expect(sent, lessThanOrEqualTo(28), reason: '50 m octagons stay under 9.5 km in total');
+    expect(sent, greaterThan(0));
+    final polygons = [for (final b in t.bodies.skip(1)) ...(b['exclude_polygons'] as List)];
+    final lats = [for (final p in polygons) for (final c in (p as List)) ((c as List)[1] as num).toDouble()];
+    expect(lats.every((lat) => lat < 25.01), isTrue, reason: 'the far area is not sent');
+  });
+
   test('without consent nothing is sent', () async {
     final t = _Fake((_) => _direct);
-    final planner = ValhallaAvoidingRoutePlanner(transport: t, hasConsent: () => false, wait: (_) async {});
+    final planner = ValhallaAvoidingRoutePlanner(post: t.post, hasConsent: () => false, wait: (_) async {});
     await expectLater(planner.plan(origin: _origin, destination: _dest, areas: const []), throwsA(isA<WalkingRouteProviderUnavailable>()));
     expect(t.bodies, isEmpty);
   });
@@ -81,39 +95,38 @@ void main() {
   test('requests are spaced at least the minimum interval apart', () async {
     final waits = <Duration>[];
     final t = _Fake((body) => body.containsKey('exclude_polygons') ? _detour : _direct);
-    final planner = ValhallaAvoidingRoutePlanner(transport: t, hasConsent: () => true, wait: (d) async => waits.add(d));
+    final planner = ValhallaAvoidingRoutePlanner(post: t.post, hasConsent: () => true, wait: (d) async => waits.add(d));
     await planner.plan(origin: _origin, destination: _dest, areas: [_area('a', 25.0, 121.505)]);
     expect(waits, hasLength(2));
     expect(waits.every((d) => d > const Duration(milliseconds: 900)), isTrue);
   });
 }
 
-ValhallaAvoidingRoutePlanner _planner(_Fake t) => ValhallaAvoidingRoutePlanner(transport: t, hasConsent: () => true, wait: (_) async {});
+ValhallaAvoidingRoutePlanner _planner(_Fake t) => ValhallaAvoidingRoutePlanner(post: t.post, hasConsent: () => true, wait: (_) async {});
 
-final class _Fake implements JsonTransport {
+final class _Fake {
   _Fake(this.answer);
   final List<List<double>>? Function(Map<String, Object?> body) answer;
   final bodies = <Map<String, Object?>>[];
 
-  @override
-  Future<Object?> getJson(Uri url, {SafeWalkCancellation? cancellation}) async {
-    final body = jsonDecode(url.queryParameters['json']!) as Map<String, Object?>;
+  Future<(int, String)> post(Uri url, String text) async {
+    final body = jsonDecode(text) as Map<String, Object?>;
     bodies.add(body);
     final line = answer(body);
-    if (line == null) throw const JsonTransportException(TransportFailure.httpStatus);
-    return {
-      'trip': {
-        'status': 0,
-        'summary': {'time': 600, 'length': 1.0},
-        'legs': [
-          {'shape': _encode(line)},
-        ],
-      },
-    };
+    if (line == null) return (400, '{"error_code":442}');
+    return (
+      200,
+      jsonEncode({
+        'trip': {
+          'status': 0,
+          'summary': {'time': 600, 'length': 1.0},
+          'legs': [
+            {'shape': _encode(line)},
+          ],
+        },
+      }),
+    );
   }
-
-  @override
-  Future<Object?> postFormJson(Uri url, Map<String, String> form, {SafeWalkCancellation? cancellation}) => throw UnimplementedError();
 }
 
 String _encode(List<List<double>> lngLat) {

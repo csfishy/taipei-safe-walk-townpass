@@ -27,6 +27,9 @@ Future<void> _pump(WidgetTester t, Widget w) async {
   await t.pumpAndSettle();
 }
 
+// 真實路線需要先設定家（#51）；測試用的家。
+final _testHome = sw.Coordinates(lat: 25.1160, lng: 121.535083);
+
 void main() {
   testWidgets('首頁只有四個入口與緊急求助', (t) async {
     await _pump(t, const SafeWalkFlow());
@@ -317,7 +320,7 @@ void main() {
 
     testWidgets('打開地圖與換目的地時才請 M1 規劃；一進安心行不自動送出', (t) async {
       final asked = <sw.Coordinates>[];
-      await _pump(t, SafeWalkFlow(onPlanRoute: asked.add));
+      await _pump(t, SafeWalkFlow(homeLocation: _testHome, onPlanRoute: asked.add));
       expect(asked, isEmpty, reason: '還在首頁，使用者沒操作前不規劃');
       await t.tap(find.text('安心行'));
       await t.pumpAndSettle();
@@ -328,10 +331,11 @@ void main() {
       await t.pumpAndSettle();
       expect(asked, hasLength(2));
       expect(asked.last.lat, closeTo(25.114604, 1e-6), reason: '公司＝北市大天母校區');
+      await t.pump(const Duration(seconds: 1)); // 選單關閉後釋放輸入框的計時器
     });
 
     testWidgets('計算中：不畫示範路線，資訊框寫「路線計算中」', (t) async {
-      await _pump(t, const SafeWalkFlow(routeLoading: true));
+      await _pump(t, SafeWalkFlow(homeLocation: _testHome, routeLoading: true));
       await t.tap(find.text('安心行'));
       await t.pump(const Duration(milliseconds: 600));
       expect(find.text('正在計算步行路線…'), findsOneWidget);
@@ -350,11 +354,11 @@ void main() {
     });
 
     testWidgets('同一個 flow 切換 Live 時清除已初始化的示範資料', (t) async {
-      await _pump(t, const SafeWalkFlow());
+      await _pump(t, SafeWalkFlow(homeLocation: _testHome));
       await t.tap(find.text('安心行'));
       await t.pumpAndSettle();
       expect(t.widget<SafeWalkMapView>(find.byType(SafeWalkMapView)).anomalies, isNotEmpty);
-      await t.pumpWidget(const MaterialApp(home: SafeWalkFlow(mode: sw.DataMode.live)));
+      await t.pumpWidget(MaterialApp(home: SafeWalkFlow(mode: sw.DataMode.live)));
       await t.pumpAndSettle();
       final map = t.widget<SafeWalkMapView>(find.byType(SafeWalkMapView));
       expect(map.anomalies, isEmpty);
@@ -366,7 +370,7 @@ void main() {
       final asked = <sw.Coordinates>[];
       await _pump(
         t,
-        SafeWalkFlow(
+        SafeWalkFlow(homeLocation: _testHome, 
           onPlanRoute: asked.add,
           route: sw.RouteFailure(
             requestId: 'r1',
@@ -391,12 +395,12 @@ void main() {
     });
 
     testWidgets('成功：用 M2 的距離與時間，標示「僅供參考」而非示範', (t) async {
-      await _pump(t, SafeWalkFlow(route: ok()));
+      await _pump(t, SafeWalkFlow(homeLocation: _testHome, route: ok()));
       await t.tap(find.text('安心行'));
       await t.pumpAndSettle();
       expect(find.textContaining('示範'), findsNothing);
       expect(find.textContaining('約 420 公尺'), findsOneWidget);
-      expect(find.text('沿大路走，避開 2 個回報點'), findsOneWidget);
+      expect(find.text('沿大路走，避開 2 個回報點'), findsWidgets, reason: '摘要與路線卡片都會顯示');
       expect(find.textContaining('6 分鐘'), findsWidgets);
     });
   });
