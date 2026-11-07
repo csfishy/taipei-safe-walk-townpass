@@ -29,14 +29,17 @@ void main() {
     expect(find.textContaining('示範'), findsNothing, reason: '正式畫面不顯示示範字樣');
   });
 
-  testWidgets('地圖路線資訊框也有資料來源入口', (t) async {
+  testWidgets('資料來源入口只在首頁，地圖資訊框不重複放', (t) async {
     await _pump(t);
-    await t.tap(find.text('安心行'));
-    await t.pumpAndSettle();
     final link = find.text('資料來源與授權');
     await t.ensureVisible(link);
     await t.tap(link);
     await t.pumpAndSettle();
     expect(find.text('步行路線'), findsOneWidget);
+    Navigator.of(t.element(find.text('步行路線'))).pop();
+    await t.pumpAndSettle();
+    await t.tap(find.text('安心行'));
+    await t.pumpAndSettle();
+    expect(find.text('資料來源與授權'), findsNothing);
   });
 }

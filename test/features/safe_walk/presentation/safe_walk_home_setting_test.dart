@@ -55,7 +55,8 @@ void main() {
     await t.tap(find.text('安心行'));
     await t.pumpAndSettle();
     expect(asked, isEmpty);
-    expect(find.text('請先返回首頁設定「家」的位置，再規劃回家路線。'), findsWidgets);
+    // 可以儲存家時，一進地圖就直接請使用者在地圖上點選家。
+    expect(find.text('家在哪裡？'), findsOneWidget);
     expect(
       t.widget<SafeWalkMapView>(find.byType(SafeWalkMapView)).routeState.path,
       isNull,

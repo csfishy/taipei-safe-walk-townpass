@@ -187,7 +187,7 @@ class SwPrimaryButton extends StatelessWidget {
   Widget build(BuildContext context) => SwPressable(
     onTap: onTap,
     color: onTap == null ? TPColors.grayscale100 : SwColors.brand,
-    pressedColor: TPColors.primary400,
+    pressedColor: TPColors.primary600, // 同官方 TPButton.primary
     radius: 8,
     padding: const EdgeInsets.symmetric(horizontal: 20),
     child: SizedBox(

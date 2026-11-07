@@ -98,7 +98,7 @@ void main() {
     await t.pumpAndSettle();
     expect(starts, 1);
     expect(find.text('此路線未提供轉向指示'), findsOneWidget);
-    expect(find.textContaining('約 10 分鐘（依路線服務時間比例估計）'), findsOneWidget);
+    expect(find.textContaining('約 10 分鐘'), findsOneWidget);
     expect(find.textContaining('後抵達'), findsNothing);
     await t.tap(find.text('結束導覽'));
     await t.pumpAndSettle();

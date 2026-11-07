@@ -231,9 +231,13 @@ Future<void> _start(WidgetTester tester, {bool crime = true}) async {
 }
 
 Future<void> _openCrimeSettings(WidgetTester tester) async {
-  final sources = find.text('資料來源與授權').last;
-  await tester.ensureVisible(sources);
-  await tester.tap(sources);
+  // 首頁內容可能超出一個畫面（例如附近協助者卡片），先捲到連結。
+  await tester.scrollUntilVisible(
+    find.text('資料來源與授權'),
+    200,
+    scrollable: find.byType(Scrollable).first,
+  );
+  await tester.tap(find.text('資料來源與授權').last);
   await tester.pumpAndSettle();
   await tester.tap(find.text('犯罪資料查詢設定'));
   await tester.pumpAndSettle();
@@ -266,8 +270,7 @@ void main() {
       routes,
       CrimeReferenceRepository(transport: null),
     );
-    await tester.tap(find.text('安心行'));
-    await tester.pumpAndSettle();
+    // 查詢設定移到首頁的「資料來源與授權」。
     await _openCrimeSettings(tester);
     expect(find.text('犯罪資料查詢暫時無法使用'), findsOneWidget);
     expect(find.textContaining('請更新至最新版本'), findsOneWidget);
@@ -277,6 +280,9 @@ void main() {
     await tester.tap(find.text('知道了'));
     await tester.pumpAndSettle();
     expect(find.byType(AlertDialog), findsNothing);
+    await tester.tap(find.text('安心行'));
+    await tester.pumpAndSettle();
+    await _skipSetHome(tester);
     expect(find.byKey(const Key('crime-query-status')), findsOneWidget);
   });
 
@@ -297,8 +303,6 @@ void main() {
         },
       ),
     );
-    await tester.tap(find.text('安心行'));
-    await tester.pumpAndSettle();
     await _openCrimeSettings(tester);
     expect(find.text('犯罪參考資料查詢同意'), findsOneWidget);
     await tester.tap(find.text('同意查詢'));
@@ -306,6 +310,9 @@ void main() {
     expect(queries, 0);
     expect(platform.locations, isEmpty);
     expect(routes.requests, isEmpty);
+    await tester.tap(find.text('安心行'));
+    await tester.pumpAndSettle();
+    await _skipSetHome(tester);
     expect(
       tester.widget<Text>(find.byKey(const Key('crime-query-status'))).data,
       contains('重新規劃路線時才會查詢'),
@@ -740,4 +747,11 @@ void main() {
       },
     );
   }
+}
+
+/// 還沒設定家時，地圖一打開會先請使用者點選家；這些測試只看查詢狀態，先跳過。
+Future<void> _skipSetHome(WidgetTester tester) async {
+  if (find.text('稍後再設定').evaluate().isEmpty) return;
+  await tester.tap(find.text('稍後再設定'));
+  await tester.pumpAndSettle();
 }
