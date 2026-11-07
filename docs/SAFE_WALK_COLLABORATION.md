@@ -1,6 +1,8 @@
 # 臺北安心行：開放式平行協作
 
-2026-11-07（Asia/Taipei）。正式採用 **Feature-First Development + Soft Ownership + Contract-Based Integration**，以加速完成 [Live MVP](SAFE_WALK_LIVE_MVP.md)。本規範適用五位成員及其 AI Coding 工作；M1–M5 是技術分區與主要聯絡人，不是獨占修改權。舊文件中的「所有權」「交 M1 接線」「由 M3 維護」若涉及作者權限，以本規範的三層審查為準；資料、依賴及安全限制繼續有效。
+2026-11-08（Asia/Taipei）。採用 **LIVE-FIRST DEVELOPMENT + NO PRODUCTION MOCK**，結合 **Feature-First Development + Soft Ownership + Contract-Based Integration**，完成 [Live MVP](SAFE_WALK_LIVE_MVP.md)。新功能直接做真 Provider、正式 UI 接線與完整使用者流程，不要求先 Mock／Demo／Prototype；完整定義及規範衝突對照見 [現行交付政策](SAFE_WALK_LIVE_FIRST.md)。本規範適用五位成員及其 AI Coding 工作；M1–M5 是技術分區與主要聯絡人，不是獨占修改權。舊文件中的「所有權」「交 M1 接線」「由 M3 維護」若涉及作者權限，以本規範的三層審查為準；資料、依賴及安全限制繼續有效。
+
+Production 僅使用真實、已完成適用驗收的資料來源與能力；Mock／Fake／fixtures 只用於隔離 Unit／Integration tests，正式入口不可選 `DataMode.mock`，既有 enum 保留相容。未完成能力顯示 Unavailable＋真實原因＋下一步，不回模擬 fallback、固定成功，不以只改文字／readiness／flags 冒充完成。其他模組 BLOCKED 不阻擋已獨立驗收的能力。main `7b99fea` 仍是 Mock 正式入口，本文件不等於程式已符合政策。
 
 ## 功能主責與主要聯絡人
 
@@ -26,7 +28,7 @@
 |---|---|---|---|
 | Level A：開放修改 | 一般功能、既有契約下 UI callback／狀態接線、導航邏輯、資料轉換、音訊操作、模組／整合測試 | 任何成員可直接開始，說明跨模組目的／檔案／原主要負責人，先協調同檔案重疊 | 相關測試及必要 CI 通過，由一位具權限的非作者隊員 Review；不因跨目錄要求小魚或原模組負責人逐項先批准 |
 | Level B：主要負責人確認 | 共用 Schema、Contracts、Models、依賴套件／lock、TownPass Route、原生平台設定、正式 UI 大型改版、CI/CD、重大架構邊界 | 任何成員可實作、重產及送 PR，不要求小魚親寫 | 合併前由對應主要負責人確認；共用／套件／route／原生／CI 由小魚，正式大型 UI 由莅紋，其他涉及的領域主責確認其契約影響；附相容性／生成及消費端證據 |
-| Level C：隊長授權與安全驗收 | 真實警消資料發送、救援者位置通知、Supabase 身分驗證／RPC／RLS、敏感位置儲存、正式部署／Live 啟用開關及可能造成真實外部影響的操作 | 可開發隔離實作、人工資料／fake 測試及 PR；不得自行接真實外部作用 | 合併前需隊長明確授權及額外安全／隱私審查；正式啟用前完成適用安全、後端、真實 Provider 與裝置驗收，授權範圍／證據記錄在 PR。不因編譯成功啟用 |
+| Level C：隊長授權與安全驗收 | 真實警消資料發送、救援者位置通知、Supabase 身分驗證／正式唯讀權限／RPC／RLS、敏感位置儲存、正式部署／Live 啟用開關及可能造成真實外部影響的操作 | 可開發隔離實作、人工資料／fake 測試及 PR；不得自行接真實外部作用 | 合併前需隊長明確授權及額外安全／隱私審查；正式啟用前完成適用安全、後端、真實 Provider 與裝置驗收，授權範圍／證據記錄在 PR。不因編譯成功啟用 |
 
 一般 UI constructor／callback 的接線在維持既有語意時屬 A；若改到 shared/contracts 的共用 API、wire 欄位、取消或同意契約，屬 B；若改正式外傳／啟用或敏感儲存，再屬 C。使用現有套件不等於依賴變更；新增／升版／改 lock 才納 B。一般文案／版面修補不自動算大型改版；涉及既有設計方向的大幅變更請在 PR 說明並依 B 確認。
 
@@ -58,13 +60,13 @@
 - 業務模組保持只依賴自身與 shared；跨模組具體實作組合集中 lib/features/safe_walk/platform/integration/，保留 M1 Composition Root 機制。M1 在這裡是架構分區名稱，不是作者限制。
 - 保留依賴注入，不隨意建立循環 import；shared 不反向依賴業務模組，composition 不被業務模組反向引用。
 - canonical schemas/safe_walk/v1/contracts.schema.json 是 payload 單一來源，不各自建立 Position、Route、AssistancePoint 等重複 Model，不手改生成型別繞過 Schema。真正新 wire 欄位另提 Schema 變更並依 B 重產／驗消費端。
-- 保留原生 TownPass 入口／route、Theme、TPColors、品牌及使用者同意。跨模組修改不授權重設官方殼或暗中混用 Mock/Live。
+- 保留原生 TownPass 入口／route、Theme、TPColors、品牌及使用者同意。跨模組修改不授權重設官方殼；Production 不使用 Mock／fixtures，競賽正式範圍不採 Google Maps、不加入 AED。GPS 仍須主動操作，定位權限與外傳同意分開。
 - tool/check_safe_walk_baseline.dart 檢查 Git 歷史、Dart import/export 及確切 composition namespace，沒有檢查 GitHub 成員身分或檔案作者權限。其 guard 與六項 module_boundary_test 保持原樣；不能為協作全面關閉。
 - guard 的 --initialization 只對 migration 歷史範圍啟用保護路徑／無 UI；一般功能使用正常 guard，不把初始化限制帶回 Live 開發。現有 guard 不是完整 Dart 循環偵測器，仍要用 analyzer／相依審查與相關測試確認新增依賴；本次無程式依賴變更。
 
 ## 五人可直接承接的功能工作包
 
-以下是可選的功能主責與接收安排，不是新的目錄分割或已宣告的檔案鎖。開工先檢查 PR31／PR29 等最新狀態，登記實際檔案與並行實作者；撞同檔案時協調先後，功能主責仍可完成後續接線。
+以下是可選的功能主責與接收安排，不是新的目錄分割或已宣告的檔案鎖。開工先檢查最新 main、開放 PR 與 CI，登記實際檔案與並行實作者；撞同檔案時協調先後，功能主責仍可完成後續接線。main `7b99fea` 已 restore，不能沿用 #35 曾合併推論目前已有 P0；#39 僅合入 feature branch，#44 仍開放。
 
 | 功能／建議主責 | 相關檔案（前綴 lib/features/safe_walk/） | 完成定義／輸入輸出 | 測試標準／接收者 |
 |---|---|---|---|
@@ -76,7 +78,9 @@
 
 以上功能主責可以交換，任何成員也可承接其他跨模組功能；任務中要寫明接收者與層級。資料來源、地圖授權、裝置與正式啟用證據不因作者開放而省略。
 
-## 本次分支與查核紀錄
+## 歷史：開放協作文件分支與查核紀錄
+
+以下至文末保留 2026-11-07 當次查核與測試事實，不是 `7b99fea` 的新驗證；其 PR 狀態也不代表現在狀態。現行交付政策見本文開頭與 [LIVE-FIRST](SAFE_WALK_LIVE_FIRST.md)。
 
 本次先 fetch origin/main=65ee6f7dd9c07710ecf18084b1975b6998287b3e；#26 已合併。#31 當時仍開放，依其最新 head bf66fe33b06d77e61e37d52370d058b46e8444c1 建立 docs/open-collaboration，使用 stacked PR，base 指向 docs/live-mvp-spec；沒有覆寫 #31 分支。#29、#28 當時仍開放，不把未合併內容當完成。開發期間 #31 前進至 a58029fbc381f322b23a731a8545fc6f428b57d6（納入 main 65ee6f7／#26 與文件修正），本分支在首次推送前 rebase 到此最新 head；保留父分支的劇本／畫面／TTS 事實修正，沒有改寫父分支或 force push。
 

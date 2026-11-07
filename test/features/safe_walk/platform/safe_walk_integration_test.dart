@@ -226,7 +226,7 @@ void main() {
       await t.pumpAndSettle();
       await t.tap(find.text('接聽'));
       await t.pumpAndSettle();
-      expect(find.text('語音尚未配置，播放為無聲示範'), findsNothing);
+      expect(find.text('語音尚未配置，播放為無聲示範'), findsOneWidget);
       expect(companion.starts, 0);
       await t.tap(find.text('緊急求助').first);
       await t.pumpAndSettle();
@@ -433,7 +433,7 @@ void main() {
     await t.pump(const Duration(milliseconds: 300));
     await t.tap(find.text('接聽'));
     await t.pump(const Duration(milliseconds: 300));
-    await t.tap(find.text('我在大馬路上，快到了。'));
+    await t.tap(find.text('我快到了，但我後面好像有人一直跟著我。'));
     await t.pump(const Duration(milliseconds: 800));
     final before = speaker.spoken.length;
     await t.tap(find.text('緊急求助').first);

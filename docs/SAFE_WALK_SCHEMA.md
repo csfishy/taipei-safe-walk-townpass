@@ -2,7 +2,7 @@
 
 本文件只定義資料與驗證接點，不建立畫面、Widget、Theme 或音訊／導航產品功能。
 
-此為文件範圍，不是禁止實作產品功能。現行驗收見 [Live MVP](SAFE_WALK_LIVE_MVP.md)，實際狀態見 [Readiness](SAFE_WALK_LIVE_READINESS.md)。本次不更改 Schema；Unavailable 是能力／錯誤呈現語意，不新增既有 mock/live wire enum。必要新 payload 欄位另開 Schema 變更。
+此為文件範圍，不是禁止實作產品功能；新功能依 [LIVE-FIRST／NO PRODUCTION MOCK](SAFE_WALK_LIVE_FIRST.md) 直接完成真 Provider 與正式 UI 流程，不要求先交 Mock。驗收見 [Live MVP](SAFE_WALK_LIVE_MVP.md)，實際狀態見 [Readiness](SAFE_WALK_LIVE_READINESS.md)。本次不更改 canonical Schema 或生成模型；既有 mock/live wire enum 保留相容，mock 值僅限隔離 Unit／Integration tests，Production 入口不可選。Unavailable 是能力／錯誤呈現語意，使用既有 failure／reason，不新增 enum；必要新 payload 欄位另開 Schema 變更。
 
 ## 來源與單一來源
 

@@ -1,5 +1,28 @@
 # 臺北安心行 Live 上線條件表
 
+## 現行基線與完成規則（2026-11-08）
+
+本輪基線是團隊 main `7b99fea`。#49 restore 至 `3c433001` 後，#35 的 P0 正式接線已不在 main；安心行正常入口仍走 Mock。#39 合入 feature branch 而非 main，#44 仍開放，均不可預先計入主線完成。正式驗收依 [LIVE-FIRST／NO PRODUCTION MOCK](SAFE_WALK_LIVE_FIRST.md) 與 [Live MVP](SAFE_WALK_LIVE_MVP.md)，具體程式證據見 [正式接線盤點](SAFE_WALK_LIVE_WIRING_AUDIT.md)。本文件 PR 不修改執行期，也不宣稱重新測得真實 Provider 或 iPhone 成果。
+
+正式交付必須是真 Provider／Repository／Controller 到正常 UI 的完整使用者流程，包含權限、同意、錯誤、取消及必要裝置驗收。Mock／Fake／fixtures 只限隔離 Unit／Integration tests；Production 不可選 Mock 或 fallback 假成功。未完成回 Unavailable＋真實原因＋下一步，不能只改標籤、固定成功、`readiness` 或 `live=true`。已獨立驗收能力不受其他 BLOCKED 模組全域限制。
+
+| 現行能力／範圍 | Readiness | 此基線的缺口及下一步 |
+|---|---|---|
+| 正常入口的真實 GPS→同意→OSRM→正式地圖導航 | IMPLEMENTED_NOT_WIRED | 有 Provider／Controller／UI 個別實作，正式組合仍 Mock；完成正常操作、刷新／取消／背景／SOS 接線及真 Provider／iPhone 證據。不能把 #35 舊合併當目前程式。 |
+| 真實底圖子能力／裝置 TTS | WIRED_NOT_VERIFIED | 圖磚 renderer 與本機 TTS 已有接線；底圖不證明路線真實，fake engine 不證明聲音。補相同 SHA 的真實裝置與失敗／中斷驗收。 |
+| M4 已有犯罪統計來源至正式使用者查詢 | IMPLEMENTED_NOT_WIRED | 已有來源／解析 Repository 不等於 UI 完成；補來源日期、範圍、空／錯誤與取消流程，不冒充即時道路風險。 |
+| Supabase 主庫的正式持久資料流程 | NOT_IMPLEMENTED | 既有 client 可達不等於業務持久化；#44 尚待合併，正式 API／UI 流程未完成。身分／正式唯讀權限／RPC／RLS 審查未完成部分為 BLOCKED，依 Level C 驗收，不得將管理 key 放 App。 |
+| 真實 SMS／附近協助者通知 | BLOCKED | 可信身分、接收資格、ownership、RLS/RPC、限流、防濫用、保留刪除、同意及後端／裝置送達證據不足；不得以匿名 UUID 或獨立測試頁解封。 |
+| 自動警消受理／派遣 | BLOCKED | 缺官方授權，officialReceipt 保持 null；不阻擋使用者主動開系統撥號器／核對後的官方入口，測試不真撥或送案。 |
+
+狀態只用 **IMPLEMENTED_NOT_WIRED、WIRED_NOT_VERIFIED、LIVE_VERIFIED、BLOCKED、NOT_IMPLEMENTED**。本輪沒有新增任何 LIVE_VERIFIED 證據；每項後續程式 PR 必須分列相同 SHA 的 PASS、FAIL、SKIP、未執行與外部／裝置限制。競賽不採 Google Maps、不加入 AED；舊表列出的 builder／來源方案不是現行交付範圍。
+
+CI 的人工 seed 屬隔離資料庫測試，不能接進 Production。main 仍使用 #40 的遠端 Demo 強制 gate，#47 明確啟用修正尚待合併；重設／編譯成功不等於 App 已消費 `safe_walk_demo` 或正式資料已驗收。
+
+## 歷史：2026-11-07 原始盤點與增量
+
+以下至文末完整保留當時 SHA、PR 狀態、測試名稱與證據；不是 `7b99fea` 的重新實測，也不授權沿用舊 Mock／Demo、Google Maps 或 AED 方案。現行規範與基線以本文前段為準，舊數字不得挪作本 PR 的 PASS。
+
 盤點日期：2026-11-07（Asia/Taipei）。程式基線：`origin/main` 的 `03f98f2b7b5254db73774c4d097eb4d610499c2c`（已合併 #22／#27）。本文件記錄已合併程式與現存測試；本次文件 PR 不啟用 Live 常數、權限、RPC 或通知。功能驗收以 [Live MVP](SAFE_WALK_LIVE_MVP.md) 為準，工程排序見 [P0–P2 計畫](SAFE_WALK_LIVE_PLAN.md)。
 
 審查更新（2026-11-07）：main `65ee6f7dd9c07710ecf18084b1975b6998287b3e` 已合併 PR #26 的統一 speaker lifecycle 修正與回歸測試，R9 依此增量更新，仍為 WIRED_NOT_VERIFIED，缺少實際 iPhone 驗收。其他文件明列 `03f98f2` 的盤點及 #26 待審敘述是原始快照，不應據此重做已合併工作；#28／#29 仍未合併，不預先計入完成。
