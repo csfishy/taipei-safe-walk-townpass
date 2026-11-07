@@ -12,8 +12,8 @@ typedef SafeWalkRouteRequestBuilder = sw.RouteRequest Function({
   List<String>? assistancePointIds,
 });
 
-/// M1 owns Live position and route lifetime; presentation renders this state
-/// and invokes the callbacks before starting or leaving a navigation intent.
+/// M1 publishes this boundary around M3's existing flow without changing its UI.
+/// M3 must consume the state and invoke lifecycle callbacks before Live is ready.
 class SafeWalkNavigationScope extends InheritedWidget {
   const SafeWalkNavigationScope({
     super.key,
@@ -31,12 +31,6 @@ class SafeWalkNavigationScope extends InheritedWidget {
     required this.onNavigationOpened,
     required this.onNavigationClosed,
     required this.onEmergencyOpened,
-    this.position,
-    this.locationLoading = false,
-    this.locationError,
-    this.hasLocationConsent = false,
-    this.onLocationConsentChanged,
-    this.onPlanDestination,
     required super.child,
   });
 
@@ -50,15 +44,6 @@ class SafeWalkNavigationScope extends InheritedWidget {
   final Future<void> Function(sw.RouteRequest request) onPlanRoute;
   final VoidCallback onCancelRoute;
   final ValueChanged<bool> onRoutingConsentChanged;
-
-  /// Live location and route planning are owned by the single M1 coordinator.
-  /// A consent change never starts GPS or a provider request by itself.
-  final sw.Position? position;
-  final bool locationLoading;
-  final String? locationError;
-  final bool hasLocationConsent;
-  final ValueChanged<bool>? onLocationConsentChanged;
-  final Future<void> Function(sw.Coordinates destination)? onPlanDestination;
 
   /// Invoke before changing selection, including selecting an assistance point.
   final VoidCallback onDestinationChanged;
@@ -97,11 +82,5 @@ class SafeWalkNavigationScope extends InheritedWidget {
       onDestinationChanged != oldWidget.onDestinationChanged ||
       onNavigationOpened != oldWidget.onNavigationOpened ||
       onNavigationClosed != oldWidget.onNavigationClosed ||
-      onEmergencyOpened != oldWidget.onEmergencyOpened ||
-      position != oldWidget.position ||
-      locationLoading != oldWidget.locationLoading ||
-      locationError != oldWidget.locationError ||
-      hasLocationConsent != oldWidget.hasLocationConsent ||
-      onLocationConsentChanged != oldWidget.onLocationConsentChanged ||
-      onPlanDestination != oldWidget.onPlanDestination;
+      onEmergencyOpened != oldWidget.onEmergencyOpened;
 }

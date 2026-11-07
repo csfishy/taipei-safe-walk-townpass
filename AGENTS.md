@@ -11,7 +11,7 @@
 | Live MVP | 真實 Provider 完成必要測試與 iPhone 驗收，能從正式流程使用，失敗明確揭露。 |
 | Production Readiness | 補足服務容量／條款、維運、監測、更新、簽署部署、隱私及安全證據。 |
 
-目前 App 保留顯式 Mock 與部分真實能力，逐能力推進 Integration → Live MVP。P0 已在本工作分支接入正常入口的受控真實步行預覽：兩份同意、明確單次 GPS、OSRM 與真地圖，狀態為 WIRED_NOT_VERIFIED；未完成 iPhone／部署驗收，不宣稱 LIVE_VERIFIED 或全產品正式上線。操作、外傳與本輪證據見 [P0 Live 預覽](docs/SAFE_WALK_P0_LIVE_PREVIEW.md)；既有文件明列舊 SHA 的 Mock 盤點是歷史快照。
+目前 App 保留 Demo 與部分真實能力，逐能力推進 Integration → Live MVP；不宣稱全產品已可正式上線。本次規格 PR 不開啟未驗證功能。
 
 **Mock 僅作為測試與未驗證功能的隔離模式。正式功能完成相應驗收後，必須能透過正式操作流程使用 Live Provider。** Development 可用 Mock；公開版本優先提供已驗證的 Live 能力，不用全域 Mock 永久封鎖全部產品。各能力分開驗收、啟用及撤回；未完成能力回清楚的 Unavailable，不暗中回 Mock 假成功。
 

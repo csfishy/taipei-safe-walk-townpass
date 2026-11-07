@@ -27,7 +27,7 @@ class SafeWalkEmergencyView extends StatelessWidget {
   final VoidCallback onLocate, onClose;
 
   /// M1：使用者確認後交給手機開啟簡訊（OS handoff）；回傳 true 表示已開啟簡訊 App，不代表已送達或受理。
-  /// Mock 一律只模擬且不呼叫 callback；Live 的 null 代表尚未配置，不能送出。
+  /// null 時為示範：只模擬「已準備好並送出」的畫面，不會真的傳送。
   final Future<bool> Function(String body)? onSendSms;
   final String? nearbyPointName;
   final String? statusMessage;
@@ -196,10 +196,8 @@ class _SmsReportCardState extends State<_SmsReportCard> {
   }
 
   bool get _usesSender => widget.mode == sw.DataMode.live && widget.onSend != null;
-  bool get _unconfigured => widget.mode == sw.DataMode.live && widget.onSend == null;
 
   Future<void> _send() async {
-    if (_unconfigured) return;
     setState(() => _step = _SmsStep.sending);
     // Mock 一律只在本地模擬，即使 M1 已注入 sender 也不呼叫，避免帶位置的內容外傳。
     bool ok;
@@ -213,16 +211,6 @@ class _SmsReportCardState extends State<_SmsReportCard> {
 
   @override
   Widget build(BuildContext context) {
-    if (_unconfigured) {
-      return Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(color: SwColors.surface, borderRadius: BorderRadius.circular(16), boxShadow: SwShadow.card),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('簡訊求助尚未配置', style: SwText.bodyStrong),
-          Text('沒有傳送簡訊，也沒有通知任何人。請使用可用的官方求助管道。', style: SwText.body),
-        ]),
-      );
-    }
     final mock = !_usesSender;
     return AnimatedContainer(
       duration: SwMotion.of(context, 220),
