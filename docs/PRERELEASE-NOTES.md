@@ -1,4 +1,4 @@
-Town Pass 開發預覽，從目前 `main` 建立；未整合 migration/townpass-native-base PR 的安心行模組。這不是正式市政服務、政府受理或完整導航產品。
+Town Pass 開發預覽，從已合併安心行初始化 PR 的 `main` 建立；包含無 UI 的契約與服務接點，沒有新增安心行產品畫面。這不是正式市政服務、政府受理或完整導航產品。
 
 - Android APK：Flutter Release build，使用可拋棄的 Android Debug 測試金鑰簽署；不是正式商店簽章。不同 CI build 的金鑰可能不同，更新前可能需要移除舊預覽版。
 - iOS IPA：真實 iPhone arm64 Release build，封裝 `Payload/Runner.app`，沒有簽章／provisioning profile；安裝前需要適當簽署，不能直接用 TestFlight 安裝。

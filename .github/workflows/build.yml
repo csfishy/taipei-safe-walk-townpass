@@ -26,6 +26,8 @@ jobs:
       build_name: ${{ steps.metadata.outputs.build_name }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Validate source and release version
         id: metadata
         run: python3 tool/release_metadata.py
@@ -36,6 +38,10 @@ jobs:
           cache: true
       - run: flutter pub get --enforce-lockfile
       - run: dart run build_runner build
+      - run: dart run tool/generate_safe_walk_contracts.dart --check
+      - run: dart run tool/check_safe_walk_baseline.dart
+      - name: Strict Safe Walk analysis
+        run: flutter analyze --no-pub lib/features/safe_walk tool test/features/safe_walk
       - name: Analyze (errors and warnings are fatal; existing style infos are advisory)
         run: flutter analyze --no-fatal-infos
       - run: flutter test --reporter expanded

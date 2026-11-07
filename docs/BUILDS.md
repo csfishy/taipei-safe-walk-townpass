@@ -4,6 +4,8 @@ The `check-and-build` workflow runs on main pushes, pull requests, matching `v*-
 
 The check job runs the analyzer with errors/warnings fatal and existing style-level infos advisory, the real start-page preference tests, and Chrome tests of the browser platform services. All three build jobs depend on this check. Android uses JDK 21 and the repository's Gradle/SDK settings. iOS uses macOS 15 and Xcode 26.0. Native packaging requires no private signing credentials.
 
+The merged initialization's Safe Walk schemas, generator consistency, upstream history/module boundaries, strict scoped analysis and complete test suite are included. Its two route contract tests are preserved in `test/route_contract_test.dart`, alongside the added preference and browser tests. No Safe Walk payload, generated model or service contract is changed. Full analysis with fatal infos remains separately reported by the existing Safe Walk workflow; the build gate permits existing style infos while rejecting errors and warnings.
+
 Prerelease tags must match the pubspec version without `+BUILD`: for `0.0.12-pre.1+1`, push `v0.0.12-pre.1`. Only tags publish a GitHub prerelease, after all platform builds pass. The workflow run number is the native build number; iOS uses the numeric version (`0.0.12`) and the full prerelease version is preserved in build metadata. PR/main/manual runs retain downloadable artifacts without publishing a release. Never move a published tag.
 
 ## Local checks and builds
