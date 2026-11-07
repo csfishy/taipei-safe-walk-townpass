@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:town_pass/features/safe_walk/platform/supabase/safe_walk_supabase_config.dart';
 import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart'
     as sw;
 
@@ -50,18 +52,37 @@ abstract interface class NearbyAlertTransport {
 }
 
 /// Supabase (PostgREST RPC) implementation. Configure with
-/// `--dart-define=SUPABASE_URL=...` and `--dart-define=SUPABASE_ANON_KEY=...`.
+/// `--dart-define=SUPABASE_URL=...` and
+/// `--dart-define=SUPABASE_PUBLISHABLE_KEY=...` using [fromEnvironment].
 /// Keys are never committed to the repository.
 final class SupabaseNearbyAlertTransport implements NearbyAlertTransport {
   SupabaseNearbyAlertTransport({
-    required this.baseUrl,
-    required this.anonKey,
+    required Uri baseUrl,
+    required String anonKey,
     HttpClient? client,
-  }) : _client = client ?? HttpClient();
+    bool allowInsecureLocalhost = false,
+  }) : this.fromConfig(
+         SafeWalkSupabaseConfig(
+           url: baseUrl,
+           apiKey: anonKey,
+           allowInsecureLocalhost: allowInsecureLocalhost,
+         ),
+         client: client,
+       );
 
-  final Uri baseUrl;
-  final String anonKey;
+  SupabaseNearbyAlertTransport.fromConfig(this._config, {HttpClient? client})
+    : _client = client ?? HttpClient();
+
+  factory SupabaseNearbyAlertTransport.fromEnvironment() =>
+      SupabaseNearbyAlertTransport.fromConfig(
+        SafeWalkSupabaseConfig.fromEnvironment(),
+      );
+
+  final SafeWalkSupabaseConfig _config;
+  Uri get baseUrl => _config.url;
+  String get anonKey => _config.apiKey;
   final HttpClient _client;
+  bool _closed = false;
 
   static const _timeout = Duration(seconds: 10);
 
@@ -103,30 +124,34 @@ final class SupabaseNearbyAlertTransport implements NearbyAlertTransport {
     if (rows is! List) {
       throw const NearbyAlertException('Unexpected alert list response');
     }
-    return rows.map((row) {
-      final map = row as Map<String, Object?>;
-      return NearbyAlert(
-        alertId: map['alert_id'] as String,
-        senderId: map['sender_id'] as String,
-        location: sw.Coordinates(
-          lat: (map['lat'] as num).toDouble(),
-          lng: (map['lng'] as num).toDouble(),
-        ),
-        radiusMeters: (map['radius_m'] as num).toInt(),
-        createdAt: DateTime.parse(map['created_at'] as String),
-      );
-    }).toList(growable: false);
+    return rows
+        .map((row) {
+          final map = row as Map<String, Object?>;
+          return NearbyAlert(
+            alertId: map['alert_id'] as String,
+            senderId: map['sender_id'] as String,
+            location: sw.Coordinates(
+              lat: (map['lat'] as num).toDouble(),
+              lng: (map['lng'] as num).toDouble(),
+            ),
+            radiusMeters: (map['radius_m'] as num).toInt(),
+            createdAt: DateTime.parse(map['created_at'] as String),
+          );
+        })
+        .toList(growable: false);
   }
 
   Future<Object?> _rpc(String name, Map<String, Object?> body) async {
+    if (_closed) {
+      throw const NearbyAlertException('Backend transport is closed');
+    }
     try {
       final request = await _client
           .postUrl(baseUrl.resolve('/rest/v1/rpc/$name'))
           .timeout(_timeout);
-      request.headers
-        ..set('apikey', anonKey)
-        ..set('Authorization', 'Bearer $anonKey')
-        ..contentType = ContentType.json;
+      request.followRedirects = false;
+      _config.requestHeaders.forEach(request.headers.set);
+      request.headers.contentType = ContentType.json;
       request.write(jsonEncode(body));
       final response = await request.close().timeout(_timeout);
       final text = await utf8.decodeStream(response).timeout(_timeout);
@@ -137,8 +162,17 @@ final class SupabaseNearbyAlertTransport implements NearbyAlertTransport {
       return text.isEmpty ? null : jsonDecode(text);
     } on NearbyAlertException {
       rethrow;
+    } on TimeoutException {
+      throw const NearbyAlertException('Backend request timed out');
     } on Object {
       throw const NearbyAlertException('Backend request failed');
     }
+  }
+
+  /// The creator owns this transport and must close it after use.
+  void close() {
+    if (_closed) return;
+    _closed = true;
+    _client.close(force: true);
   }
 }
