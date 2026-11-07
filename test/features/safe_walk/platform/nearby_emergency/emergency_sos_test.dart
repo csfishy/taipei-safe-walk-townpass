@@ -4,6 +4,7 @@ import 'package:town_pass/features/safe_walk/platform/nearby_emergency/emergency
 import 'package:town_pass/features/safe_walk/platform/nearby_emergency/emergency_dispatch.dart';
 import 'package:town_pass/features/safe_walk/platform/nearby_emergency/emergency_message.dart';
 import 'package:town_pass/features/safe_walk/platform/nearby_emergency/nearby_alert_transport.dart';
+import 'package:town_pass/features/safe_walk/platform/nearby_emergency/nearby_alert_watcher.dart';
 import 'package:town_pass/features/safe_walk/platform/nearby_emergency/nearby_emergency_service.dart';
 import 'package:town_pass/features/safe_walk/platform/nearby_emergency/nearby_live_test_page.dart';
 import 'package:town_pass/features/safe_walk/platform/nearby_emergency/sms_sender.dart';
@@ -106,6 +107,7 @@ EmergencyDispatch _dispatch({
 );
 
 void main() {
+  _nearbyPopupTests();
   group('emergency message', () {
     test('contains exact coordinates, accuracy and a Google Maps link', () {
       final body = buildEmergencyMessage(
@@ -244,5 +246,76 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.textContaining('已通知 3 位附近的求助者'), findsOneWidget);
     });
+  });
+}
+
+class _AlertTransport extends _Transport {
+  final alerts = <NearbyAlert>[];
+
+  @override
+  Future<List<NearbyAlert>> fetchPendingAlerts(String helperId) async {
+    final out = List<NearbyAlert>.of(alerts);
+    alerts.clear();
+    return out;
+  }
+}
+
+void _nearbyPopupTests() {
+  final alert = NearbyAlert(
+    alertId: 'a1',
+    senderId: 's1',
+    location: sw.Coordinates(lat: 25.033964, lng: 121.564468),
+    radiusMeters: 500,
+    createdAt: DateTime.utc(2026, 11, 7),
+  );
+
+  test('watcher emits each alert once', () async {
+    final transport = _AlertTransport()..alerts.add(alert);
+    final service = NearbyEmergencyService(
+      platform: _Platform(),
+      transport: transport,
+    );
+    final watcher = NearbyAlertWatcher(service: service, helperId: 'h');
+    final got = <NearbyAlert>[];
+    final sub = watcher.alerts.listen(got.add);
+
+    await watcher.poll();
+    transport.alerts.add(alert);
+    await watcher.poll();
+
+    expect(got.map((a) => a.alertId), ['a1']);
+    await sub.cancel();
+    watcher.dispose();
+  });
+
+  test('popup text has exact coordinates and a map link', () {
+    final text = nearbyAlertPopupText(alert);
+    expect(text, contains('25.033964, 121.564468'));
+    expect(text, contains('https://maps.google.com/?q=25.033964,121.564468'));
+  });
+
+  testWidgets('a new nearby alert opens a popup', (tester) async {
+    final transport = _AlertTransport();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: NearbyLiveTestPage(
+          service: NearbyEmergencyService(
+            platform: _Platform(),
+            transport: transport,
+          ),
+          dispatch: _dispatch(),
+          contacts: _Contacts('0912345678'),
+          helperId: 'helper-1',
+          pollInterval: const Duration(milliseconds: 10),
+        ),
+      ),
+    );
+    transport.alerts.add(alert);
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.pump();
+
+    expect(find.text('附近有人需要協助'), findsOneWidget);
+    expect(find.textContaining('25.033964, 121.564468'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
   });
 }
