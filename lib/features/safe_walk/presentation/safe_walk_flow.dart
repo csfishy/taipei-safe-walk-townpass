@@ -60,7 +60,7 @@ class SafeWalkFlow extends StatefulWidget {
   final Future<bool> Function(String body)? onSendSms;
   final VoidCallback? onExit;
 
-  /// M1：使用者已儲存在裝置上的「家」。null＝尚未設定，沿用示範的家。
+  /// M1：使用者已儲存在裝置上的「家」。null＝尚未設定；只有 Mock 可沿用示範的家。
   final sw.Coordinates? homeLocation;
 
   /// M1：使用者在「設定家」按儲存（帶座標）或移除（null）時呼叫，由 M1 寫入裝置儲存。
@@ -101,7 +101,7 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
     }
   }
 
-  /// 已儲存的家取代示範的家；移除後回到示範的家。
+  /// 已儲存的家取代示範的家；缺值保留 Mock 展示資料，Live 由規劃入口阻擋。
   void _applyHome() {
     final i = _places.indexWhere((p) => p.isHome);
     final h = widget.homeLocation;
@@ -124,9 +124,29 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
     return sorted.first.name;
   }
 
-  RouteState get _routeState => RouteState(result: widget.route, loading: widget.routeLoading, allowDemoFallback: widget.mode == sw.DataMode.mock, onRetry: widget.onPlanRoute == null ? null : _planRoute);
+  bool get _missingLiveHome => widget.mode == sw.DataMode.live && _place.isHome && widget.homeLocation == null;
 
-  void _planRoute() => widget.onPlanRoute?.call(sw.Coordinates(lat: _place.at.lat, lng: _place.at.lng));
+  RouteState get _routeState {
+    if (_missingLiveHome) {
+      return RouteState(
+        result: sw.RouteFailure(
+          requestId: 'home-not-set',
+          mode: widget.mode,
+          generatedAt: DateTime.now().toUtc().toIso8601String(),
+          status: sw.RouteFailureStatus.invalidInput,
+          reason: '請先返回首頁設定「家」的位置，再規劃回家路線。',
+          warnings: const ['尚未設定家的位置；未送出路線查詢。'],
+        ),
+        allowDemoFallback: false,
+      );
+    }
+    return RouteState(result: widget.route, loading: widget.routeLoading, allowDemoFallback: widget.mode == sw.DataMode.mock, onRetry: widget.onPlanRoute == null ? null : _planRoute);
+  }
+
+  void _planRoute() {
+    if (_missingLiveHome) return;
+    widget.onPlanRoute?.call(sw.Coordinates(lat: _place.at.lat, lng: _place.at.lng));
+  }
 
   void _selectPlace(String id) {
     if (id == _placeId) return;

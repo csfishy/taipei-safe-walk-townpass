@@ -337,7 +337,7 @@ void main() {
     });
 
     testWidgets('Live 模式不出現示範異常回報、示範求助地點或「已繞開」數字', (t) async {
-      await _pump(t, const SafeWalkFlow(mode: sw.DataMode.live));
+      await _pump(t, SafeWalkFlow(mode: sw.DataMode.live, homeLocation: sw.Coordinates(lat: 0.5, lng: 0.75)));
       await t.tap(find.text('安心行'));
       await t.pumpAndSettle();
       expect(find.bySemanticsLabel(RegExp('照明不足|道路施工|打架衝突|可疑人士')), findsNothing);

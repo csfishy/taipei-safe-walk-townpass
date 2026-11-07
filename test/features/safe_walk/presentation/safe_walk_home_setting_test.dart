@@ -3,6 +3,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_flow.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_home_setting_view.dart';
+import 'package:town_pass/features/safe_walk/presentation/safe_walk_map_view.dart';
 import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart'
     as sw;
 
@@ -16,6 +17,69 @@ Future<void> _pump(WidgetTester t, Widget w) async {
 }
 
 void main() {
+  testWidgets('Live 未設定家時不送示範座標，提示先設定家', (t) async {
+    final asked = <sw.Coordinates>[];
+    await _pump(
+      t,
+      SafeWalkFlow(mode: sw.DataMode.live, onPlanRoute: asked.add),
+    );
+    await t.tap(find.text('安心行'));
+    await t.pumpAndSettle();
+    expect(asked, isEmpty);
+    expect(find.text('請先返回首頁設定「家」的位置，再規劃回家路線。'), findsWidgets);
+    expect(
+      t.widget<SafeWalkMapView>(find.byType(SafeWalkMapView)).routeState.path,
+      isNull,
+    );
+  });
+
+  testWidgets('Live 移除家後不回到示範家規劃', (t) async {
+    final asked = <sw.Coordinates>[];
+    sw.Coordinates? home = sw.Coordinates(lat: 0.5, lng: 0.75);
+    await _pump(
+      t,
+      StatefulBuilder(
+        builder: (context, setParentState) => SafeWalkFlow(
+          mode: sw.DataMode.live,
+          homeLocation: home,
+          onHomeChanged: (next) async => setParentState(() => home = next),
+          onPlanRoute: asked.add,
+        ),
+      ),
+    );
+    await t.tap(find.text('編輯「家」'));
+    await t.pumpAndSettle();
+    await t.tap(find.text('移除'));
+    await t.pumpAndSettle();
+    expect(home, isNull);
+    await t.tap(find.text('安心行'));
+    await t.pumpAndSettle();
+    expect(asked, isEmpty);
+    expect(find.text('請先返回首頁設定「家」的位置，再規劃回家路線。'), findsWidgets);
+    expect(
+      t.widget<SafeWalkMapView>(find.byType(SafeWalkMapView)).routeState.path,
+      isNull,
+    );
+  });
+
+  testWidgets('Live 設定家後只傳入已儲存的家座標', (t) async {
+    final asked = <sw.Coordinates>[];
+    await _pump(
+      t,
+      SafeWalkFlow(
+        mode: sw.DataMode.live,
+        homeLocation: sw.Coordinates(lat: 0.5, lng: 0.75),
+        onPlanRoute: asked.add,
+      ),
+    );
+    await t.tap(find.text('安心行'));
+    await t.pumpAndSettle();
+    expect(asked, hasLength(1));
+    expect(asked.single.lat, 0.5);
+    expect(asked.single.lng, 0.75);
+    expect(find.text('請先返回首頁設定「家」的位置，再規劃回家路線。'), findsNothing);
+  });
+
   testWidgets('放大字體仍可讀取圖磚說明與使用儲存控制', (t) async {
     await _pump(
       t,
