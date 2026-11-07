@@ -61,7 +61,13 @@ class SafeWalkCompositionRoot extends StatefulWidget {
     this.reviewedAreas = const [],
     this.showLiveMap = true,
     this.findStores,
+    this.consentGranted = false,
   });
+
+  /// Official entry (2026-11-08 team decision): route and crime queries run
+  /// without a consent dialog and the query settings are hidden. Tests keep
+  /// the consent flow by leaving this false.
+  final bool consentGranted;
 
   /// Nearby help points; defaults to the bundled OpenStreetMap snapshot of
   /// convenience stores and police (opening hours read at lookup time).
@@ -354,6 +360,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
   // Route following: one follower per option; re-plan only when off all of them.
   sw.Coordinates? _destination;
   sw.RouteResult? _followed;
+  sw.RouteSuccess? _guidancePreview;
   List<RouteFollower> _followers = const [];
   StreamSubscription<sw.Position>? _watch;
   sw.Position? _livePosition;
@@ -428,6 +435,11 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
       liveProviderReady: widget.liveRoutes,
     );
     _navigation.addListener(_syncFollowing);
+    if (widget.liveRoutes && widget.consentGranted) {
+      _navigation.setRoutingConsent(true);
+      _hasCrimeConsent = _crime.isConfigured;
+      _crimeConsentAsked = true;
+    }
     if (widget.liveRoutes) {
       _report = SafeWalkReportStatusController(
         repository: _crime,
@@ -443,6 +455,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
   /// subscription. Cancellation, failure and leaving navigation still stop it.
   void _syncFollowing() {
     final result = _navigation.routeResult;
+    if (result is sw.RouteSuccess) _guidancePreview = result;
     if (!widget.liveRoutes ||
         _manualOrigin != null ||
         !_navigationActive ||
@@ -537,6 +550,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     ++_boundaryRevision;
     _operation?.cancel();
     _operation = null;
+    _guidancePreview = null;
     _locationRequest?.cancel();
     _locationRequest = null;
     _stopFollowing();
@@ -726,22 +740,13 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     return current() && _navigation.hasRoutingConsent;
   }
 
-  /// Map opened without a destination: ask the consents now, send nothing.
-  Future<void> _askConsentsOnOpen() async {
-    if (!mounted || !_foreground || _lifetime.isCancelled) return;
-    _openNavigation();
-    await _askConsents(
-      () =>
-          mounted && _foreground && _navigationActive && !_lifetime.isCancelled,
-    );
-  }
-
   static const _nearbyCount = 3;
 
   /// 最近求助地點: convenience stores and police near the start from the
-  /// bundled OSM snapshot (closed ones dropped, at most one with unknown
-  /// hours), each routed like a destination with the same avoiding routes,
-  /// then ranked safest, then fastest.
+  /// bundled OSM snapshot, only those recorded as open now. Each is routed
+  /// like a destination with the same avoiding routes. The three nearest are
+  /// shown nearest first: the nearest one's route options as soon as they
+  /// are ready, the others as they finish.
   Future<void> _planNearby() async {
     if (!widget.liveRoutes ||
         !mounted ||
@@ -793,7 +798,9 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
       stores = pickNearbyCandidates(
         origin.coordinates,
         points,
-        count: _nearbyCount + 1,
+        count: _nearbyCount,
+        // Only places recorded as open now; unknown hours are left out.
+        maxUnknown: 0,
       );
     } on SafeWalkCancelledException {
       return;
@@ -832,6 +839,9 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
             result.mode == sw.DataMode.live &&
             result.routes.isNotEmpty) {
           options.add(NearbyHelpOption(point: store, route: result));
+          // Show each place as soon as its route is ready (nearest first);
+          // the others keep loading behind it.
+          setState(() => _nearby = List.unmodifiable(options));
         }
       } on SafeWalkCancelledException {
         return;
@@ -841,10 +851,11 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
       }
     }
     if (options.isEmpty) {
-      return fail('找到附近營業中的店家，但暫時無法規劃步行路線，請稍後再試。');
+      return fail('找到附近營業中的求助地點，但暫時無法規劃步行路線，請稍後再試。');
     }
     setState(() {
-      _nearby = rankNearbyHelp(options, [..._areas, ..._crimeAreas]);
+      // Nearest first; the walker picks among the three.
+      _nearby = List.unmodifiable(options);
       _nearbyLoading = false;
     });
   }
@@ -921,6 +932,32 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
 
   void _openNavigation() {
     if (!_lifetime.isCancelled && _foreground) _navigationActive = true;
+  }
+
+  /// Ending guidance stops all work but keeps the last route as a preview.
+  /// A fresh explicit start may resume following that route.
+  void _endGuidance() {
+    final preview = _guidancePreview;
+    _navigationActive = false;
+    ++_boundaryRevision;
+    _operation?.cancel();
+    _operation = null;
+    _locationRequest?.cancel();
+    _locationRequest = null;
+    _nearbyOperation?.cancel();
+    _nearbyOperation = null;
+    _nearbyLoading = false;
+    _stopFollowing();
+    _navigation.cancelRoute();
+    if (preview != null) _navigation.showRoute(preview);
+    if (mounted) setState(() {});
+  }
+
+  void _startGuidance() {
+    if (!mounted || !_foreground || _lifetime.isCancelled) return;
+    _openNavigation();
+    _followed = null;
+    _syncFollowing();
   }
 
   void _closeNavigation() {
@@ -1132,9 +1169,6 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
             : _points,
         pointRoutes: {for (final o in _nearby) o.point.id: o.route},
         onSelectPoint: widget.liveRoutes ? _selectPoint : null,
-        onAskConsents: widget.liveRoutes
-            ? () => unawaited(_askConsentsOnOpen())
-            : null,
         pointsLoading: widget.liveRoutes ? _nearbyLoading : _pointsLoading,
         pointsError: widget.liveRoutes ? _nearbyError : _pointsError,
         onRetryPoints: widget.liveRoutes
@@ -1152,14 +1186,16 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
         route: widget.liveRoutes ? _navigation.routeResult : null,
         livePosition: _livePosition,
         onLeaveMap: _closeNavigation,
+        onStartNavigation: _startGuidance,
+        onEndNavigation: _endGuidance,
         crimeSpots: _crimeSpots,
         crimeQueryStatus: widget.liveRoutes ? _crimeQueryStatus : null,
-        onManageCrimeConsent: widget.liveRoutes
+        onManageCrimeConsent: widget.liveRoutes && !widget.consentGranted
             ? () => unawaited(_manageCrimeConsent())
             : null,
         routingConsent: _navigation.hasRoutingConsent,
         crimeConsent: _hasCrimeConsent,
-        onManageRoutingConsent: widget.liveRoutes
+        onManageRoutingConsent: widget.liveRoutes && !widget.consentGranted
             ? () => unawaited(_manageRoutingConsent())
             : null,
         onStartChanged: widget.liveRoutes

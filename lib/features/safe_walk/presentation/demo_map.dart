@@ -40,6 +40,7 @@ class DemoMap extends StatelessWidget {
     super.key,
     required this.start,
     required this.points,
+    this.follow,
     required this.anomalies,
     required this.path,
     this.altPaths = const [],
@@ -63,6 +64,9 @@ class DemoMap extends StatelessWidget {
   });
   final LatLng start;
   final List<sw.AssistancePoint> points;
+
+  /// 導覽中：鏡頭以目前位置為中心（約 10 公尺移動才重新置中）。
+  final LatLng? follow;
   final List<Anomaly> anomalies;
   final List<LatLng> path;
 
@@ -232,20 +236,30 @@ class DemoMap extends StatelessWidget {
     final map = FlutterMap(
       // A changed destination gets a fresh fit. Unchanged route values retain
       // the user's current pan/zoom through other view rebuilds.
-      key: ValueKey(path.map((at) => '${at.lat},${at.lng}').join('|')),
+      key: ValueKey(
+        follow != null
+            ? 'follow ${follow!.lat.toStringAsFixed(4)},${follow!.lng.toStringAsFixed(4)}'
+            : path.map((at) => '${at.lat},${at.lng}').join('|'),
+      ),
       options: MapOptions(
-        initialCameraFit: CameraFit.bounds(
-          bounds: fit,
-          padding: compact
-              ? const EdgeInsets.all(16)
-              : EdgeInsets.fromLTRB(
-                  math.min(40, viewport.width * .1),
-                  topInset,
-                  math.min(40, viewport.width * .1),
-                  bottomInset,
-                ),
-          maxZoom: 18,
-        ),
+        initialCenter: follow == null
+            ? const ll.LatLng(50.5, 30.51)
+            : _ll(follow!),
+        initialZoom: follow == null ? 13 : 17,
+        initialCameraFit: follow != null
+            ? null
+            : CameraFit.bounds(
+                bounds: fit,
+                padding: compact
+                    ? const EdgeInsets.all(16)
+                    : EdgeInsets.fromLTRB(
+                        math.min(40, viewport.width * .1),
+                        topInset,
+                        math.min(40, viewport.width * .1),
+                        bottomInset,
+                      ),
+                maxZoom: 18,
+              ),
         minZoom: 3,
         maxZoom: 19,
         backgroundColor: SwColors.surface,

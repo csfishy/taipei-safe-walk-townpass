@@ -27,7 +27,6 @@ class SafeWalkFlow extends StatefulWidget {
     this.onRetryPoints,
     this.pointRoutes = const {},
     this.onSelectPoint,
-    this.onAskConsents,
     this.route,
     this.routeLoading = false,
     this.onPlanRoute,
@@ -41,6 +40,8 @@ class SafeWalkFlow extends StatefulWidget {
     this.crimeConsent = false,
     this.livePosition,
     this.onLeaveMap,
+    this.onStartNavigation,
+    this.onEndNavigation,
     this.speaker = const UnavailableSpeaker(),
     this.onLocate,
     this.onEmergency,
@@ -75,10 +76,6 @@ class SafeWalkFlow extends StatefulWidget {
   /// route already planned for it.
   final ValueChanged<String>? onSelectPoint;
 
-  /// M1: ask for route and crime-query consent, one after the other, when the
-  /// map opens without a destination yet. Nothing is sent.
-  final VoidCallback? onAskConsents;
-
   /// 前往目前目的地的路線（M2 RouteService → M1 提供）。未配置時只有 Mock 使用示範路線；Live 顯示 unavailable。
   final sw.RouteResult? route;
   final bool routeLoading;
@@ -104,6 +101,7 @@ class SafeWalkFlow extends StatefulWidget {
 
   /// 離開地圖時呼叫，讓 M1 停止持續定位與路線請求。
   final VoidCallback? onLeaveMap;
+  final VoidCallback? onStartNavigation, onEndNavigation;
   final SafeWalkSpeaker speaker;
 
   /// M1：使用者按「取得目前位置」時呼叫 PlatformService.getCurrentPosition(userInitiated: true)。
@@ -396,9 +394,6 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
   void _afterMapOpened(_Screen s) {
     if (s == _Screen.points && widget.mode == sw.DataMode.live) {
       widget.onRetryPoints?.call();
-    } else if (_missingLiveHome && _place.isHome) {
-      // 還沒有目的地也先把同意問完，之後選目的地就直接規劃。
-      widget.onAskConsents?.call();
     } else {
       _planRoute();
     }
@@ -465,6 +460,8 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
       routeState: _routeState,
       targetPointId: _targetPointId,
       onTarget: _setTarget,
+      onStartNavigation: widget.onStartNavigation,
+      onEndNavigation: widget.onEndNavigation,
       manualStart: _manualStart,
       crimeSpots: widget.crimeSpots,
       crimeQueryStatus: widget.crimeQueryStatus,

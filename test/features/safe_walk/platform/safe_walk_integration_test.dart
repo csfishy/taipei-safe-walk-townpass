@@ -185,10 +185,7 @@ void main() {
       expect(find.text('地圖載入設定'), findsNothing);
       expect(find.byType(TileLayer), findsOneWidget);
       expect(find.text('請先返回首頁設定「家」的位置，再規劃回家路線。'), findsWidgets);
-      // The route consent is asked next (one at a time); nothing is sent.
-      expect(find.text('規劃路線需要你的位置'), findsOneWidget);
-      await t.tap(find.text('不要'));
-      await t.pumpAndSettle();
+      expect(find.text('規劃路線需要你的位置'), findsNothing);
       await back(t);
       await back(t);
       expect(find.byType(CityServiceView), findsOneWidget);
@@ -217,9 +214,8 @@ void main() {
       await t.tap(find.text('安心行'));
       await t.pumpAndSettle();
       expect(find.text('路線僅供參考・請留意實際路況'), findsNothing);
-      await t.tap(find.text('文字路線'));
-      await t.pumpAndSettle();
-      expect(find.text('抵達家'), findsOneWidget);
+      // 文字路線暫時隱藏（程式保留）。
+      expect(find.text('文字路線'), findsNothing);
       await back(t);
       await t.tap(find.text('附近求助地點'));
       await t.pumpAndSettle();
