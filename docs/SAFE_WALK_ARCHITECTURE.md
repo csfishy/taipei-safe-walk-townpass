@@ -7,7 +7,7 @@
 - 官方來源：<https://github.com/taipei-doit/TownPass>，完整 Git 歷史，Base `c8e5d4d3f8f699f3d9d6cd68e129ed4da12037b3`，版本記錄見 `SAFE_WALK_UPSTREAM.json`。
 - Flutter 3.47.6／Dart 3.13.5，依 `.fvmrc` 與官方 lock；GetX、json_serializable、geolocator、url_launcher 沿用官方依賴，不自行全量升級。
 - `lib/main.dart` 的原始 MyApp／Theme／initServices、`lib/page/` 的官方畫面、`TPRoute`、`TPColors`、登入會員、原生 branding、iOS／Android 與 LICENSE 保留。
-- `origin` 是團隊 Private Repo；`upstream` 保留官方，只讀同步。新 Repo 的 main 先是官方基底，安心行變更經 migration PR 審查後才成為共同基線。
+- `origin` 是團隊 Public Repo（2026-11-07 使用者確認保留 Public）；`upstream` 保留官方，只讀同步。新 Repo 的 main 先是官方基底，安心行變更經 migration PR 審查後才成為共同基線。
 
 ## 新增模組邊界
 

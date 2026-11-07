@@ -4,7 +4,7 @@
 
 ## Repository 與來源
 
-- 新 Private Repo：<https://github.com/csfishy/taipei-safe-walk-townpass>，Default Branch 為 main。
+- 新 Repo：<https://github.com/csfishy/taipei-safe-walk-townpass>，Default Branch 為 main。建立時為 Private；交付前遠端已變為 Public，2026-11-07 經使用者明確確認保留 **Public**。
 - `upstream`：<https://github.com/taipei-doit/TownPass>，官方 main Base `c8e5d4d3f8f699f3d9d6cd68e129ed4da12037b3`，完整 194 個上游提交、不是 shallow clone。
 - `origin`：團隊 Repo；main 先保留未修改的官方 Base，安心行內容由本 migration PR 審查後才進入共同基線。
 - `.fvmrc` 固定 Flutter **3.47.6**；官方 SDK 實際 Dart **3.13.5**、Framework `5fc346839b5d0eef006ed8404392afb4dfae428d`。
