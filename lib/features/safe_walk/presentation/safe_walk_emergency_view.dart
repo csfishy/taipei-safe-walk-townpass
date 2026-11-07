@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:town_pass/features/safe_walk/presentation/mock/safe_walk_demo_data.dart';
+import 'package:town_pass/features/safe_walk/presentation/safe_walk_nearby_broadcast.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_ui.dart';
 import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart'
     as sw;
@@ -16,6 +17,7 @@ class SafeWalkEmergencyView extends StatelessWidget {
     required this.onLocate,
     required this.onClose,
     this.onSendSms,
+    this.nearbyBroadcast,
     this.nearbyPointName,
     this.statusMessage,
     this.statusIsError = false,
@@ -30,6 +32,9 @@ class SafeWalkEmergencyView extends StatelessWidget {
   /// M1：使用者確認後交給手機開啟簡訊（OS handoff）；回傳 true 表示已開啟簡訊 App，不代表已送達或受理。
   /// null 時為示範：只模擬「已準備好並送出」的畫面，不會真的傳送。
   final Future<bool> Function(String body)? onSendSms;
+
+  /// M1：「通知附近的人」。null 時不顯示這張卡；有值但 unavailableReason 非 null 時只顯示原因。
+  final SafeWalkNearbyBroadcast? nearbyBroadcast;
   final String? nearbyPointName;
   final String? statusMessage;
   final bool statusIsError, locating;
@@ -91,6 +96,10 @@ class SafeWalkEmergencyView extends StatelessWidget {
                   when: '受傷、身體不舒服、火災',
                   onTap: () => onChannel(sw.EmergencyChannel.fire),
                 ),
+                if (nearbyBroadcast != null) ...[
+                  const SizedBox(height: 12),
+                  SafeWalkNearbyBroadcastCard(broadcast: nearbyBroadcast!),
+                ],
                 const SizedBox(height: 12),
                 _SmsReportCard(
                   mode: mode,

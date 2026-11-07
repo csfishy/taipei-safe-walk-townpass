@@ -29,12 +29,15 @@ import 'package:town_pass/features/safe_walk/platform/integration/tts_safe_walk_
 import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_navigation_controller.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_live_loop_controller.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_live_loop_pages.dart';
+import 'package:town_pass/features/safe_walk/platform/nearby_emergency/nearby_alert_transport.dart';
+import 'package:town_pass/features/safe_walk/platform/nearby_emergency/nearby_emergency_service.dart';
 import 'package:town_pass/features/safe_walk/platform/platform_service.dart';
 import 'package:town_pass/features/safe_walk/platform/device_heading.dart';
 import 'package:town_pass/features/safe_walk/platform/position_watch.dart';
 import 'package:town_pass/features/safe_walk/platform/townpass_platform_adapter.dart';
 import 'package:town_pass/features/safe_walk/presentation/mock/safe_walk_demo_data.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_flow.dart';
+import 'package:town_pass/features/safe_walk/presentation/safe_walk_nearby_broadcast.dart';
 import 'package:town_pass/features/safe_walk/safety_data/contract_safety_data.dart';
 import 'package:town_pass/features/safe_walk/safety_data/safety_data_service.dart';
 import 'package:town_pass/features/safe_walk/shared/contracts/cancellation.dart';
@@ -64,12 +67,19 @@ class SafeWalkCompositionRoot extends StatefulWidget {
     this.showLiveMap = true,
     this.findStores,
     this.consentGranted = false,
+    this.nearbyAlerts,
   });
 
   /// Official entry (2026-11-08 team decision): route and crime queries run
   /// without a consent dialog and the query settings are hidden. Tests keep
   /// the consent flow by leaving this false.
   final bool consentGranted;
+
+  /// Backend for the emergency page's "notify people nearby" button. Defaults
+  /// to the unavailable transport, so the button only shows why it cannot be
+  /// used. Supplying an authenticated transport (a verified session) is the
+  /// Level C step that turns the feature on; nothing else here does.
+  final NearbyAlertTransport? nearbyAlerts;
 
   /// Nearby help points; defaults to the bundled OpenStreetMap snapshot of
   /// convenience stores and police (opening hours read at lookup time).
@@ -128,6 +138,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
   _RouteCancellation? _pointsRequest;
   _RouteCancellation? _locationRequest;
   late final PlatformService _platform;
+  late final NearbyEmergencyService _nearbyService;
   SafetyDataRepository? _safetyData;
   late final SafeWalkRouteSpeaker _speaker;
   late final SafeWalkNavigationController _navigation;
@@ -406,6 +417,10 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
                   'observedAt': null,
                 }),
         );
+    _nearbyService = NearbyEmergencyService(
+      platform: _platform,
+      transport: widget.nearbyAlerts ?? const UnavailableNearbyAlertTransport(),
+    );
     _safetyData = widget.liveRoutes
         ? null
         : widget.safetyData ??
@@ -1135,17 +1150,56 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     message: message,
   );
 
-  Future<sw.EmergencyActionResult> _emergency(
-    sw.EmergencyChannel channel,
-  ) async {
+  /// Navigation and speech stop first, so an emergency action never competes
+  /// with them. A broken audio adapter cannot keep the page waiting.
+  Future<void> _stopForEmergency() async {
     _closeNavigation();
-    // Issue the stop before platform work; a broken audio adapter cannot leave
-    // the emergency page waiting indefinitely.
     try {
       await _speaker.stopForEmergency().timeout(const Duration(seconds: 1));
     } catch (_) {
-      // The mock action remains available even if cleanup fails.
+      // The action remains available even if cleanup fails.
     }
+  }
+
+  SafeWalkNearbyBroadcast get _nearbyBroadcast => SafeWalkNearbyBroadcast(
+    // Demo never notifies anyone; Live shows the real backend state.
+    unavailableReason: widget.liveRoutes
+        ? _nearbyService.unavailableReason
+        : '示範模式不會通知任何人',
+    onBroadcast: _broadcastNearby,
+  );
+
+  Future<NearbyBroadcastOutcome> _broadcastNearby(
+    SafeWalkCancellation cancellation,
+  ) async {
+    await _stopForEmergency();
+    if (_lifetime.isCancelled || cancellation.isCancelled) {
+      return const NearbyBroadcastNotSent('已取消', cancelled: true);
+    }
+    // The backend identifies the sender from the verified session; this value
+    // is ignored by the authenticated transport and never sent.
+    final result = await _nearbyService.triggerEmergency(
+      mode: sw.DataMode.live,
+      senderId: '',
+      userInitiated: true,
+      cancellation: cancellation,
+    );
+    return switch (result) {
+      NearbyEmergencySent(:final recipientCount) => NearbyBroadcastSent(
+        recipientCount,
+      ),
+      NearbyEmergencyNotSent(:final reason, :final message) =>
+        NearbyBroadcastNotSent(
+          message,
+          cancelled: reason == NearbyEmergencyBlock.cancelled,
+        ),
+    };
+  }
+
+  Future<sw.EmergencyActionResult> _emergency(
+    sw.EmergencyChannel channel,
+  ) async {
+    await _stopForEmergency();
     try {
       if (_lifetime.isCancelled) throw const SafeWalkCancelledException();
       return await _platform.requestEmergency(
@@ -1247,6 +1301,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
         speaker: _speaker,
         onLocate: _locate,
         onEmergency: _emergency,
+        nearbyBroadcast: _nearbyBroadcast,
         homeLocation: _home,
         onHomeChanged: _changeHome,
         onExit: _exit,
