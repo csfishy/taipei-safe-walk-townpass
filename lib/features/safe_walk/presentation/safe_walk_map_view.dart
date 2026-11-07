@@ -298,11 +298,11 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
   List<sw.AssistancePoint> get _sorted => widget.pointsState.routes.isNotEmpty
       ? widget.pointsState.points
       : ([...widget.pointsState.points]..sort(
-      (a, b) => metersBetween(
-        _start,
-        _at(a),
-      ).compareTo(metersBetween(_start, _at(b))),
-    ));
+          (a, b) => metersBetween(
+            _start,
+            _at(a),
+          ).compareTo(metersBetween(_start, _at(b))),
+        ));
 
   /// 改看最近求助地點；Live 還沒有結果時才去查（使用者主動點了才查）。
   void _showPoints() {
@@ -492,7 +492,9 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
         ? '指定起點'
         : (!rs.live && (widget.position == null || demoHome) ? '起點' : '目前位置');
     final title = _pointsView
-        ? '附近求助地點'
+        ? (widget.onStartChanged == null
+              ? '附近求助地點'
+              : '${widget.manualStart != null ? '指定起點' : '目前位置'} → 附近求助地點')
         : '$from → ${isHome ? place.label : '求助地點'}';
     final meters = (routed ? rs.meters : null) ?? routeMeters(path);
     final int? minutes = routed && rs.live ? rs.minutes : walkMinutes(meters);
@@ -680,13 +682,21 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               GestureDetector(
-                                onTap: _pointsView
+                                onTap: !_pointsView
+                                    ? () => _openPlaces(context)
+                                    : widget.onStartChanged == null
                                     ? null
-                                    : () => _openPlaces(context),
+                                    : () => _openStart(context),
                                 child: Semantics(
                                   header: true,
-                                  button: !_pointsView,
-                                  hint: _pointsView ? null : '點兩下更換目的地',
+                                  button:
+                                      !_pointsView ||
+                                      widget.onStartChanged != null,
+                                  hint: !_pointsView
+                                      ? '點兩下更換目的地'
+                                      : widget.onStartChanged == null
+                                      ? null
+                                      : '點兩下更換起點',
                                   child: Container(
                                     height: swTouch,
                                     padding: const EdgeInsets.symmetric(
@@ -717,7 +727,8 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                                             ),
                                           ),
                                         ),
-                                        if (!_pointsView)
+                                        if (!_pointsView ||
+                                            widget.onStartChanged != null)
                                           const Icon(
                                             Icons.expand_more_rounded,
                                             color: SwColors.brand,
@@ -953,8 +964,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
             error: true,
           ),
           ..._pickStartChip(),
-        ]
-        else if (!isHome && point == null)
+        ] else if (!isHome && point == null)
           SwStateMessage(
             icon: Icons.search_off_rounded,
             title: '附近還沒有求助地點資料',
@@ -1063,8 +1073,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
               ],
             ],
           ),
-          if ((isHome || stores) && rs.live)
-            ..._avoidSection(rs, home: isHome),
+          if ((isHome || stores) && rs.live) ..._avoidSection(rs, home: isHome),
           const SizedBox(height: 12),
           _StepsToggle(
             open: _stepsOpen,
@@ -1240,6 +1249,67 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
   );
 
   /// 目的地選單：常用地點（家、公司…）可切換、刪除、新增（新增後在地圖上點位置）。只存在記憶體。
+  /// 起點選項（目前位置／指定起點），路線與附近求助地點共用同一個設定。
+  List<Widget> _startChoices(BuildContext sheetContext) => [
+    _StartChoice(
+      icon: Icons.my_location_rounded,
+      label: '目前位置（GPS）',
+      selected: widget.manualStart == null,
+      onTap: () {
+        widget.onStartChanged!(null);
+        Navigator.of(sheetContext).pop();
+        if (_pointsView || _pointIndex != null) {
+          widget.pointsState.onRetry?.call();
+        }
+      },
+    ),
+    _StartChoice(
+      icon: Icons.touch_app_outlined,
+      label: widget.manualStart == null ? '在地圖上選起點' : '指定起點（點此重新選）',
+      selected: widget.manualStart != null,
+      onTap: () {
+        setState(() {
+          _pickingStart = true;
+          _newPlaceName = null;
+          _picking = false;
+          _legend = false;
+          _pin = null;
+          _detailId = null;
+          if (_size == _SheetSize.collapsed) _size = _SheetSize.normal;
+        });
+        Navigator.of(sheetContext).pop();
+      },
+    ),
+  ];
+
+  /// 附近求助地點頁：只選起點（和路線頁同一個起點設定）。
+  Future<void> _openStart(BuildContext context) => showModalBottomSheet<void>(
+    context: context,
+    backgroundColor: SwColors.surface,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    ),
+    builder: (sheetContext) => SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Semantics(
+              header: true,
+              child: Text('從哪裡出發？', style: SwText.heading),
+            ),
+            const SizedBox(height: 4),
+            Text('沒有即時定位時，用指定起點找附近的店家。', style: SwText.small),
+            const SizedBox(height: 8),
+            ..._startChoices(sheetContext),
+          ],
+        ),
+      ),
+    ),
+  );
+
   Future<void> _openPlaces(BuildContext context) async {
     final name = TextEditingController();
     var adding = false;
@@ -1279,36 +1349,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                     child: Text('從哪裡出發？', style: SwText.heading),
                   ),
                   const SizedBox(height: 8),
-                  _StartChoice(
-                    icon: Icons.my_location_rounded,
-                    label: '目前位置（GPS）',
-                    selected: widget.manualStart == null,
-                    onTap: () {
-                      widget.onStartChanged!(null);
-                      Navigator.of(sheetContext).pop();
-                    },
-                  ),
-                  _StartChoice(
-                    icon: Icons.touch_app_outlined,
-                    label: widget.manualStart == null
-                        ? '在地圖上選起點'
-                        : '指定起點（點此重新選）',
-                    selected: widget.manualStart != null,
-                    onTap: () {
-                      setState(() {
-                        _pickingStart = true;
-                        _newPlaceName = null;
-                        _picking = false;
-                        _legend = false;
-                        _pin = null;
-                        _detailId = null;
-                        if (_size == _SheetSize.collapsed) {
-                          _size = _SheetSize.normal;
-                        }
-                      });
-                      Navigator.of(sheetContext).pop();
-                    },
-                  ),
+                  ..._startChoices(sheetContext),
                   const SizedBox(height: 12),
                 ],
                 Semantics(
@@ -2483,7 +2524,10 @@ class _Legend extends StatelessWidget {
   Widget build(BuildContext context) {
     Widget group(String title) => Padding(
       padding: const EdgeInsets.only(top: 6, bottom: 2),
-      child: Text(title, style: SwText.small.copyWith(color: SwColors.textSecondary)),
+      child: Text(
+        title,
+        style: SwText.small.copyWith(color: SwColors.textSecondary),
+      ),
     );
     Widget item(Widget key, String text) => Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
@@ -2538,7 +2582,9 @@ class _Legend extends StatelessWidget {
               item(
                 Text(
                   '···',
-                  style: SwText.bodyStrong.copyWith(color: TPColors.grayscale500),
+                  style: SwText.bodyStrong.copyWith(
+                    color: TPColors.grayscale500,
+                  ),
                 ),
                 '較短但經過異常',
               ),

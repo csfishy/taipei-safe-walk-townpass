@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:town_pass/features/safe_walk/platform/home_location/home_location_service.dart';
+import 'package:town_pass/features/safe_walk/presentation/mock/safe_walk_demo_data.dart'
+    show LatLng;
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_flow.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_map_view.dart';
 import 'package:town_pass/features/safe_walk/navigation/route_reference_area_check.dart';
@@ -1252,6 +1254,60 @@ void main() {
         expect(
           t.widget<SafeWalkMapView>(find.byType(SafeWalkMapView)).targetPointId,
           isNull,
+        );
+        await t.pumpWidget(const SizedBox.shrink());
+      },
+    );
+
+    testWidgets(
+      'nearby points without a usable fix use the shared picked start',
+      (t) async {
+        final platform = _Platform(() async => _locFail('unavailable'));
+        final routes = _Routes((r) async => _storeRoute(r, 120));
+        final queries = <sw.Coordinates>[];
+        await pumpRoot(
+          t,
+          platform: platform,
+          routes: routes,
+          db: _Db(),
+          home: _destination,
+          storeQueries: queries,
+          stores: [_store('a', 25.002)],
+        );
+        await t.tap(find.text('附近求助地點'));
+        await t.pumpAndSettle();
+        await t.tap(find.text('同意'));
+        await t.pumpAndSettle();
+        if (find.text('不要查詢').evaluate().isNotEmpty) {
+          await t.tap(find.text('不要查詢'));
+          await t.pumpAndSettle();
+        }
+        expect(queries, isEmpty);
+        expect(find.textContaining('取得不到夠精確的位置'), findsOneWidget);
+        expect(find.text('在地圖上選起點'), findsOneWidget);
+
+        // The header shows and changes the same start setting as the route.
+        await t.tap(find.text('目前位置 → 附近求助地點'));
+        await t.pumpAndSettle();
+        expect(find.text('從哪裡出發？'), findsOneWidget);
+        await t.tapAt(const Offset(10, 10)); // close the menu
+        await t.pumpAndSettle();
+
+        final map = t.widget<SafeWalkMapView>(find.byType(SafeWalkMapView));
+        map.onStartChanged!(const LatLng(25.01, 121.51));
+        map.pointsState.onRetry!();
+        await t.pumpAndSettle();
+        expect(queries.single.lat, 25.01);
+        expect(routes.requests.last.origin.source, sw.PositionSource.manual);
+        expect(find.text('指定起點 → 附近求助地點'), findsOneWidget);
+        expect(
+          t
+              .widget<SafeWalkMapView>(find.byType(SafeWalkMapView))
+              .pointsState
+              .points
+              .single
+              .id,
+          'a',
         );
         await t.pumpWidget(const SizedBox.shrink());
       },
