@@ -2,13 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:town_pass/features/safe_walk/presentation/mock/safe_walk_demo_data.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_call_view.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_emergency_view.dart';
+import 'package:town_pass/features/safe_walk/presentation/safe_walk_home_setting_view.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_home_view.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_map_view.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_speaker.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_ui.dart';
 import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart' as sw;
 
-enum _Screen { home, map, points, report, call, emergency }
+enum _Screen { home, map, points, report, call, emergency, homeSetting }
 
 /// 安心行入口（M3）。所有對外動作經由 callback 交給 M1 接線；M3 不取 GPS、不撥號、不 import 其他模組。
 class SafeWalkFlow extends StatefulWidget {
@@ -27,6 +28,8 @@ class SafeWalkFlow extends StatefulWidget {
     this.onLocate,
     this.onEmergency,
     this.onSendSms,
+    this.homeLocation,
+    this.onHomeChanged,
     this.onExit,
   });
   final sw.DataMode mode;
@@ -57,6 +60,13 @@ class SafeWalkFlow extends StatefulWidget {
   final Future<bool> Function(String body)? onSendSms;
   final VoidCallback? onExit;
 
+  /// M1：使用者已儲存的「家」（只存在裝置上）。null＝尚未設定，沿用示範的家。
+  final sw.Coordinates? homeLocation;
+
+  /// M1：使用者在「設定家」按儲存（帶座標）或移除（null）時呼叫，由 M1 寫入裝置儲存。
+  /// null 時不顯示「設定家」入口。
+  final Future<void> Function(sw.Coordinates? home)? onHomeChanged;
+
   @override
   State<SafeWalkFlow> createState() => _SafeWalkFlowState();
 }
@@ -74,6 +84,29 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
   SafeWalkCallSession? _call;
   late final List<SavedPlace> _places = [...demoPlaces()];
   String _placeId = 'home';
+
+  @override
+  void initState() {
+    super.initState();
+    _applyHome();
+  }
+
+  @override
+  void didUpdateWidget(SafeWalkFlow old) {
+    super.didUpdateWidget(old);
+    if (old.homeLocation != widget.homeLocation) _applyHome();
+  }
+
+  /// 已儲存的家取代示範的家；移除後回到示範的家。
+  void _applyHome() {
+    final i = _places.indexWhere((p) => p.isHome);
+    final h = widget.homeLocation;
+    final next = h == null ? demoPlaces().first : SavedPlace('home', '家', LatLng(h.lat, h.lng));
+    if (i >= 0) {
+      _places[i] = next;
+    }
+  }
+
   SavedPlace get _place => _places.firstWhere((p) => p.id == _placeId, orElse: () => _places.first);
   late final List<Anomaly> _anomalies = demoAnomalies();
   late final List<sw.AssistancePoint> _demoPoints = demoAssistancePoints();
@@ -188,6 +221,8 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
     final child = switch (_screen) {
       _Screen.home => SafeWalkHomeView(
         destination: _place.label,
+        homeSet: widget.homeLocation != null,
+        onEditHome: widget.onHomeChanged == null ? null : () => _go(_Screen.homeSetting),
         avoided: avoidedCount(_anomalies),
         onBack: widget.onExit,
         onEmergency: _openEmergency,
@@ -197,6 +232,12 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
           SafeWalkEntry.points => _Screen.points,
           SafeWalkEntry.report => _Screen.report,
         }),
+      ),
+      _Screen.homeSetting => SafeWalkHomeSettingView(
+        initial: widget.homeLocation == null ? null : LatLng(widget.homeLocation!.lat, widget.homeLocation!.lng),
+        onSave: (at) => widget.onHomeChanged!(sw.Coordinates(lat: at.lat, lng: at.lng)),
+        onClear: widget.homeLocation == null ? null : () => widget.onHomeChanged!(null),
+        onBack: () => _go(_Screen.home),
       ),
       _Screen.map => map(),
       _Screen.points => map(start: MapStartView.points),

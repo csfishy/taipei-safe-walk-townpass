@@ -10,7 +10,7 @@ enum SafeWalkEntry { map, call, points, report }
 /// 入口頁：比照臺北通開啟服務時的樣式——上方主色長條＋右上關閉；
 /// 時間情境卡、「安心行」主卡（臺北天際線插圖）、其他功能一項一行、最下方緊急求助。
 class SafeWalkHomeView extends StatelessWidget {
-  const SafeWalkHomeView({super.key, required this.onOpen, required this.onEmergency, required this.avoided, this.destination = '家', this.onBack, this.now});
+  const SafeWalkHomeView({super.key, required this.onOpen, required this.onEmergency, required this.avoided, this.destination = '家', this.homeSet = false, this.onEditHome, this.onBack, this.now});
   final ValueChanged<SafeWalkEntry> onOpen;
   final VoidCallback onEmergency;
 
@@ -18,6 +18,10 @@ class SafeWalkHomeView extends StatelessWidget {
   final VoidCallback? onBack;
   final int avoided;
   final String destination;
+
+  /// 使用者是否已設定自己的「家」；[onEditHome] 為 null 時不顯示設定入口。
+  final bool homeSet;
+  final VoidCallback? onEditHome;
 
   /// 測試可固定時間；正式由裝置時間決定。
   final DateTime? now;
@@ -59,6 +63,10 @@ class SafeWalkHomeView extends StatelessWidget {
                 _ContextCard(now: t),
                 const SizedBox(height: 16),
                 _GoHomeCard(destination: destination, avoided: avoided, onTap: () => onOpen(SafeWalkEntry.map)),
+                if (onEditHome != null) ...[
+                  const SizedBox(height: 16),
+                  _FeatureRow(icon: Icons.home_rounded, name: homeSet ? '編輯「家」' : '設定「家」', desc: homeSet ? '更換或移除家的位置' : '第一次使用請先設定，只存在這支手機', onTap: onEditHome!),
+                ],
                 const SizedBox(height: 24),
                 Semantics(header: true, child: Text('其他功能', style: SwText.bodyStrong)),
                 const SizedBox(height: 12),
