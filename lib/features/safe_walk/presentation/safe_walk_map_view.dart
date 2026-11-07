@@ -186,7 +186,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
           _ when isHome && rs.loading => '路線計算中…',
           _ when isHome && rs.failed => rs.failTitle,
           _ when path.isEmpty => '最近求助地點',
-          _ => '$minutes 分鐘・${isHome ? (atHome && demoHome ? '回家・已繞開 $avoided 個異常回報' : (place.isHome ? '回家' : '到${place.label}')) : point!.name}',
+          _ => '$minutes 分鐘・${isHome ? (atHome && demoHome ? '回家・示範：已繞開 $avoided 個示範回報' : (place.isHome ? '回家' : '到${place.label}')) : point!.name}',
         },
         _routeSheet(path, meters, minutes, isHome, point, avoided, place),
       ),
@@ -408,7 +408,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('正在計算避開異常回報的路線…', style: SwText.bodyStrong),
+                Text('正在計算步行路線…', style: SwText.bodyStrong),
                 const SizedBox(height: 8),
                 const ExcludeSemantics(child: SwSkeleton(rows: 2)),
               ],
@@ -454,8 +454,10 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                     Text('${isHome ? (place.isHome ? '回家' : '到${place.label}') : destName}・約 $meters 公尺', style: SwText.secondary, overflow: TextOverflow.ellipsis),
                     if (isHome && rs.best != null)
                       Text(rs.best!.explanations.firstOrNull ?? (rs.best!.walkingNetworkVerified ? '已規劃步行路線' : '路線未經步行路網驗證'), style: SwText.secondary, maxLines: 2, overflow: TextOverflow.ellipsis)
-                    else if (isHome && place.isHome)
+                    else if (isHome && place.isHome && !rs.configured)
                       _AvoidBadge(count: avoided)
+                    else if (isHome && place.isHome)
+                      Text('路線未經步行路網驗證，不代表安全', style: SwText.secondary)
                     else if (isHome)
                       Text('示範路線・未驗證道路', style: SwText.secondary)
                     else
@@ -1022,7 +1024,7 @@ class _AvoidBadge extends StatelessWidget {
           const Icon(Icons.verified_outlined, size: 18, color: SwColors.brand),
           const SizedBox(width: 4),
           Flexible(
-            child: Text('已繞開 $count 個異常回報', style: SwText.bodyStrong.copyWith(color: SwColors.brandText)),
+            child: Text('示範：已繞開 $count 個示範回報', style: SwText.bodyStrong.copyWith(color: SwColors.brandText)),
           ),
         ],
       ),

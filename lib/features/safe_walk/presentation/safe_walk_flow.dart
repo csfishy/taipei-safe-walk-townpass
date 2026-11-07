@@ -75,8 +75,9 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
   late final List<SavedPlace> _places = [...demoPlaces()];
   String _placeId = 'home';
   SavedPlace get _place => _places.firstWhere((p) => p.id == _placeId, orElse: () => _places.first);
-  late final List<Anomaly> _anomalies = demoAnomalies();
-  late final List<sw.AssistancePoint> _demoPoints = demoAssistancePoints();
+  // Live mode never shows invented danger points or stand-in assistance points.
+  late final List<Anomaly> _anomalies = widget.mode == sw.DataMode.mock ? demoAnomalies() : <Anomaly>[];
+  late final List<sw.AssistancePoint> _demoPoints = widget.mode == sw.DataMode.mock ? demoAssistancePoints() : const <sw.AssistancePoint>[];
 
   String? get _nearestPointName {
     final pts = _pointsState.points;

@@ -332,8 +332,17 @@ void main() {
       await _pump(t, const SafeWalkFlow(routeLoading: true));
       await t.tap(find.text('安心行'));
       await t.pump(const Duration(milliseconds: 600));
-      expect(find.text('正在計算避開異常回報的路線…'), findsOneWidget);
+      expect(find.text('正在計算步行路線…'), findsOneWidget);
       expect(find.textContaining('已繞開'), findsNothing);
+    });
+
+    testWidgets('Live 模式不出現示範異常回報、示範求助地點或「已繞開」數字', (t) async {
+      await _pump(t, const SafeWalkFlow(mode: sw.DataMode.live));
+      await t.tap(find.text('安心行'));
+      await t.pumpAndSettle();
+      expect(find.bySemanticsLabel(RegExp('照明不足|道路施工|打架衝突|可疑人士')), findsNothing);
+      expect(find.textContaining('示範求助據點'), findsNothing);
+      expect(find.textContaining('避開異常'), findsNothing);
     });
 
     testWidgets('失敗：顯示原因、再試一次會重新要求，也能改去求助地點', (t) async {

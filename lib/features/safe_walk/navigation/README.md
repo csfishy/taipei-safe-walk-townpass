@@ -33,8 +33,7 @@ M1 將完整據點 lookup／provider 注入本模組；不得直接 import M4 �
 | `json_transport.dart`、`io_json_transport.dart`、`unsupported_json_transport.dart`、`default_json_transport.dart` | 不需新套件的 HTTPS JSON 客戶端（`dart:io`；web 預覽自動改為「不可用」） |
 | `consent.dart`、`cancellable.dart` | 同意例外；取消／搶先完成的小工具 |
 | `mock_walking_route_provider.dart` | 只供 `DataMode.mock` 測試及展示，標示未驗證路網、禁止作實地導航；App 目前固定 Mock 是尚未驗收的隔離現況，不是永久交付目標 |
-| `nearest_store_planner.dart` | `NearestStorePlanner`：找最近、營業中的便利商店，挑出實際步行最短的一間，並產生 Google 地圖步行導航連結 |
-| `google_maps_link.dart` | `googleMapsWalkingUri()`：Google 地圖「步行＋開始導航」連結 |
+| `nearest_store_planner.dart` | `NearestStorePlanner`：找最近、營業中的便利商店，挑出實際步行最短的一間。不產生、也不開啟任何外部地圖 App 連結（比賽規定只用 TownPass 內建流程、OSM 地圖、OSRM 路線） |
 | `route_follower.dart` | `RouteFollower`：把 M1 提供的位置對到路線上，算出已走／剩餘距離、剩餘時間、行進方向、偏離路線、抵達；純計算，不讀 GPS |
 | `coordinate_math.dart` | 純 Dart：haversine 距離、折線長度、lat/lng ⇄ GeoJSON `[lng, lat]`、座標範圍檢查 |
 
@@ -64,12 +63,12 @@ if (nearest.isNotEmpty) {
 
 `hasConsent` 每次請求都會重新讀取，可隨時撤回。
 
-## 一鍵導向最近的 24 小時便利商店（含 Google 地圖連結）
+## 一鍵導向最近的 24 小時便利商店
 
 ```dart
 final planner = NearestStorePlanner(
   find: (origin, {cancellation}) => stores.findNear(origin, cancellation: cancellation), // OsmConvenienceStoreSource
-  routeService: routes, // 選用：DefaultRouteService（OSRM）；沒有也能產生 Google 連結
+  routeService: routes, // 選用：DefaultRouteService（OSRM）
 );
 
 final result = await planner.plan(position, requestId: 'r1', mode: sw.DataMode.live);
@@ -77,7 +76,6 @@ switch (result.status) {
   case NearestStoreStatus.found:
     // result.store!.point        → 店（名稱、座標、來源限制）
     // result.store!.walkingRoute → 我們算的步行路線（可能為 null）
-    // result.googleMapsUri       → 使用者點擊後用「外部應用程式」開啟 → Google 地圖開始步行導航
     // result.warnings            → 必須顯示：資料來源、營業時間未經確認…
   default:
     // result.reason 是固定、可直接顯示的說明
@@ -85,8 +83,7 @@ switch (result.status) {
 ```
 
 - 挑選：只考慮「記錄為營業中且近期檢查過」的便利商店（不限品牌）；有 `routeService` 時，對最近的 3 間逐一算實際步行距離，選最短的（一次一間，因為 `DefaultRouteService` 只保留最新請求）；都算不出來就依直線距離並在 `warnings` 說明。
-- **Google 連結**：`https://www.google.com/maps/dir/?api=1&destination=<lat>,<lng>&travelmode=walking&dir_action=navigate`。**預設不帶起點**，Google 地圖會從使用者當下位置出發，所以連結裡沒有使用者位置，起點也比我們建立連結時更準。手機有 Google 地圖時會開啟 App，否則開網頁。需由使用者點擊後以外部應用程式開啟（`url_launcher` 已在 pubspec，按鈕與開啟動作由 M3／M1 處理）。
-- 連結不依賴我們的路線服務；即使 OSRM 不可用，也可由使用者選擇外部導航。建立 URI 不代表已開啟外部 App、路線可用或已抵達，handoff 仍需 M1／M3 接線與實機驗收。
+- 不導往 Google Maps 或任何外部導航 App；導航只走 TownPass 內建流程、OSM 地圖與 OSRM 路線。
 - 查不到店時是 `noKnownStore`（不是「附近沒有」）；沒有同意是 `consentRequired`，不會送出任何請求。
 
 ## 跟隨（follow）
