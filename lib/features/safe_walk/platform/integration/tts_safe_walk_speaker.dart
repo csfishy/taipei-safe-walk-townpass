@@ -16,28 +16,29 @@ final class TtsSafeWalkSpeaker implements SafeWalkRouteSpeaker {
 
   final CompanionTtsSpeaker _tts;
   bool _emergencyStopped = false;
-  bool _foreground = true;
+  bool _lifecycleActive = true;
 
   /// Asks the device for a voice; safe to call more than once.
   Future<void> prepare() => _tts.prepare();
 
   @override
-  bool get available => _foreground && !_emergencyStopped && _tts.available;
-
-  /// Background callbacks cannot start another line; resume never replays one.
-  void setForeground(bool foreground) {
-    if (_foreground == foreground) return;
-    _foreground = foreground;
-    if (!foreground) _tts.stop();
-  }
+  bool get available =>
+      _lifecycleActive && !_emergencyStopped && _tts.available;
 
   @override
   void speak(String text, {void Function()? onDone}) {
-    if (!_foreground || _emergencyStopped) {
+    if (!_lifecycleActive || _emergencyStopped) {
       onDone?.call();
       return;
     }
     _tts.speak(text, onDone: onDone);
+  }
+
+  @override
+  void setLifecycleActive(bool active) {
+    if (_lifecycleActive == active) return;
+    _lifecycleActive = active;
+    if (!active) _tts.stop();
   }
 
   @override

@@ -1,6 +1,8 @@
 # M2｜Steven：座標運算與 RouteService
 
-先讀根目錄 AGENTS、官方初始化文件及 [五人模組契約](../../../../docs/SAFE_WALK_MODULES.md)。本目錄不新增地圖 Widget、route 或 GPS watcher。
+先讀根目錄 AGENTS、[Live MVP](../../../../docs/SAFE_WALK_LIVE_MVP.md)、[Live Readiness](../../../../docs/SAFE_WALK_LIVE_READINESS.md)、[五人模組契約](../../../../docs/SAFE_WALK_MODULES.md) 與 [導航接線契約](../../../../docs/SAFE_WALK_NAVIGATION_PRESENTATION_CONTRACT.md)。初始化文件是歷史紀錄。M2 負責路線及跟隨計算，地圖 Widget 由 M3、官方 route 與 GPS 入口由 M1 管理。
+
+2026-11-07 稽核基線 `03f98f2b7b5254db73774c4d097eb4d610499c2c`：OSRM、RouteFollower、最近便利商店與外部導航連結已有實作；正式操作尚未接線，不是只允許抽象介面的初始化階段。本次文件調整不啟用 Live。
 
 ## 所有權與輸入輸出
 
@@ -12,7 +14,7 @@
 
 ## Mock 與整合
 
-先使用共用 fixture 與注入 fake provider。無 live provider 明確回 provider_unavailable，不用 mock／直線路徑冒稱真實步行網路。取消或舊請求不得覆蓋新結果。
+Mock 僅供單元測試、離線開發及清楚標示的展示；正式功能完成相應驗收後，必須能透過正式操作使用 Live provider。無 provider、未同意或服務失敗時明確回不可用／失敗，不用 mock／直線冒稱真實步行網路。取消或舊請求不得覆蓋新結果。Unavailable 沿用既有 failure／reason，不新增 DataMode wire 值。
 
 M1 將完整據點 lookup／provider 注入本模組；不得直接 import M4 實作。途經點 ID／來源／營業狀態須核對，行政區歷史犯罪統計不能直接形成即時道路安全分數。
 
@@ -28,7 +30,7 @@ M1 將完整據點 lookup／provider 注入本模組；不得直接 import M4 �
 | `nearest_point.dart` | `nearestPoints()`：依直線距離排序，只回「記錄為營業中且近期檢查過」的點 |
 | `json_transport.dart`、`io_json_transport.dart`、`unsupported_json_transport.dart`、`default_json_transport.dart` | 不需新套件的 HTTPS JSON 客戶端（`dart:io`；web 預覽自動改為「不可用」） |
 | `consent.dart`、`cancellable.dart` | 同意例外；取消／搶先完成的小工具 |
-| `mock_walking_route_provider.dart` | 只供 `DataMode.mock`（App 預設的示範模式），標示未驗證路網、禁止實地導航 |
+| `mock_walking_route_provider.dart` | 只供 `DataMode.mock` 測試及展示，標示未驗證路網、禁止作實地導航；App 目前固定 Mock 是尚未驗收的隔離現況，不是永久交付目標 |
 | `nearest_store_planner.dart` | `NearestStorePlanner`：找最近、營業中的便利商店，挑出實際步行最短的一間，並產生 Google 地圖步行導航連結 |
 | `google_maps_link.dart` | `googleMapsWalkingUri()`：Google 地圖「步行＋開始導航」連結 |
 | `route_follower.dart` | `RouteFollower`：把 M1 提供的位置對到路線上，算出已走／剩餘距離、剩餘時間、行進方向、偏離路線、抵達；純計算，不讀 GPS |
@@ -82,7 +84,7 @@ switch (result.status) {
 
 - 挑選：只考慮「記錄為營業中且近期檢查過」的便利商店（不限品牌）；有 `routeService` 時，對最近的 3 間逐一算實際步行距離，選最短的（一次一間，因為 `DefaultRouteService` 只保留最新請求）；都算不出來就依直線距離並在 `warnings` 說明。
 - **Google 連結**：`https://www.google.com/maps/dir/?api=1&destination=<lat>,<lng>&travelmode=walking&dir_action=navigate`。**預設不帶起點**，Google 地圖會從使用者當下位置出發，所以連結裡沒有使用者位置，起點也比我們建立連結時更準。手機有 Google 地圖時會開啟 App，否則開網頁。需由使用者點擊後以外部應用程式開啟（`url_launcher` 已在 pubspec，按鈕與開啟動作由 M3／M1 處理）。
-- 連結不依賴我們的路線服務，所以即使 OSRM 不可用，使用者仍能被導到店。
+- 連結不依賴我們的路線服務；即使 OSRM 不可用，也可由使用者選擇外部導航。建立 URI 不代表已開啟外部 App、路線可用或已抵達，handoff 仍需 M1／M3 接線與實機驗收。
 - 查不到店時是 `noKnownStore`（不是「附近沒有」）；沒有同意是 `consentRequired`，不會送出任何請求。
 
 ## 跟隨（follow）
@@ -102,7 +104,7 @@ switch (result.status) {
 - 偏離門檻預設 40 m；GPS 誤差更大時改用 2×精度，避免訊號飄移就誤判。抵達半徑預設 30 m，抵達後維持到 `reset()`。
 - 過期、不合規或精度超過 100 m 的定位會被忽略（`positionRejected`，數值沿用上一筆），不會把進度拉走。
 - 路線有重疊（來回、繞圈）時優先往前匹配，進度不會倒退跳回去。
-- **不自己取得位置**：M1 要在使用者明確操作後才開始連續定位、導航結束就停止；這個類別只吃 M1 給的值。目前 `PlatformService` 只有單次 `getCurrentPosition`，連續定位串流需 M1 新增。
+- **不自己取得位置**：這個類別只吃 M1 給的值。目前 `PlatformService` 只有單次 `getCurrentPosition`；Live MVP 可先由使用者主動更新位置。若需連續定位，由 M1 沿用 TownPass 服務另定同意、啟停、背景／SOS 清理與實機驗收，不在 M2 新增第二份 GPS watcher。
 
 ### 「真的地圖」還缺什麼（不在 M2）
 
@@ -127,19 +129,23 @@ switch (result.status) {
 
 - **路線**：`walkingNetworkVerified` 只表示用了 OSM 步行路網，不保證安全、照明、無障礙或目前可通行。預設的公共伺服器是 fair-use 示範伺服器，無可用性保證；正式使用需自架或簽約伺服器（`OsrmWalkingRouteProvider(endpoint: ...)`）。
 - **24 小時便利商店**：資料是 OSM 社群標籤 `opening_hours=24/7`，未經店家確認；臺灣的標註不完整，所以清單是下限，空清單代表「沒有已知的店」而不是「附近沒有」。共用契約沒有營業時間欄位，若要更可靠需 M1 擴充 Schema、M4 提供官方資料。
-- 「最近」是直線距離；實際步行距離以選定的點呼叫 `RouteService`。
+- `nearestPoints` 的「最近」是直線距離；`NearestStorePlanner` 若取得路線，會比較候選的實際步行距離。未取得時的直線排序與 warnings 必須明示，不可冒稱實際步行最短。
+- `steps=false`，現有 RouteCandidate 沒有逐路口指示欄位；幾何方位分段不能冒稱正式轉向導航。時間未知須保留 null，不能補示範 ETA。
 - 網路層在 web 預覽不可用（會回 `provider_unavailable`）。
 
 ## 測試
 
 `test/features/safe_walk/navigation/`：座標、`DefaultRouteService`、OSRM provider、OSM 便利商店來源、`nearestPoints`、HTTP 傳輸（對本機測試伺服器，不連外網）。
 
-`live_smoke_test.dart` 會呼叫真實公共服務，預設跳過：`SAFE_WALK_LIVE=1 flutter test test/features/safe_walk/navigation/live_smoke_test.dart`。
+`live_smoke_test.dart` 會呼叫真實公共服務，預設跳過。PowerShell 可用 `$env:SAFE_WALK_LIVE='1'` 後執行 `flutter test test/features/safe_walk/navigation/live_smoke_test.dart`；完成後移除該環境變數。這是明確 opt-in 的 provider 測試，不是開啟 App Live。
+
+該檔的 planner 使用 stand-in 店家、follower 使用沿 geometry 合成的位置，Overpass 案例允許 transport error；通過不等於資料來源或裝置 GPS 已驗證。一般測試的 fake transport／本機測試伺服器也不構成 LIVE_VERIFIED。需記錄測試 SHA、endpoint、日期、實際結果及限制，另完成整合與 iPhone 驗收；本次文件盤點不代表重新執行上述測試。
 
 ## 尚未完成／待 M1 協調
 
-- 尚未接到 `App`／presentation：M3 的 `safe_walk_demo_data.dart` 仍用示範路線，待 M1 注入上述 service 與同意流程。
-- 未做實機／TownPass 測試；Overpass 在開發機上逾時，未能實測真實回應。
-- 途經據點的來源與營業狀態需 M1 把 M4 repository 注入 `pointLookup` 後才會被實際核對。
+- M1 組合根已建立 `DefaultRouteService`／OSRM 並注入同一 `pointLookup`，scope 與控制器也已存在；但仍固定 Mock、兩個 readiness gates 為 false，Flow 尚未消費 scope，且沒有收到 route／routeLoading／onPlanRoute。須接上真實 GPS、明確第三方同意與 M3 真實地圖，不能只改旗標。
+- M3 路線 API 已合併，DemoMap 的固定投影、據點 L 形線、Live 缺值 fallback 及虛構避讓資料仍待按模式分流；正式 UI/UX 由莅紋維護。
+- RouteFollower、Overpass、NearestStorePlanner、外部導航 URI 尚未接入正式操作。實機／TownPass 與真實 provider 證據不足；既往 Overpass 逾時紀錄不構成成功證據。
+- pointLookup 目前只查已驗證的記憶體 Mock snapshot；Live 途經需 M4 真實來源、認可／營業與同模式檢查。便利商店／AED 不直接等於政府認證救援據點。
 
-預定分支 `feat/m2-navigation`。
+P0 先由 M1／M2／M3 接 GPS、OSRM、RouteFollower、真實地圖、同意與 Live 狀態；P1 接真實據點與外部導航。任務 Owner、前置依賴與驗收以 Live MVP／Readiness 為準，從最新 main 建工作分支並經 PR／CI，保留既有 Mock 測試與展示。

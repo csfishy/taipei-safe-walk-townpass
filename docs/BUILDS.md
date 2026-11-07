@@ -1,5 +1,7 @@
 # Checks, prereleases and GitHub Pages
 
+The product target is [Live MVP](SAFE_WALK_LIVE_MVP.md), with per-capability gates in [Readiness](SAFE_WALK_LIVE_READINESS.md). A successful build, prerelease or Pages deployment does not verify real providers or iPhone behavior. The current Demo preview is a snapshot, not a permanent Mock product requirement.
+
 The `check-and-build` workflow runs on main pushes, pull requests, matching `v*-pre.*` tags, and manual dispatch. Flutter is pinned to `.fvmrc`'s 3.47.6 and dependencies are installed with `--enforce-lockfile`; code generation runs on every clean checkout.
 
 Each run has its own concurrency group, so a newer push does not cancel active builds or replace queued prerelease builds. Only website deployment is serialized; stale builds skip deployment so they cannot replace a newer main website.

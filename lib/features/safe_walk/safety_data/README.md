@@ -1,6 +1,15 @@
 # M4｜信義：資料 Parser、Repository 與 fixtures
 
-先讀根目錄 AGENTS、官方初始化文件及 [五人模組契約](../../../../docs/SAFE_WALK_MODULES.md)。不新增後端、資料庫、資料畫面或自訂色票。
+先讀根目錄 AGENTS、[Live MVP 規格](../../../../docs/SAFE_WALK_LIVE_MVP.md)、[上線條件](../../../../docs/SAFE_WALK_LIVE_READINESS.md)及 [五人模組契約](../../../../docs/SAFE_WALK_MODULES.md)。初始化文件僅作歷史參考。M4 負責真實公共安全資料；資料畫面由 M3 設計，跨模組及新基礎設施由 M1 協調，不自行改色票。
+
+## 目前基線與開發目標
+
+以下以 2026-11-07 已合併 main `03f98f2b7b5254db73774c4d097eb4d610499c2c` 為核對基準。Mock 僅供測試、離線開發與明確展示；不能成為正式版本唯一交付。通過資料來源、契約、整合及實機驗收後，M1 必須能將 Live Repository 注入正式流程；本次文件更新不啟用 Provider。
+
+| 能力 | 狀態 | 現況與缺口 |
+|---|---|---|
+| 真實求助據點 Repository | NOT_IMPLEMENTED | `SafetyDataRepository` 尚無 Live 實作；Parser／Mock 已接展示流程，App 仍注入 `demoAssistancePoints()`，不能標成真實據點。 |
+| 全市暴力犯罪月統計 | IMPLEMENTED_NOT_WIRED | 真實來源讀取及正規化已合併，尚未接入 M1／畫面；不能再籠統寫「所有真實來源尚未實作」。 |
 
 ## 所有權與輸入輸出
 
@@ -19,11 +28,16 @@ Repository 沒有另一份自造 success payload；解析／來源不可用／�
 
 M1 注入 repo 並將結果交 M2／M3，本模組不 import 兩者實作。合作認可、營業、位置與協助能力分開記錄，歷史行政區統計不能推導即時道路風險。
 
-## 第一輪交付
+## 驗收與接線要求
 
-欄位對照、parser 正反案例、mock repo／取消／來源不可用測試；取得真實資料才交來源可追溯的小樣本，未取得時明列未配置。`test/features/safe_walk/safety_data/contract_safety_data_test.dart` 使用 `test/fixtures/safe_walk/` 驗證 unknown／null、strict 欄位、錯誤認可／統計、唯讀快照、mock/live 與取消；執行結果以整體初始化驗證紀錄為準，不將測試檔存在當作 PASS。真實資料與外部來源仍未接入。
+`test/features/safe_walk/safety_data/contract_safety_data_test.dart` 使用 `test/fixtures/safe_walk/` 驗證 unknown／null、strict 欄位、錯誤認可／統計、唯讀快照、mock/live 與取消。這些是 Parser／Mock 證據，不代表真實資料源已驗收；本次文件審查未在此處宣告新的測試 PASS。
 
-預定分支 `feat/m4-safety-data`：**pending**，待初始化 PR 審查並由使用者確認合併後，才從共同 Flutter base 建立。
+- P1 由 M4 信義取得合法、可追溯的真實求助據點來源，保留取得日期、來源更新日期、授權、涵蓋範圍及限制，經共用 Parser 驗證後交 M1 注入 M2／M3。
+- 據點查詢失敗、正常無資料與尚未配置須區分。不能以 AED 裝設點或一般便利商店直接冒充政府認證救援據點；認可需 `evidenceUrl`／`checkedAt`，營業與實際可協助狀態各自表達。
+- 需有真實來源契約測試、斷網／格式改版／逾時／取消測試，以及 iPhone 上的來源標示、錯誤與重試驗收，才可列為 LIVE_VERIFIED。Live 失敗不得退回 Mock 假成功。
+- P2 再整合全市犯罪統計資訊展示。禁止將全市數字填成行政區、道路或逐時風險，也不以歷史犯罪率推算即時安全路線。
+
+`feat/m4-safety-data` 等模組分支已存在；初始化的 pending 分支說明已不再適用。持續工作應從當時最新 main 建獨立分支並經 PR／CI 審查。
 
 ## 臺北市暴力犯罪月統計（`violent_crime/`）
 
