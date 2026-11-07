@@ -1,5 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:town_pass/features/safe_walk/shared/route_instructions.dart';
+import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart'
+    as sw;
 
 void main() {
   test('Valhalla maneuvers read like 「XX路口X轉，沿OO路直行X公尺」', () {
@@ -50,5 +52,42 @@ void main() {
       ]),
       isEmpty,
     );
+  });
+
+  test('progress: next instruction ahead and metres to it', () {
+    // Straight north along lng 121.5, ~111 m per 0.001 degree.
+    final line = [
+      for (var i = 0; i <= 4; i++)
+        (longitude: 121.5, latitude: 25.0 + i * 0.001),
+    ];
+    const steps = [
+      RouteInstruction(
+        turn: TurnKind.start,
+        street: 'A路',
+        meters: 200,
+        shapeIndex: 0,
+      ),
+      RouteInstruction(
+        turn: TurnKind.right,
+        street: 'B路',
+        meters: 200,
+        shapeIndex: 2,
+      ),
+    ];
+    final p = routeProgress(
+      line,
+      steps,
+      sw.Coordinates(lat: 25.001, lng: 121.5),
+    );
+    expect(p.next?.street, 'B路');
+    expect(p.toNextMeters, closeTo(111, 2));
+    expect(p.remainingMeters, closeTo(333, 3));
+    final end = routeProgress(
+      line,
+      steps,
+      sw.Coordinates(lat: 25.003, lng: 121.5),
+    );
+    expect(end.next, isNull);
+    expect(end.toNextMeters, closeTo(111, 2));
   });
 }

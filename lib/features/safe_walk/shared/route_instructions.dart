@@ -1,3 +1,8 @@
+import 'dart:math' as math;
+
+import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart'
+    as sw;
+
 /// Turn-by-turn text for a route, like 「在士東路口右轉，沿士東路直行 300 公尺」.
 enum TurnKind {
   start,
@@ -110,4 +115,71 @@ List<RouteInstruction> instructionsFromValhalla(Object? maneuvers) {
     );
   }
   return out;
+}
+
+/// Where the walker is along a route: the next instruction ahead (null when
+/// only the arrival is left), metres to it, and metres to the end.
+typedef RouteProgress = ({
+  RouteInstruction? next,
+  double toNextMeters,
+  double remainingMeters,
+});
+
+/// Snaps [at] to the closest vertex of [line] and measures ahead along it.
+RouteProgress routeProgress(
+  List<sw.GeoJsonCoordinate> line,
+  List<RouteInstruction> steps,
+  sw.Coordinates at,
+) {
+  if (line.isEmpty) {
+    return (next: null, toNextMeters: 0, remainingMeters: 0);
+  }
+  var nearest = 0;
+  var best = double.infinity;
+  for (var i = 0; i < line.length; i++) {
+    final d = _meters(at.lat, at.lng, line[i].latitude, line[i].longitude);
+    if (d < best) {
+      best = d;
+      nearest = i;
+    }
+  }
+  RouteInstruction? next;
+  for (final s in steps) {
+    if (s.shapeIndex > nearest) {
+      next = s;
+      break;
+    }
+  }
+  double along(int from, int to) {
+    var m = 0.0;
+    for (var i = from; i < to && i + 1 < line.length; i++) {
+      m += _meters(
+        line[i].latitude,
+        line[i].longitude,
+        line[i + 1].latitude,
+        line[i + 1].longitude,
+      );
+    }
+    return m;
+  }
+
+  return (
+    next: next,
+    toNextMeters: best + along(nearest, next?.shapeIndex ?? line.length - 1),
+    remainingMeters: best + along(nearest, line.length - 1),
+  );
+}
+
+/// Great-circle distance (haversine), metres; `shared` may not depend on
+/// navigation's helpers.
+double _meters(double lat1, double lng1, double lat2, double lng2) {
+  const r = 6371008.8;
+  double rad(double d) => d * math.pi / 180;
+  final dLat = rad(lat2 - lat1), dLng = rad(lng2 - lng1);
+  final a =
+      math.pow(math.sin(dLat / 2), 2) +
+      math.cos(rad(lat1)) *
+          math.cos(rad(lat2)) *
+          math.pow(math.sin(dLng / 2), 2);
+  return 2 * r * math.asin(math.sqrt(a));
 }

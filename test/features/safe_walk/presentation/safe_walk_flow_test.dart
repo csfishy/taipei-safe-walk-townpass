@@ -57,15 +57,14 @@ void main() {
     expect(calls, isEmpty);
   });
 
-  testWidgets('地圖預設回家路線並顯示已繞開的異常回報；可展開文字路線', (t) async {
+  testWidgets('地圖預設回家路線並顯示已繞開的異常回報；文字路線暫時隱藏', (t) async {
     await _pump(t, const SafeWalkFlow());
     await t.tap(find.text('安心行'));
     await t.pumpAndSettle();
     expect(find.textContaining('已繞開'), findsOneWidget);
     expect(find.text('路線僅供參考・請留意實際路況'), findsNothing, reason: '上方提示已拿掉，資訊框內已有說明');
-    await t.tap(find.text('文字路線'));
-    await t.pumpAndSettle();
-    expect(find.text('抵達家'), findsOneWidget);
+    // 文字路線暫時隱藏（程式保留）。
+    expect(find.text('文字路線'), findsNothing);
   });
 
   testWidgets('最近求助地點是中性目的地，可切換下一個；資訊框可收合', (t) async {

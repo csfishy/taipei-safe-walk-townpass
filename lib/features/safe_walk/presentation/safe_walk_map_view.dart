@@ -227,6 +227,12 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
   String? _detailId, _pickedPointId, _toast;
   bool _stepsOpen = false;
 
+  /// 文字路線先隱藏（保留程式，之後要再打開改成 true）。
+  static const _showTextSteps = false;
+
+  /// 開始導覽：鏡頭跟著目前位置，資訊框顯示下一個指示。
+  bool _navigating = false;
+
   /// 選了第幾條路線；路線結果更新時回到預設（第一條＝最能避開回報的）。
   int _routeChoice = 0;
   RouteState get _rs => widget.routeState.select(_routeChoice);
@@ -330,6 +336,83 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
     if (ps.points.isEmpty && !ps.loading && ps.error == null) {
       ps.onRetry?.call();
     }
+  }
+
+  /// 導覽中的資訊框：下一個指示、距離，和剩餘距離與時間。
+  Widget _navSheet(RouteState rs, String destination) {
+    final best = rs.best!;
+    final position = widget.position;
+    final progress = position == null
+        ? null
+        : routeProgress(
+            best.geometry.coordinates,
+            routeInstructions[best] ?? const [],
+            position.coordinates,
+          );
+    String distance(double m) => m >= 1000
+        ? '${(m / 1000).toStringAsFixed(1)} 公里'
+        : '${(m / 10).round() * 10} 公尺';
+    final next = progress?.next;
+    final (String now, String then) = switch (progress) {
+      null => ('等待定位…', '請確認已開啟定位；位置更新後就會顯示下一個指示。'),
+      _ when next == null => (
+        '前往$destination',
+        '${distance(progress.toNextMeters)}後抵達',
+      ),
+      _ => (
+        '${distance(progress.toNextMeters)}後 ${next.action}',
+        '接著${next.follow}',
+      ),
+    };
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Semantics(
+          liveRegion: true,
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: SwColors.brand,
+                ),
+                child: Icon(
+                  next == null
+                      ? Icons.place_rounded
+                      : _StepsList._turnIcon[next.turn],
+                  color: SwColors.onBrand,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(now, style: SwText.heading),
+                    Text(then, style: SwText.secondary),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (progress != null) ...[
+          const SizedBox(height: 8),
+          Text(
+            '剩 ${distance(progress.remainingMeters)}・約 ${(progress.remainingMeters / 1.2 / 60).ceil().clamp(1, 999)} 分鐘・偏離路線會自動重新規劃',
+            style: SwText.small,
+          ),
+        ],
+        const SizedBox(height: 12),
+        SwSecondaryAction(
+          label: '結束導覽',
+          icon: Icons.close_rounded,
+          onTap: () => setState(() => _navigating = false),
+        ),
+      ],
+    );
   }
 
   /// 定位不到時，改在地圖上選起點，選好就從那裡重新找求助地點。
@@ -501,6 +584,10 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
         '${anomalyCategoryLabel[detail.category]}・${anomalyStatusLabel[detail.status]}',
         _detailSheet(detail),
       ),
+      _ when _navigating && routed && rs.best != null => (
+        '導覽中',
+        _navSheet(rs, isHome ? place.label : point?.name ?? '求助地點'),
+      ),
       _ when _pointsView => ('附近求助地點', _pointsSheet(points, picked)),
       _ => (
         switch (true) {
@@ -546,6 +633,12 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                             ? path.first
                             : _start),
                     points: points,
+                    follow: _navigating && widget.position != null
+                        ? LatLng(
+                            widget.position!.coordinates.lat,
+                            widget.position!.coordinates.lng,
+                          )
+                        : null,
                     anomalies: widget.anomalies,
                     path: _pointsView ? const [] : path,
                     destination: place.at,
@@ -794,7 +887,6 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                             showShortcut: atHome && demoHome && !_pointsView,
                             live: rs.live,
                             crime: rs.live || widget.crimeSpots.isNotEmpty,
-                            helpPoints: points.isNotEmpty,
                           )
                         : const SizedBox.shrink(),
                   ),
@@ -969,10 +1061,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
               header: true,
               child: Text('附近的求助地點', style: SwText.smallStrong),
             ),
-            Text(
-              '第一個最安全、最快；點一下可切換。營業時間不確定的最多列一個。',
-              style: SwText.small,
-            ),
+            Text('第一個最安全、最快；點一下可切換。營業時間不確定的最多列一個。', style: SwText.small),
             const SizedBox(height: 6),
             for (final (i, p) in points.indexed)
               if (_bestOf(ps.routes[p.id]) case final best?)
@@ -1070,25 +1159,38 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
             ],
           ),
           if ((isHome || stores) && rs.live) ..._avoidSection(rs, home: isHome),
-          const SizedBox(height: 12),
-          _StepsToggle(
-            open: _stepsOpen,
-            count: (_instructions(rs) ?? routeSteps(path)).length + 1,
-            onTap: () => setState(() => _stepsOpen = !_stepsOpen),
-          ),
-          AnimatedSize(
-            duration: SwMotion.of(context, 220),
-            curve: SwMotion.curve,
-            alignment: Alignment.topCenter,
-            child: _stepsOpen
-                ? _StepsList(
-                    steps: routeSteps(path),
-                    instructions: _instructions(rs),
-                    arrive: destName,
-                    home: isHome,
-                  )
-                : const SizedBox(width: double.infinity),
-          ),
+          if (routed && rs.live && rs.best != null) ...[
+            const SizedBox(height: 12),
+            SwPrimaryButton(
+              label: '開始導覽',
+              icon: Icons.navigation_rounded,
+              onTap: () => setState(() {
+                _navigating = true;
+                _size = _SheetSize.normal;
+              }),
+            ),
+          ],
+          if (_showTextSteps) ...[
+            const SizedBox(height: 12),
+            _StepsToggle(
+              open: _stepsOpen,
+              count: (_instructions(rs) ?? routeSteps(path)).length + 1,
+              onTap: () => setState(() => _stepsOpen = !_stepsOpen),
+            ),
+            AnimatedSize(
+              duration: SwMotion.of(context, 220),
+              curve: SwMotion.curve,
+              alignment: Alignment.topCenter,
+              child: _stepsOpen
+                  ? _StepsList(
+                      steps: routeSteps(path),
+                      instructions: _instructions(rs),
+                      arrive: destName,
+                      home: isHome,
+                    )
+                  : const SizedBox(width: double.infinity),
+            ),
+          ],
         ],
         if (rs.live && rs.best != null) ...[
           const SizedBox(height: 8),
@@ -2514,12 +2616,8 @@ class _Legend extends StatelessWidget {
     required this.showShortcut,
     this.live = false,
     this.crime = false,
-    this.helpPoints = false,
   });
   final bool pointsView, showShortcut, live, crime;
-
-  /// 地圖上有求助地點（「救」）。
-  final bool helpPoints;
   @override
   Widget build(BuildContext context) {
     Widget group(String title) => Padding(
@@ -2625,11 +2723,7 @@ class _Legend extends StatelessWidget {
             const Icon(Icons.home_rounded, size: 18, color: SwColors.brand),
             '家',
           ),
-          if (pointsView || helpPoints)
-            item(
-              const HelpPointMark(size: 20),
-              '求助地點（超商、派出所）',
-            ),
+          item(const HelpPointMark(size: 20), '求助地點（超商、派出所）'),
         ],
       ),
     );

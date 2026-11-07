@@ -221,9 +221,8 @@ void main() {
       await t.tap(find.text('安心行'));
       await t.pumpAndSettle();
       expect(find.text('路線僅供參考・請留意實際路況'), findsNothing);
-      await t.tap(find.text('文字路線'));
-      await t.pumpAndSettle();
-      expect(find.text('抵達家'), findsOneWidget);
+      // 文字路線暫時隱藏（程式保留）。
+      expect(find.text('文字路線'), findsNothing);
       await back(t);
       await t.tap(find.text('附近求助地點'));
       await t.pumpAndSettle();

@@ -1255,6 +1255,13 @@ void main() {
         final after = t.widget<SafeWalkMapView>(find.byType(SafeWalkMapView));
         expect(after.targetPointId, 'a');
         expect(after.routeState.result, same(after.pointsState.routes['a']));
+        // Start navigation: the card waits for a position, then can end.
+        await t.tap(find.text('開始導覽'));
+        await t.pumpAndSettle();
+        expect(find.text('等待定位…'), findsOneWidget);
+        await t.tap(find.text('結束導覽'));
+        await t.pumpAndSettle();
+        expect(find.text('開始導覽'), findsOneWidget);
         // Back to the destination: the target and its route come back.
         await t.tap(find.text('目的地').first);
         await t.pumpAndSettle();
