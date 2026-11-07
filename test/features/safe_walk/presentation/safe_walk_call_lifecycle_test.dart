@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:town_pass/features/safe_walk/presentation/mock/companion_scenarios.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_flow.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_speaker.dart';
 
@@ -130,5 +131,32 @@ void main() {
     expect(find.text('接聽'), findsOneWidget, reason: '結束後再打來是新的一通');
     await t.tap(find.text('拒絕'));
     await t.pumpAndSettle();
+  });
+
+  testWidgets('M5 劇本：響鈴時選情境，接聽後對方照停頓一句句說，回覆不打斷，離開就停', (t) async {
+    final speaker = _Spy();
+    final night = m5CompanionScenarios.first;
+    await _open(t, speaker);
+    await t.tap(find.textContaining('情境：'));
+    await t.pumpAndSettle();
+    await t.tap(find.text(night.label));
+    await t.pumpAndSettle();
+    expect(find.text('情境：${night.label}'), findsOneWidget);
+    await t.tap(find.text('接聽'));
+    await t.pump(const Duration(milliseconds: 300));
+    expect(speaker.spoken, [night.steps[0].text]);
+    expect(find.text('模擬通話，未聯絡任何人'), findsOneWidget, reason: '用 M5 的揭露文字');
+
+    // 回覆只加進對話，不需要等對方
+    await t.tap(find.text('我還在路上。'));
+    await t.pump(const Duration(milliseconds: 100));
+    final first = night.steps[0];
+    await t.pump(Duration(milliseconds: 250 * first.text.length + first.pauseAfterMs + 50));
+    expect(speaker.spoken, [night.steps[0].text, night.steps[1].text]);
+
+    await t.tap(find.text('結束通話'));
+    await t.pumpAndSettle();
+    await t.pump(const Duration(seconds: 30));
+    expect(speaker.spoken, hasLength(2), reason: '結束後不再朗讀下一句');
   });
 }

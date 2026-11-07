@@ -163,6 +163,16 @@ void main() {
     await expectLater(find.byType(MaterialApp), matchesGoldenFile('screenshots/08a-incoming.png'));
   }, skip: _skip);
 
+  testWidgets('08c 選擇通話情境（M5 劇本）', (t) async {
+    await _app(t);
+    await t.tap(find.text('模擬來電').first);
+    await t.pump(const Duration(milliseconds: 400));
+    await t.tap(find.textContaining('情境：'));
+    await t.pump(const Duration(milliseconds: 400));
+    await t.pump(const Duration(milliseconds: 400));
+    await expectLater(find.byType(MaterialApp), matchesGoldenFile('screenshots/08c-scenario-picker.png'));
+  }, skip: _skip);
+
   testWidgets('08b 模擬來電（臺北通內：語音未配置）', (t) async {
     await _app(t);
     await t.tap(find.text('模擬來電').first);

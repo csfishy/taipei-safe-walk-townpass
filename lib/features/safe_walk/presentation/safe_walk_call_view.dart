@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:town_pass/features/safe_walk/presentation/demo_map.dart';
+import 'package:town_pass/features/safe_walk/presentation/mock/companion_scenarios.dart';
 import 'package:town_pass/features/safe_walk/presentation/mock/safe_walk_demo_data.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_speaker.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_ui.dart';
@@ -21,6 +22,9 @@ enum _Mode { quick, template, input }
 /// 一通模擬來電的進度，由 Flow 保管：從地圖回到通話時接續（不再響鈴、對話與計時不重來）。結束通話或離開安心行時丟棄。
 class SafeWalkCallSession {
   bool answered = false;
+
+  /// M5 陪伴劇本 id；null＝「家人陪聊」（可回覆的互動劇本）。接聽前可在響鈴畫面切換。
+  String? scenarioId;
   int line = 0, seq = 0, seconds = 0;
   final List<_Entry> _log = [];
 }
@@ -104,14 +108,91 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
     super.initState();
     if (!_ringing) {
       _startClock();
-      // 離開前已回覆、對方還沒回：接續回覆。
-      if (_log.isNotEmpty && !_log.last.caller) _scheduleReply();
+      if (_scenario != null) {
+        _scheduleNextStep();
+      } else if (_log.isNotEmpty && !_log.last.caller) {
+        // 離開前已回覆、對方還沒回：接續回覆。
+        _scheduleReply();
+      }
       _scrollDown(jump: true);
       return;
     }
     // 響鈴時手機震動（網頁沒有震動）；鈴聲音檔需另外核准，先不播放。
     HapticFeedback.vibrate();
     _buzz = Timer.periodic(const Duration(milliseconds: 1500), (_) => HapticFeedback.vibrate());
+  }
+
+  sw.CompanionScenario? get _scenario => m5CompanionScenarios.where((c) => c.id == _s.scenarioId).firstOrNull;
+
+  /// 劇本模式的快速回覆：簡短、不影響劇本進行。
+  static const _scenarioReplies = ['好，我知道了。', '我還在路上。', '等我一下。', '我覺得不太對勁。'];
+
+  /// 說完第 [_s.line] 句後，等「朗讀時間＋M5 的 pauseAfterMs」再說下一句。
+  void _scheduleNextStep() {
+    final c = _scenario;
+    if (c == null || _s.line + 1 >= c.steps.length) return;
+    final step = c.steps[_s.line];
+    _reply = Timer(Duration(milliseconds: 250 * step.text.length + step.pauseAfterMs), () {
+      if (!mounted || _left) return;
+      _s.line++;
+      _say(c.steps[_s.line].text);
+      _scheduleNextStep();
+    });
+  }
+
+  static const _familyChat = '家人陪聊（可回覆）';
+
+  Future<void> _pickScenario() async {
+    final options = <(String?, String, String)>[(null, _familyChat, '對方會依你的回覆接話'), for (final c in m5CompanionScenarios) (c.id, c.label, '${c.steps.length} 句，對方照劇本慢慢說')];
+    final picked = await showModalBottomSheet<(String?,)>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: SwColors.surface,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (sheet) => SafeArea(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(sheet).height * .8),
+          child: ListView(
+            shrinkWrap: true,
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+            children: [
+              Semantics(header: true, child: Text('選擇通話情境', style: SwText.heading)),
+              const SizedBox(height: 4),
+              Text('選一個跟你現在情況相近的劇本。模擬通話，未聯絡任何人。', style: SwText.small),
+              const SizedBox(height: 12),
+              for (final (id, label, desc) in options)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: SwPressable(
+                    onTap: () => Navigator.of(sheet).pop((id,)),
+                    selected: id == _s.scenarioId,
+                    color: id == _s.scenarioId ? SwColors.brandSoft : SwColors.bg,
+                    border: BorderSide(color: id == _s.scenarioId ? SwColors.brand : SwColors.border),
+                    radius: 10,
+                    semanticsLabel: '$label，$desc${id == _s.scenarioId ? '，目前選擇' : ''}',
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(label, style: SwText.bodyStrong),
+                              Text(desc, style: SwText.small),
+                            ],
+                          ),
+                        ),
+                        if (id == _s.scenarioId) const Icon(Icons.check_rounded, color: SwColors.brand),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (picked != null && mounted && !_left) setState(() => _s.scenarioId = picked.$1);
   }
 
   void _startClock() => _clock = Timer.periodic(const Duration(seconds: 1), (_) {
@@ -123,7 +204,14 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
     _buzz?.cancel();
     _s.answered = true;
     setState(() => _ringing = false);
-    _say(FakeCallScript.lines[0].text);
+    final c = _scenario;
+    if (c == null) {
+      _say(FakeCallScript.lines[0].text);
+    } else {
+      _s.line = 0;
+      _say(c.steps.first.text);
+      _scheduleNextStep();
+    }
     _startClock();
   }
 
@@ -175,10 +263,10 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
     setState(() {
       _speaking = null;
       _log.add(_Entry('u${_s.seq++}', false, text));
-      _waiting = true;
+      if (_scenario == null) _waiting = true;
     });
     _scrollDown();
-    _scheduleReply();
+    if (_scenario == null) _scheduleReply();
   }
 
   void _scheduleReply() {
@@ -203,7 +291,13 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
   @override
   Widget build(BuildContext context) {
     if (_ringing) {
-      return _Incoming(onAnswer: _answer, onDecline: () => _leaveThen(widget.onEnd), onEmergency: () => _leaveThen(widget.onEmergency));
+      return _Incoming(
+        scenarioLabel: _scenario?.label ?? _familyChat,
+        onPickScenario: _pickScenario,
+        onAnswer: _answer,
+        onDecline: () => _leaveThen(widget.onEnd),
+        onEmergency: () => _leaveThen(widget.onEmergency),
+      );
     }
     final mm = (_s.seconds ~/ 60).toString().padLeft(2, '0'), ss = (_s.seconds % 60).toString().padLeft(2, '0');
     final start = widget.position == null ? DemoGeo.start : LatLng(widget.position!.coordinates.lat, widget.position!.coordinates.lng);
@@ -263,7 +357,8 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
               runSpacing: 4,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                const SwMockBadge(text: FakeCallScript.disclosure),
+                SwMockBadge(text: _scenario?.disclosure ?? FakeCallScript.disclosure),
+                if (_scenario != null) Text('情境：${_scenario!.label}', style: SwText.smallStrong),
                 Text(widget.speaker.available ? '台詞由手機語音朗讀' : '語音尚未配置，播放為無聲示範', style: SwText.small),
               ],
             ),
@@ -358,7 +453,7 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
         : const SizedBox.shrink();
     switch (_mode) {
       case _Mode.quick:
-        return Column(children: [wait, for (final r in FakeCallScript.lines[_s.line].replies) option(r)]);
+        return Column(children: [wait, for (final r in _scenario == null ? FakeCallScript.lines[_s.line].replies : _scenarioReplies) option(r)]);
       case _Mode.template:
         return ConstrainedBox(
           constraints: const BoxConstraints(maxHeight: 220),
@@ -572,8 +667,9 @@ class _NextStep extends StatelessWidget {
 
 /// 響鈴畫面：臺北通主色底（primary500，配深色字）、頭像外一圈圈擴散的光圈，下方「拒絕」「接聽」。
 class _Incoming extends StatefulWidget {
-  const _Incoming({required this.onAnswer, required this.onDecline, required this.onEmergency});
-  final VoidCallback onAnswer, onDecline, onEmergency;
+  const _Incoming({required this.scenarioLabel, required this.onPickScenario, required this.onAnswer, required this.onDecline, required this.onEmergency});
+  final String scenarioLabel;
+  final VoidCallback onPickScenario, onAnswer, onDecline, onEmergency;
   @override
   State<_Incoming> createState() => _IncomingState();
 }
@@ -700,7 +796,9 @@ class _IncomingState extends State<_Incoming> with SingleTickerProviderStateMixi
                                 ),
                               ),
                             ),
-                            const SizedBox(height: 40),
+                            const SizedBox(height: 20),
+                            SwChip(label: '情境：${widget.scenarioLabel}', icon: Icons.tune_rounded, onTap: widget.onPickScenario),
+                            const SizedBox(height: 28),
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                               crossAxisAlignment: CrossAxisAlignment.end,
