@@ -29,6 +29,7 @@ M1 將完整據點 lookup／provider 注入本模組；不得直接 import M4 �
 | `walking_route_provider.dart` | `WalkingRouteProvider` 介面、`AssistancePointLookup`、`WalkingRouteNotFound`／`WalkingRouteProviderUnavailable` |
 | `osrm_walking_route_provider.dart` | **真實**步行路線：OSRM foot profile（預設 routing.openstreetmap.de），需使用者同意才會送出座標 |
 | `osm_convenience_store_source.dart` | **真實**便利商店（不限品牌）：OpenStreetMap／Overpass，預設只取 `opening_hours=24/7`，輸出共用 `AssistancePoint` |
+| `nearby_places.dart` | `NearbyPlacesService`：列出附近真實地點（來源 ID、WGS84、取得時間、授權），營業時間未知一律標「未知」，並由地點組出 `RouteRequest` 交給 `RouteService`（不使用 Google 地圖） |
 | `nearest_point.dart` | `nearestPoints()`：依直線距離排序，只回「記錄為營業中且近期檢查過」的點 |
 | `json_transport.dart`、`io_json_transport.dart`、`unsupported_json_transport.dart`、`default_json_transport.dart` | 不需新套件的 HTTPS JSON 客戶端（`dart:io`；web 預覽自動改為「不可用」） |
 | `consent.dart`、`cancellable.dart` | 同意例外；取消／搶先完成的小工具 |
