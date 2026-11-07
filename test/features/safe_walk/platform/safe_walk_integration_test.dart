@@ -10,6 +10,7 @@ import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_comp
 import 'package:town_pass/features/safe_walk/platform/platform_service.dart';
 import 'package:town_pass/features/safe_walk/presentation/mock/safe_walk_demo_data.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_flow.dart';
+import 'package:town_pass/features/safe_walk/presentation/safe_walk_home_view.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_speaker.dart';
 import 'package:town_pass/features/safe_walk/safety_data/safety_data_service.dart';
 import 'package:town_pass/features/safe_walk/shared/contracts/cancellation.dart';
@@ -184,7 +185,7 @@ void main() {
       await t.pumpAndSettle();
       expect(find.text('地圖載入設定'), findsNothing);
       expect(find.byType(TileLayer), findsOneWidget);
-      expect(find.text('請先返回首頁設定「家」的位置，再規劃回家路線。'), findsWidgets);
+      expect(find.text('家在哪裡？'), findsOneWidget);
       expect(find.text('規劃路線需要你的位置'), findsNothing);
       await back(t);
       await back(t);
@@ -217,7 +218,7 @@ void main() {
       // 文字路線暫時隱藏（程式保留）。
       expect(find.text('文字路線'), findsNothing);
       await back(t);
-      await t.tap(find.text('附近求助地點'));
+      await _openNearby(t);
       await t.pumpAndSettle();
       expect(find.textContaining('派出所'), findsWidgets);
       await back(t);
@@ -268,7 +269,7 @@ void main() {
             : retried.future;
       await cityApp(t, () => SafeWalkCompositionRoot(safetyData: data));
       await enter(t);
-      await t.tap(find.text('附近求助地點'));
+      await _openNearby(t);
       await t.pumpAndSettle();
       expect(find.text('求助地點暫時載入失敗'), findsOneWidget);
       await t.tap(find.text('再試一次'));
@@ -440,4 +441,13 @@ void main() {
     await t.pumpAndSettle();
     expect(find.text('撥打 119'), findsOneWidget);
   });
+}
+
+/// 首頁不再有「附近求助地點」入口（主要入口是地圖面板的「最近求助地點」）；
+/// 清單畫面的程式碼仍保留，測試直接開啟它。
+Future<void> _openNearby(WidgetTester t) async {
+  t
+      .widget<SafeWalkHomeView>(find.byType(SafeWalkHomeView))
+      .onOpen(SafeWalkEntry.points);
+  await t.pump();
 }

@@ -70,9 +70,11 @@ class SafeWalkEmergencyView extends StatelessWidget {
                     ),
                     const SizedBox(height: 8),
                     Wrap(
-                      spacing: 8,
-                      runSpacing: 6,
-                      children: [for (final n in notes) SwMockBadge(text: n)],
+                      spacing: 12,
+                      runSpacing: 4,
+                      children: [
+                        for (final n in notes) Text(n, style: SwText.secondary),
+                      ],
                     ),
                   ],
                 ),
@@ -250,6 +252,7 @@ class _SmsReportCardState extends State<_SmsReportCard> {
   static const _situations = ['被跟蹤', '有人打架', '可疑人士', '身體不舒服', '其他危險'];
   String _situation = _situations.first;
   bool _shareLocation = true;
+  bool _preview = false; // 預設收合，讓「傳送簡訊」在第一個畫面就看得到
   _SmsStep _step = _SmsStep.draft;
 
   String get _body {
@@ -401,22 +404,47 @@ class _SmsReportCardState extends State<_SmsReportCard> {
                     style: SwText.secondary,
                   ),
                   const SizedBox(height: 6),
-                  Semantics(
-                    label: '簡訊內容預覽',
-                    child: AnimatedSwitcher(
-                      duration: SwMotion.of(context, 180),
-                      child: Container(
-                        key: ValueKey('$_situation$_shareLocation'),
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: SwColors.bg,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(_body, style: SwText.body),
+                  SwPressable(
+                    onTap: () => setState(() => _preview = !_preview),
+                    color: SwColors.bg,
+                    pressedColor: SwColors.brandSoft,
+                    radius: 12,
+                    semanticsLabel: _preview ? '收合簡訊內容' : '查看簡訊內容',
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: SizedBox(
+                      height: swTouch,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text('查看簡訊內容', style: SwText.bodyStrong),
+                          ),
+                          Icon(
+                            _preview
+                                ? Icons.expand_less_rounded
+                                : Icons.expand_more_rounded,
+                            color: SwColors.textSecondary,
+                          ),
+                        ],
                       ),
                     ),
                   ),
+                  if (_preview)
+                    Semantics(
+                      label: '簡訊內容預覽',
+                      child: AnimatedSwitcher(
+                        duration: SwMotion.of(context, 180),
+                        child: Container(
+                          key: ValueKey('$_situation$_shareLocation'),
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: SwColors.bg,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(_body, style: SwText.body),
+                        ),
+                      ),
+                    ),
                   const SizedBox(height: 8),
                   Material(
                     type: MaterialType.transparency,

@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_flow.dart';
+import 'package:town_pass/features/safe_walk/presentation/safe_walk_home_view.dart';
 
 Future<void> _open(WidgetTester t, String? entry) async {
   t.view.physicalSize = const Size(390 * 3, 844 * 3);
@@ -10,7 +11,11 @@ Future<void> _open(WidgetTester t, String? entry) async {
   addTearDown(t.view.reset);
   await t.pumpWidget(MaterialApp(home: SafeWalkFlow(key: UniqueKey())));
   await t.pumpAndSettle();
-  if (entry != null) {
+  if (entry == '附近求助地點') {
+    // 首頁不再有這個入口；清單畫面仍保留，直接開啟檢查。
+    t.widget<SafeWalkHomeView>(find.byType(SafeWalkHomeView)).onOpen(SafeWalkEntry.points);
+    await t.pump(const Duration(milliseconds: 500));
+  } else if (entry != null) {
     await t.tap(find.text(entry).first);
     await t.pump(const Duration(milliseconds: 500));
   }

@@ -2,9 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart' show mapEquals;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:town_pass/features/safe_walk/presentation/demo_map.dart';
 import 'package:town_pass/features/safe_walk/presentation/mock/safe_walk_demo_data.dart';
-import 'package:town_pass/features/safe_walk/presentation/safe_walk_sources.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_ui.dart';
 import 'package:town_pass/features/safe_walk/shared/route_instructions.dart';
 import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart'
@@ -166,6 +166,7 @@ class SafeWalkMapView extends StatefulWidget {
     this.routingConsent = false,
     this.crimeConsent = false,
     this.destinationConfigured = true,
+    this.canSetHome = false,
     this.showMapTiles = true,
     this.targetPointId,
     this.onTarget,
@@ -191,6 +192,9 @@ class SafeWalkMapView extends StatefulWidget {
   /// Whether the walker currently allows the crime reference query.
   final bool crimeConsent;
   final bool destinationConfigured;
+
+  /// 還沒設定家時，能不能直接在地圖上點選並儲存「家」。
+  final bool canSetHome;
   final bool showMapTiles;
 
   /// 使用者在地圖上指定的起點；null＝用目前位置（GPS）。
@@ -283,14 +287,35 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
     }
   }
 
+  /// 還沒設定家、而且可以在地圖上直接設定。
+  bool get _homeUnset =>
+      !widget.destinationConfigured &&
+      widget.canSetHome &&
+      widget.onEditPlace != null &&
+      widget.placeId == 'home';
+
   /// 正在新增的地點名稱；不為 null 時，點地圖是選這個地點的位置。
-  String? _newPlaceName;
+  /// 還沒設定家時，一進地圖就直接請使用者點選家的位置。
+  late String? _newPlaceName = _homeUnset ? '家' : null;
 
   /// 正在看的犯罪參考位置（點紫點）。
   CrimeSpot? _crimeDetail;
 
   /// 正在編輯的常用地點（null＝新增）。
-  String? _editingPlaceId;
+  late String? _editingPlaceId = _homeUnset ? 'home' : null;
+
+  bool get _settingHome =>
+      _editingPlaceId == 'home' && !widget.destinationConfigured;
+
+  void _startSetHome() => setState(() {
+    _newPlaceName = '家';
+    _editingPlaceId = 'home';
+    _picking = false;
+    _legend = false;
+    _pin = null;
+    _detailId = null;
+    if (_size == _SheetSize.collapsed) _size = _SheetSize.normal;
+  });
 
   /// 正在地圖上選起點。
   bool _pickingStart = false;
@@ -450,9 +475,10 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
         if (progress != null) ...[
           const SizedBox(height: 8),
           Text(
-            '剩 ${distance(progress.remainingMeters)}・${remainingMinutes == null ? '時間未知' : '約 $remainingMinutes 分鐘（依路線服務時間比例估計）'}・偏離路線會自動重新規劃',
-            style: SwText.small,
+            '剩 ${distance(progress.remainingMeters)}・${remainingMinutes == null ? '時間未知' : '約 $remainingMinutes 分鐘'}',
+            style: SwText.bodyStrong,
           ),
+          Text('偏離路線會自動重新規劃', style: SwText.small),
         ],
         const SizedBox(height: 12),
         SwSecondaryAction(
@@ -530,6 +556,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
   }
 
   void _update(Anomaly a, String text, {required bool bump}) {
+    HapticFeedback.lightImpact(); // 送出成功的觸覺回饋
     setState(() {
       if (bump) {
         a.reportCount++;
@@ -555,6 +582,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
     );
     widget.anomalies.add(a);
     widget.onAnomaliesChanged();
+    HapticFeedback.lightImpact(); // 送出成功的觸覺回饋
     setState(() {
       _note.clear();
       _pin = null;
@@ -625,7 +653,10 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
     final int? minutes = routed && rs.live ? rs.minutes : walkMinutes(meters);
 
     final (String summary, Widget body) = switch (true) {
-      _ when _newPlaceName != null => ('新增地點', _newPlaceSheet()),
+      _ when _newPlaceName != null => (
+        _settingHome ? '設定「家」' : '新增地點',
+        _newPlaceSheet(),
+      ),
       _ when _pickingStart => ('設定起點', _startPickSheet()),
       _ when _crimeDetail != null => ('犯罪參考位置', _crimeSheet(_crimeDetail!)),
       _ when _picking || _pin != null => (
@@ -667,319 +698,339 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
 
     return Scaffold(
       backgroundColor: SwColors.bg,
-      body: Column(
-        children: [
-          Expanded(
-            child: Stack(
-              children: [
-                Positioned.fill(
-                  child: DemoMap(
-                    showTiles: widget.showMapTiles,
-                    // 真實路線從使用者實際位置出發。
-                    start:
-                        widget.manualStart ??
-                        (rs.live &&
-                                routed &&
-                                path.isNotEmpty &&
-                                widget.position == null
-                            ? path.first
-                            : _start),
-                    points: points,
-                    heading: widget.position == null ? null : widget.heading,
-                    follow: _navigating && widget.position != null
-                        ? LatLng(
-                            widget.position!.coordinates.lat,
-                            widget.position!.coordinates.lng,
-                          )
-                        : null,
-                    anomalies: widget.anomalies,
-                    path: _pointsView ? const [] : path,
-                    destination: place.at,
-                    showDestination:
-                        widget.destinationConfigured && place.at != null,
-                    showStart:
-                        widget.routeState.allowDemoFallback ||
-                        widget.manualStart != null ||
-                        widget.position != null ||
-                        path.isNotEmpty,
-                    onCrime: (i) => setState(() {
-                      _crimeDetail = widget.crimeSpots[i];
-                      _detailId = null;
-                      _picking = false;
-                      _pin = null;
-                      _toast = null;
-                      if (_size == _SheetSize.collapsed) {
-                        _size = _SheetSize.normal;
-                      }
-                    }),
-                    crimeSpots: rs.live
-                        ? [
-                            for (final c in widget.crimeSpots)
-                              (at: c.at, label: c.label),
-                          ]
-                        : const [],
-                    showAttribution: false,
-                    altPaths: _pointsView || !routed
-                        ? const []
-                        : [
-                            for (final (i, r) in rs.options.indexed)
-                              if (i != rs.selected)
-                                [
-                                  for (final c in r.geometry.coordinates)
-                                    LatLng(c.latitude, c.longitude),
-                                ],
-                          ],
-                    avoidRadiusMeters: rs.live ? reportAvoidRadiusMeters : 0,
-                    showShortcut: atHome && demoHome && !_pointsView,
-                    homeActive: isHome || _pointsView,
-                    selectedPointId: _pointsView ? picked?.id : point?.id,
-                    selectedAnomalyId: detail?.id,
-                    pin: _pin,
-                    onAnomaly: (id) => setState(() {
-                      _crimeDetail = null;
-                      _detailId = id;
-                      _toast = null;
-                      _picking = false;
-                      _pin = null;
-                      if (_size == _SheetSize.collapsed) {
-                        _size = _SheetSize.normal;
-                      }
-                    }),
-                    onPoint: _pointsView
-                        ? (id) => setState(() => _pickedPointId = id)
-                        : null,
-                    onPick: _pickingStart
-                        ? (at) {
-                            widget.onStartChanged?.call(at);
-                            setState(() {
-                              _pickingStart = false;
-                              _toast = '已設定起點';
-                            });
-                            // 正在找求助地點：從新的起點重新查。
-                            if (_pointsView || _pointIndex != null) {
-                              widget.pointsState.onRetry?.call();
-                            }
-                          }
-                        : _newPlaceName != null
-                        ? (at) async {
-                            final editing = _editingPlaceId;
-                            if (editing != null) {
-                              try {
-                                await widget.onEditPlace?.call(
-                                  editing,
-                                  _newPlaceName!,
-                                  at,
-                                );
-                              } catch (_) {
-                                if (mounted) {
-                                  setState(() => _toast = '儲存失敗，請再試一次。');
-                                }
-                                return;
+      // 成功提示（例如「已更新「家」」）留在畫面上，直到使用者下一次點按或操作才收起，
+      // 不會自己消失，動作慢的人也看得到；手指一按下就收，不攔截原本的點擊。
+      body: Listener(
+        behavior: HitTestBehavior.translucent,
+        onPointerDown: (_) {
+          if (_toast != null) setState(() => _toast = null);
+        },
+        child: Column(
+          children: [
+            Expanded(
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: DemoMap(
+                      showTiles: widget.showMapTiles,
+                      // 真實路線從使用者實際位置出發。
+                      start:
+                          widget.manualStart ??
+                          (rs.live &&
+                                  routed &&
+                                  path.isNotEmpty &&
+                                  widget.position == null
+                              ? path.first
+                              : _start),
+                      points: points,
+                      heading: widget.position == null ? null : widget.heading,
+                      follow: _navigating && widget.position != null
+                          ? LatLng(
+                              widget.position!.coordinates.lat,
+                              widget.position!.coordinates.lng,
+                            )
+                          : null,
+                      anomalies: widget.anomalies,
+                      path: _pointsView ? const [] : path,
+                      destination: place.at,
+                      showDestination:
+                          widget.destinationConfigured && place.at != null,
+                      showStart:
+                          widget.routeState.allowDemoFallback ||
+                          widget.manualStart != null ||
+                          widget.position != null ||
+                          path.isNotEmpty,
+                      onCrime: (i) => setState(() {
+                        _crimeDetail = widget.crimeSpots[i];
+                        _detailId = null;
+                        _picking = false;
+                        _pin = null;
+                        _toast = null;
+                        if (_size == _SheetSize.collapsed) {
+                          _size = _SheetSize.normal;
+                        }
+                      }),
+                      crimeSpots: rs.live
+                          ? [
+                              for (final c in widget.crimeSpots)
+                                (at: c.at, label: c.label),
+                            ]
+                          : const [],
+                      showAttribution: false,
+                      altPaths: _pointsView || !routed
+                          ? const []
+                          : [
+                              for (final (i, r) in rs.options.indexed)
+                                if (i != rs.selected)
+                                  [
+                                    for (final c in r.geometry.coordinates)
+                                      LatLng(c.latitude, c.longitude),
+                                  ],
+                            ],
+                      avoidRadiusMeters: rs.live ? reportAvoidRadiusMeters : 0,
+                      showShortcut: atHome && demoHome && !_pointsView,
+                      homeActive: isHome || _pointsView,
+                      selectedPointId: _pointsView ? picked?.id : point?.id,
+                      selectedAnomalyId: detail?.id,
+                      pin: _pin,
+                      onAnomaly: (id) => setState(() {
+                        _crimeDetail = null;
+                        _detailId = id;
+                        _toast = null;
+                        _picking = false;
+                        _pin = null;
+                        if (_size == _SheetSize.collapsed) {
+                          _size = _SheetSize.normal;
+                        }
+                      }),
+                      onPoint: _pointsView
+                          ? (id) => setState(() => _pickedPointId = id)
+                          : null,
+                      onPick: _pickingStart
+                          ? (at) {
+                              widget.onStartChanged?.call(at);
+                              // 起點已顯示在頂部列，不再另外跳「已設定起點」提示。
+                              setState(() => _pickingStart = false);
+                              // 正在找求助地點：從新的起點重新查。
+                              if (_pointsView || _pointIndex != null) {
+                                widget.pointsState.onRetry?.call();
                               }
-                            } else {
-                              widget.onAddPlace(_newPlaceName!, at);
                             }
-                            if (!mounted) return;
-                            setState(() {
-                              _toast = editing != null
-                                  ? '已更新「$_newPlaceName」'
-                                  : '已新增「$_newPlaceName」（本次使用期間保留）';
-                              _editingPlaceId = null;
-                              _newPlaceName = null;
-                              _pointIndex = null;
-                            });
-                          }
-                        : _picking
-                        ? (at) => setState(() {
-                            _pin = at;
-                            if (_size == _SheetSize.collapsed) {
-                              _size = _SheetSize.normal;
+                          : _newPlaceName != null
+                          ? (at) async {
+                              final editing = _editingPlaceId;
+                              if (editing != null) {
+                                try {
+                                  await widget.onEditPlace?.call(
+                                    editing,
+                                    _newPlaceName!,
+                                    at,
+                                  );
+                                } catch (_) {
+                                  if (mounted) {
+                                    setState(() => _toast = '儲存失敗，請再試一次。');
+                                  }
+                                  return;
+                                }
+                              } else {
+                                widget.onAddPlace(_newPlaceName!, at);
+                              }
+                              if (!mounted) return;
+                              setState(() {
+                                _toast = editing != null
+                                    ? '已更新「$_newPlaceName」'
+                                    : '已新增「$_newPlaceName」（本次使用期間保留）';
+                                _editingPlaceId = null;
+                                _newPlaceName = null;
+                                _pointIndex = null;
+                              });
                             }
-                          })
-                        : null,
+                          : _picking
+                          ? (at) => setState(() {
+                              _pin = at;
+                              if (_size == _SheetSize.collapsed) {
+                                _size = _SheetSize.normal;
+                              }
+                            })
+                          : null,
+                    ),
                   ),
-                ),
-                SafeArea(
-                  bottom: false,
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        SwRoundButton(
-                          icon: Icons.arrow_back_ios_new_rounded,
-                          label: '返回',
-                          onTap: widget.onBack,
-                        ),
-                        const SizedBox(width: 8),
-                        // 標題區佔滿中間，圖例／回報固定貼齊右邊。
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              GestureDetector(
-                                onTap: !_pointsView
-                                    ? () => _openPlaces(context)
-                                    : widget.onStartChanged == null
-                                    ? null
-                                    : () => _openStart(context),
-                                child: Semantics(
-                                  header: true,
-                                  button:
-                                      !_pointsView ||
-                                      widget.onStartChanged != null,
-                                  hint: !_pointsView
-                                      ? '點兩下更換目的地'
+                  SafeArea(
+                    bottom: false,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          SwRoundButton(
+                            icon: Icons.arrow_back_ios_new_rounded,
+                            label: '返回',
+                            onTap: widget.onBack,
+                          ),
+                          const SizedBox(width: 8),
+                          // 標題區佔滿中間，圖例／回報固定貼齊右邊。
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                GestureDetector(
+                                  onTap: !_pointsView
+                                      ? () => _openPlaces(context)
                                       : widget.onStartChanged == null
                                       ? null
-                                      : '點兩下更換起點',
-                                  child: Container(
-                                    height: swTouch,
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 16,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: SwColors.surface,
-                                      borderRadius: BorderRadius.circular(24),
-                                      boxShadow: SwShadow.float,
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        const Icon(
-                                          Icons.place_outlined,
-                                          size: 20,
-                                          color: SwColors.brand,
-                                        ),
-                                        const SizedBox(width: 4),
-                                        Flexible(
-                                          child: AnimatedSwitcher(
-                                            duration: SwMotion.of(context, 200),
-                                            child: Text(
-                                              title,
-                                              key: ValueKey(title),
-                                              style: SwText.bodyStrong,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                          ),
-                                        ),
-                                        if (!_pointsView ||
-                                            widget.onStartChanged != null)
+                                      : () => _openStart(context),
+                                  child: Semantics(
+                                    header: true,
+                                    button:
+                                        !_pointsView ||
+                                        widget.onStartChanged != null,
+                                    hint: !_pointsView
+                                        ? '點兩下更換目的地'
+                                        : widget.onStartChanged == null
+                                        ? null
+                                        : '點兩下更換起點',
+                                    child: Container(
+                                      height: swTouch,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: SwColors.surface,
+                                        borderRadius: BorderRadius.circular(24),
+                                        boxShadow: SwShadow.float,
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
                                           const Icon(
-                                            Icons.expand_more_rounded,
+                                            Icons.place_outlined,
+                                            size: 20,
                                             color: SwColors.brand,
                                           ),
-                                      ],
+                                          const SizedBox(width: 4),
+                                          Flexible(
+                                            child: AnimatedSwitcher(
+                                              duration: SwMotion.of(
+                                                context,
+                                                200,
+                                              ),
+                                              child: Text(
+                                                title,
+                                                key: ValueKey(title),
+                                                style: SwText.bodyStrong,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                          ),
+                                          if (!_pointsView ||
+                                              widget.onStartChanged != null)
+                                            const Icon(
+                                              Icons.expand_more_rounded,
+                                              color: SwColors.brand,
+                                            ),
+                                        ],
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        if (_size != _SheetSize.full)
-                          Row(
-                            children: [
-                              _MapTool(
-                                icon: _legend
-                                    ? Icons.close_rounded
-                                    : Icons.layers_outlined,
-                                caption: '圖例',
-                                semantics: _legend ? '關閉圖例' : '顯示圖例',
-                                selected: _legend,
-                                onTap: () => setState(() {
-                                  // 圖例與回報一次只開一個，避免疊在一起。
-                                  _legend = !_legend;
-                                  if (_legend) {
-                                    _picking = false;
+                          const SizedBox(width: 8),
+                          if (_size != _SheetSize.full)
+                            Row(
+                              children: [
+                                _MapTool(
+                                  icon: _legend
+                                      ? Icons.close_rounded
+                                      : Icons.layers_outlined,
+                                  caption: '圖例',
+                                  semantics: _legend ? '關閉圖例' : '顯示圖例',
+                                  selected: _legend,
+                                  onTap: () => setState(() {
+                                    // 圖例與回報一次只開一個，避免疊在一起。
+                                    _legend = !_legend;
+                                    if (_legend) {
+                                      _picking = false;
+                                      _pin = null;
+                                    }
+                                  }),
+                                ),
+                                const SizedBox(width: 8),
+                                _MapTool(
+                                  icon: Icons.campaign_rounded,
+                                  caption: '回報',
+                                  semantics: '回報狀況，在地圖上標出異常',
+                                  selected: _picking,
+                                  warn: true,
+                                  onTap: () => setState(() {
+                                    _picking = !_picking;
+                                    _legend = false;
                                     _pin = null;
-                                  }
-                                }),
-                              ),
-                              const SizedBox(width: 8),
-                              _MapTool(
-                                icon: Icons.campaign_rounded,
-                                caption: '回報',
-                                semantics: '回報狀況，在地圖上標出異常',
-                                selected: _picking,
-                                warn: true,
-                                onTap: () => setState(() {
-                                  _picking = !_picking;
-                                  _legend = false;
-                                  _pin = null;
-                                  _detailId = null;
-                                  _toast = null;
-                                  if (_size == _SheetSize.collapsed) {
-                                    _size = _SheetSize.normal;
-                                  }
-                                }),
-                              ),
-                            ],
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-                Positioned(
-                  right: 12,
-                  top: MediaQuery.paddingOf(context).top + 72,
-                  child: AnimatedSwitcher(
-                    duration: SwMotion.of(context, 180),
-                    transitionBuilder: (c, a) => FadeTransition(
-                      opacity: a,
-                      child: ScaleTransition(
-                        scale: a,
-                        alignment: Alignment.topRight,
-                        child: c,
+                                    _detailId = null;
+                                    _toast = null;
+                                    if (_size == _SheetSize.collapsed) {
+                                      _size = _SheetSize.normal;
+                                    }
+                                  }),
+                                ),
+                              ],
+                            ),
+                        ],
                       ),
                     ),
-                    child: _legend
-                        ? _Legend(
-                            pointsView: _pointsView,
-                            showShortcut: atHome && demoHome && !_pointsView,
-                            live: rs.live,
-                            crime: rs.live || widget.crimeSpots.isNotEmpty,
-                          )
-                        : const SizedBox.shrink(),
                   ),
-                ),
-                if (_picking && _pin == null)
                   Positioned(
-                    left: 16,
-                    right: 16,
-                    top: MediaQuery.paddingOf(context).top + 100,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 10,
+                    right: 12,
+                    top: MediaQuery.paddingOf(context).top + 72,
+                    child: AnimatedSwitcher(
+                      duration: SwMotion.of(context, 180),
+                      transitionBuilder: (c, a) => FadeTransition(
+                        opacity: a,
+                        child: ScaleTransition(
+                          scale: a,
+                          alignment: Alignment.topRight,
+                          child: c,
+                        ),
                       ),
-                      decoration: BoxDecoration(
-                        color: SwColors.warnBg,
-                        borderRadius: BorderRadius.circular(24),
-                        border: Border.all(color: SwColors.warnText),
-                        boxShadow: SwShadow.float,
-                      ),
-                      child: Text(
-                        _pickingStart
-                            ? '點地圖選擇起點'
-                            : _newPlaceName != null
-                            ? '點地圖選擇「$_newPlaceName」的位置'
-                            : '點地圖選擇要回報的位置，或點 ⚠ 更新既有回報',
-                        textAlign: TextAlign.center,
-                        style: SwText.bodyStrong.copyWith(
-                          color: SwColors.warnText,
+                      child: _legend
+                          ? _Legend(
+                              pointsView: _pointsView,
+                              showShortcut: atHome && demoHome && !_pointsView,
+                              live: rs.live,
+                              crime: rs.live || widget.crimeSpots.isNotEmpty,
+                            )
+                          : const SizedBox.shrink(),
+                    ),
+                  ),
+                  if (_picking && _pin == null)
+                    Positioned(
+                      left: 16,
+                      right: 16,
+                      top: MediaQuery.paddingOf(context).top + 100,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: SwColors.warnBg,
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(color: SwColors.warnText),
+                          boxShadow: SwShadow.float,
+                        ),
+                        child: Text(
+                          _pickingStart
+                              ? '點地圖選擇起點'
+                              : _newPlaceName != null
+                              ? '點地圖選擇「$_newPlaceName」的位置'
+                              : '點地圖選擇要回報的位置，或點 ⚠ 更新既有回報',
+                          textAlign: TextAlign.center,
+                          style: SwText.bodyStrong.copyWith(
+                            color: SwColors.warnText,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
-          ),
-          if (_size == _SheetSize.full)
-            Expanded(
-              flex: 4,
-              child: _Sheet(
+            if (_size == _SheetSize.full)
+              Expanded(
+                flex: 4,
+                child: _Sheet(
+                  size: _size,
+                  summary: summary,
+                  onSize: (v) => setState(() {
+                    _size = v;
+                    if (v == _SheetSize.full) _stepsOpen = true;
+                  }),
+                  toast: _toast,
+                  child: body,
+                ),
+              )
+            else
+              _Sheet(
                 size: _size,
                 summary: summary,
                 onSize: (v) => setState(() {
@@ -989,20 +1040,9 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                 toast: _toast,
                 child: body,
               ),
-            )
-          else
-            _Sheet(
-              size: _size,
-              summary: summary,
-              onSize: (v) => setState(() {
-                _size = v;
-                if (v == _SheetSize.full) _stepsOpen = true;
-              }),
-              toast: _toast,
-              child: body,
-            ),
-          _BottomBar(onCall: widget.onCall, onEmergency: widget.onEmergency),
-        ],
+            _BottomBar(onCall: widget.onCall, onEmergency: widget.onEmergency),
+          ],
+        ),
       ),
     );
   }
@@ -1055,6 +1095,14 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                 const ExcludeSemantics(child: SwSkeleton(rows: 2)),
               ],
             ),
+          )
+        else if (isHome && _homeUnset)
+          SwStateMessage(
+            icon: Icons.home_outlined,
+            title: '還沒設定「家」',
+            message: '在地圖上點一下家的位置，就會規劃回家路線。',
+            actionLabel: '在地圖上設定家',
+            onAction: _startSetHome,
           )
         else if (routed && rs.failed) ...[
           SwStateMessage(
@@ -1144,18 +1192,16 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
           ],
           Row(
             children: [
-              AnimatedSwitcher(
-                duration: SwMotion.of(context, 250),
-                transitionBuilder: (c, a) => ScaleTransition(
-                  scale: Tween(begin: .8, end: 1.0).animate(a),
-                  child: FadeTransition(opacity: a, child: c),
-                ),
-                child: Text.rich(
-                  key: ValueKey(meters),
+              // 換路線或改道時，分鐘數從舊值滾到新值，看得出「改道了」。
+              TweenAnimationBuilder<double>(
+                tween: Tween(end: (minutes ?? 0).toDouble()),
+                duration: SwMotion.of(context, 700),
+                curve: SwMotion.curve,
+                builder: (_, value, _) => Text.rich(
                   TextSpan(
                     children: [
                       TextSpan(
-                        text: minutes == null ? '時間未知' : '$minutes',
+                        text: minutes == null ? '時間未知' : '${value.round()}',
                         style: SwText.title.copyWith(
                           height: 1,
                           color: SwColors.brand,
@@ -1177,7 +1223,17 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                       style: SwText.secondary,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    if (isHome && rs.best != null)
+                    if (isHome && minutes != null && rs.options.length > 1)
+                      _ExtraMinutes(
+                        extra:
+                            minutes -
+                            rs.options
+                                .map((r) => r.durationSeconds)
+                                .whereType<num>()
+                                .map((d) => (d / 60).ceil())
+                                .fold(minutes, (a, b) => a < b ? a : b),
+                      ),
+                    if (isHome && rs.best != null && rs.options.length < 2)
                       Text(
                         rs.best!.explanations.firstOrNull ??
                             (rs.best!.walkingNetworkVerified
@@ -1187,6 +1243,8 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       )
+                    else if (isHome && rs.best != null)
+                      const SizedBox.shrink() // 路線卡片已列出各路線說明
                     else if (isHome && place.isHome && !rs.configured)
                       _AvoidBadge(count: avoided)
                     else if (isHome && place.isHome)
@@ -1195,7 +1253,9 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                       Text('路線僅供參考', style: SwText.secondary)
                     else
                       Text(
-                        '${_kind[point!.kind]}・${_openLong[point.availability]}',
+                        point!.name == _kind[point.kind]
+                            ? _openLong[point.availability]!
+                            : '${_kind[point.kind]}・${_openLong[point.availability]}',
                         style: SwText.secondary,
                       ),
                   ],
@@ -1217,14 +1277,17 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
           if ((isHome || stores) && rs.live) ..._avoidSection(rs, home: isHome),
           if (routed && rs.live && rs.best != null) ...[
             const SizedBox(height: 12),
-            SwPrimaryButton(
-              label: '開始導覽',
-              icon: Icons.navigation_rounded,
-              onTap: () => setState(() {
-                widget.onStartNavigation?.call();
-                _navigating = true;
-                _size = _SheetSize.normal;
-              }),
+            SizedBox(
+              width: double.infinity,
+              child: SwPrimaryButton(
+                label: '開始導覽',
+                icon: Icons.navigation_rounded,
+                onTap: () => setState(() {
+                  widget.onStartNavigation?.call();
+                  _navigating = true;
+                  _size = _SheetSize.normal;
+                }),
+              ),
             ),
           ],
           if (_showTextSteps) ...[
@@ -1249,11 +1312,10 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
             ),
           ],
         ],
-        if (rs.live && rs.best != null) ...[
-          const SizedBox(height: 8),
-          Text('路線來源：${rs.best!.provider}', style: SwText.small),
-        ],
-        for (final warning in rs.warnings) Text(warning, style: SwText.small),
+        // 一般的 OpenStreetMap 說明放在首頁「資料來源與授權」；這裡只留跟這條路線有關的提醒。
+        for (final warning in rs.warnings)
+          if (!warning.startsWith('依 OpenStreetMap 步行路網計算'))
+            Text(warning, style: SwText.small),
         if (rs.live && widget.crimeQueryStatus != null) ...[
           const SizedBox(height: 8),
           Semantics(
@@ -1265,33 +1327,6 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
             ),
           ),
         ],
-        Align(
-          alignment: Alignment.centerLeft,
-          child: SwSourcesLink(
-            settings: [
-              if (widget.onManageRoutingConsent != null)
-                (
-                  icon: Icons.alt_route_rounded,
-                  label: '路線查詢設定',
-                  status: widget.routingConsent
-                      ? '已同意路線查詢；可在此撤回。系統定位權限另行設定，地圖圖磚自動載入。'
-                      : '未同意路線查詢；不會傳送起點、目的地與避讓緩衝。',
-                  onTap: widget.onManageRoutingConsent!,
-                ),
-              if (widget.onManageCrimeConsent != null)
-                (
-                  icon: Icons.policy_outlined,
-                  label: '犯罪資料查詢設定',
-                  status: [
-                    widget.crimeConsent ? '已同意行程範圍查詢；可在此撤回。' : '未同意行程範圍查詢。',
-                    if (widget.crimeQueryStatus != null)
-                      widget.crimeQueryStatus!,
-                  ].join('\n'),
-                  onTap: widget.onManageCrimeConsent!,
-                ),
-            ],
-          ),
-        ),
       ],
     );
   }
@@ -1648,14 +1683,23 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       Text(
-        '${_editingPlaceId != null ? '編輯' : '新增'}「$_newPlaceName」',
+        _settingHome
+            ? '家在哪裡？'
+            : '${_editingPlaceId != null ? '編輯' : '新增'}「$_newPlaceName」',
         style: SwText.heading,
       ),
       const SizedBox(height: 4),
-      Text('在地圖上點一下這個地點的位置。', style: SwText.secondary),
+      Text(
+        _settingHome ? '在地圖上點一下家的位置，就會規劃回家路線。位置只存在這支手機。' : '在地圖上點一下這個地點的位置。',
+        style: SwText.secondary,
+      ),
       const SizedBox(height: 8),
       SwChip(
-        label: _editingPlaceId != null ? '取消編輯' : '取消新增',
+        label: _settingHome
+            ? '稍後再設定'
+            : _editingPlaceId != null
+            ? '取消編輯'
+            : '取消新增',
         icon: Icons.close_rounded,
         onTap: () => setState(() {
           _newPlaceName = null;
@@ -1672,21 +1716,17 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
       const SizedBox(height: 4),
       Text('在地圖上點一下位置，或用你現在的位置。', style: SwText.secondary),
       const SizedBox(height: 8),
-      Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: [
-          SwChip(
-            label: '用我目前的位置',
-            icon: Icons.my_location_rounded,
-            onTap: () => setState(() => _pin = _start),
-          ),
-          SwChip(
-            label: '取消回報',
-            icon: Icons.close_rounded,
-            onTap: () => setState(() => _picking = false),
-          ),
-        ],
+      SwButtonPair(
+        first: SwPrimaryButton(
+          label: '用我目前的位置',
+          icon: Icons.my_location_rounded,
+          onTap: () => setState(() => _pin = _start),
+        ),
+        second: SwOutlineButton(
+          label: '取消回報',
+          icon: Icons.close_rounded,
+          onTap: () => setState(() => _picking = false),
+        ),
       ),
     ],
   );
@@ -1763,17 +1803,16 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
       ),
       Text('回報會標示在地圖上。', style: SwText.small),
       const SizedBox(height: 12),
-      Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: [
-          SwPrimaryButton(
-            label: '標示到地圖',
-            icon: Icons.add_location_alt_outlined,
-            onTap: _submit,
-          ),
-          SwChip(label: '重新選位置', onTap: () => setState(() => _pin = null)),
-        ],
+      SwButtonPair(
+        first: SwPrimaryButton(
+          label: '標示到地圖',
+          icon: Icons.add_location_alt_outlined,
+          onTap: _submit,
+        ),
+        second: SwOutlineButton(
+          label: '重新選位置',
+          onTap: () => setState(() => _pin = null),
+        ),
       ),
     ],
   );
@@ -1827,21 +1866,18 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
           const SizedBox(height: 12),
           Text('你現在看到的狀況是？', style: SwText.bodyStrong),
           const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              SwChip(
-                label: '仍在發生',
-                icon: Icons.priority_high_rounded,
-                onTap: () => _update(a, '有人回報：仍在發生', bump: true),
-              ),
-              SwChip(
-                label: '看起來沒事了',
-                icon: Icons.check_circle_outline_rounded,
-                onTap: () => _update(a, '有人回報：現場看起來已經沒事（待確認）', bump: false),
-              ),
-            ],
+          // 兩個狀態同等重要，用兩顆等寬外框按鈕。
+          SwButtonPair(
+            first: SwOutlineButton(
+              label: '仍在發生',
+              icon: Icons.priority_high_rounded,
+              onTap: () => _update(a, '有人回報：仍在發生', bump: true),
+            ),
+            second: SwOutlineButton(
+              label: '看起來沒事了',
+              icon: Icons.check_circle_outline_rounded,
+              onTap: () => _update(a, '有人回報：現場看起來已經沒事（待確認）', bump: false),
+            ),
           ),
           if (widget.onSms != null) ...[
             const SizedBox(height: 8),
@@ -2540,11 +2576,10 @@ class _PlaceCard extends StatelessWidget {
                       shape: BoxShape.circle,
                       color: SwColors.brand,
                     ),
-                    child: Text(
-                      pointGlyph[p.kind]!,
-                      style: SwText.bodyStrong.copyWith(
-                        color: SwColors.onBrand,
-                      ),
+                    child: const Icon(
+                      helpPointIcon,
+                      size: 22,
+                      color: SwColors.onBrand,
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -2554,7 +2589,11 @@ class _PlaceCard extends StatelessWidget {
                       children: [
                         Text(p.name, style: SwText.bodyStrong),
                         Text(
-                          '${_kind[p.kind]}・約 $meters 公尺・步行 ${walkMinutes(meters)} 分鐘',
+                          [
+                            if (p.name != _kind[p.kind]) _kind[p.kind],
+                            '$meters 公尺',
+                            '${walkMinutes(meters)} 分鐘',
+                          ].join('・'),
                           style: SwText.secondary,
                         ),
                       ],
@@ -2597,21 +2636,23 @@ class _PlaceCard extends StatelessWidget {
                           onTap: onGo,
                         ),
                         const Divider(color: SwColors.border, height: 24),
-                        _Fact('地址', p.address ?? '尚未提供'),
-                        _Fact('電話', p.publicPhone ?? '尚未提供'),
+                        // 只列出有資料的欄位，空白欄位不顯示「尚未提供」。
+                        if (p.address != null) _Fact('地址', p.address!),
+                        if (p.publicPhone != null) _Fact('電話', p.publicPhone!),
                         _Fact(
                           '營業資訊',
-                          '${_openLong[p.availability]}（確認時間：${p.availabilityCheckedAt ?? '尚未提供'}）',
+                          p.availabilityCheckedAt == null
+                              ? _openLong[p.availability]!
+                              : '${_openLong[p.availability]}（確認時間：${p.availabilityCheckedAt}）',
                         ),
-                        _Fact('合作認可', switch (p.recognition) {
-                          sw.ConfirmedRecognition() => '認可資料附有證據',
-                          _ => '尚無已確認的認可資料',
-                        }),
+                        if (p.recognition is sw.ConfirmedRecognition)
+                          const _Fact('合作認可', '認可資料附有證據'),
                         _Fact(
                           '資料來源',
                           '${p.source.title}・${p.source.dataMode == sw.DataMode.mock ? '示範資料' : '真實資料'}',
                         ),
-                        _Fact('資料更新', p.source.dataUpdatedAt ?? '尚未提供'),
+                        if (p.source.dataUpdatedAt != null)
+                          _Fact('資料更新', p.source.dataUpdatedAt!),
                         const SizedBox(height: 4),
                         Text('顯示據點不代表已通知、有人值勤或已受理求助。', style: SwText.small),
                       ],
@@ -2637,6 +2678,34 @@ class _Fact extends StatelessWidget {
         Expanded(child: Text(value, style: SwText.body)),
       ],
     ),
+  );
+}
+
+/// 選了較長的避讓路線時，提示比最短路線多走幾分鐘；數值改變時淡入。
+class _ExtraMinutes extends StatelessWidget {
+  const _ExtraMinutes({required this.extra});
+  final int extra;
+  @override
+  Widget build(BuildContext context) => AnimatedSwitcher(
+    duration: SwMotion.of(context, 300),
+    child: extra <= 0
+        ? const SizedBox(key: ValueKey(0), width: double.infinity)
+        : Semantics(
+            key: ValueKey(extra),
+            liveRegion: true,
+            child: Container(
+              margin: const EdgeInsets.only(top: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+              decoration: BoxDecoration(
+                color: SwColors.brandSoft,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                '比最短路線多 $extra 分鐘',
+                style: SwText.smallStrong.copyWith(color: SwColors.brandText),
+              ),
+            ),
+          ),
   );
 }
 

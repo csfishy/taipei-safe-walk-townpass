@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:town_pass/features/safe_walk/presentation/safe_walk_home_view.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:town_pass/features/safe_walk/platform/home_location/home_location_service.dart';
 import 'package:town_pass/features/safe_walk/presentation/mock/safe_walk_demo_data.dart'
@@ -56,8 +57,10 @@ final class _Platform implements PlatformService {
     SafeWalkCancellation? cancellation,
   }) {
     calls++;
-    expect(mode, sw.DataMode.live);
-    expect(userInitiated, isTrue);
+    // 不用 expect：定位可能在另一個 tap 執行中被觸發，flutter_test 會判定為呼叫衝突。
+    if (mode != sw.DataMode.live || !userInitiated) {
+      throw StateError('live, user-initiated location only');
+    }
     return (answer ?? () async => _ok())();
   }
 
@@ -1233,7 +1236,7 @@ void main() {
           sw.DataMode.live,
         );
         expect(find.text('目前為示範資料，未連線真實服務'), findsNothing);
-        await t.tap(find.text('附近求助地點'));
+        await _openNearby(t);
         await t.pumpAndSettle();
         expect(find.byType(SafeWalkMapView), findsOneWidget);
         expect(find.text('規劃路線需要你的位置'), findsOneWidget);
@@ -1283,7 +1286,7 @@ void main() {
             _store('d', 25.005),
           ],
         );
-        await t.tap(find.text('附近求助地點'));
+        await _openNearby(t);
         await t.pumpAndSettle();
         await t.tap(find.text('同意'));
         await t.pumpAndSettle();
@@ -1351,7 +1354,7 @@ void main() {
           storeQueries: queries,
           stores: [_store('a', 25.002)],
         );
-        await t.tap(find.text('附近求助地點'));
+        await _openNearby(t);
         await t.pumpAndSettle();
         await t.tap(find.text('同意'));
         await t.pumpAndSettle();
@@ -1419,6 +1422,9 @@ void main() {
       expect(db.calls, isEmpty);
       expect(map(t).showMapTiles, isTrue);
       expect(find.byType(TileLayer), findsOneWidget);
+      // 查詢設定移到首頁的「資料來源與授權」。
+      map(t).onBack();
+      await t.pumpAndSettle();
       final link = find.text('資料來源與授權').last;
       await t.ensureVisible(link);
       await t.tap(link);
@@ -1529,7 +1535,7 @@ void main() {
           home: _destination,
         );
         expect(db.calls, isEmpty);
-        await t.tap(find.text('回報狀況'));
+        await _openReportStatus(t);
         await t.pumpAndSettle();
         expect(find.byType(SafeWalkReportStatusPage), findsOneWidget);
         expect(find.byType(SafeWalkMapView), findsNothing);
@@ -1542,7 +1548,7 @@ void main() {
         expect(find.textContaining('人工測試邊界證據'), findsOneWidget);
         await t.tap(find.byType(BackButton));
         await t.pumpAndSettle();
-        await t.tap(find.text('回報狀況'));
+        await _openReportStatus(t);
         await t.pumpAndSettle();
         expect(db.calls, hasLength(2));
         expect(platform.calls, 0);
@@ -1570,7 +1576,7 @@ void main() {
               db: db,
               home: _destination,
             );
-            await t.tap(find.text('回報狀況'));
+            await _openReportStatus(t);
             await t.pump();
             await t.pump(const Duration(milliseconds: 350));
             final controller = t
@@ -1590,7 +1596,7 @@ void main() {
             await t.pump(const Duration(milliseconds: 50));
             expect(controller.stage, ReportStatusStage.cancelled);
             // Re-enter before the previous report page's 280ms exit finishes.
-            await t.tap(find.text('回報狀況'));
+            await _openReportStatus(t);
             await t.pump();
             expect(t.takeException(), isNull);
             expect(db.calls, hasLength(2));
@@ -1638,7 +1644,7 @@ void main() {
           ..answer = () async =>
               CrimeReferenceHttpResponse(200, jsonEncode(_body(total: 0)));
         await pumpRoot(t, platform: _livePlatform(), routes: _Routes(), db: db);
-        await t.tap(find.text('回報狀況'));
+        await _openReportStatus(t);
         await t.pumpAndSettle();
         expect(find.textContaining('空資料'), findsOneWidget);
         expect(find.byKey(const Key('report-no-areas')), findsOneWidget);
@@ -1660,7 +1666,7 @@ void main() {
           db: db,
           home: _destination,
         );
-        await t.tap(find.text('回報狀況'));
+        await _openReportStatus(t);
         await t.pump();
         await t.pump(const Duration(milliseconds: 350));
         final controller = t
@@ -1763,4 +1769,20 @@ final class _SilentSpeaker implements SafeWalkRouteSpeaker {
   Future<void> stopForEmergency() async {}
   @override
   Future<void> dispose() async {}
+}
+
+/// 回報資料說明頁改從首頁「資料來源與授權」進入（首頁不再有「回報狀況」）。
+Future<void> _openReportStatus(WidgetTester t) async {
+  await t.tap(find.text('資料來源與授權').last);
+  await t.pumpAndSettle();
+  await t.tap(find.text('回報資料說明'));
+}
+
+/// 首頁不再有「附近求助地點」入口（主要入口是地圖面板的「最近求助地點」）；
+/// 清單畫面的程式碼仍保留，測試直接開啟它。
+Future<void> _openNearby(WidgetTester t) async {
+  t
+      .widget<SafeWalkHomeView>(find.byType(SafeWalkHomeView))
+      .onOpen(SafeWalkEntry.points);
+  await t.pump();
 }
