@@ -24,6 +24,7 @@ M1 將完整據點 lookup／provider 注入本模組；不得直接 import M4 �
 | `default_route_service.dart` | `DefaultRouteService`：輸入檢查、mock／live 分流、取消、舊請求不覆蓋新結果、結果以 `routeProblems()` 驗證 |
 | `walking_route_provider.dart` | `WalkingRouteProvider`（M1 注入真實步行 provider）、`AssistancePointLookup`（M1 接 M4 的據點查詢）、`WalkingRouteNotFound`／`WalkingRouteProviderUnavailable` |
 | `mock_walking_route_provider.dart` | 只供 `DataMode.mock`：起訖直線折線，`walkingNetworkVerified: false`，警示「禁止實地導航」 |
+| `nearest_point.dart` | `nearestPoints()`：從 M1 注入的 `AssistancePoint` 清單找最近的點（預設所有連鎖便利商店），依直線距離排序 |
 | `coordinate_math.dart` | 純 Dart：haversine 距離、折線長度、lat/lng ⇄ GeoJSON `[lng, lat]`、座標範圍檢查 |
 
 行為：
@@ -42,6 +43,8 @@ M1 將完整據點 lookup／provider 注入本模組；不得直接 import M4 �
 - 真實步行 provider 未接入（專案沒有 `http` 套件；新增套件與把位置送給第三方路線服務都需 M1 決定與使用者同意）。目前 live 一律 `provider_unavailable`。
 - 尚未接到 `App`／presentation：M3 的 `safe_walk_demo_data.dart` 仍用示範路線，待 M1 注入 `DefaultRouteService`。
 - `AssistancePointLookup` 由 M1 接 M4 的 repository 後，途經據點的來源與營業狀態才會被實際核對。
-- 「最近的 7-ELEVEN」類的預設目的地查詢不在本模組；需要時由 M1／M4 決定資料來源。
+- **「最近的 24 小時便利商店」**：共用契約沒有「24 小時營業」欄位，只有 `open`／`closed`／`unknown` 與 `availabilityCheckedAt`，所以 `nearestPoints()` 只能回「已記錄營業中、且檢查時間在 1 小時內」的便利商店（不限品牌，`unknown`、`closed`、過期或未來的檢查時間一律不算）。要真正保證 24 小時，需要 M1 在 Schema 加營業時間欄位並由 M4 提供資料；M2 不自行改契約。
+- 最近點的資料需要 M4 提供真實便利商店（`docs/DATA-SOURCES.md` 目前仍是「未接入」），M1 負責注入；沒有資料時回空清單，UI 應說明「沒有已知營業中的店」，不是「附近沒有」。
+- 「最近」是直線距離；實際步行距離請以選定的點呼叫 `RouteService`。
 
 預定分支 `feat/m2-navigation`。
