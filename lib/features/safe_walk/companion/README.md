@@ -54,3 +54,7 @@ state 只有 idle／playing／paused／ended／error。audioSrc 為 null 表示�
 原 `03f98f2` 盤點時，`safe_walk_call_view.dart` 已有 `didUpdateWidget()` 更新語音選擇，以及背景取消待回覆、停止時鐘／震動；`TtsSafeWalkSpeaker` 也已有前景與 SOS 永久停止閘門。現在 main `65ee6f7` 及本 stacked 分支承接的 #31 最新 head 已納入 PR #26，統一所有 speaker 的 lifecycle 介面與回歸；不再將 #26 列為未合併阻塞。裝置實際中斷與語音驗收仍需完成。
 
 P1 由指定功能主責負責裝置引擎、組合、通話狀態與 SOS 優先中斷的完整驗收；奶爸、小魚、莅紋是音訊、平台、設計的主要聯絡人，不要求三人各自開接線 PR。至少在實體 iPhone 記錄 OS／裝置／語音、播放完成、停止、離開、背景與返回、OS 音訊中斷、SOS 搶先中斷、語音準備晚到、無可用語音的文字預覽；不得要求麥克風權限，也不得以測試真的撥打緊急號碼。
+
+## 模擬來電鈴聲（P1-3）
+
+`companion_ringtone.dart` 以程式合成原創兩音鈴聲（無第三方素材），經注入式 `CompanionToneAdapter`（實作為 `audioplayers` 記憶體 WAV 播放，不讀檔、不需權限）循環播放，最長 18 秒。`TtsSafeWalkSpeaker` 實作 `SafeWalkRinger`：背景、`stopForEmergency`、`dispose` 與接聽／拒絕都會停止，遲到的 play 結果以 generation 失效，不會重新響鈴。畫面仍保留「模擬通話，未聯絡任何人」。以上只經 fake adapter 測試，尚未在實機聽過；iPhone 靜音鍵、音量與音訊焦點行為待實機驗收。新增 `audioplayers` 依賴屬 Level B，合併前請主要負責人確認。
