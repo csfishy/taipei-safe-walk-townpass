@@ -1,6 +1,7 @@
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:town_pass/features/safe_walk/presentation/assets/safe_walk_card_assets.dart';
 import 'package:flutter/material.dart';
+import 'package:town_pass/features/safe_walk/presentation/safe_walk_nearby_helper.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_sources.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_ui.dart';
 import 'package:town_pass/util/tp_app_bar.dart';
@@ -22,8 +23,12 @@ class SafeWalkHomeView extends StatelessWidget {
     this.onBack,
     this.now,
     this.isLive = false,
+    this.nearbyHelper,
   });
   final bool isLive;
+
+  /// M1：「附近協助者」；null 時不顯示。
+  final SafeWalkNearbyHelper? nearbyHelper;
   final ValueChanged<SafeWalkEntry> onOpen;
   final VoidCallback onEmergency;
 
@@ -112,6 +117,11 @@ class SafeWalkHomeView extends StatelessWidget {
                     onTap: () => onOpen(id),
                   ),
                   const SizedBox(height: 10),
+                ],
+                if (nearbyHelper != null) ...[
+                  const SizedBox(height: 6),
+                  SafeWalkNearbyHelperCard(helper: nearbyHelper!),
+                  const SizedBox(height: 16),
                 ],
                 const Align(
                   alignment: Alignment.centerLeft,

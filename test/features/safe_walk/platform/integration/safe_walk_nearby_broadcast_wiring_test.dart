@@ -67,6 +67,9 @@ class _Platform implements PlatformService {
 
 class _Transport implements NearbyAlertTransport {
   final sent = <({sw.Coordinates location, int radius})>[];
+  final optIns = <bool>[];
+  List<NearbyAlert> alerts = [];
+  int fetches = 0;
   int recipients = 2;
 
   @override
@@ -84,10 +87,15 @@ class _Transport implements NearbyAlertTransport {
     required String helperId,
     required bool enabled,
     sw.Coordinates? location,
-  }) async {}
+  }) async {
+    optIns.add(enabled);
+  }
 
   @override
-  Future<List<NearbyAlert>> fetchPendingAlerts(String helperId) async => [];
+  Future<List<NearbyAlert>> fetchPendingAlerts(String helperId) async {
+    fetches++;
+    return alerts;
+  }
 }
 
 Future<void> _pump(
@@ -96,6 +104,7 @@ Future<void> _pump(
   _Platform? platform,
   NearbyAlertTransport? nearby,
   _Speaker? speaker,
+  bool openEmergency = true,
 }) async {
   t.view.physicalSize = const Size(390 * 3, 844 * 3);
   t.view.devicePixelRatio = 3;
@@ -114,6 +123,7 @@ Future<void> _pump(
     ),
   );
   await t.pumpAndSettle();
+  if (!openEmergency) return;
   await t.tap(find.text('緊急求助').first);
   await t.pumpAndSettle();
 }
@@ -194,5 +204,130 @@ void main() {
     expect(transport.sent, isEmpty);
     expect(find.text('通知附近協助者'), findsOneWidget);
     await t.pumpWidget(const SizedBox.shrink());
+  });
+
+  group('helper side: in-app delivery', () {
+    NearbyAlert alert(String id) => NearbyAlert(
+      alertId: id,
+      location: sw.Coordinates(lat: 25.034, lng: 121.566),
+      radiusMeters: 500,
+      createdAt: DateTime.utc(2026, 11, 8, 1, 2, 3),
+    );
+
+    Future<void> join(WidgetTester t) async {
+      await _tap(t, '加入附近協助者');
+      await _tap(t, '同意並加入');
+    }
+
+    testWidgets('demo mode has no helper card', (t) async {
+      await _pump(t, live: false, platform: _Platform(), openEmergency: false);
+      expect(find.text('附近協助者', skipOffstage: false), findsNothing);
+      expect(find.text('加入附近協助者', skipOffstage: false), findsNothing);
+      await t.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets('live by default: unavailable, nothing read or polled', (
+      t,
+    ) async {
+      final platform = _Platform();
+      await _pump(t, live: true, platform: platform, openEmergency: false);
+      await _show(t, find.text('附近協助者：目前無法使用'));
+      expect(find.text('加入附近協助者', skipOffstage: false), findsNothing);
+      await t.pump(const Duration(seconds: 30));
+      expect(platform.locations, 0);
+      await t.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets('join, receive an alert in the app, dismiss it, then leave', (
+      t,
+    ) async {
+      final platform = _Platform();
+      final transport = _Transport();
+      await _pump(
+        t,
+        live: true,
+        platform: platform,
+        nearby: transport,
+        openEmergency: false,
+      );
+      await join(t);
+      // Joining read the position once, after the consent step.
+      expect(platform.locations, 1);
+      expect(transport.optIns, [true]);
+      expect(find.text('停止協助並刪除我的位置', skipOffstage: false), findsOneWidget);
+      expect(find.text('附近有人求助'), findsNothing);
+
+      transport.alerts = [alert('a1')];
+      await t.pump(const Duration(seconds: 11));
+      await t.pump();
+      expect(find.text('附近有人求助'), findsOneWidget);
+      expect(find.textContaining('25.03400, 121.56600'), findsOneWidget);
+      expect(find.textContaining('未經查證'), findsOneWidget);
+
+      await t.tap(find.text('知道了'));
+      await t.pump();
+      expect(find.text('附近有人求助'), findsNothing);
+      // The backend still returns it; it must not reappear.
+      await t.pump(const Duration(seconds: 25));
+      expect(find.text('附近有人求助'), findsNothing);
+
+      // Leaving the feature stops polling (no pending timers remain).
+      await t.pumpWidget(const SizedBox.shrink());
+      final fetches = transport.fetches;
+      await t.pump(const Duration(seconds: 30));
+      expect(transport.fetches, fetches);
+    });
+
+    testWidgets(
+      'backgrounding stops polling; returning refreshes and resumes',
+      (t) async {
+        final platform = _Platform();
+        final transport = _Transport();
+        await _pump(
+          t,
+          live: true,
+          platform: platform,
+          nearby: transport,
+          openEmergency: false,
+        );
+        await join(t);
+        await t.pump(const Duration(seconds: 11));
+        final fetches = transport.fetches;
+        expect(fetches, greaterThan(0));
+
+        t.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+        await t.pump();
+        await t.pump(const Duration(seconds: 60));
+        expect(transport.fetches, fetches);
+        expect(platform.locations, 1);
+
+        t.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+        await t.pump();
+        await t.pump(const Duration(seconds: 11));
+        expect(platform.locations, 2);
+        expect(transport.fetches, greaterThan(fetches));
+        await t.pumpWidget(const SizedBox.shrink());
+      },
+    );
+
+    testWidgets('stopping deletes the position and stops polling', (t) async {
+      final platform = _Platform();
+      final transport = _Transport();
+      await _pump(
+        t,
+        live: true,
+        platform: platform,
+        nearby: transport,
+        openEmergency: false,
+      );
+      await join(t);
+      await _tap(t, '停止協助並刪除我的位置');
+      expect(transport.optIns, [true, false]);
+      expect(find.textContaining('位置已刪除', skipOffstage: false), findsOneWidget);
+      final fetches = transport.fetches;
+      await t.pump(const Duration(seconds: 60));
+      expect(transport.fetches, fetches);
+      await t.pumpWidget(const SizedBox.shrink());
+    });
   });
 }

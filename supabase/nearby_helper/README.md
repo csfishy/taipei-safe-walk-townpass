@@ -138,6 +138,14 @@ The test file runs in one transaction and rolls back.
 
 ### Client
 
+### Delivery to helpers is in-app, not SMS
+
+Helpers join from the Safe Walk home page (consent text first). While the app is in the
+foreground the helper's position is refreshed about every 4 minutes and alerts are polled
+every 10 seconds; an incoming alert appears as a banner over the current screen. Nothing
+runs in the background or when the app is closed, because the project has no push channel
+(FCM/APNs). The existing SMS card is unrelated to this path.
+
 [`AuthenticatedNearbyAlertTransport`](../../lib/features/safe_walk/platform/nearby_emergency/authenticated_nearby_alert_transport.dart)
 calls these RPCs with the user's session token. It needs a `NearbySession`, which only
 exists once the team decides where user identity comes from (TownPass login or Supabase

@@ -110,12 +110,20 @@ begin
      or char_length(p_consent_version) not between 1 and 64 then
     raise exception 'invalid_input' using errcode = '22023';
   end if;
-  insert into safe_walk_nearby.helper_profiles
+  -- Repeating this call while already joined (the app refreshes a helper's
+  -- position this way) keeps the original consent time; a new consent version or
+  -- rejoining after opting out records a new one.
+  insert into safe_walk_nearby.helper_profiles as hp
     (user_id, consent_version, consented_at, revoked_at)
   values (v_uid, p_consent_version, now(), null)
   on conflict (user_id) do update
-    set consent_version = excluded.consent_version,
-        consented_at = excluded.consented_at,
+    set consented_at = case
+          when hp.revoked_at is null
+               and hp.consent_version = excluded.consent_version
+            then hp.consented_at
+          else excluded.consented_at
+        end,
+        consent_version = excluded.consent_version,
         revoked_at = null;
 end;
 $$;
