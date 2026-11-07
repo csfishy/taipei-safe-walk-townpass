@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:town_pass/features/safe_walk/presentation/mock/safe_walk_demo_data.dart';
-import 'package:town_pass/features/safe_walk/presentation/safe_walk_home_view.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_map_view.dart';
 
 void main() {
@@ -13,36 +12,9 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('390x844 home shows the mock disclosure before any scrolling', (
-    tester,
-  ) async {
-    await open(
-      tester,
-      SafeWalkHomeView(
-        onOpen: (_) {},
-        onEmergency: () {},
-        homeMinutes: 3,
-        avoided: 2,
-        now: DateTime(2026, 11, 7, 20),
-      ),
-    );
-
-    expect(
-      find.text('示範模式（Mock）').hitTestable(),
-      findsOneWidget,
-      reason: 'The demo disclosure must be visible before entering a feature.',
-    );
-    expect(tester.takeException(), isNull);
-  });
-
-  testWidgets('many saved places remain scrollable above the keyboard', (
-    tester,
-  ) async {
-    final places = [
-      const SavedPlace('home', '家', DemoGeo.home),
-      for (var i = 0; i < 6; i++)
-        SavedPlace('place-$i', '常用地點$i', DemoGeo.home),
-    ];
+  // 11/7 使用者決定：首頁不放「示範模式（Mock）」標籤；示範揭露留在地圖（示範路線）、來電（不是真人通話）、緊急求助（不會撥號）各頁。
+  testWidgets('many saved places remain scrollable above the keyboard', (tester) async {
+    final places = [const SavedPlace('home', '家', DemoGeo.home), for (var i = 0; i < 6; i++) SavedPlace('place-$i', '常用地點$i', DemoGeo.home)];
     await open(
       tester,
       SafeWalkMapView(

@@ -3,9 +3,18 @@ import 'package:town_pass/util/tp_colors.dart';
 import 'package:town_pass/util/tp_text.dart';
 
 /// 安心行用色：全部引用官方 TPColors，依 docs/SAFE_WALK_COLOR_SPEC.md 的可讀配對。
-/// 白字只放在 primary700／red600 上；primary500 只當品牌點綴、邊框與圖示。
+/// 主色用 primary500（同臺北通），上面放白字與白色圖示，與臺北通相同。
 abstract final class SwColors {
+  /// 臺北通主色（同 App 長條、服務卡）：路線、圖示、邊框、選取與填色；填色上的字與圖示用 [onBrand]。
   static const brand = TPColors.primary500;
+
+  /// 放在 [brand] 上的字與圖示：白色，與臺北通長條、服務卡一致（白／primary500 對比 2.39:1，低於 WCAG，11/7 使用者決定沿用臺北通做法）。
+  static const onBrand = TPColors.white;
+
+  /// 主色系「文字」：白底上要 4.5:1，primary500 只有 2.39:1，所以文字用 primary700。
+  static const brandText = TPColors.primary700;
+
+  /// 只在必須放白字的深色區塊使用（夜間情境卡）。
   static const brandDeep = TPColors.primary700;
   static const brandDeeper = TPColors.primary800;
   static const brandSoft = TPColors.primary50;
@@ -25,12 +34,18 @@ abstract final class SwColors {
 
 /// 字級：以臺北通 TPTextStyles 為基礎，次要資訊至少 16，照顧長輩閱讀。
 abstract final class SwText {
-  static TextStyle title = TPTextStyles.h2SemiBold.copyWith(color: SwColors.text);
-  static TextStyle heading = TPTextStyles.h3SemiBold.copyWith(fontSize: 18, color: SwColors.text);
-  static TextStyle body = TPTextStyles.h3Regular.copyWith(color: SwColors.text, height: 1.5);
-  static TextStyle bodyStrong = TPTextStyles.h3SemiBold.copyWith(color: SwColors.text, height: 1.5);
-  static TextStyle secondary = TPTextStyles.h3Regular.copyWith(color: SwColors.textSecondary, height: 1.5);
-  static TextStyle small = TPTextStyles.bodyRegular.copyWith(color: SwColors.textSecondary, height: 1.5);
+  // 與臺北通 TPText 一致：英文與數字用 Roboto，中文落到 PingFangTC（Roboto 沒有中文字）。
+  static TextStyle _tp(TextStyle s) => s.copyWith(fontFamily: 'Roboto', fontFamilyFallback: const ['PingFangTC']);
+  // 字級一律對應 TPTextStyles（36／24／18／16／14／12），不在畫面上另設 fontSize、fontWeight；臺北通調整字級時安心行會跟著變。
+  static TextStyle display = _tp(TPTextStyles.h1SemiBold.copyWith(color: SwColors.text)); // 36
+  static TextStyle title = _tp(TPTextStyles.h2SemiBold.copyWith(color: SwColors.text)); // 24
+  static TextStyle heading = _tp(TPTextStyles.titleSemiBold.copyWith(color: SwColors.text)); // 18
+  static TextStyle body = _tp(TPTextStyles.h3Regular.copyWith(color: SwColors.text, height: 1.5)); // 16
+  static TextStyle bodyStrong = _tp(TPTextStyles.h3SemiBold.copyWith(color: SwColors.text, height: 1.5)); // 16
+  static TextStyle secondary = _tp(TPTextStyles.h3Regular.copyWith(color: SwColors.textSecondary, height: 1.5)); // 16
+  static TextStyle small = _tp(TPTextStyles.bodyRegular.copyWith(color: SwColors.textSecondary, height: 1.5)); // 14
+  static TextStyle smallStrong = _tp(TPTextStyles.bodySemiBold.copyWith(color: SwColors.textSecondary, height: 1.5)); // 14
+  static TextStyle caption = _tp(TPTextStyles.caption.copyWith(color: SwColors.textSecondary)); // 12
 }
 
 const double swTouch = 48;
@@ -96,7 +111,7 @@ class SwStateMessage extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(icon, color: error ? SwColors.sos : SwColors.brandDeep),
+              Icon(icon, color: error ? SwColors.sos : SwColors.brand),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(title, style: SwText.heading.copyWith(color: error ? SwColors.sos : SwColors.text)),
@@ -162,7 +177,7 @@ class _SwPressableState extends State<SwPressable> {
   }
 }
 
-/// 主要按鈕：primary700 底白字（官方 primary500 配白字對比不足）。
+/// 主要按鈕：臺北通主色 primary500 底＋白字（同臺北通 TPButton.primary）。
 class SwPrimaryButton extends StatelessWidget {
   const SwPrimaryButton({super.key, required this.label, this.icon, required this.onTap});
   final String label;
@@ -172,8 +187,8 @@ class SwPrimaryButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) => SwPressable(
     onTap: onTap,
-    color: onTap == null ? TPColors.grayscale100 : SwColors.brandDeep,
-    pressedColor: TPColors.primary800,
+    color: onTap == null ? TPColors.grayscale100 : SwColors.brand,
+    pressedColor: TPColors.primary400,
     radius: 8,
     padding: const EdgeInsets.symmetric(horizontal: 20),
     child: SizedBox(
@@ -182,8 +197,8 @@ class SwPrimaryButton extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          if (icon != null) ...[Icon(icon, size: 20, color: onTap == null ? SwColors.textSecondary : SwColors.onDeep), const SizedBox(width: 8)],
-          Text(label, style: SwText.bodyStrong.copyWith(color: onTap == null ? SwColors.textSecondary : SwColors.onDeep)),
+          if (icon != null) ...[Icon(icon, size: 20, color: onTap == null ? SwColors.textSecondary : SwColors.onBrand), const SizedBox(width: 8)],
+          Text(label, style: SwText.bodyStrong.copyWith(color: onTap == null ? SwColors.textSecondary : SwColors.onBrand)),
         ],
       ),
     ),
@@ -200,7 +215,7 @@ class SwChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fg = onTap == null ? SwColors.textSecondary : SwColors.brandDeep;
+    final fg = onTap == null ? SwColors.textSecondary : SwColors.brandText;
     return SwPressable(
       onTap: onTap,
       selected: selected,
@@ -274,10 +289,7 @@ class SwMockBadge extends StatelessWidget {
       borderRadius: BorderRadius.circular(6),
       border: Border.all(color: TPColors.secondary300),
     ),
-    child: Text(
-      text,
-      style: SwText.small.copyWith(color: SwColors.warnText, fontWeight: FontWeight.w600),
-    ),
+    child: Text(text, style: SwText.smallStrong.copyWith(color: SwColors.warnText)),
   );
 }
 

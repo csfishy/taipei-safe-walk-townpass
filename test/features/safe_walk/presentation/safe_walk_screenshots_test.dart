@@ -19,6 +19,12 @@ Future<void> _fonts() async {
   final root = Platform.environment['FLUTTER_ROOT'] ?? File(Platform.resolvedExecutable).parent.parent.parent.parent.parent.parent.path;
   final icons = FontLoader('MaterialIcons')..addFont(File('$root/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf').readAsBytes().then((b) => ByteData.view(b.buffer)));
   await icons.load();
+  // 測試環境的 'Roboto' 預設是方塊字型；載入真的 Roboto，英數才會跟臺北通（TPText）一樣。
+  final roboto = FontLoader('Roboto');
+  for (final w in ['regular', 'medium', 'bold']) {
+    roboto.addFont(File('$root/bin/cache/artifacts/material_fonts/roboto-$w.ttf').readAsBytes().then((b) => ByteData.view(b.buffer)));
+  }
+  await roboto.load();
 }
 
 class _Speaking implements SafeWalkSpeaker {
@@ -34,11 +40,17 @@ Future<void> _app(WidgetTester t, {SafeWalkSpeaker speaker = const UnavailableSp
   t.view.physicalSize = const Size(390 * 2, 844 * 2);
   t.view.devicePixelRatio = 2;
   addTearDown(t.view.reset);
-  await t.pumpWidget(MaterialApp(
-    debugShowCheckedModeBanner: false,
-    theme: ThemeData(fontFamily: 'PingFangTC'),
-    home: SafeWalkFlow(speaker: speaker, onExit: () {}),
-  ));
+  await t.pumpWidget(
+    MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(fontFamily: 'PingFangTC'),
+      home: SafeWalkFlow(speaker: speaker, onExit: () {}),
+    ),
+  );
+  // 首頁卡片的 SVG（含內嵌 101 圖片）在測試時脈之外解碼；截圖前先等它載完。
+  await t.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 800)));
+  await t.pump();
+  await t.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 400)));
   await t.pumpAndSettle();
 }
 
@@ -61,6 +73,16 @@ void main() {
   testWidgets('01 首頁', (t) async {
     await _app(t);
     await _shot(t, '01-home');
+  }, skip: _skip);
+
+  testWidgets('01b 安心行卡片按下', (t) async {
+    await _app(t);
+    final g = await t.startGesture(t.getCenter(find.text('點擊開始')));
+    await t.pump(const Duration(milliseconds: 300));
+    await t.pump(const Duration(milliseconds: 200));
+    await expectLater(find.byType(MaterialApp), matchesGoldenFile('screenshots/01b-home-card-pressed.png'));
+    await g.cancel();
+    await t.pumpAndSettle();
   }, skip: _skip);
 
   testWidgets('02 地圖：回家路線', (t) async {
@@ -92,7 +114,13 @@ void main() {
     t.view.physicalSize = const Size(390 * 2, 844 * 2);
     t.view.devicePixelRatio = 2;
     addTearDown(t.view.reset);
-    await t.pumpWidget(MaterialApp(debugShowCheckedModeBanner: false, theme: ThemeData(fontFamily: 'PingFangTC'), home: SafeWalkFlow(pointsError: '網路連線中斷，請稍後再試。', onRetryPoints: () {})));
+    await t.pumpWidget(
+      MaterialApp(
+        debugShowCheckedModeBanner: false,
+        theme: ThemeData(fontFamily: 'PingFangTC'),
+        home: SafeWalkFlow(pointsError: '網路連線中斷，請稍後再試。', onRetryPoints: () {}),
+      ),
+    );
     await t.pumpAndSettle();
     await _tap(t, '附近求助地點');
     await _shot(t, '10-points-error');
@@ -127,9 +155,34 @@ void main() {
     await _shot(t, '07-anomaly-detail');
   }, skip: _skip);
 
+  testWidgets('08a 模擬來電響鈴', (t) async {
+    await _app(t);
+    await t.tap(find.text('模擬來電').first);
+    await t.pump(const Duration(milliseconds: 400));
+    await t.pump(const Duration(milliseconds: 500));
+    await expectLater(find.byType(MaterialApp), matchesGoldenFile('screenshots/08a-incoming.png'));
+  }, skip: _skip);
+
+  testWidgets('08b 模擬來電（臺北通內：語音未配置）', (t) async {
+    await _app(t);
+    await t.tap(find.text('模擬來電').first);
+    await t.pump(const Duration(milliseconds: 400));
+    await t.tap(find.text('接聽'));
+    for (var i = 0; i < 5; i++) {
+      await t.pump(const Duration(milliseconds: 200));
+    }
+    await t.tap(find.text('我正在回家路上，已經吃過了。'));
+    for (var i = 0; i < 8; i++) {
+      await t.pump(const Duration(milliseconds: 200));
+    }
+    await expectLater(find.byType(MaterialApp), matchesGoldenFile('screenshots/08b-call-no-voice.png'));
+  }, skip: _skip);
+
   testWidgets('08 模擬來電（朗讀中）', (t) async {
     await _app(t, speaker: _Speaking());
     await t.tap(find.text('模擬來電').first);
+    await t.pump(const Duration(milliseconds: 400));
+    await t.tap(find.text('接聽'));
     for (var i = 0; i < 5; i++) {
       await t.pump(const Duration(milliseconds: 200));
     }

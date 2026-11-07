@@ -196,7 +196,7 @@ class _MapPainter extends CustomPainter {
           ..strokeWidth = 7
           ..strokeCap = StrokeCap.round
           ..strokeJoin = StrokeJoin.round
-          ..color = SwColors.brandDeep,
+          ..color = SwColors.brand,
       );
     }
   }
@@ -253,14 +253,11 @@ class _PointMark extends StatelessWidget {
     alignment: Alignment.center,
     decoration: BoxDecoration(
       shape: BoxShape.circle,
-      color: SwColors.brandDeep,
+      color: SwColors.brand,
       border: Border.all(color: selected ? SwColors.brand : SwColors.surface, width: 3),
       boxShadow: SwShadow.float,
     ),
-    child: Text(
-      glyph,
-      style: SwText.small.copyWith(color: SwColors.onDeep, fontWeight: FontWeight.w700, fontSize: 12, height: 1),
-    ),
+    child: Text(glyph, style: SwText.caption.copyWith(color: SwColors.onBrand, height: 1)),
   );
 }
 
@@ -275,11 +272,11 @@ class _HomeMark extends StatelessWidget {
       height: 30,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: SwColors.brandDeep,
+        color: SwColors.brand,
         border: Border.all(color: SwColors.surface, width: 3),
         boxShadow: SwShadow.float,
       ),
-      child: const Icon(Icons.home_rounded, size: 16, color: SwColors.onDeep),
+      child: const Icon(Icons.home_rounded, size: 16, color: SwColors.onBrand),
     ),
   );
 }
@@ -297,7 +294,7 @@ class _StartMark extends StatelessWidget {
       height: 16,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: SwColors.brandDeep,
+        color: SwColors.brand,
         border: Border.all(color: SwColors.surface, width: 3),
       ),
     ),

@@ -20,6 +20,9 @@ class SafeWalkFlow extends StatefulWidget {
     this.pointsLoading = false,
     this.pointsError,
     this.onRetryPoints,
+    this.route,
+    this.routeLoading = false,
+    this.onPlanRoute,
     this.speaker = const UnavailableSpeaker(),
     this.onLocate,
     this.onEmergency,
@@ -34,6 +37,14 @@ class SafeWalkFlow extends StatefulWidget {
   final bool pointsLoading;
   final String? pointsError;
   final VoidCallback? onRetryPoints;
+
+  /// 前往目前目的地的路線（M2 RouteService → M1 提供）。null 且不在計算中＝尚未配置，使用示範路線並標示。
+  final sw.RouteResult? route;
+  final bool routeLoading;
+
+  /// M1：目的地改變（含第一次進入、按「再試一次」）時呼叫，請依此目的地呼叫 RouteService.planRoute，
+  /// 再把結果傳回 [route]。null 時畫面一律用示範路線。
+  final ValueChanged<sw.Coordinates>? onPlanRoute;
   final SafeWalkSpeaker speaker;
 
   /// M1：使用者按「取得目前位置」時呼叫 PlatformService.getCurrentPosition(userInitiated: true)。
@@ -58,6 +69,9 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
   String? _emergencyMessage;
   bool _emergencyError = false, _locating = false;
   final _callKey = GlobalKey<SafeWalkCallViewState>();
+
+  /// 進行中的模擬來電；去地圖看路再回來會接續。結束通話、拒絕、緊急求助、回首頁時丟棄。
+  SafeWalkCallSession? _call;
   late final List<SavedPlace> _places = [...demoPlaces()];
   String _placeId = 'home';
   SavedPlace get _place => _places.firstWhere((p) => p.id == _placeId, orElse: () => _places.first);
@@ -72,6 +86,27 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
     return sorted.first.name;
   }
 
+  RouteState get _routeState => RouteState(result: widget.route, loading: widget.routeLoading, onRetry: widget.onPlanRoute == null ? null : _planRoute);
+
+  void _planRoute() => widget.onPlanRoute?.call(sw.Coordinates(lat: _place.at.lat, lng: _place.at.lng));
+
+  /// 目前目的地的路線：沒配置時用示範路線（示範起點）；計算中或失敗時為 null。
+  List<LatLng>? get _placePath => _routeState.configured ? _routeState.path : placeRoute(DemoGeo.start, _place);
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _planRoute();
+    });
+  }
+
+  void _selectPlace(String id) {
+    if (id == _placeId) return;
+    setState(() => _placeId = id);
+    _planRoute();
+  }
+
   PointsState get _pointsState => PointsState(
     points: widget.points ?? (widget.pointsLoading || widget.pointsError != null ? const [] : _demoPoints),
     loading: widget.pointsLoading,
@@ -81,6 +116,7 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
 
   void _go(_Screen s) {
     if (_screen == _Screen.call && s != _Screen.call) _callKey.currentState?.leave();
+    if (s == _Screen.home) _call = null;
     setState(() {
       _forward = s != _Screen.home && s != _back;
       if (s == _Screen.call || s == _Screen.emergency) _back = _screen == _Screen.call ? _back : _screen;
@@ -89,6 +125,7 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
   }
 
   void _openEmergency() {
+    _call = null;
     _callKey.currentState?.leave();
     widget.speaker.stop();
     setState(() {
@@ -136,28 +173,30 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
       key: ValueKey(start),
       position: _position,
       pointsState: _pointsState,
+      routeState: _routeState,
       anomalies: _anomalies,
       startView: start,
       onAnomaliesChanged: () => setState(() {}),
       places: _places,
       placeId: _placeId,
-      onSelectPlace: (id) => setState(() => _placeId = id),
-      onAddPlace: (name, at) => setState(() {
+      onSelectPlace: _selectPlace,
+      onAddPlace: (name, at) {
         final p = SavedPlace('place-${DateTime.now().microsecondsSinceEpoch}', name, at);
-        _places.add(p);
-        _placeId = p.id;
-      }),
-      onDeletePlace: (id) => setState(() {
-        _places.removeWhere((p) => p.id == id);
-        if (_placeId == id) _placeId = 'home';
-      }),
+        setState(() => _places.add(p));
+        _selectPlace(p.id);
+      },
+      onDeletePlace: (id) {
+        final wasCurrent = _placeId == id;
+        setState(() => _places.removeWhere((p) => p.id == id));
+        if (wasCurrent) _selectPlace('home');
+      },
       onBack: () => _go(_Screen.home),
       onCall: () => _go(_Screen.call),
       onEmergency: _openEmergency,
     );
     final child = switch (_screen) {
       _Screen.home => SafeWalkHomeView(
-        homeMinutes: walkMinutes(routeMeters(placeRoute(DemoGeo.start, _place))),
+        homeMinutes: _routeState.minutes ?? walkMinutes(routeMeters(_placePath ?? placeRoute(DemoGeo.start, _place))),
         destination: _place.label,
         avoided: avoidedCount(_anomalies),
         onBack: widget.onExit,
@@ -178,8 +217,16 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
         points: _pointsState.points,
         anomalies: _anomalies,
         speaker: widget.speaker,
+        session: _call ??= SafeWalkCallSession(),
+        routePath: _placePath,
+        routeMinutes: _routeState.minutes,
+        destination: _place.label,
+        routeStatus: _routeState.loading ? '路線計算中…' : (_routeState.failed ? _routeState.failTitle : null),
         onMap: () => _go(_Screen.map),
-        onEnd: () => _go(_back),
+        onEnd: () {
+          _call = null;
+          _go(_back);
+        },
         onEmergency: _openEmergency,
       ),
       _Screen.emergency => SafeWalkEmergencyView(

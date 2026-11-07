@@ -59,7 +59,7 @@ class SafeWalkEmergencyView extends StatelessWidget {
                   children: [
                     Semantics(
                       header: true,
-                      child: Text('緊急求助', style: SwText.title.copyWith(fontSize: 30, color: SwColors.sos)),
+                      child: Text('緊急求助', style: SwText.title.copyWith(color: SwColors.sos)),
                     ),
                     const SizedBox(height: 8),
                     SwMockBadge(text: note),
@@ -120,7 +120,7 @@ class SafeWalkEmergencyView extends StatelessWidget {
                         locating
                             ? Row(
                                 children: [
-                                  const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 3, color: SwColors.brandDeep)),
+                                  const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 3, color: SwColors.brand)),
                                   const SizedBox(width: 12),
                                   Text('正在取得位置…', style: SwText.bodyStrong),
                                 ],
@@ -135,7 +135,7 @@ class SafeWalkEmergencyView extends StatelessWidget {
                   padding: const EdgeInsets.all(12),
                   decoration: const BoxDecoration(
                     color: SwColors.brandSoft,
-                    border: Border(left: BorderSide(color: SwColors.brandDeep, width: 4)),
+                    border: Border(left: BorderSide(color: SwColors.brand, width: 4)),
                   ),
                   child: Text('先走到明亮、人多的地方，例如便利商店或派出所。', style: SwText.body),
                 ),
@@ -243,7 +243,7 @@ class _SmsReportCardState extends State<_SmsReportCard> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('簡訊報警', style: SwText.heading.copyWith(fontSize: 20, color: SwColors.sos)),
+                            Text('簡訊報警', style: SwText.heading.copyWith(color: SwColors.sos)),
                             Text('不方便說話時，用文字通知', style: SwText.secondary),
                           ],
                         ),
@@ -302,7 +302,8 @@ class _SmsReportCardState extends State<_SmsReportCard> {
                       onChanged: _step == _SmsStep.sending ? null : (v) => setState(() => _shareLocation = v ?? false),
                       contentPadding: EdgeInsets.zero,
                       controlAffinity: ListTileControlAffinity.leading,
-                      activeColor: SwColors.brandDeep,
+                      activeColor: SwColors.brand,
+                      checkColor: SwColors.onBrand,
                       title: Text('簡訊附上我的位置', style: SwText.bodyStrong),
                       subtitle: Text(widget.position == null ? '目前還沒有位置，會寫「尚未取得」' : '只放在這則簡訊裡，不會另外傳送', style: SwText.small),
                     ),
@@ -354,12 +355,12 @@ class _SmsReportCardState extends State<_SmsReportCard> {
               child: Container(
                 width: 44,
                 height: 44,
-                decoration: const BoxDecoration(shape: BoxShape.circle, color: SwColors.brandDeep),
-                child: const Icon(Icons.check_rounded, color: SwColors.onDeep, size: 28),
+                decoration: const BoxDecoration(shape: BoxShape.circle, color: SwColors.brand),
+                child: const Icon(Icons.check_rounded, color: SwColors.onBrand, size: 28),
               ),
             ),
             const SizedBox(width: 12),
-            Expanded(child: Text(mock ? '示範完成／未傳送簡訊' : '已開啟簡訊 App', style: SwText.heading.copyWith(fontSize: 20))),
+            Expanded(child: Text(mock ? '示範完成／未傳送簡訊' : '已開啟簡訊 App', style: SwText.heading)),
           ],
         ),
         const SizedBox(height: 8),
@@ -408,7 +409,7 @@ class _CallButton extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: SwText.title.copyWith(color: SwColors.onDeep, fontSize: 24)),
+                  Text(title, style: SwText.title.copyWith(color: SwColors.onDeep)),
                   const SizedBox(height: 2),
                   Text(when, style: SwText.body.copyWith(color: SwColors.onDeep)),
                 ],
