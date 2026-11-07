@@ -198,6 +198,7 @@ class _SmsReportCardState extends State<_SmsReportCard> {
   bool get _usesSender => widget.mode == sw.DataMode.live && widget.onSend != null;
 
   Future<void> _send() async {
+    if (widget.mode == sw.DataMode.live && widget.onSend == null) return;
     setState(() => _step = _SmsStep.sending);
     // Mock 一律只在本地模擬，即使 M1 已注入 sender 也不呼叫，避免帶位置的內容外傳。
     bool ok;
@@ -211,6 +212,13 @@ class _SmsReportCardState extends State<_SmsReportCard> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.mode == sw.DataMode.live && widget.onSend == null) {
+      return const SwStateMessage(
+        icon: Icons.sms_failed_outlined,
+        title: '簡訊求助尚未配置',
+        message: '未設定接收號碼或手機簡訊交接，無法送出。請使用手機電話功能聯絡 110／119。',
+      );
+    }
     final mock = !_usesSender;
     return AnimatedContainer(
       duration: SwMotion.of(context, 220),

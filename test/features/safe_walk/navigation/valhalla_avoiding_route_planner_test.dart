@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:town_pass/features/safe_walk/navigation/avoid_area.dart';
+import 'package:town_pass/features/safe_walk/navigation/cancellable.dart';
 import 'package:town_pass/features/safe_walk/navigation/json_transport.dart';
 import 'package:town_pass/features/safe_walk/navigation/valhalla_avoiding_route_planner.dart';
 import 'package:town_pass/features/safe_walk/navigation/walking_route_provider.dart';
@@ -120,6 +122,130 @@ void main() {
     expect(plan.options.map((o) => o.level), [AvoidLevel.none]);
     expect(plan.options.single.passedAreaIds, ['a']);
   });
+
+  test(
+    'a detour cannot claim avoidance of an area outside the request corridor',
+    () async {
+      const wideDetour = [
+        [121.500, 25.0],
+        [121.500, 25.006],
+        [121.510, 25.006],
+        [121.510, 25.0],
+      ];
+      final t = _Fake(
+        (body) => body.containsKey('exclude_polygons') ? wideDetour : _direct,
+      );
+      final plan = await _planner(t).plan(
+        origin: _origin,
+        destination: _dest,
+        areas: [
+          _area('on-direct', 25, 121.505),
+          _area('on-detour', 25.006, 121.505),
+        ],
+      );
+      expect(plan.options.map((option) => option.level), [AvoidLevel.none]);
+      expect((t.bodies.last['exclude_polygons'] as List), hasLength(1));
+    },
+  );
+
+  test(
+    'an area omitted by the polygon budget still prevents a false full label',
+    () async {
+      final t = _Fake(
+        (body) => body.containsKey('exclude_polygons') ? _detour : _direct,
+      );
+      final areas = [
+        for (var i = 0; i < 30; i++) _area('near-$i', 25, 121.505),
+        _area('budget-omitted', 25.003, 121.505),
+      ];
+      final plan = await _planner(t)
+          .plan(origin: _origin, destination: _dest, areas: areas);
+      expect(
+        (t.bodies.last['exclude_polygons'] as List).length,
+        lessThan(areas.length),
+      );
+      expect(plan.options.map((option) => option.level), [AvoidLevel.none]);
+    },
+  );
+
+  test(
+    'a cancelled POST stops promptly and never issues later avoidance requests',
+    () async {
+      final cancellation = ManualCancellation();
+      final arrived = Completer<void>();
+      final reply = Completer<(int, String)>();
+      var requests = 0;
+      final planner = ValhallaAvoidingRoutePlanner(
+        hasConsent: () => true,
+        post: (url, body, {cancellation, required hasConsent}) {
+          requests++;
+          expect(cancellation, isNotNull);
+          expect(hasConsent(), isTrue);
+          arrived.complete();
+          return reply.future;
+        },
+        wait: (_) async {},
+      );
+      final pending = planner.plan(
+        origin: _origin,
+        destination: _dest,
+        areas: [_area('a', 25, 121.505)],
+        cancellation: cancellation,
+      );
+      final expectation = expectLater(
+        pending,
+        throwsA(isA<SafeWalkCancelledException>()),
+      );
+      await arrived.future;
+      cancellation.cancel();
+      await expectation;
+      reply.complete((200, jsonEncode(_response(_direct))));
+      await Future<void>.delayed(Duration.zero);
+      expect(requests, 1);
+    },
+  );
+
+  test(
+    'a queued plan cancels before the preceding request completes',
+    () async {
+      final arrived = Completer<void>();
+      final reply = Completer<(int, String)>();
+      var requests = 0;
+      final planner = ValhallaAvoidingRoutePlanner(
+        hasConsent: () => true,
+        post: (url, body, {cancellation, required hasConsent}) {
+          requests++;
+          arrived.complete();
+          return reply.future;
+        },
+        wait: (_) async {},
+      );
+      final first = planner.plan(
+        origin: _origin,
+        destination: _dest,
+        areas: const [],
+      );
+      await arrived.future;
+      final cancellation = ManualCancellation();
+      final second = planner.plan(
+        origin: _origin,
+        destination: _dest,
+        areas: const [],
+        cancellation: cancellation,
+      );
+      final expectation = expectLater(
+        second,
+        throwsA(isA<SafeWalkCancelledException>()),
+      );
+      cancellation.cancel();
+      await expectation;
+      expect(requests, 1);
+      reply.complete((200, jsonEncode(_response(_direct))));
+      await first;
+      await Future<void>.delayed(Duration.zero);
+      expect(requests, 1);
+    },
+  );
 
   test(
     'a route clearing 15m but crossing 50m is only a centre option',
@@ -248,8 +374,18 @@ final class _Fake implements JsonTransport {
   final bodies = <Map<String, Object?>>[];
 
   /// The planner POSTs; reuse the GET fake so every case stays the same.
-  Future<(int, String)> post(Uri url, String body) async {
-    final result = await getJson(url.replace(queryParameters: {'json': body}));
+  Future<(int, String)> post(
+    Uri url,
+    String body, {
+    SafeWalkCancellation? cancellation,
+    required bool Function() hasConsent,
+  }) async {
+    cancellation?.throwIfCancelled();
+    expect(hasConsent(), isTrue);
+    final result = await getJson(
+      url.replace(queryParameters: {'json': body}),
+      cancellation: cancellation,
+    );
     return (200, jsonEncode(result));
   }
 
@@ -264,15 +400,7 @@ final class _Fake implements JsonTransport {
         'trip': {'status': 1},
       };
     }
-    return {
-      'trip': {
-        'status': 0,
-        'summary': {'time': 600, 'length': 1.0},
-        'legs': [
-          {'shape': _encode(line)},
-        ],
-      },
-    };
+    return _response(line);
   }
 
   @override
@@ -282,6 +410,16 @@ final class _Fake implements JsonTransport {
     SafeWalkCancellation? cancellation,
   }) => throw UnimplementedError();
 }
+
+Map<String, Object?> _response(List<List<double>> line) => {
+  'trip': {
+    'status': 0,
+    'summary': {'time': 600, 'length': 1.0},
+    'legs': [
+      {'shape': _encode(line)},
+    ],
+  },
+};
 
 String _encode(List<List<double>> lngLat) {
   final out = StringBuffer();

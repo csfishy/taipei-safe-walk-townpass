@@ -127,7 +127,8 @@ class SavedPlace {
   const SavedPlace(this.id, this.label, this.at);
   final String id;
   final String label;
-  final LatLng at;
+  /// An unset Live home has no location; it cannot produce a route or marker.
+  final LatLng? at;
   bool get isHome => id == 'home';
 }
 
@@ -136,7 +137,7 @@ class SavedPlace {
 List<SavedPlace> demoPlaces() => const [SavedPlace('home', '家', LatLng(25.1160, 121.535083)), SavedPlace('work', '公司', LatLng(25.114604, 121.537019))];
 
 /// 到某個常用地點的示範路線：家用繞開異常的路線，其他用沿街 L 形。
-List<LatLng> placeRoute(LatLng start, SavedPlace p) => p.isHome && start.lat == DemoGeo.start.lat && start.lng == DemoGeo.start.lng ? DemoGeo.homeRoute : DemoGeo.lRoute(start, p.at);
+List<LatLng> placeRoute(LatLng start, SavedPlace p) => p.at == null ? const [] : p.isHome && start.lat == DemoGeo.start.lat && start.lng == DemoGeo.start.lng ? DemoGeo.homeRoute : DemoGeo.lRoute(start, p.at!);
 
 // ───────── 求助據點（共用 AssistancePoint 型別，示範資料） ─────────
 
@@ -181,7 +182,7 @@ const anomalyCategoryLabel = {AnomalyCategory.fight: '打架衝突', AnomalyCate
 /// 待確認 → 多人回報 → 已協助轉通報（示範）→ 已解除（警方確認後移除）。
 enum AnomalyStatus { pending, multiReported, forwardedDemo, cleared }
 
-const anomalyStatusLabel = {AnomalyStatus.pending: '待確認', AnomalyStatus.multiReported: '多人回報', AnomalyStatus.forwardedDemo: '已協助轉通報', AnomalyStatus.cleared: '已解除'};
+const anomalyStatusLabel = {AnomalyStatus.pending: '待確認', AnomalyStatus.multiReported: '多人回報', AnomalyStatus.forwardedDemo: '示範轉通報（未送出）', AnomalyStatus.cleared: '已解除'};
 
 /// 犯罪紀錄區：官方犯罪紀錄的參考位置（地址或捷運出口比對，非精確案發地點）。
 typedef CrimeSpot = ({String id, LatLng at, String label});
