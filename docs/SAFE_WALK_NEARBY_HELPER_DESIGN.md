@@ -1,6 +1,6 @@
 # 附近協助者通知：可審查的重新設計提案
 
-狀態：**提案（DRAFT）**，尚未實作、未部署、未在任何遠端資料庫執行。能力 R13 維持 **BLOCKED**（見 [附近通知安全狀態](SAFE_WALK_NEARBY_SECURITY.md) 與 [Live Readiness](SAFE_WALK_LIVE_READINESS.md)）。本文件只定義「要通過 Level C 審查需要什麼」，不解除任何封鎖。
+狀態：**提案（DRAFT）**。後端 SQL 與客戶端 transport 已在 `supabase/nearby_helper/` 與 `lib/features/safe_walk/platform/nearby_emergency/` 以隔離方式實作並於本機測試，但**未部署、未接入 App、未在任何遠端資料庫執行**。能力 R13 維持 **BLOCKED**（見 [附近通知安全狀態](SAFE_WALK_NEARBY_SECURITY.md) 與 [Live Readiness](SAFE_WALK_LIVE_READINESS.md)）。本文件只定義「要通過 Level C 審查需要什麼」，不解除任何封鎖。
 
 ## 目標與需求來源
 
@@ -44,7 +44,7 @@ create table safe_walk_nearby.helper_locations (   -- 每位協助者最多一�
   user_id uuid primary key references safe_walk_nearby.helper_profiles(user_id)
     on delete cascade,
   geog extensions.geography(Point, 4326) not null,
-  accuracy_m real not null check (accuracy_m >= 0),
+  accuracy_m real check (accuracy_m is null or accuracy_m >= 0),
   reported_at timestamptz not null,
   expires_at timestamptz not null                   -- 例如 reported_at + 10 分鐘
 );
@@ -85,10 +85,9 @@ alter table safe_walk_nearby.alert_deliveries enable row level security;
 |---|---|
 | `helper_opt_in(consent_version)` | 為本人建立協助者資料並記錄同意版本與時間 |
 | `helper_opt_out()` | 標記撤回並**立即刪除**本人位置列 |
-| `helper_report_location(lat, lng, accuracy_m)` | 僅限已同意者；驗證座標範圍、精度與時間新鮮度；每位協助者設最小更新間隔；覆寫本人唯一一列並設定 `expires_at` |
+| `helper_report_location(lat, lng, accuracy_m)` | 僅限已同意者；驗證座標範圍與精度（精度可省略，超過 500 公尺會被拒絕）；時間一律用伺服器時間；每位協助者最小更新間隔 10 秒；覆寫本人唯一一列並設定 `expires_at` |
 | `sos_send(lat, lng, accuracy_m, client_request_id)` | 驗證登入與限流；以 `client_request_id` 冪等；建立 alert；用 `ST_DWithin(…, 500)` 找出**未過期、已同意、非本人**的協助者並依距離取上限人數（例如 50）；寫入 deliveries；**只回傳收件人數**，不回傳任何身分或座標 |
-| `helper_fetch_alerts()` | 只回傳寄給本人、未過期的 alert（求助位置、時間、剩餘有效期）；不含求助者身分 |
-| `helper_ack_alert(alert_id)` | 本人標記已讀；不能讀或改他人的投遞列 |
+| `helper_fetch_alerts()` | 只回傳寄給本人、未過期的 alert（求助位置、時間、剩餘有效期）；不含求助者身分。結果可重複，由客戶端以 `alert_id` 去重，避免 App 當機而遺失 SOS；首次讀取記錄 `seen_at` |
 
 ### 保留與清除
 

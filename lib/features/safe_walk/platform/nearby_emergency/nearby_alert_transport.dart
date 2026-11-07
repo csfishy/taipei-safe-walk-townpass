@@ -9,14 +9,17 @@ import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart
 final class NearbyAlert {
   const NearbyAlert({
     required this.alertId,
-    required this.senderId,
+    this.senderId,
     required this.location,
     required this.radiusMeters,
     required this.createdAt,
   });
 
   final String alertId;
-  final String senderId;
+
+  /// The authenticated backend never reveals who sent an alert, so this is
+  /// null there. Only legacy/fake transports may supply a value.
+  final String? senderId;
   final sw.Coordinates location;
   final int radiusMeters;
   final DateTime createdAt;
@@ -45,7 +48,8 @@ abstract interface class NearbyAlertTransport {
     required int radiusMeters,
   });
 
-  /// Returns unseen alerts and marks them as seen.
+  /// Returns alerts addressed to the caller that are still valid. Results may
+  /// repeat across calls; callers de-duplicate by [NearbyAlert.alertId].
   Future<List<NearbyAlert>> fetchPendingAlerts(String helperId);
 }
 
@@ -53,6 +57,25 @@ abstract interface class NearbyAlertTransport {
 /// This exposes a failure reason, never a client-controlled authorization flag.
 abstract interface class UnavailableNearbyAlertBackend {
   String get unavailableReason;
+}
+
+/// For transports whose readiness depends on runtime state, such as a signed-in
+/// session. Returns null only when the backend can currently be used. It is
+/// derived from verified state and is never a client-settable flag.
+abstract interface class NearbyAlertAvailability {
+  String? get currentUnavailableReason;
+}
+
+/// Why [transport] cannot be used right now, or null when it can. Callers use
+/// this to refuse before collecting location.
+String? nearbyBackendUnavailableReason(NearbyAlertTransport transport) {
+  if (transport is UnavailableNearbyAlertBackend) {
+    return (transport as UnavailableNearbyAlertBackend).unavailableReason;
+  }
+  if (transport is NearbyAlertAvailability) {
+    return (transport as NearbyAlertAvailability).currentUnavailableReason;
+  }
+  return null;
 }
 
 /// Production placeholder with no credentials, identity, or network client.
