@@ -137,7 +137,7 @@ void main() {
     await t.tap(find.text('接聽'));
     await t.pump(const Duration(milliseconds: 300));
     expect(speaker.spoken, [ride.steps[0].text]);
-    // #52 的通話畫面保留「模擬陪伴」標示（#48 P1-3）。
+    expect(find.text('模擬通話，未聯絡任何人'), findsOneWidget, reason: '模擬陪伴揭露需持續顯示（見 companion README）');
 
     await t.pump(const Duration(seconds: 20));
     expect(speaker.spoken, hasLength(1), reason: '沒回覆時對方不會自己一直說下去');
@@ -149,7 +149,7 @@ void main() {
     expect(speaker.spoken, ride.steps.map((s) => s.text).toList(), reason: '兩段繁中照讀稿之間依序播放三段英文台詞');
     // The fake has not completed its final utterance: do not claim playback
     // finished just because the final line was queued.
-    expect(find.textContaining('已到劇本最後一句'), findsOneWidget);
+    expect(find.textContaining('對方說完了'), findsOneWidget);
     expect(find.textContaining('已播放完畢'), findsNothing);
 
     await t.tap(find.text('結束通話'));
@@ -165,7 +165,7 @@ void main() {
     await t.tap(find.byTooltip('收合回覆區'));
     await t.pumpAndSettle();
     expect(find.text(reply), findsNothing);
-    await t.tap(find.text('照著說'));
+    await t.tap(find.text('快速回覆'));
     await t.pumpAndSettle();
     expect(find.text(reply), findsOneWidget);
     await t.tap(find.text('結束通話'));
