@@ -51,16 +51,17 @@ final class ViolentCrimeImportReport {
 /// district-level `AreaStatistics`). M1 decides whether and how to wire it.
 final class TaipeiViolentCrimeRepository {
   TaipeiViolentCrimeRepository({
-    required ViolentCrimeTextFetcher fetchText,
+    required this.fetchText,
     DateTime Function()? now,
-    Duration cacheTtl = const Duration(hours: 6),
-  }) : _fetchText = fetchText,
-       _now = now ?? DateTime.now,
-       _cacheTtl = cacheTtl;
+    this.cacheTtl = const Duration(hours: 6),
+  }) : _now = now ?? DateTime.now;
 
-  final ViolentCrimeTextFetcher _fetchText;
+  /// Transport for metadata and CSV reads.
+  final ViolentCrimeTextFetcher fetchText;
+
+  /// How long a successful read is reused.
+  final Duration cacheTtl;
   final DateTime Function() _now;
-  final Duration _cacheTtl;
 
   List<CityMonthlyCrimeStatistics>? _cached;
   DateTime? _loadedAt;
@@ -117,7 +118,7 @@ final class TaipeiViolentCrimeRepository {
     final cached = _cached, loadedAt = _loadedAt;
     if (cached != null &&
         loadedAt != null &&
-        _now().difference(loadedAt) < _cacheTtl) {
+        _now().difference(loadedAt) < cacheTtl) {
       return Future.value(cached);
     }
     return _inFlight ??= _load().whenComplete(() => _inFlight = null);
@@ -129,7 +130,7 @@ final class TaipeiViolentCrimeRepository {
     final csvUri = metadata.csvUri ?? defaultCsvUri;
     final String csv;
     try {
-      csv = await _fetchText(csvUri);
+      csv = await fetchText(csvUri);
     } on Object catch (error) {
       throw ViolentCrimeSourceUnavailable(
         'GET ${csvUri.host} failed: ${error.runtimeType}',
@@ -185,7 +186,7 @@ final class TaipeiViolentCrimeRepository {
   /// them unknown (null); a link outside the statistics host is ignored.
   Future<_Metadata> _fetchMetadata() async {
     try {
-      final decoded = jsonDecode(await _fetchText(metadataUri));
+      final decoded = jsonDecode(await fetchText(metadataUri));
       final payload = decoded is Map ? decoded['payload'] : null;
       if (payload is! Map) return const _Metadata();
       Map? resource;
