@@ -200,15 +200,17 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
   );
 
   void _go(_Screen s) {
-    if (_screen == _Screen.call && s != _Screen.call)
+    if (_screen == _Screen.call && s != _Screen.call) {
       _callKey.currentState?.leave();
+    }
     // 使用者明確打開地圖（點「安心行」主卡）時才請 M1 規劃路線；一進安心行不自動送出。
     if (s == _Screen.map && _screen != _Screen.map) _planRoute();
     if (s == _Screen.home) _call = null;
     setState(() {
       _forward = s != _Screen.home && s != _back;
-      if (s == _Screen.call || s == _Screen.emergency)
+      if (s == _Screen.call || s == _Screen.emergency) {
         _back = _screen == _Screen.call ? _back : _screen;
+      }
       _screen = s;
     });
   }
@@ -354,12 +356,13 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
     return PopScope(
       canPop: _screen == _Screen.home,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop)
+        if (!didPop) {
           _go(
             _screen == _Screen.emergency || _screen == _Screen.call
                 ? _back
                 : _Screen.home,
           );
+        }
       },
       // 換頁：往深一層由右滑入，返回由左滑入；緊急求助由下方升起，強調「這是另一種狀態」。
       child: AnimatedSwitcher(

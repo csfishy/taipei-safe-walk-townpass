@@ -6,8 +6,7 @@ import 'package:town_pass/features/safe_walk/presentation/mock/companion_dialogu
 import 'package:town_pass/features/safe_walk/presentation/mock/companion_scenarios.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_speaker.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_ui.dart';
-import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart'
-    as sw;
+import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart' as sw;
 import 'package:town_pass/util/tp_colors.dart';
 
 class _Entry {
@@ -34,13 +33,7 @@ class SafeWalkCallSession {
 
 /// 模擬來電：三段英文男性角色台詞由 TTS 朗讀，兩段繁中台詞顯示供使用者照讀。
 class SafeWalkCallView extends StatefulWidget {
-  const SafeWalkCallView({
-    super.key,
-    required this.speaker,
-    required this.onEnd,
-    required this.onEmergency,
-    this.session,
-  });
+  const SafeWalkCallView({super.key, required this.speaker, required this.onEnd, required this.onEmergency, this.session});
 
   /// 通話進度；null 時每次都是新的一通。
   final SafeWalkCallSession? session;
@@ -51,8 +44,7 @@ class SafeWalkCallView extends StatefulWidget {
   State<SafeWalkCallView> createState() => SafeWalkCallViewState();
 }
 
-class SafeWalkCallViewState extends State<SafeWalkCallView>
-    with WidgetsBindingObserver {
+class SafeWalkCallViewState extends State<SafeWalkCallView> with WidgetsBindingObserver {
   late final SafeWalkCallSession _s = widget.session ?? SafeWalkCallSession();
   List<_Entry> get _log => _s._log;
   String? _speaking;
@@ -123,9 +115,7 @@ class SafeWalkCallViewState extends State<SafeWalkCallView>
   void initState() {
     super.initState();
     _voice = widget.speaker.available ? widget.speaker : _preview;
-    _foreground =
-        WidgetsBinding.instance.lifecycleState == null ||
-        WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
+    _foreground = WidgetsBinding.instance.lifecycleState == null || WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
     WidgetsBinding.instance.addObserver(this);
     if (!_foreground) return;
     if (!_ringing) {
@@ -170,45 +160,31 @@ class SafeWalkCallViewState extends State<SafeWalkCallView>
     if (mounted) setState(() {});
   }
 
-  sw.CompanionScenario get _scenario => m5CompanionScenarios.firstWhere(
-    (c) => c.id == _s.scenarioId,
-    orElse: () => m5CompanionScenarios.first,
-  );
+  sw.CompanionScenario get _scenario => m5CompanionScenarios.firstWhere((c) => c.id == _s.scenarioId, orElse: () => m5CompanionScenarios.first);
 
   /// 最後一句男性台詞已排入；不代表裝置已完成播放。
   bool get _scriptDone => _s.finished;
 
-  List<String> get _replies =>
-      companionReplies[_scenario.id]?.elementAtOrNull(_s.line) ?? const ['好。'];
+  List<String> get _replies => companionReplies[_scenario.id]?.elementAtOrNull(_s.line) ?? const ['好。'];
 
   Future<void> _pickScenario() async {
     final current = _scenario.id;
-    final options = [
-      for (final c in m5CompanionScenarios)
-        (c.id, c.label, '一問一答，${c.steps.length} 句'),
-    ];
+    final options = [for (final c in m5CompanionScenarios) (c.id, c.label, '一問一答，${c.steps.length} 句')];
     final picked = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
       backgroundColor: SwColors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (sheet) => SafeArea(
         child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.sizeOf(sheet).height * .8,
-          ),
+          constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(sheet).height * .8),
           child: ListView(
             shrinkWrap: true,
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
             children: [
-              Semantics(
-                header: true,
-                child: Text('選擇通話情境', style: SwText.heading),
-              ),
+              Semantics(header: true, child: Text('選擇通話情境', style: SwText.heading)),
               const SizedBox(height: 4),
-              Text('選一個跟你現在情況相近的情境。模擬通話，未聯絡任何人。', style: SwText.small),
+              Text('選一個跟你現在情況相近的情境。', style: SwText.small),
               const SizedBox(height: 12),
               for (final (id, label, desc) in options)
                 Padding(
@@ -217,16 +193,10 @@ class SafeWalkCallViewState extends State<SafeWalkCallView>
                     onTap: () => Navigator.of(sheet).pop(id),
                     selected: id == current,
                     color: id == current ? SwColors.brandSoft : SwColors.bg,
-                    border: BorderSide(
-                      color: id == current ? SwColors.brand : SwColors.border,
-                    ),
+                    border: BorderSide(color: id == current ? SwColors.brand : SwColors.border),
                     radius: 10,
-                    semanticsLabel:
-                        '$label，$desc${id == current ? '，目前選擇' : ''}',
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
-                    ),
+                    semanticsLabel: '$label，$desc${id == current ? '，目前選擇' : ''}',
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                     child: Row(
                       children: [
                         Expanded(
@@ -238,11 +208,7 @@ class SafeWalkCallViewState extends State<SafeWalkCallView>
                             ],
                           ),
                         ),
-                        if (id == current)
-                          const Icon(
-                            Icons.check_rounded,
-                            color: SwColors.brand,
-                          ),
+                        if (id == current) const Icon(Icons.check_rounded, color: SwColors.brand),
                       ],
                     ),
                   ),
@@ -252,8 +218,7 @@ class SafeWalkCallViewState extends State<SafeWalkCallView>
         ),
       ),
     );
-    if (picked != null && mounted && !_left)
-      setState(() => _s.scenarioId = picked);
+    if (picked != null && mounted && !_left) setState(() => _s.scenarioId = picked);
   }
 
   void _startClock() {
@@ -369,34 +334,19 @@ class SafeWalkCallViewState extends State<SafeWalkCallView>
     });
   }
 
-  void _scrollDown({bool jump = false}) =>
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (_left || !_scroll.hasClients) return;
-        final end = _scroll.position.maxScrollExtent;
-        jump
-            ? _scroll.jumpTo(end)
-            : _scroll.animateTo(
-                end,
-                duration: const Duration(milliseconds: 200),
-                curve: Curves.easeOut,
-              );
-      });
+  void _scrollDown({bool jump = false}) => WidgetsBinding.instance.addPostFrameCallback((_) {
+    if (_left || !_scroll.hasClients) return;
+    final end = _scroll.position.maxScrollExtent;
+    jump ? _scroll.jumpTo(end) : _scroll.animateTo(end, duration: const Duration(milliseconds: 200), curve: Curves.easeOut);
+  });
 
   @override
   Widget build(BuildContext context) {
     if (_ringing) {
-      return _Incoming(
-        scenarioLabel: _scenario.label,
-        onPickScenario: _pickScenario,
-        onAnswer: _answer,
-        onDecline: () => _leaveThen(widget.onEnd),
-        onEmergency: () => _leaveThen(widget.onEmergency),
-      );
+      return _Incoming(scenarioLabel: _scenario.label, onPickScenario: _pickScenario, onAnswer: _answer, onDecline: () => _leaveThen(widget.onEnd), onEmergency: () => _leaveThen(widget.onEmergency));
     }
-    final mm = (_s.seconds ~/ 60).toString().padLeft(2, '0'),
-        ss = (_s.seconds % 60).toString().padLeft(2, '0');
-    final callerSpeaking =
-        _speaking != null && _log.any((e) => e.key == _speaking && e.caller);
+    final mm = (_s.seconds ~/ 60).toString().padLeft(2, '0'), ss = (_s.seconds % 60).toString().padLeft(2, '0');
+    final callerSpeaking = _speaking != null && _log.any((e) => e.key == _speaking && e.caller);
     return Scaffold(
       backgroundColor: SwColors.bg,
       body: Column(
@@ -404,11 +354,7 @@ class SafeWalkCallViewState extends State<SafeWalkCallView>
           // 頂部：與響鈴畫面相同的主色漸層，頭像在對方說話時亮起外圈。
           DecoratedBox(
             decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [TPColors.primary500, TPColors.primary400],
-              ),
+              gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [TPColors.primary500, TPColors.primary400]),
             ),
             child: SafeArea(
               bottom: false,
@@ -416,11 +362,7 @@ class SafeWalkCallViewState extends State<SafeWalkCallView>
                 padding: const EdgeInsets.fromLTRB(12, 8, 12, 16),
                 child: Row(
                   children: [
-                    SwRoundButton(
-                      icon: Icons.arrow_back_ios_new_rounded,
-                      label: '返回',
-                      onTap: () => _leaveThen(widget.onEnd),
-                    ),
+                    SwRoundButton(icon: Icons.arrow_back_ios_new_rounded, label: '返回', onTap: () => _leaveThen(widget.onEnd)),
                     const SizedBox(width: 12),
                     AnimatedContainer(
                       duration: SwMotion.of(context, 200),
@@ -431,17 +373,12 @@ class SafeWalkCallViewState extends State<SafeWalkCallView>
                         color: TPColors.white,
                         shape: BoxShape.circle,
                         border: Border.all(
-                          color: TPColors.white.withValues(
-                            alpha: callerSpeaking ? .9 : .35,
-                          ),
+                          color: TPColors.white.withValues(alpha: callerSpeaking ? .9 : .35),
                           width: callerSpeaking ? 5 : 3,
                         ),
                         boxShadow: SwShadow.card,
                       ),
-                      child: Text(
-                        '家',
-                        style: SwText.title.copyWith(color: SwColors.brandText),
-                      ),
+                      child: Text('家', style: SwText.title.copyWith(color: SwColors.brandText)),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -450,45 +387,28 @@ class SafeWalkCallViewState extends State<SafeWalkCallView>
                         children: [
                           Semantics(
                             header: true,
-                            label:
-                                '$callerName，模擬來電・${callerSpeaking ? '說話中' : '通話中'}',
+                            label: '$callerName，通話中',
                             child: ExcludeSemantics(
-                              child: Text(
-                                callerName,
-                                style: SwText.title.copyWith(
-                                  color: SwColors.onBrand,
-                                ),
-                              ),
+                              child: Text(callerName, style: SwText.title.copyWith(color: SwColors.onBrand)),
                             ),
                           ),
                           Text(
-                            '模擬來電・${callerSpeaking ? '說話中' : '通話中'}・$mm:$ss',
-                            style: SwText.small.copyWith(
-                              color: SwColors.onBrand,
-                              fontFeatures: const [
-                                FontFeature.tabularFigures(),
-                              ],
-                            ),
+                            '${callerSpeaking ? '說話中' : '通話中'}・$mm:$ss',
+                            style: SwText.small.copyWith(color: SwColors.onBrand, fontFeatures: const [FontFeature.tabularFigures()]),
                           ),
                           const SizedBox(height: 4),
                           Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: SwColors.brandDeep,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                            decoration: BoxDecoration(color: SwColors.brandDeep, borderRadius: BorderRadius.circular(12)),
                             child: Text(
                               _scenario.label,
-                              style: SwText.small.copyWith(
-                                color: SwColors.onDeep,
-                              ),
+                              style: SwText.small.copyWith(color: SwColors.onDeep),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
+                          const SizedBox(height: 4),
+                          Text('模擬通話，未聯絡任何人', style: SwText.small.copyWith(color: SwColors.onBrand)),
                         ],
                       ),
                     ),
@@ -497,44 +417,17 @@ class SafeWalkCallViewState extends State<SafeWalkCallView>
               ),
             ),
           ),
-          Container(
-            width: double.infinity,
-            color: SwColors.surface,
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 4,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                SwMockBadge(text: _scenario.disclosure),
-                Text(
-                  widget.speaker.available ? '台詞由手機語音朗讀' : '語音尚未配置，播放為無聲示範',
-                  style: SwText.small,
-                ),
-              ],
-            ),
-          ),
           Expanded(
             child: ListView.separated(
               controller: _scroll,
               padding: const EdgeInsets.fromLTRB(12, 16, 16, 16),
               itemCount: _log.length + (_waiting ? 1 : 0),
               separatorBuilder: (_, _) => const SizedBox(height: 10),
-              itemBuilder: (_, i) => i == _log.length
-                  ? const _Typing()
-                  : _Bubble(
-                      entry: _log[i],
-                      speaking: _speaking == _log[i].key,
-                      silent: !widget.speaker.available,
-                      onTap: _log[i].caller ? () => _toggle(_log[i]) : null,
-                    ),
+              itemBuilder: (_, i) => i == _log.length ? const _Typing() : _Bubble(entry: _log[i], speaking: _speaking == _log[i].key, onTap: _log[i].caller ? () => _toggle(_log[i]) : null),
             ),
           ),
           Container(
-            decoration: BoxDecoration(
-              color: SwColors.surface,
-              boxShadow: SwShadow.sheet,
-            ),
+            decoration: BoxDecoration(color: SwColors.surface, boxShadow: SwShadow.sheet),
             padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
             child: Column(
               children: [
@@ -543,13 +436,10 @@ class SafeWalkCallViewState extends State<SafeWalkCallView>
                     Expanded(
                       child: Container(
                         padding: const EdgeInsets.all(4),
-                        decoration: BoxDecoration(
-                          color: SwColors.bg,
-                          borderRadius: BorderRadius.circular(24),
-                        ),
+                        decoration: BoxDecoration(color: SwColors.bg, borderRadius: BorderRadius.circular(24)),
                         child: Row(
                           children: [
-                            for (final (m, label) in [(_Mode.quick, '照著說')])
+                            for (final (m, label) in [(_Mode.quick, '快速回覆'), (_Mode.template, '完整句子'), (_Mode.input, '自己輸入')])
                               Expanded(
                                 child: Semantics(
                                   selected: _panelOpen && _mode == m,
@@ -565,22 +455,11 @@ class SafeWalkCallViewState extends State<SafeWalkCallView>
                                       height: 44,
                                       alignment: Alignment.center,
                                       decoration: BoxDecoration(
-                                        color: _panelOpen && _mode == m
-                                            ? SwColors.surface
-                                            : Colors.transparent,
+                                        color: _panelOpen && _mode == m ? SwColors.surface : Colors.transparent,
                                         borderRadius: BorderRadius.circular(20),
-                                        boxShadow: _panelOpen && _mode == m
-                                            ? SwShadow.card
-                                            : null,
+                                        boxShadow: _panelOpen && _mode == m ? SwShadow.card : null,
                                       ),
-                                      child: Text(
-                                        label,
-                                        style: SwText.smallStrong.copyWith(
-                                          color: _panelOpen && _mode == m
-                                              ? SwColors.brandText
-                                              : SwColors.textSecondary,
-                                        ),
-                                      ),
+                                      child: Text(label, style: SwText.smallStrong.copyWith(color: _panelOpen && _mode == m ? SwColors.brandText : SwColors.textSecondary)),
                                     ),
                                   ),
                                 ),
@@ -598,12 +477,7 @@ class SafeWalkCallViewState extends State<SafeWalkCallView>
                         child: SizedBox(
                           width: swTouch,
                           height: swTouch,
-                          child: Icon(
-                            _panelOpen
-                                ? Icons.expand_more_rounded
-                                : Icons.expand_less_rounded,
-                            color: SwColors.textSecondary,
-                          ),
+                          child: Icon(_panelOpen ? Icons.expand_more_rounded : Icons.expand_less_rounded, color: SwColors.textSecondary),
                         ),
                       ),
                     ),
@@ -613,22 +487,13 @@ class SafeWalkCallViewState extends State<SafeWalkCallView>
                   duration: SwMotion.of(context, 200),
                   curve: SwMotion.curve,
                   alignment: Alignment.topCenter,
-                  child: _panelOpen
-                      ? Padding(
-                          padding: const EdgeInsets.fromLTRB(4, 12, 4, 12),
-                          child: _replyPanel(),
-                        )
-                      : const SizedBox(width: double.infinity, height: 8),
+                  child: _panelOpen ? Padding(padding: const EdgeInsets.fromLTRB(4, 12, 4, 12), child: _replyPanel()) : const SizedBox(width: double.infinity, height: 8),
                 ),
               ],
             ),
           ),
           SwActionBar(
-            secondary: SwSecondaryAction(
-              icon: Icons.call_end_rounded,
-              label: '結束通話',
-              onTap: () => _leaveThen(widget.onEnd),
-            ),
+            secondary: SwSecondaryAction(icon: Icons.call_end_rounded, label: '結束通話', onTap: () => _leaveThen(widget.onEnd)),
             onEmergency: () => _leaveThen(widget.onEmergency),
           ),
         ],
@@ -638,32 +503,18 @@ class SafeWalkCallViewState extends State<SafeWalkCallView>
 
   Widget _replyPanel() {
     Widget option(String text) => SwPressable(
-      onTap: _waiting
-          ? null
-          : () => _respond(text, sentence: _mode == _Mode.template),
+      onTap: _waiting ? null : () => _respond(text, sentence: _mode == _Mode.template),
       color: _waiting ? SwColors.bg : SwColors.brandSoft,
       pressedColor: TPColors.primary100,
-      border: BorderSide(
-        color: _waiting
-            ? SwColors.border
-            : SwColors.brand.withValues(alpha: .5),
-      ),
+      border: BorderSide(color: _waiting ? SwColors.border : SwColors.brand.withValues(alpha: .5)),
       radius: 22,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
-      child: Text(
-        text,
-        style: SwText.bodyStrong.copyWith(
-          color: _waiting ? SwColors.textSecondary : SwColors.brandText,
-        ),
-      ),
+      child: Text(text, style: SwText.bodyStrong.copyWith(color: _waiting ? SwColors.textSecondary : SwColors.brandText)),
     );
     final note = _waiting || _scriptDone
         ? Padding(
             padding: const EdgeInsets.only(bottom: 8),
-            child: Text(
-              _waiting ? '對方回應中，請稍候' : '已到劇本最後一句；如仍有危險，請立即求助',
-              style: SwText.small,
-            ),
+            child: Text(_waiting ? '對方回應中…' : '對方說完了，可以結束通話，或用「完整句子」繼續聊', style: SwText.small),
           )
         : const SizedBox.shrink();
     switch (_mode) {
@@ -680,11 +531,7 @@ class SafeWalkCallViewState extends State<SafeWalkCallView>
             if (!_scriptDone)
               SizedBox(
                 width: double.infinity,
-                child: Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [for (final r in _replies) option(r)],
-                ),
+                child: Wrap(spacing: 8, runSpacing: 8, children: [for (final r in _replies) option(r)]),
               ),
           ],
         );
@@ -699,10 +546,7 @@ class SafeWalkCallViewState extends State<SafeWalkCallView>
               for (final t in callTemplates)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 8),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: option(t),
-                  ),
+                  child: Align(alignment: Alignment.centerLeft, child: option(t)),
                 ),
             ],
           ),
@@ -720,12 +564,7 @@ class SafeWalkCallViewState extends State<SafeWalkCallView>
                     controller: _draft,
                     style: SwText.body,
                     onChanged: (_) => setState(() {}),
-                    decoration: InputDecoration(
-                      isDense: true,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
+                    decoration: InputDecoration(isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -749,17 +588,9 @@ class SafeWalkCallViewState extends State<SafeWalkCallView>
 }
 
 class _Bubble extends StatelessWidget {
-  const _Bubble({
-    required this.entry,
-    required this.speaking,
-    required this.onTap,
-    this.silent = false,
-  });
+  const _Bubble({required this.entry, required this.speaking, required this.onTap});
   final _Entry entry;
   final bool speaking;
-
-  /// 臺北通尚未配置語音：播放樣式照樣呈現，但文字註明是無聲示範。
-  final bool silent;
   final VoidCallback? onTap;
 
   @override
@@ -776,20 +607,12 @@ class _Bubble extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             decoration: const BoxDecoration(
               color: SwColors.brand,
-              borderRadius: BorderRadius.only(
-                topLeft: r,
-                topRight: r,
-                bottomLeft: r,
-                bottomRight: Radius.circular(4),
-              ),
+              borderRadius: BorderRadius.only(topLeft: r, topRight: r, bottomLeft: r, bottomRight: Radius.circular(4)),
             ),
             child: Semantics(
               label: '我：${entry.text}',
               child: ExcludeSemantics(
-                child: Text(
-                  entry.text,
-                  style: SwText.body.copyWith(color: SwColors.onBrand),
-                ),
+                child: Text(entry.text, style: SwText.body.copyWith(color: SwColors.onBrand)),
               ),
             ),
           ),
@@ -812,15 +635,9 @@ class _Bubble extends StatelessWidget {
                 onTap: onTap,
                 color: SwColors.surface,
                 pressedColor: SwColors.brandSoft,
-                border: BorderSide(
-                  color: speaking ? SwColors.brand : SwColors.border,
-                  width: speaking ? 2 : 1,
-                ),
+                border: BorderSide(color: speaking ? SwColors.brand : SwColors.border, width: speaking ? 2 : 1),
                 radius: 18,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 10,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
@@ -830,26 +647,9 @@ class _Bubble extends StatelessWidget {
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(
-                          speaking
-                              ? Icons.graphic_eq_rounded
-                              : Icons.replay_rounded,
-                          size: 16,
-                          color: speaking
-                              ? SwColors.brand
-                              : SwColors.textSecondary,
-                        ),
+                        Icon(speaking ? Icons.graphic_eq_rounded : Icons.replay_rounded, size: 16, color: speaking ? SwColors.brand : SwColors.textSecondary),
                         const SizedBox(width: 4),
-                        Text(
-                          speaking
-                              ? (silent ? '播放中（無聲示範）・點一下停止' : '朗讀中・點一下停止')
-                              : '點一下重播',
-                          style: SwText.caption.copyWith(
-                            color: speaking
-                                ? SwColors.brandText
-                                : SwColors.textSecondary,
-                          ),
-                        ),
+                        Text(speaking ? '朗讀中・點一下停止' : '點一下重播', style: SwText.caption.copyWith(color: speaking ? SwColors.brandText : SwColors.textSecondary)),
                       ],
                     ),
                   ],
@@ -870,14 +670,8 @@ class _Avatar extends StatelessWidget {
     width: 32,
     height: 32,
     alignment: Alignment.center,
-    decoration: const BoxDecoration(
-      color: SwColors.brand,
-      shape: BoxShape.circle,
-    ),
-    child: Text(
-      '家',
-      style: SwText.smallStrong.copyWith(color: SwColors.onBrand),
-    ),
+    decoration: const BoxDecoration(color: SwColors.brand, shape: BoxShape.circle),
+    child: Text('家', style: SwText.smallStrong.copyWith(color: SwColors.onBrand)),
   );
 }
 
@@ -899,10 +693,7 @@ class _Typing extends StatelessWidget {
             border: Border.all(color: SwColors.border),
           ),
           child: ExcludeSemantics(
-            child: Text(
-              '• • •',
-              style: SwText.bodyStrong.copyWith(color: SwColors.textSecondary),
-            ),
+            child: Text('• • •', style: SwText.bodyStrong.copyWith(color: SwColors.textSecondary)),
           ),
         ),
       ),
@@ -912,26 +703,16 @@ class _Typing extends StatelessWidget {
 
 /// 響鈴畫面：臺北通主色底（primary500，配深色字）、頭像外一圈圈擴散的光圈，下方「拒絕」「接聽」。
 class _Incoming extends StatefulWidget {
-  const _Incoming({
-    required this.scenarioLabel,
-    required this.onPickScenario,
-    required this.onAnswer,
-    required this.onDecline,
-    required this.onEmergency,
-  });
+  const _Incoming({required this.scenarioLabel, required this.onPickScenario, required this.onAnswer, required this.onDecline, required this.onEmergency});
   final String scenarioLabel;
   final VoidCallback onPickScenario, onAnswer, onDecline, onEmergency;
   @override
   State<_Incoming> createState() => _IncomingState();
 }
 
-class _IncomingState extends State<_Incoming>
-    with SingleTickerProviderStateMixin {
+class _IncomingState extends State<_Incoming> with SingleTickerProviderStateMixin {
   // 響約 18 秒後光圈停住（真手機也不會無限響）；系統關閉動畫時不擴散。
-  late final _pulse = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 1500),
-  );
+  late final _pulse = AnimationController(vsync: this, duration: const Duration(milliseconds: 1500));
 
   @override
   void initState() {
@@ -951,14 +732,7 @@ class _IncomingState extends State<_Incoming>
     super.dispose();
   }
 
-  Widget _button({
-    required IconData icon,
-    required String label,
-    required Color bg,
-    required Color fg,
-    required VoidCallback onTap,
-    double size = 72,
-  }) => Column(
+  Widget _button({required IconData icon, required String label, required Color bg, required Color fg, required VoidCallback onTap, double size = 72}) => Column(
     mainAxisSize: MainAxisSize.min,
     children: [
       Semantics(
@@ -981,10 +755,7 @@ class _IncomingState extends State<_Incoming>
         child: GestureDetector(
           onTap: onTap,
           behavior: HitTestBehavior.opaque,
-          child: Text(
-            label,
-            style: SwText.bodyStrong.copyWith(color: SwColors.onBrand),
-          ),
+          child: Text(label, style: SwText.bodyStrong.copyWith(color: SwColors.onBrand)),
         ),
       ),
     ],
@@ -1000,11 +771,7 @@ class _IncomingState extends State<_Incoming>
           Expanded(
             child: DecoratedBox(
               decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [TPColors.primary400, TPColors.primary500],
-                ),
+                gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [TPColors.primary400, TPColors.primary500]),
               ),
               child: SafeArea(
                 bottom: false,
@@ -1017,23 +784,6 @@ class _IncomingState extends State<_Incoming>
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 6,
-                              ),
-                              decoration: BoxDecoration(
-                                color: SwColors.brandDeep,
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Text(
-                                '模擬來電・不是真人通話，也沒有報警',
-                                textAlign: TextAlign.center,
-                                style: SwText.small.copyWith(
-                                  color: SwColors.onBrand,
-                                ),
-                              ),
-                            ),
                             const SizedBox(height: 32),
                             Semantics(
                               liveRegion: true,
@@ -1046,55 +796,27 @@ class _IncomingState extends State<_Incoming>
                                       height: 200,
                                       child: AnimatedBuilder(
                                         animation: _pulse,
-                                        builder: (_, child) => CustomPaint(
-                                          painter: _Rings(
-                                            still ? 0 : _pulse.value,
-                                          ),
-                                          child: child,
-                                        ),
+                                        builder: (_, child) => CustomPaint(painter: _Rings(still ? 0 : _pulse.value), child: child),
                                         child: Center(
                                           child: Container(
                                             width: 104,
                                             height: 104,
                                             alignment: Alignment.center,
-                                            decoration: BoxDecoration(
-                                              color: TPColors.white,
-                                              shape: BoxShape.circle,
-                                              boxShadow: SwShadow.float,
-                                            ),
-                                            child: Text(
-                                              '男',
-                                              style: SwText.title.copyWith(
-                                                color: TPColors.primary700,
-                                              ),
-                                            ),
+                                            decoration: BoxDecoration(color: TPColors.white, shape: BoxShape.circle, boxShadow: SwShadow.float),
+                                            child: Text('男', style: SwText.title.copyWith(color: TPColors.primary700)),
                                           ),
                                         ),
                                       ),
                                     ),
                                     const SizedBox(height: 16),
-                                    Text(
-                                      callerName,
-                                      style: SwText.title.copyWith(
-                                        color: SwColors.onBrand,
-                                      ),
-                                    ),
+                                    Text(callerName, style: SwText.title.copyWith(color: SwColors.onBrand)),
                                     const SizedBox(height: 4),
                                     Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        const Icon(
-                                          Icons.vibration_rounded,
-                                          color: SwColors.onBrand,
-                                          size: 20,
-                                        ),
+                                        const Icon(Icons.vibration_rounded, color: SwColors.onBrand, size: 20),
                                         const SizedBox(width: 6),
-                                        Text(
-                                          '來電中…',
-                                          style: SwText.body.copyWith(
-                                            color: SwColors.onBrand,
-                                          ),
-                                        ),
+                                        Text('來電中…', style: SwText.body.copyWith(color: SwColors.onBrand)),
                                       ],
                                     ),
                                   ],
@@ -1102,31 +824,14 @@ class _IncomingState extends State<_Incoming>
                               ),
                             ),
                             const SizedBox(height: 20),
-                            SwChip(
-                              label: '情境：${widget.scenarioLabel}',
-                              icon: Icons.tune_rounded,
-                              onTap: widget.onPickScenario,
-                            ),
+                            SwChip(label: '情境：${widget.scenarioLabel}', icon: Icons.tune_rounded, onTap: widget.onPickScenario),
                             const SizedBox(height: 28),
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                               crossAxisAlignment: CrossAxisAlignment.end,
                               children: [
-                                _button(
-                                  icon: Icons.call_end_rounded,
-                                  label: '拒絕',
-                                  bg: SwColors.brandDeep,
-                                  fg: TPColors.white,
-                                  onTap: widget.onDecline,
-                                ),
-                                _button(
-                                  icon: Icons.call_rounded,
-                                  label: '接聽',
-                                  bg: TPColors.white,
-                                  fg: SwColors.brandText,
-                                  onTap: widget.onAnswer,
-                                  size: 84,
-                                ),
+                                _button(icon: Icons.call_end_rounded, label: '拒絕', bg: SwColors.brandDeep, fg: TPColors.white, onTap: widget.onDecline),
+                                _button(icon: Icons.call_rounded, label: '接聽', bg: TPColors.white, fg: SwColors.brandText, onTap: widget.onAnswer, size: 84),
                               ],
                             ),
                           ],
@@ -1154,11 +859,7 @@ class _Rings extends CustomPainter {
     final c = size.center(Offset.zero);
     for (final k in [0.0, .5]) {
       final p = (t + k) % 1;
-      canvas.drawCircle(
-        c,
-        52 + 48 * p,
-        Paint()..color = TPColors.white.withValues(alpha: .28 * (1 - p)),
-      );
+      canvas.drawCircle(c, 52 + 48 * p, Paint()..color = TPColors.white.withValues(alpha: .28 * (1 - p)));
     }
   }
 

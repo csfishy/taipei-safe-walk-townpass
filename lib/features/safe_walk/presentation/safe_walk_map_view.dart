@@ -173,8 +173,9 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
     setState(() {
       if (bump) {
         a.reportCount++;
-        if (a.status == AnomalyStatus.pending)
+        if (a.status == AnomalyStatus.pending) {
           a.status = AnomalyStatus.multiReported;
+        }
       }
       a.updates.add(text);
       _toast = '已更新這個回報';
@@ -289,8 +290,9 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                       _toast = null;
                       _picking = false;
                       _pin = null;
-                      if (_size == _SheetSize.collapsed)
+                      if (_size == _SheetSize.collapsed) {
                         _size = _SheetSize.normal;
+                      }
                     }),
                     onPoint: _pointsView
                         ? (id) => setState(() => _pickedPointId = id)
@@ -307,8 +309,9 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                         : _picking
                         ? (at) => setState(() {
                             _pin = at;
-                            if (_size == _SheetSize.collapsed)
+                            if (_size == _SheetSize.collapsed) {
                               _size = _SheetSize.normal;
+                            }
                           })
                         : null,
                   ),
@@ -417,8 +420,9 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                                   _pin = null;
                                   _detailId = null;
                                   _toast = null;
-                                  if (_size == _SheetSize.collapsed)
+                                  if (_size == _SheetSize.collapsed) {
                                     _size = _SheetSize.normal;
+                                  }
                                 }),
                               ),
                             ],
@@ -812,8 +816,9 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                                         _legend = false;
                                         _pin = null;
                                         _detailId = null;
-                                        if (_size == _SheetSize.collapsed)
+                                        if (_size == _SheetSize.collapsed) {
                                           _size = _SheetSize.normal;
+                                        }
                                       });
                                       Navigator.of(sheetContext).pop();
                                     },
@@ -1049,7 +1054,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
   ) {
     final ps = widget.pointsState;
     if (ps.loading) return const SwSkeleton();
-    if (ps.error != null)
+    if (ps.error != null) {
       return SwStateMessage(
         icon: Icons.cloud_off_rounded,
         title: '求助地點暫時載入失敗',
@@ -1058,6 +1063,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
         onAction: ps.onRetry,
         error: true,
       );
+    }
     if (points.isEmpty) {
       return const SwStateMessage(
         icon: Icons.search_off_rounded,
@@ -1112,14 +1118,16 @@ class _Sheet extends StatelessWidget {
   );
 
   void _drag(double v) {
-    if (v < -200)
+    if (v < -200) {
       onSize(
         size == _SheetSize.collapsed ? _SheetSize.normal : _SheetSize.full,
       );
-    if (v > 200)
+    }
+    if (v > 200) {
       onSize(
         size == _SheetSize.full ? _SheetSize.normal : _SheetSize.collapsed,
       );
+    }
   }
 
   @override

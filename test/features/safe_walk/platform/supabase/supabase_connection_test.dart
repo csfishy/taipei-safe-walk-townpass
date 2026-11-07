@@ -304,20 +304,18 @@ void main() {
   });
 
   test(
-    'nearby factory shares config and never sends a publishable bearer',
+    'nearby factory refuses anonymous access without sending any request',
     () async {
       handler = (request) => respond(request, '[]');
       final transport = SupabaseNearbyAlertTransport.fromConfig(config());
       try {
         await Future<void>.delayed(Duration.zero);
         expect(requests, isEmpty);
-        expect(
-          await transport.fetchPendingAlerts('artificial-helper'),
-          isEmpty,
+        await expectLater(
+          transport.fetchPendingAlerts('artificial-helper'),
+          throwsA(isA<NearbyAlertException>()),
         );
-        expect(requests.single.uri.path, '/rest/v1/rpc/fetch_pending_alerts');
-        expect(requests.single.headers.value('apikey'), key);
-        expect(requests.single.headers.value('Authorization'), isNull);
+        expect(requests, isEmpty);
       } finally {
         transport.close();
         transport.close();
@@ -326,7 +324,7 @@ void main() {
         transport.fetchPendingAlerts('artificial-helper'),
         throwsA(isA<NearbyAlertException>()),
       );
-      expect(requests, hasLength(1));
+      expect(requests, isEmpty);
     },
   );
 }
