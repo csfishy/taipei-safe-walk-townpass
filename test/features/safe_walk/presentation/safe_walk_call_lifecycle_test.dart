@@ -9,10 +9,16 @@ import 'package:town_pass/features/safe_walk/presentation/safe_walk_speaker.dart
 
 class _Spy implements SafeWalkSpeaker {
   final spoken = <String>[];
+  final completions = <void Function()?>[];
+  bool ready = true;
   @override
-  bool get available => true;
+  bool get available => ready;
   @override
-  void speak(String text, {void Function()? onDone}) => spoken.add(text);
+  void speak(String text, {void Function()? onDone}) {
+    spoken.add(text);
+    completions.add(onDone);
+  }
+  void finish() => completions.last?.call();
   @override
   void stop() {}
 }
@@ -174,6 +180,7 @@ void main() {
     await t.tap(find.text(said));
     await t.pump(const Duration(seconds: 1));
     expect(speaker.spoken.last, callTemplateAcks[said], reason: '先回應你說的話');
+    speaker.finish();
     await t.pump(const Duration(seconds: 5));
     expect(speaker.spoken.last, night.steps[1].text, reason: '再接劇本下一句');
 
@@ -194,5 +201,87 @@ void main() {
     expect(speaker.spoken.last, callTemplateAcks[callTemplates[1]]);
     await t.tap(find.text('結束通話'));
     await t.pumpAndSettle();
+  });
+
+  testWidgets('語音準備晚到：揭露更新後，手動重播使用真正的 speaker', (t) async {
+    final speaker = _Spy()..ready = false;
+    await _open(t, speaker);
+    await t.tap(find.text('接聽'));
+    await t.pump(const Duration(milliseconds: 300));
+    speaker.ready = true;
+    t.element(find.byType(SafeWalkFlow)).markNeedsBuild();
+    await t.pump();
+    await t.tap(find.text(m5CompanionScenarios.first.steps.first.text));
+    await t.pump();
+    final spoken = [...speaker.spoken];
+    final notice = find.text('台詞由手機語音朗讀').evaluate().length;
+    await t.pumpWidget(const MaterialApp(home: SizedBox()));
+
+    expect(notice, 1);
+    expect(spoken, [m5CompanionScenarios.first.steps.first.text]);
+  });
+
+  testWidgets('完整句子的回應要等朗讀完成，不以字數倒數截斷', (t) async {
+    final speaker = _Spy();
+    await _open(t, speaker);
+    await t.tap(find.text('接聽'));
+    await t.pump(const Duration(milliseconds: 300));
+    await t.tap(find.text('完整句子'));
+    await t.pump(const Duration(milliseconds: 300));
+    await t.tap(find.text(callTemplates.first));
+    await t.pump(const Duration(seconds: 1));
+    await t.pump(const Duration(seconds: 10));
+    final beforeDone = [...speaker.spoken];
+    speaker.finish();
+    await t.pump();
+    await t.pump(const Duration(milliseconds: 100));
+    final afterDone = [...speaker.spoken];
+    await t.pumpWidget(const MaterialApp(home: SizedBox()));
+
+    expect(beforeDone, [m5CompanionScenarios.first.steps.first.text, callTemplateAcks[callTemplates.first]]);
+    expect(afterDone.last, m5CompanionScenarios.first.steps[1].text);
+  });
+
+  testWidgets('背景取消待回覆；回前景不自動朗讀，仍可手動重播', (t) async {
+    final speaker = _Spy();
+    addTearDown(() => t.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed));
+    await _open(t, speaker);
+    await t.tap(find.text('接聽'));
+    await t.pump(const Duration(milliseconds: 300));
+    await t.tap(find.text(companionReplies['walk-home-night']!.first.first));
+    await t.pump(const Duration(milliseconds: 100));
+    t.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await t.pump(const Duration(seconds: 2));
+    final inBackground = [...speaker.spoken];
+    t.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await t.pump(const Duration(seconds: 2));
+    final afterResume = [...speaker.spoken];
+    await t.tap(find.text(m5CompanionScenarios.first.steps.first.text));
+    await t.pump();
+    final afterReplay = [...speaker.spoken];
+    await t.pumpWidget(const MaterialApp(home: SizedBox()));
+
+    expect(inBackground, [m5CompanionScenarios.first.steps.first.text]);
+    expect(afterResume, inBackground);
+    expect(afterReplay, [...inBackground, m5CompanionScenarios.first.steps.first.text]);
+  });
+
+  testWidgets('手動輸入會取消尚未執行的劇本回覆，不被下一句蓋過', (t) async {
+    final speaker = _Spy();
+    await _open(t, speaker);
+    await t.tap(find.text('接聽'));
+    await t.pump(const Duration(milliseconds: 300));
+    await t.tap(find.text(companionReplies['walk-home-night']!.first.first));
+    await t.pump(const Duration(milliseconds: 100));
+    await t.tap(find.text('自己輸入'));
+    await t.pump(const Duration(milliseconds: 300));
+    await t.enterText(find.byType(TextField), '這是手動台詞。');
+    await t.pump();
+    await t.tap(find.text('讓對方說'));
+    await t.pump(const Duration(seconds: 2));
+    final spoken = [...speaker.spoken];
+    await t.pumpWidget(const MaterialApp(home: SizedBox()));
+
+    expect(spoken, [m5CompanionScenarios.first.steps.first.text, '這是手動台詞。']);
   });
 }

@@ -44,7 +44,7 @@ class SafeWalkCallView extends StatefulWidget {
   State<SafeWalkCallView> createState() => SafeWalkCallViewState();
 }
 
-class SafeWalkCallViewState extends State<SafeWalkCallView> {
+class SafeWalkCallViewState extends State<SafeWalkCallView> with WidgetsBindingObserver {
   late final SafeWalkCallSession _s = widget.session ?? SafeWalkCallSession();
   List<_Entry> get _log => _s._log;
   String? _speaking;
@@ -61,24 +61,42 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
   late bool _ringing = !_s.answered;
 
   /// 臺北通尚未配置語音時，用無聲示範（依字數計時）呈現播放樣式；不呼叫 M1／M5 的喇叭。
-  late final SafeWalkSpeaker _voice = widget.speaker.available ? widget.speaker : PreviewSpeaker();
+  final SafeWalkSpeaker _preview = PreviewSpeaker();
+  late SafeWalkSpeaker _voice;
+  bool _foreground = true;
 
   /// 已離開（或正在離開）此畫面；之後的計時器、朗讀與 onDone 一律忽略。
   bool _left = false;
 
-  /// 每次離開遞增，讓離開前排進來的朗讀完成回呼失效。
+  /// 每次朗讀或中斷遞增，讓上一輪排進來的完成回呼失效。
   int _gen = 0;
+
+  bool get _active => !_left && _foreground;
+
+  void _stopTurn() {
+    _gen++;
+    _reply?.cancel();
+    _reply = null;
+    _voice.stop();
+    if (!identical(_voice, widget.speaker)) widget.speaker.stop();
+    _speaking = null;
+    _waiting = false;
+  }
+
+  void _refreshVoice() {
+    final next = widget.speaker.available ? widget.speaker : _preview;
+    if (identical(next, _voice)) return;
+    _stopTurn();
+    _voice = next;
+  }
 
   /// 離開意圖發生時呼叫（含 SOS）：同步取消回覆計時器與時鐘、停止朗讀。換頁動畫期間舊頁仍 mounted，也不會再朗讀。
   void leave() {
     if (_left) return;
     _left = true;
-    _gen++;
-    _reply?.cancel();
+    _stopTurn();
     _clock?.cancel();
     _buzz?.cancel();
-    _voice.stop();
-    if (!identical(_voice, widget.speaker)) widget.speaker.stop();
   }
 
   void _leaveThen(VoidCallback go) {
@@ -89,6 +107,10 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
   @override
   void initState() {
     super.initState();
+    _voice = widget.speaker.available ? widget.speaker : _preview;
+    _foreground = WidgetsBinding.instance.lifecycleState == null || WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
+    WidgetsBinding.instance.addObserver(this);
+    if (!_foreground) return;
     if (!_ringing) {
       _startClock();
       // 離開前已回覆、對方還沒回：接續回覆。
@@ -103,6 +125,29 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
       HapticFeedback.vibrate();
       if (t.tick >= 11) t.cancel();
     });
+  }
+
+  @override
+  void didUpdateWidget(covariant SafeWalkCallView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _refreshVoice();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (_left) return;
+    if (state == AppLifecycleState.resumed) {
+      if (_foreground) return;
+      _foreground = true;
+      _refreshVoice();
+      if (!_ringing) _startClock();
+    } else {
+      _foreground = false;
+      _stopTurn();
+      _clock?.cancel();
+      _buzz?.cancel();
+    }
+    if (mounted) setState(() {});
   }
 
   sw.CompanionScenario get _scenario => m5CompanionScenarios.firstWhere((c) => c.id == _s.scenarioId, orElse: () => m5CompanionScenarios.first);
@@ -166,12 +211,15 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
     if (picked != null && mounted && !_left) setState(() => _s.scenarioId = picked);
   }
 
-  void _startClock() => _clock = Timer.periodic(const Duration(seconds: 1), (_) {
-    if (mounted && !_left) setState(() => _s.seconds++);
-  });
+  void _startClock() {
+    _clock?.cancel();
+    _clock = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted && _active) setState(() => _s.seconds++);
+    });
+  }
 
   void _answer() {
-    if (_left || !_ringing) return;
+    if (!_active || !_ringing) return;
     _buzz?.cancel();
     _s.answered = true;
     setState(() => _ringing = false);
@@ -182,6 +230,7 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     leave();
     _clock?.cancel();
     _reply?.cancel();
@@ -191,40 +240,39 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
     super.dispose();
   }
 
-  void _speak(_Entry e) {
-    if (_left) return;
-    final gen = _gen;
+  void _speak(_Entry e, {VoidCallback? onDone}) {
+    if (!_active) return;
+    _refreshVoice();
+    final gen = ++_gen;
     setState(() => _speaking = e.key);
     _voice.speak(
       e.text,
       onDone: () {
-        if (!mounted || _left || gen != _gen) return;
+        if (!mounted || !_active || gen != _gen) return;
         if (_speaking == e.key) setState(() => _speaking = null);
+        onDone?.call();
       },
     );
   }
 
   void _toggle(_Entry e) {
-    if (_speaking == e.key) {
-      _gen++;
-      _voice.stop();
-      setState(() => _speaking = null);
-    } else {
-      _speak(e);
-    }
+    if (!_active) return;
+    final wasSpeaking = _speaking == e.key;
+    setState(_stopTurn);
+    if (!wasSpeaking) _speak(e);
   }
 
-  void _say(String text) {
-    if (_left) return;
+  void _say(String text, {VoidCallback? onDone}) {
+    if (!_active) return;
     final e = _Entry('c${_s.seq++}', true, text);
     setState(() => _log.add(e));
-    _speak(e);
+    _speak(e, onDone: onDone);
     _scrollDown();
   }
 
   void _respond(String text, {bool sentence = false}) {
-    if (_waiting || _left) return;
-    _voice.stop();
+    if (_waiting || !_active) return;
+    _stopTurn();
     setState(() {
       _speaking = null;
       _log.add(_Entry('u${_s.seq++}', false, text));
@@ -238,10 +286,8 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
     // 完整句子不是針對這一句台詞寫的：對方先回應你說的話，再接劇本下一句。
     setState(() => _waiting = true);
     _reply = Timer(const Duration(milliseconds: 900), () {
-      if (!mounted || _left) return;
-      _say(ack);
-      _reply = Timer(Duration(milliseconds: 250 * ack.length + 600), () {
-        if (!mounted || _left) return;
+      if (!mounted || !_active) return;
+      _say(ack, onDone: () {
         if (_s.finished) {
           setState(() => _waiting = false);
         } else {
@@ -253,6 +299,7 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
 
   /// 你回完之後，對方隔一下接下一句；劇本說完就不再接話。
   void _scheduleReply({Duration delay = const Duration(milliseconds: 900)}) {
+    if (!_active) return;
     final steps = _scenario.steps;
     if (_s.line + 1 >= steps.length) {
       setState(() {
@@ -263,7 +310,7 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
     }
     _waiting = true;
     _reply = Timer(delay, () {
-      if (!mounted || _left) return;
+      if (!mounted || !_active) return;
       setState(() {
         _s.line++;
         _waiting = false;
@@ -481,6 +528,7 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> {
                   onTap: _draft.text.trim().isEmpty
                       ? null
                       : () {
+                          _stopTurn();
                           _say(_draft.text.trim());
                           _draft.clear();
                           setState(() {});
