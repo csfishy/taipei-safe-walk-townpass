@@ -1,8 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:town_pass/features/safe_walk/platform/nearby_emergency/emergency_contact.dart';
 import 'package:town_pass/features/safe_walk/platform/nearby_emergency/emergency_dispatch.dart';
 import 'package:town_pass/features/safe_walk/platform/nearby_emergency/nearby_alert_transport.dart';
+import 'package:town_pass/features/safe_walk/platform/nearby_emergency/nearby_alert_watcher.dart';
 import 'package:town_pass/features/safe_walk/platform/nearby_emergency/nearby_emergency_service.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart'
     as sw;
 
@@ -15,7 +19,11 @@ class NearbyLiveTestPage extends StatefulWidget {
     required this.dispatch,
     required this.contacts,
     required this.helperId,
+    this.pollInterval = const Duration(seconds: 10),
   });
+
+  /// How often to check for nearby alerts while the page is open.
+  final Duration pollInterval;
 
   /// Null when live mode is not configured. Nothing is sent in that case.
   final NearbyEmergencyService? service;
@@ -37,16 +45,56 @@ class _NearbyLiveTestPageState extends State<NearbyLiveTestPage> {
   NearbyEmergencyService? get _service => widget.service;
   bool get _configured => _service != null && widget.dispatch != null;
 
+  NearbyAlertWatcher? _watcher;
+  StreamSubscription<NearbyAlert>? _alertSub;
+
   @override
   void initState() {
     super.initState();
     _loadContact();
+    final service = widget.service;
+    if (service != null) {
+      _watcher = NearbyAlertWatcher(
+        service: service,
+        helperId: widget.helperId,
+        interval: widget.pollInterval,
+      );
+      _alertSub = _watcher!.alerts.listen(_showAlertPopup);
+      _watcher!.start();
+    }
   }
 
   @override
   void dispose() {
+    _alertSub?.cancel();
+    _watcher?.dispose();
     _phone.dispose();
     super.dispose();
+  }
+
+  void _showAlertPopup(NearbyAlert alert) {
+    if (!mounted) return;
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        key: Key('popup-${alert.alertId}'),
+        title: const Text('附近有人需要協助'),
+        content: SelectableText(nearbyAlertPopupText(alert)),
+        actions: [
+          TextButton(
+            onPressed: () => launchUrl(
+              Uri.parse(nearbyAlertMapUrl(alert)),
+              mode: LaunchMode.externalApplication,
+            ),
+            child: const Text('開啟地圖'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('知道了'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _loadContact() async {
