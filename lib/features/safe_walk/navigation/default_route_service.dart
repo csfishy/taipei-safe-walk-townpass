@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:town_pass/features/safe_walk/navigation/cancellable.dart';
+import 'package:town_pass/features/safe_walk/navigation/consent.dart';
 import 'package:town_pass/features/safe_walk/navigation/coordinate_math.dart';
 import 'package:town_pass/features/safe_walk/navigation/mock_walking_route_provider.dart';
 import 'package:town_pass/features/safe_walk/navigation/route_service.dart';
@@ -102,12 +104,17 @@ final class DefaultRouteService implements RouteService {
           '找不到途經據點：${missing.join('、')}',
         );
       }
-      candidates = await _raceCancellation(
+      candidates = await raceCancellation(
         provider.findRoutes(request, cancellation: cancellation),
         cancellation,
       );
     } on SafeWalkCancelledException {
       return cancelled('使用者已取消');
+    } on ConsentRequiredException {
+      return fail(
+        sw.RouteFailureStatus.providerUnavailable,
+        '尚未取得使用者同意，不會把位置送到路線服務',
+      );
     } on WalkingRouteNotFound {
       final interrupted = interruption();
       if (interrupted != null) return interrupted;
@@ -182,7 +189,7 @@ final class DefaultRouteService implements RouteService {
     if (ids.isEmpty) return const [];
     final lookup = pointLookup;
     if (lookup == null) return const [];
-    return _raceCancellation(
+    return raceCancellation(
       lookup(ids, cancellation: cancellation),
       cancellation,
     );
@@ -209,28 +216,4 @@ final class DefaultRouteService implements RouteService {
     }
     return null;
   }
-}
-
-/// Completes with [future], or throws [SafeWalkCancelledException] as soon as
-/// [cancellation] fires. A result that arrives later is ignored.
-Future<T> _raceCancellation<T>(
-  Future<T> future,
-  SafeWalkCancellation? cancellation,
-) {
-  if (cancellation == null) return future;
-  final completer = Completer<T>();
-  future.then(
-    (value) {
-      if (!completer.isCompleted) completer.complete(value);
-    },
-    onError: (Object error, StackTrace stack) {
-      if (!completer.isCompleted) completer.completeError(error, stack);
-    },
-  );
-  cancellation.whenCancelled.then((_) {
-    if (!completer.isCompleted) {
-      completer.completeError(const SafeWalkCancelledException());
-    }
-  });
-  return completer.future;
 }

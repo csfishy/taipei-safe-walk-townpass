@@ -16,35 +16,76 @@
 
 M1 將完整據點 lookup／provider 注入本模組；不得直接 import M4 實作。途經點 ID／來源／營業狀態須核對，行政區歷史犯罪統計不能直接形成即時道路安全分數。
 
-## 目前內容（第一輪）
+## 目前內容
 
 | 檔案 | 內容 |
 |---|---|
 | `route_service.dart` | 共用介面 `RouteService.planRoute()`（未改動） |
 | `default_route_service.dart` | `DefaultRouteService`：輸入檢查、mock／live 分流、取消、舊請求不覆蓋新結果、結果以 `routeProblems()` 驗證 |
-| `walking_route_provider.dart` | `WalkingRouteProvider`（M1 注入真實步行 provider）、`AssistancePointLookup`（M1 接 M4 的據點查詢）、`WalkingRouteNotFound`／`WalkingRouteProviderUnavailable` |
-| `mock_walking_route_provider.dart` | 只供 `DataMode.mock`：起訖直線折線，`walkingNetworkVerified: false`，警示「禁止實地導航」 |
-| `nearest_point.dart` | `nearestPoints()`：從 M1 注入的 `AssistancePoint` 清單找最近的點（預設所有連鎖便利商店），依直線距離排序 |
+| `walking_route_provider.dart` | `WalkingRouteProvider` 介面、`AssistancePointLookup`、`WalkingRouteNotFound`／`WalkingRouteProviderUnavailable` |
+| `osrm_walking_route_provider.dart` | **真實**步行路線：OSRM foot profile（預設 routing.openstreetmap.de），需使用者同意才會送出座標 |
+| `osm_convenience_store_source.dart` | **真實**便利商店（不限品牌）：OpenStreetMap／Overpass，預設只取 `opening_hours=24/7`，輸出共用 `AssistancePoint` |
+| `nearest_point.dart` | `nearestPoints()`：依直線距離排序，只回「記錄為營業中且近期檢查過」的點 |
+| `json_transport.dart`、`io_json_transport.dart`、`unsupported_json_transport.dart`、`default_json_transport.dart` | 不需新套件的 HTTPS JSON 客戶端（`dart:io`；web 預覽自動改為「不可用」） |
+| `consent.dart`、`cancellable.dart` | 同意例外；取消／搶先完成的小工具 |
+| `mock_walking_route_provider.dart` | 只供 `DataMode.mock`（App 預設的示範模式），標示未驗證路網、禁止實地導航 |
 | `coordinate_math.dart` | 純 Dart：haversine 距離、折線長度、lat/lng ⇄ GeoJSON `[lng, lat]`、座標範圍檢查 |
 
-行為：
+## 接線方式（給 M1）
+
+```dart
+final transport = createDefaultJsonTransport(); // default_json_transport.dart
+bool hasConsent() => /* 使用者已明確同意把位置送到第三方服務 */;
+
+final stores = OsmConvenienceStoreSource(transport: transport, hasConsent: hasConsent);
+final routes = DefaultRouteService(
+  liveProvider: OsrmWalkingRouteProvider(
+    transport: transport,
+    hasConsent: hasConsent,
+    pointLookup: lookupPointsFromM4, // 途經據點才需要
+  ),
+  pointLookup: lookupPointsFromM4,
+);
+
+// 最近的 24 小時便利商店 → 步行路線
+final points = await stores.findNear(position.coordinates);
+final nearest = nearestPoints(origin: position.coordinates, points: points);
+if (nearest.isNotEmpty) {
+  final result = await routes.planRoute(request /* destination = nearest.first.point.coordinates */);
+}
+```
+
+`hasConsent` 每次請求都會重新讀取，可隨時撤回。
+
+## 行為
 
 - `mock` 請求由 mock provider 回示範路線；`live` 請求沒有注入 provider 時回 `provider_unavailable`，不用 mock 或直線冒充。
+- **同意**：沒有同意就不送任何請求（路線與便利商店都是）。路線服務是第三方伺服器，會收到精確的起訖座標，這是使用者必須先同意的原因。
+- **隱私**：便利商店查詢只送約 1 km 網格的中心並放大半徑，不送精確位置；距離在本機計算。傳輸層的例外與日誌不含 URL 或 body。
 - `invalid_input`：GPS 過期或缺欄位、live 請求用示範位置、起訖相同、途經據點查無（或沒有 lookup 可核對）。
-- 路線起訖點與請求相差超過 `maxEndpointSnapMeters`（500 m）、live 路線未驗證步行路網或 provider 名稱含 mock、途經點不合規，一律 `provider_unavailable`，不放行。
-- 取消：進入前、據點查詢中、provider 執行中都會回 `cancelled`；之後才到的結果或錯誤被忽略。同一個 service 較新的請求開始後，較舊請求完成時回 `cancelled`。
-- provider 的錯誤訊息不寫入結果（可能含座標或金鑰），只回固定說明。
+- 路線起訖點與請求相差超過 `maxEndpointSnapMeters`（500 m）、live 路線未驗證步行路網或 provider 名稱含 mock、途經點不合規，一律 `provider_unavailable`。
+- 途經據點：同時請求直接路線與經過據點的路線；繞路超過 `maxExtraDistanceMeters` 就只回直接路線並說明原因。
+- 取消：進入前、據點查詢中、請求中都會回 `cancelled`（傳輸層會關閉連線）；之後才到的結果或錯誤被忽略。同一個 service 較新的請求開始後，較舊請求完成時回 `cancelled`。
+- 傳輸層：僅 HTTPS、不跟隨轉址、逾時 12 秒、回應上限 2 MB。
 - 所有結果（含失敗）都符合共用 Schema：失敗至少一則 warning、routes 為空。
 
-測試：`test/features/safe_walk/navigation/`（`coordinate_math_test.dart`、`default_route_service_test.dart`）。
+## 限制（請如實呈現給使用者）
+
+- **路線**：`walkingNetworkVerified` 只表示用了 OSM 步行路網，不保證安全、照明、無障礙或目前可通行。預設的公共伺服器是 fair-use 示範伺服器，無可用性保證；正式使用需自架或簽約伺服器（`OsrmWalkingRouteProvider(endpoint: ...)`）。
+- **24 小時便利商店**：資料是 OSM 社群標籤 `opening_hours=24/7`，未經店家確認；臺灣的標註不完整，所以清單是下限，空清單代表「沒有已知的店」而不是「附近沒有」。共用契約沒有營業時間欄位，若要更可靠需 M1 擴充 Schema、M4 提供官方資料。
+- 「最近」是直線距離；實際步行距離以選定的點呼叫 `RouteService`。
+- 網路層在 web 預覽不可用（會回 `provider_unavailable`）。
+
+## 測試
+
+`test/features/safe_walk/navigation/`：座標、`DefaultRouteService`、OSRM provider、OSM 便利商店來源、`nearestPoints`、HTTP 傳輸（對本機測試伺服器，不連外網）。
+
+`live_smoke_test.dart` 會呼叫真實公共服務，預設跳過：`SAFE_WALK_LIVE=1 flutter test test/features/safe_walk/navigation/live_smoke_test.dart`。
 
 ## 尚未完成／待 M1 協調
 
-- 真實步行 provider 未接入（專案沒有 `http` 套件；新增套件與把位置送給第三方路線服務都需 M1 決定與使用者同意）。目前 live 一律 `provider_unavailable`。
-- 尚未接到 `App`／presentation：M3 的 `safe_walk_demo_data.dart` 仍用示範路線，待 M1 注入 `DefaultRouteService`。
-- `AssistancePointLookup` 由 M1 接 M4 的 repository 後，途經據點的來源與營業狀態才會被實際核對。
-- **「最近的 24 小時便利商店」**：共用契約沒有「24 小時營業」欄位，只有 `open`／`closed`／`unknown` 與 `availabilityCheckedAt`，所以 `nearestPoints()` 只能回「已記錄營業中、且檢查時間在 1 小時內」的便利商店（不限品牌，`unknown`、`closed`、過期或未來的檢查時間一律不算）。要真正保證 24 小時，需要 M1 在 Schema 加營業時間欄位並由 M4 提供資料；M2 不自行改契約。
-- 最近點的資料需要 M4 提供真實便利商店（`docs/DATA-SOURCES.md` 目前仍是「未接入」），M1 負責注入；沒有資料時回空清單，UI 應說明「沒有已知營業中的店」，不是「附近沒有」。
-- 「最近」是直線距離；實際步行距離請以選定的點呼叫 `RouteService`。
+- 尚未接到 `App`／presentation：M3 的 `safe_walk_demo_data.dart` 仍用示範路線，待 M1 注入上述 service 與同意流程。
+- 未做實機／TownPass 測試；Overpass 在開發機上逾時，未能實測真實回應。
+- 途經據點的來源與營業狀態需 M1 把 M4 repository 注入 `pointLookup` 後才會被實際核對。
 
 預定分支 `feat/m2-navigation`。
