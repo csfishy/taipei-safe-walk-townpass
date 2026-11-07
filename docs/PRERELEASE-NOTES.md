@@ -10,6 +10,6 @@ App／Bundle ID：`io.github.csfishy.taipeisafewalktownpass.preview`，顯示名
 
 網站預覽不初始化／要求原生通知；瀏覽器 iframe 不提供原生 TownPass bridge，第三方網站的嵌入與 CORS 政策仍適用。網頁載入與部分操作不等於原生裝置功能已驗收。
 
-網站部署取決於 repository owner 啟用 GitHub Pages（Source: GitHub Actions）及私人 repo 方案支援；未配置時 workflow 明確跳過部署，保留 web ZIP，不會回報網站已上線。
+網站部署取決於 repository owner 啟用 GitHub Pages（Source: GitHub Actions）及符合環境部署規則；本 Repo 目前為 Public。未配置時 workflow 明確跳過部署，保留 web ZIP，不會回報網站已上線。
 
 實機啟動、定位權限／拒絕、相機、通知、WebView、撥號與裝置無障礙仍需驗收。未測試真實緊急電話或傳送通報。

@@ -6,7 +6,7 @@ The check job runs the analyzer with errors/warnings fatal and existing style-le
 
 The merged initialization's Safe Walk schemas, generator consistency, upstream history/module boundaries, strict scoped analysis and complete test suite are included. Its two route contract tests are preserved in `test/route_contract_test.dart`, alongside the added preference and browser tests. No Safe Walk payload, generated model or service contract is changed. Full analysis with fatal infos remains separately reported by the existing Safe Walk workflow; the build gate permits existing style infos while rejecting errors and warnings.
 
-Prerelease tags must match the pubspec version without `+BUILD`: for `0.0.12-pre.1+1`, push `v0.0.12-pre.1`. Only tags publish a GitHub prerelease, after all platform builds pass. The workflow run number is the native build number; iOS uses the numeric version (`0.0.12`) and the full prerelease version is preserved in build metadata. PR/main/manual runs retain downloadable artifacts without publishing a release. Never move a published tag.
+Prerelease tags must match the pubspec version without `+BUILD`: for `0.0.12-pre.1+1`, push `v0.0.12-pre.1`. Only a **push event for a matching prerelease tag** publishes a GitHub prerelease, after all platform builds pass. The workflow run number is the native build number; iOS uses the numeric version (`0.0.12`) and the full prerelease version is preserved in build metadata. PR/main/manual runs retain downloadable artifacts without publishing a release, including manual dispatch against an existing tag. Never move a published tag.
 
 ## Local checks and builds
 
@@ -22,13 +22,13 @@ flutter build ios --release --no-codesign
 flutter build web --release --base-href /taipei-safe-walk-townpass/ --no-web-resources-cdn
 ```
 
-Use a real Python 3 interpreter; on the Windows verification host, Python is available through WSL. iOS compilation requires macOS. `assets/build-info.json` and Dart-generated sources are generated and ignored; generate metadata before `pub get`. Locked dependency versions are retained. Unsigned IPA packaging uses `ditto` to zip `Payload/Runner.app`, not App Store export.
+Use a real Python 3 interpreter. On Windows, use `py -3` or an installed `python.exe` if `python3` is only an App Execution Alias; WSL is optional and must be installed separately. iOS compilation requires macOS. `assets/build-info.json` and Dart-generated sources are generated and ignored; generate metadata before `pub get`. Locked dependency versions are retained. Unsigned IPA packaging uses `ditto` to zip `Payload/Runner.app`, not App Store export.
 
 ## GitHub Pages owner setup
 
 The connected account may have Write access without permission to manage Pages. A repository owner/admin or a user with Manage Pages permission must:
 
-1. Ensure the GitHub plan supports Pages from this private repository. This workflow does not change repository visibility.
+1. Confirm Pages is available for this repository. This project is Public; if visibility changes later, check the plan and supported website audience. This workflow does not change repository visibility.
 2. In Settings → Pages, set Source to **GitHub Actions**.
 3. For deployment from prerelease tags, allow matching `v*-pre.*` tags in the `github-pages` environment's deployment rules. Deployments from main need that branch allowed. Approve any configured environment deployment gates.
 4. Run/re-run the workflow or its Pages settings job after the setting is enabled. Manual dispatch becomes available once the workflow exists on the default branch.
