@@ -6,6 +6,11 @@ import 'package:town_pass/features/safe_walk/navigation/default_route_service.da
 import 'package:town_pass/features/safe_walk/navigation/json_transport.dart';
 import 'package:town_pass/features/safe_walk/navigation/osrm_walking_route_provider.dart';
 import 'package:town_pass/features/safe_walk/navigation/route_service.dart';
+import 'package:town_pass/features/safe_walk/navigation/route_reference_area_check.dart';
+import 'package:town_pass/features/safe_walk/platform/integration/crime_reference_wiring.dart';
+import 'package:town_pass/features/safe_walk/platform/integration/crime_route_alert_service.dart';
+import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_live_loop_controller.dart';
+import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_live_loop_pages.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_route_speaker.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/tts_safe_walk_speaker.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_navigation_controller.dart';
@@ -14,6 +19,7 @@ import 'package:town_pass/features/safe_walk/platform/townpass_platform_adapter.
 import 'package:town_pass/features/safe_walk/presentation/mock/safe_walk_demo_data.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_flow.dart';
 import 'package:town_pass/features/safe_walk/safety_data/contract_safety_data.dart';
+import 'package:town_pass/features/safe_walk/safety_data/crime_reference/crime_reference_repository.dart';
 import 'package:town_pass/features/safe_walk/safety_data/safety_data_service.dart';
 import 'package:town_pass/features/safe_walk/shared/contracts/cancellation.dart';
 import 'package:town_pass/features/safe_walk/shared/contracts/safe_walk_navigation_scope.dart';
@@ -32,7 +38,33 @@ class SafeWalkCompositionRoot extends StatefulWidget {
     this.routeService,
     this.routeTransport,
     this.onExit,
+    this.liveLoop = false,
+    this.liveRouteService,
+    this.crimeReference,
+    this.reviewedAreas = const [],
+    this.showLiveMap = true,
   });
+
+  /// The official TownPass entry (`TPRoute.safeWalk`) sets this. The map and
+  /// report screens then run the live loop: separate location / third-party
+  /// routing consent -> destination -> real OSRM walking route -> crime
+  /// reference information -> map, and a report-status screen that queries
+  /// the database on entry. Failures are shown; nothing falls back to Mock.
+  /// Home, call, points and SOS keep their existing (Mock) behaviour.
+  final bool liveLoop;
+
+  /// Live route service for [liveLoop]; defaults to M2's OSRM foot provider.
+  final RouteService? liveRouteService;
+
+  /// Defaults to the Supabase-configured read-only repository (PR #55);
+  /// unconfigured builds show the explicit "not configured" state.
+  final CrimeReferenceRepository? crimeReference;
+
+  /// Reviewed areas with documented boundary evidence. None is on main.
+  final List<RouteReferenceArea> reviewedAreas;
+
+  /// Tests disable OSM tiles to avoid network access.
+  final bool showLiveMap;
 
   final PlatformService? platform;
   final SafetyDataRepository? safetyData;
@@ -110,7 +142,43 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
       livePresentationReady: false,
       liveProviderReady: false,
     );
+    if (widget.liveLoop) _composeLiveLoop();
     unawaited(_loadPoints());
+  }
+
+  SafeWalkLiveLoopController? _live;
+  SafeWalkReportStatusController? _report;
+
+  /// Construction reads no GPS and sends nothing; every request needs a tap.
+  void _composeLiveLoop() {
+    final crime =
+        widget.crimeReference ??
+        CrimeReferenceWiring.fromEnvironment().repository;
+    _live = SafeWalkLiveLoopController(
+      platform: _platform,
+      routeService:
+          widget.liveRouteService ??
+          DefaultRouteService(
+            liveProvider: OsrmWalkingRouteProvider(
+              transport: widget.routeTransport ?? createDefaultJsonTransport(),
+              // Read on every request: revoking consent, backgrounding or
+              // leaving stops coordinates from being sent.
+              hasConsent: () =>
+                  (_live?.routingConsent ?? false) &&
+                  (_live?.foreground ?? false) &&
+                  !_lifetime.isCancelled,
+              requestAlternatives: true,
+            ),
+          ),
+      alertService: CrimeRouteAlertService(
+        repository: crime,
+        reviewedAreas: widget.reviewedAreas,
+      ),
+    );
+    _report = SafeWalkReportStatusController(
+      repository: crime,
+      reviewedAreas: widget.reviewedAreas,
+    );
   }
 
   Future<List<sw.AssistancePoint>> _lookupRoutePoints(
@@ -144,8 +212,10 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     final active = state == AppLifecycleState.resumed;
     _speaker.setLifecycleActive(active);
+    _live?.setForeground(active);
     if (!active) {
       _closeNavigation();
+      _report?.cancel();
     }
     if (mounted) setState(() {});
   }
@@ -180,6 +250,8 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
 
   void _exit() {
     _closeNavigation();
+    _live?.close();
+    _report?.cancel();
     _lifetime.cancel();
     _pointsRequest?.cancel();
     _speaker.stop();
@@ -263,6 +335,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     sw.EmergencyChannel channel,
   ) async {
     _closeNavigation();
+    _live?.close();
     // Issue the stop before platform work; a broken audio adapter cannot leave
     // the emergency page waiting indefinitely.
     try {
@@ -320,6 +393,21 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
       onLocate: _locate,
       onEmergency: _emergency,
       onExit: _exit,
+      liveMapBuilder: _live == null
+          ? null
+          : (context, onBack, onEmergency) => SafeWalkLiveRoutePage(
+              controller: _live!,
+              onBack: onBack,
+              onEmergency: onEmergency,
+              showMap: widget.showLiveMap,
+            ),
+      reportBuilder: _report == null
+          ? null
+          : (context, onBack) => SafeWalkReportStatusPage(
+              controller: _report!,
+              onBack: onBack,
+              showMap: widget.showLiveMap,
+            ),
     ),
   );
 
@@ -329,6 +417,8 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     _lifetime.cancel();
     _pointsRequest?.cancel();
     _navigation.dispose();
+    _live?.dispose();
+    _report?.dispose();
     unawaited(_speaker.dispose());
     super.dispose();
   }

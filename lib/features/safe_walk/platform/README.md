@@ -23,6 +23,7 @@
 | 據點 | 目前注入 `MockSafetyDataRepository`，驗證同模式 snapshot 後供 M2 lookup | M4 真實據點 repository、來源/有效性與 Live UI；`_loadPoints()` 目前固定 Mock 並拒絕 Live 混入 |
 | 音訊 | 預設 `TtsSafeWalkSpeaker.device()` 已接 M5 裝置 TTS，SOS 優先 stop，離開時 dispose | iPhone 真聲音、無 voice 文字預覽、背景/回前景及非同步競態驗收；未合併 #26 須另審，不能當成本基線成果 |
 | 系統求助交接 | `requestEmergency()` 契約與 Mock SOS 流程存在 | `TownPassPlatformAdapter` 尚無 dial/share/report adapter，任何旗標仍回 `not_configured`；需實作系統撥號/官方入口交接 |
+| 正式入口 Live 閉環（#48 P0-3，stacked on #56/#55） | `TPRoute.safeWalk` 以 `SafeWalkCompositionRoot(liveLoop: true)` 建立；地圖入口改為 `SafeWalkLiveRoutePage`：定位／第三方 OSRM／犯罪參考三項分別同意 → 主動取得位置 → 地圖點選或輸入目的地 → OSRM 真步行線 → `CrimeRouteAlertService` → OSM 地圖。「回報狀況」改為 `SafeWalkReportStatusPage`，每次進入查詢資料庫現況，只顯示有邊界證據的 reviewed areas。拒絕權限、空資料、逾時、取消、背景／離開與遲到結果皆有明確狀態，不換 Mock | **WIRED_NOT_VERIFIED**：只有 fake 測試；真實 Supabase、真實 OSRM、iPhone 均未驗收。main 上沒有 reviewed area，故實際只會顯示「沒有經核對的警示區域」。首頁、模擬來電、附近求助地點與 SOS 仍為 Mock；正式 UI 設計待 M3 |
 | 附近協助者 | service、RPC transport、匿名 UUID store 與 SQL 已合併；Supabase 有獨立唯讀連線檢查 | **BLOCKED**：可信身分、接收資格、ownership、RLS/RPC、頻率、防濫用、保留刪除與後端/裝置驗證；未接主 App |
 
 原生入口的 Mock 狀態是當前接線事實，不是永久規格。Mock 僅作為測試與未驗證功能的隔離模式；正式功能完成相應驗收後，必須能透過正式操作流程使用 Live Provider。不同能力應分別啟用，附近通知尚未就緒不能阻擋 GPS、路線、資料查詢、TTS 或使用者主動開啟官方求助入口。

@@ -28,6 +28,8 @@ class SafeWalkFlow extends StatefulWidget {
     this.onEmergency,
     this.onSendSms,
     this.onExit,
+    this.liveMapBuilder,
+    this.reportBuilder,
   });
   final sw.DataMode mode;
   final bool allowRealCalls;
@@ -56,6 +58,13 @@ class SafeWalkFlow extends StatefulWidget {
   /// M1：使用者確認簡訊內容後，交給手機開啟簡訊 App；null 時只模擬傳送畫面。
   final Future<bool> Function(String body)? onSendSms;
   final VoidCallback? onExit;
+
+  /// M1：正式入口的真實路線畫面（定位與第三方路線分別同意 → 目的地 → OSRM → 犯罪參考 → 地圖）。
+  /// 提供時取代示範地圖；null 時（預覽、測試）沿用示範地圖。M3 不 import 其實作。
+  final Widget Function(BuildContext context, VoidCallback onBack, VoidCallback onEmergency)? liveMapBuilder;
+
+  /// M1：正式入口的「回報狀況」畫面（進入時查詢資料庫現況，只顯示有證據的警示區域）。null 時沿用示範回報。
+  final Widget Function(BuildContext context, VoidCallback onBack)? reportBuilder;
 
   @override
   State<SafeWalkFlow> createState() => _SafeWalkFlowState();
@@ -198,9 +207,9 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> {
           SafeWalkEntry.report => _Screen.report,
         }),
       ),
-      _Screen.map => map(),
+      _Screen.map => widget.liveMapBuilder?.call(context, () => _go(_Screen.home), _openEmergency) ?? map(),
       _Screen.points => map(start: MapStartView.points),
-      _Screen.report => map(start: MapStartView.report),
+      _Screen.report => widget.reportBuilder?.call(context, () => _go(_Screen.home)) ?? map(start: MapStartView.report),
       _Screen.call => SafeWalkCallView(
         key: _callKey,
         speaker: widget.speaker,
