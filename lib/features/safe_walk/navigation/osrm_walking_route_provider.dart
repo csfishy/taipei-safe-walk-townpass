@@ -21,6 +21,7 @@ final class OsrmWalkingRouteProvider implements WalkingRouteProvider {
     required this.transport,
     required this.hasConsent,
     this.pointLookup,
+    this.requestAlternatives = false,
     Uri? endpoint,
   }) : endpoint = endpoint ?? Uri.parse(defaultEndpoint);
 
@@ -34,6 +35,12 @@ final class OsrmWalkingRouteProvider implements WalkingRouteProvider {
   final bool Function() hasConsent;
   final AssistancePointLookup? pointLookup;
   final Uri endpoint;
+
+  /// Asks OSRM for its own alternative routes on a direct request
+  /// (`alternatives=true`). Each alternative is a separate, unmodified server
+  /// route (`osrm-alt-N`); the server may return none. Via-point requests are
+  /// unaffected.
+  final bool requestAlternatives;
 
   @override
   Future<List<sw.RouteCandidate>> findRoutes(
@@ -50,12 +57,26 @@ final class OsrmWalkingRouteProvider implements WalkingRouteProvider {
         : const <String>[];
     final via = await _viaCoordinates(viaIds, cancellation);
 
-    final directFuture = _fetch([origin, destination], cancellation);
     if (via.isEmpty) {
-      final direct = await directFuture;
-      return [_candidate('osrm-direct', sw.RouteKind.direct, direct, const [])];
+      final legs = await _fetchAll(
+        [origin, destination],
+        cancellation,
+        alternatives: requestAlternatives,
+      );
+      return [
+        _candidate('osrm-direct', sw.RouteKind.direct, legs.first, const []),
+        for (var i = 1; i < legs.length; i++)
+          _candidate(
+            'osrm-alt-$i',
+            sw.RouteKind.direct,
+            legs[i],
+            const [],
+            note: 'OSRM 提供的替代路線 $i',
+          ),
+      ];
     }
 
+    final directFuture = _fetch([origin, destination], cancellation);
     final viaFuture = _fetch([origin, ...via, destination], cancellation);
     // Observe errors even while direct is pending or if direct fails first.
     // Awaiting this same future below still propagates its error or fallback.
@@ -124,24 +145,34 @@ final class OsrmWalkingRouteProvider implements WalkingRouteProvider {
   Future<_Leg> _fetch(
     List<sw.Coordinates> waypoints,
     SafeWalkCancellation? cancellation,
-  ) async {
+  ) async => (await _fetchAll(waypoints, cancellation)).first;
+
+  /// The first leg is OSRM's primary route; later ones are its alternatives.
+  Future<List<_Leg>> _fetchAll(
+    List<sw.Coordinates> waypoints,
+    SafeWalkCancellation? cancellation, {
+    bool alternatives = false,
+  }) async {
     cancellation?.throwIfCancelled();
     if (!hasConsent()) throw const ConsentRequiredException();
     final path = waypoints
         .map((c) => '${c.lng.toStringAsFixed(6)},${c.lat.toStringAsFixed(6)}')
         .join(';');
     final url = Uri.parse('$endpoint/$path').replace(
-      queryParameters: const {
+      queryParameters: {
         'overview': 'full',
         'geometries': 'geojson',
-        'alternatives': 'false',
+        'alternatives': alternatives ? 'true' : 'false',
         'steps': 'false',
       },
     );
-    return _parse(await transport.getJson(url, cancellation: cancellation));
+    return _parse(
+      await transport.getJson(url, cancellation: cancellation),
+      alternatives: alternatives,
+    );
   }
 
-  _Leg _parse(Object? json) {
+  List<_Leg> _parse(Object? json, {required bool alternatives}) {
     if (json is! Map) throw const WalkingRouteProviderUnavailable();
     final code = json['code'];
     if (code == 'NoRoute' || code == 'NoSegment') {
@@ -149,10 +180,18 @@ final class OsrmWalkingRouteProvider implements WalkingRouteProvider {
     }
     if (code != 'Ok') throw const WalkingRouteProviderUnavailable();
     final routes = json['routes'];
-    if (routes is! List || routes.isEmpty || routes.first is! Map) {
+    if (routes is! List || routes.isEmpty) {
       throw const WalkingRouteProviderUnavailable();
     }
-    final route = routes.first as Map;
+    return [
+      for (final route in alternatives ? routes : routes.take(1))
+        _parseRoute(route),
+    ];
+  }
+
+  _Leg _parseRoute(Object? raw) {
+    if (raw is! Map) throw const WalkingRouteProviderUnavailable();
+    final route = raw;
     final distance = route['distance'];
     final duration = route['duration'];
     final geometry = route['geometry'];
