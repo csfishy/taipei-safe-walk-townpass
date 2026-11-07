@@ -15,12 +15,15 @@ import 'package:town_pass/features/safe_walk/navigation/json_transport.dart';
 import 'package:town_pass/features/safe_walk/navigation/osrm_walking_route_provider.dart';
 import 'package:town_pass/features/safe_walk/navigation/route_follower.dart';
 import 'package:town_pass/features/safe_walk/navigation/route_service.dart';
+import 'package:town_pass/features/safe_walk/navigation/route_reference_area_check.dart';
 import 'package:town_pass/features/safe_walk/navigation/valhalla_avoiding_route_planner.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/avoiding_route_service.dart';
 import 'package:town_pass/features/safe_walk/platform/home_location/home_location_service.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_route_speaker.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/tts_safe_walk_speaker.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_navigation_controller.dart';
+import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_live_loop_controller.dart';
+import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_live_loop_pages.dart';
 import 'package:town_pass/features/safe_walk/platform/platform_service.dart';
 import 'package:town_pass/features/safe_walk/platform/position_watch.dart';
 import 'package:town_pass/features/safe_walk/platform/townpass_platform_adapter.dart';
@@ -29,6 +32,7 @@ import 'package:town_pass/features/safe_walk/presentation/safe_walk_flow.dart';
 import 'package:town_pass/features/safe_walk/safety_data/contract_safety_data.dart';
 import 'package:town_pass/features/safe_walk/safety_data/safety_data_service.dart';
 import 'package:town_pass/features/safe_walk/shared/contracts/cancellation.dart';
+import 'package:town_pass/features/safe_walk/shared/contracts/semantics.dart';
 import 'package:town_pass/features/safe_walk/shared/contracts/safe_walk_navigation_scope.dart';
 import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart'
     as sw;
@@ -49,20 +53,28 @@ class SafeWalkCompositionRoot extends StatefulWidget {
     this.onExit,
     this.liveRoutes = false,
     this.watchPosition,
+    this.reviewedAreas = const [],
+    this.showLiveMap = true,
   });
 
   /// Continuous positions while the map is open; defaults to the device GPS.
   final Stream<sw.Position> Function()? watchPosition;
 
   /// Real walking routes: opening the map reads the device position (after the
-  /// user agrees to share it with the OSM routing service) and asks OSRM for a
-  /// route to the chosen place. Points, SOS and companion stay in Mock.
+  /// user agrees to share it with the routing service). Unconfigured points
+  /// and emergency handoffs remain unavailable; they never use Mock data.
   final bool liveRoutes;
+
+  /// Independently reviewed boundaries for the reference-information page.
+  final List<RouteReferenceArea> reviewedAreas;
+
+  /// Tests can disable map tiles without changing production consent checks.
+  final bool showLiveMap;
 
   final PlatformService? platform;
   final SafetyDataRepository? safetyData;
 
-  /// Defaults to M2's service. Injection never changes the route's Mock mode.
+  /// Injectable route service; mode follows the selected composition.
   final RouteService? routeService;
 
   /// Optional transport for provider verification without public requests.
@@ -93,9 +105,10 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
   _RouteCancellation? _pointsRequest;
   _RouteCancellation? _locationRequest;
   late final PlatformService _platform;
-  late final SafetyDataRepository _safetyData;
+  SafetyDataRepository? _safetyData;
   late final SafeWalkRouteSpeaker _speaker;
   late final SafeWalkNavigationController _navigation;
+  SafeWalkReportStatusController? _report;
   int _routeSequence = 0;
   bool _navigationActive = false;
   bool _foreground = true;
@@ -288,26 +301,34 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     );
     unawaited(_loadHome());
     WidgetsBinding.instance.addObserver(this);
+    final lifecycle = WidgetsBinding.instance.lifecycleState;
+    _foreground = lifecycle == null || lifecycle == AppLifecycleState.resumed;
     if (!_crime.isConfigured) {
       _crimeQueryStatus = '犯罪參考資料尚未配置；路線未套用犯罪參考避讓。';
     }
     _platform =
         widget.platform ??
         TownPassPlatformAdapter(
-          mockPosition: sw.Position.fromJson({
-            'schemaVersion': '1.0.0',
-            'coordinates': {'lat': DemoGeo.start.lat, 'lng': DemoGeo.start.lng},
-            'source': 'mock',
-            'accuracyMeters': null,
-            'observedAt': null,
-          }),
+          mockPosition: widget.liveRoutes
+              ? null
+              : sw.Position.fromJson({
+                  'schemaVersion': '1.0.0',
+                  'coordinates': {
+                    'lat': DemoGeo.start.lat,
+                    'lng': DemoGeo.start.lng,
+                  },
+                  'source': 'mock',
+                  'accuracyMeters': null,
+                  'observedAt': null,
+                }),
         );
-    _safetyData =
-        widget.safetyData ??
-        MockSafetyDataRepository(
-          assistancePoints: demoAssistancePoints(),
-          areaStatistics: const [],
-        );
+    _safetyData = widget.liveRoutes
+        ? null
+        : widget.safetyData ??
+              MockSafetyDataRepository(
+                assistancePoints: demoAssistancePoints(),
+                areaStatistics: const [],
+              );
     _speaker = widget.speaker ?? _deviceSpeaker();
     final transport = widget.routeTransport ?? createDefaultJsonTransport();
     bool hasConsent() =>
@@ -329,9 +350,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
           widget.routeService ??
           (widget.liveRoutes
               ? AvoidingRouteService(
-                  planner: ValhallaAvoidingRoutePlanner(
-                    hasConsent: hasConsent,
-                  ),
+                  planner: ValhallaAvoidingRoutePlanner(hasConsent: hasConsent),
                   fallback: osrm,
                   areas: () => [..._areas, ..._crimeAreas],
                 )
@@ -342,7 +361,12 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     );
     _navigation.addListener(_syncFollowing);
     if (widget.liveRoutes) {
+      _report = SafeWalkReportStatusController(
+        repository: _crime,
+        reviewedAreas: widget.reviewedAreas,
+      )..setForeground(_foreground);
       _pointsLoading = false;
+      _pointsError = '附近求助地點查詢尚未接線；未取得任何場所資料。';
     } else {
       unawaited(_loadPoints());
     }
@@ -385,7 +409,8 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
         !_foreground ||
         !_navigationActive ||
         !_navigation.hasRoutingConsent ||
-        _followers.isEmpty) {
+        _followers.isEmpty ||
+        !_usableLiveFix(position)) {
       return;
     }
     setState(() => _livePosition = position);
@@ -413,6 +438,14 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     _followers = const [];
     _livePosition = null;
   }
+
+  bool _usableLiveFix(sw.Position position) =>
+      position.source == sw.PositionSource.gps &&
+      position.accuracyMeters != null &&
+      position.accuracyMeters!.isFinite &&
+      position.accuracyMeters! >= 0 &&
+      position.accuracyMeters! <= 100 &&
+      positionProblems(position).isEmpty;
 
   Future<List<sw.AssistancePoint>> _lookupRoutePoints(
     List<String> ids, {
@@ -573,9 +606,9 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     if (!mounted || !_isCurrent(operation) || !_navigation.hasRoutingConsent) {
       return;
     }
-    if (located is! sw.LocationSuccess) {
+    if (located is! sw.LocationSuccess || !_usableLiveFix(located.position)) {
       ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-        SnackBar(content: Text((located as sw.LocationFailure).message)),
+        const SnackBar(content: Text('無法取得新鮮且精確的 GPS 位置，請檢查定位權限或重新定位。')),
       );
       return;
     }
@@ -646,6 +679,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     final active = state == AppLifecycleState.resumed;
     _speaker.setLifecycleActive(active);
+    _report?.setForeground(active);
     // `inactive` is transient (a system dialog, or the browser window losing
     // focus on web); only really leaving the app clears the route.
     if (state == AppLifecycleState.paused ||
@@ -689,6 +723,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
 
   void _exit() {
     _closeNavigation();
+    _report?.cancel();
     _lifetime.cancel();
     _pointsRequest?.cancel();
     _speaker.stop();
@@ -700,6 +735,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
   }
 
   Future<void> _loadPoints() async {
+    if (widget.liveRoutes) return;
     _pointsRequest?.cancel();
     final request = _pointsRequest = _RouteCancellation();
     setState(() {
@@ -708,7 +744,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
       _pointsError = null;
     });
     try {
-      final points = await _safetyData.getAssistancePoints(
+      final points = await _safetyData!.getAssistancePoints(
         mode: sw.DataMode.mock,
         cancellation: request,
       );
@@ -760,7 +796,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
       }
       if (widget.liveRoutes &&
           result is sw.LocationSuccess &&
-          result.position.source == sw.PositionSource.mock) {
+          !_usableLiveFix(result.position)) {
         return _locationFailure('未取得真實位置，請重新定位。');
       }
       return result;
@@ -795,7 +831,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     try {
       if (_lifetime.isCancelled) throw const SafeWalkCancelledException();
       return await _platform.requestEmergency(
-        mode: sw.DataMode.mock,
+        mode: widget.liveRoutes ? sw.DataMode.live : sw.DataMode.mock,
         channel: channel,
         userInitiated: true,
         allowRealCalls: false,
@@ -806,7 +842,9 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
         'channel': channel.wireValue,
         'action': 'failed',
         'officialReceipt': null,
-        'message': '示範求助暫時無法完成；未撥號、未傳送，也未通知任何人。',
+        'message': widget.liveRoutes
+            ? '求助交接尚未完成；未確認撥號或通報，請使用手機電話功能。'
+            : '示範求助暫時無法完成；未撥號、未傳送，也未通知任何人。',
       });
     }
   }
@@ -836,8 +874,19 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
         // Live mode shows no demo help points; real nearby places come later.
         points: widget.liveRoutes ? const [] : _points,
         pointsLoading: !widget.liveRoutes && _pointsLoading,
-        pointsError: widget.liveRoutes ? null : _pointsError,
-        onRetryPoints: () => unawaited(_loadPoints()),
+        pointsError: _pointsError,
+        onRetryPoints: widget.liveRoutes
+            ? null
+            : () => unawaited(_loadPoints()),
+        showMapTiles: widget.showLiveMap,
+        reportBuilder: _report == null
+            ? null
+            : (context, onBack) => SafeWalkReportStatusPage(
+                controller: _report!,
+                onBack: onBack,
+                showMap: widget.showLiveMap,
+              ),
+        onLeaveReport: () => _report?.cancel(),
         route: widget.liveRoutes ? _navigation.routeResult : null,
         livePosition: _livePosition,
         onLeaveMap: _closeNavigation,
@@ -890,6 +939,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     _lifetime.cancel();
     _pointsRequest?.cancel();
     _navigation.dispose();
+    _report?.dispose();
     unawaited(_speaker.dispose());
     super.dispose();
   }

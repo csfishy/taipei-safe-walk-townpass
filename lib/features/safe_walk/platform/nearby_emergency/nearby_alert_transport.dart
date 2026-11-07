@@ -1,13 +1,11 @@
-import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:town_pass/features/safe_walk/platform/supabase/safe_walk_supabase_config.dart';
 import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart'
     as sw;
 
-/// An alert addressed to this helper. The sender's location is included only
-/// because the sender explicitly pressed emergency.
+/// An alert that a trusted backend has authorized this recipient to read.
+/// Sender consent alone does not establish recipient eligibility or ownership.
 final class NearbyAlert {
   const NearbyAlert({
     required this.alertId,
@@ -40,7 +38,7 @@ abstract interface class NearbyAlertTransport {
     sw.Coordinates? location,
   });
 
-  /// Returns how many opted-in helpers inside [radiusMeters] were alerted.
+  /// Returns the backend's accepted recipient count, not proof of delivery.
   Future<int> sendEmergencyAlert({
     required String senderId,
     required sw.Coordinates location,
@@ -51,11 +49,48 @@ abstract interface class NearbyAlertTransport {
   Future<List<NearbyAlert>> fetchPendingAlerts(String helperId);
 }
 
-/// Supabase (PostgREST RPC) implementation. Configure with
-/// `--dart-define=SUPABASE_URL=...` and
-/// `--dart-define=SUPABASE_PUBLISHABLE_KEY=...` using [fromEnvironment].
-/// Keys are never committed to the repository.
-final class SupabaseNearbyAlertTransport implements NearbyAlertTransport {
+/// Marks a backend that must be rejected before collecting location.
+/// This exposes a failure reason, never a client-controlled authorization flag.
+abstract interface class UnavailableNearbyAlertBackend {
+  String get unavailableReason;
+}
+
+/// Production placeholder with no credentials, identity, or network client.
+final class UnavailableNearbyAlertTransport
+    implements NearbyAlertTransport, UnavailableNearbyAlertBackend {
+  const UnavailableNearbyAlertTransport();
+
+  @override
+  String get unavailableReason =>
+      SupabaseNearbyAlertTransport.backendUnavailableReason;
+
+  @override
+  Future<void> setHelperOptIn({
+    required String helperId,
+    required bool enabled,
+    sw.Coordinates? location,
+  }) async => throw NearbyAlertException(unavailableReason);
+
+  @override
+  Future<int> sendEmergencyAlert({
+    required String senderId,
+    required sw.Coordinates location,
+    required int radiusMeters,
+  }) async => throw NearbyAlertException(unavailableReason);
+
+  @override
+  Future<List<NearbyAlert>> fetchPendingAlerts(String helperId) async =>
+      throw NearbyAlertException(unavailableReason);
+}
+
+/// Retired anonymous RPC transport, retained for configuration compatibility.
+///
+/// A publishable/anonymous key and a caller-supplied UUID do not authenticate a
+/// person or establish recipient eligibility. All operations fail closed until
+/// a separately reviewed authenticated backend replaces this implementation.
+/// No environment flag, API key, or consent boolean enables network requests.
+final class SupabaseNearbyAlertTransport
+    implements NearbyAlertTransport, UnavailableNearbyAlertBackend {
   SupabaseNearbyAlertTransport({
     required Uri baseUrl,
     required String anonKey,
@@ -70,8 +105,7 @@ final class SupabaseNearbyAlertTransport implements NearbyAlertTransport {
          client: client,
        );
 
-  SupabaseNearbyAlertTransport.fromConfig(this._config, {HttpClient? client})
-    : _client = client ?? HttpClient();
+  SupabaseNearbyAlertTransport.fromConfig(this._config, {this._client});
 
   factory SupabaseNearbyAlertTransport.fromEnvironment() =>
       SupabaseNearbyAlertTransport.fromConfig(
@@ -81,10 +115,14 @@ final class SupabaseNearbyAlertTransport implements NearbyAlertTransport {
   final SafeWalkSupabaseConfig _config;
   Uri get baseUrl => _config.url;
   String get anonKey => _config.apiKey;
-  final HttpClient _client;
+  final HttpClient? _client;
   bool _closed = false;
 
-  static const _timeout = Duration(seconds: 10);
+  static const backendUnavailableReason =
+      '附近通知尚未具備可信身分與接收資格驗證，目前無法使用；請使用電話或緊急聯絡人求助';
+
+  @override
+  String get unavailableReason => backendUnavailableReason;
 
   @override
   Future<void> setHelperOptIn({
@@ -92,12 +130,7 @@ final class SupabaseNearbyAlertTransport implements NearbyAlertTransport {
     required bool enabled,
     sw.Coordinates? location,
   }) async {
-    await _rpc('set_helper_opt_in', {
-      'p_helper_id': helperId,
-      'p_enabled': enabled,
-      'p_lat': location?.lat,
-      'p_lng': location?.lng,
-    });
+    _rejectUnavailable();
   }
 
   @override
@@ -106,73 +139,25 @@ final class SupabaseNearbyAlertTransport implements NearbyAlertTransport {
     required sw.Coordinates location,
     required int radiusMeters,
   }) async {
-    final result = await _rpc('send_emergency_alert', {
-      'p_sender_id': senderId,
-      'p_lat': location.lat,
-      'p_lng': location.lng,
-      'p_radius_m': radiusMeters,
-    });
-    if (result is! int) {
-      throw const NearbyAlertException('Unexpected alert response');
-    }
-    return result;
+    _rejectUnavailable();
   }
 
   @override
   Future<List<NearbyAlert>> fetchPendingAlerts(String helperId) async {
-    final rows = await _rpc('fetch_pending_alerts', {'p_helper_id': helperId});
-    if (rows is! List) {
-      throw const NearbyAlertException('Unexpected alert list response');
-    }
-    return rows
-        .map((row) {
-          final map = row as Map<String, Object?>;
-          return NearbyAlert(
-            alertId: map['alert_id'] as String,
-            senderId: map['sender_id'] as String,
-            location: sw.Coordinates(
-              lat: (map['lat'] as num).toDouble(),
-              lng: (map['lng'] as num).toDouble(),
-            ),
-            radiusMeters: (map['radius_m'] as num).toInt(),
-            createdAt: DateTime.parse(map['created_at'] as String),
-          );
-        })
-        .toList(growable: false);
+    _rejectUnavailable();
   }
 
-  Future<Object?> _rpc(String name, Map<String, Object?> body) async {
+  Never _rejectUnavailable() {
     if (_closed) {
       throw const NearbyAlertException('Backend transport is closed');
     }
-    try {
-      final request = await _client
-          .postUrl(baseUrl.resolve('/rest/v1/rpc/$name'))
-          .timeout(_timeout);
-      request.followRedirects = false;
-      _config.requestHeaders.forEach(request.headers.set);
-      request.headers.contentType = ContentType.json;
-      request.write(jsonEncode(body));
-      final response = await request.close().timeout(_timeout);
-      final text = await utf8.decodeStream(response).timeout(_timeout);
-      if (response.statusCode < 200 || response.statusCode >= 300) {
-        // Status only: response bodies may echo request data.
-        throw NearbyAlertException('Backend returned ${response.statusCode}');
-      }
-      return text.isEmpty ? null : jsonDecode(text);
-    } on NearbyAlertException {
-      rethrow;
-    } on TimeoutException {
-      throw const NearbyAlertException('Backend request timed out');
-    } on Object {
-      throw const NearbyAlertException('Backend request failed');
-    }
+    throw const NearbyAlertException(backendUnavailableReason);
   }
 
   /// The creator owns this transport and must close it after use.
   void close() {
     if (_closed) return;
     _closed = true;
-    _client.close(force: true);
+    _client?.close(force: true);
   }
 }

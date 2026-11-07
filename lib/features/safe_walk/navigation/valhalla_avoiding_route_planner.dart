@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:town_pass/features/safe_walk/navigation/avoid_area.dart';
+import 'package:town_pass/features/safe_walk/navigation/cancellable.dart';
 import 'package:town_pass/features/safe_walk/navigation/coordinate_math.dart';
 import 'package:town_pass/features/safe_walk/navigation/default_route_service.dart';
 import 'package:town_pass/features/safe_walk/navigation/json_post.dart';
@@ -22,7 +23,7 @@ import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart
 final class ValhallaAvoidingRoutePlanner implements AvoidingRoutePlanner {
   ValhallaAvoidingRoutePlanner({
     required this.hasConsent,
-    Future<(int, String)> Function(Uri url, String body)? post,
+    JsonPoster? post,
     Uri? endpoint,
     this.minInterval = const Duration(milliseconds: 1100),
     Future<void> Function(Duration)? wait,
@@ -41,7 +42,7 @@ final class ValhallaAvoidingRoutePlanner implements AvoidingRoutePlanner {
 
   /// POSTs the JSON request: a long GET URL with many polygons is rejected
   /// with HTTP 414, which silently removed both avoiding routes.
-  final Future<(int, String)> Function(Uri url, String body) _post;
+  final JsonPoster _post;
   final bool Function() hasConsent;
   final Uri endpoint;
 
@@ -62,7 +63,12 @@ final class ValhallaAvoidingRoutePlanner implements AvoidingRoutePlanner {
     if (!hasConsent()) throw const WalkingRouteProviderUnavailable();
     if (!isValidLatLng(origin.lat, origin.lng) ||
         !isValidLatLng(destination.lat, destination.lng) ||
-        areas.any((a) => !a.radiusMeters.isFinite || a.radiusMeters <= 0)) {
+        areas.any(
+          (a) =>
+              !isValidLatLng(a.center.lat, a.center.lng) ||
+              !a.radiusMeters.isFinite ||
+              a.radiusMeters <= 0,
+        )) {
       throw const WalkingRouteProviderUnavailable();
     }
 
@@ -102,7 +108,8 @@ final class ValhallaAvoidingRoutePlanner implements AvoidingRoutePlanner {
     options.add(option(AvoidLevel.none, shortest));
 
     // Nearest areas to the shortest route first, within Valhalla's 10 km
-    // exclusion-circumference limit. Far areas cannot affect this trip.
+    // exclusion-circumference limit. A detour can reach areas outside this
+    // corridor, so every returned route is still checked against all areas.
     final near =
         [
           for (final a in areas)
@@ -137,9 +144,9 @@ final class ValhallaAvoidingRoutePlanner implements AvoidingRoutePlanner {
       final line = await _route(origin, destination, excluded, cancellation);
       if (line == null) continue;
       // Some providers may ignore exclusions or snap onto an excluded road.
-      // Verify the geometry against the areas actually excluded before
-      // describing it as avoidance.
-      if (chosen.any(
+      // The request budget is not the product's safety boundary. A response
+      // must clear every applicable area, including ones we could not send.
+      if (areas.any(
         (a) =>
             avoidable(a, radius(a)) &&
             _minDistance(line.coordinates, a.center) < radius(a),
@@ -171,7 +178,9 @@ final class ValhallaAvoidingRoutePlanner implements AvoidingRoutePlanner {
       final last = _lastRequest;
       if (last != null) {
         final gap = minInterval - DateTime.now().difference(last);
-        if (gap > Duration.zero) await _wait(gap);
+        if (gap > Duration.zero) {
+          await raceCancellation(_wait(gap), cancellation);
+        }
       }
       cancellation?.throwIfCancelled();
       if (!hasConsent()) throw const WalkingRouteProviderUnavailable();
@@ -187,7 +196,15 @@ final class ValhallaAvoidingRoutePlanner implements AvoidingRoutePlanner {
       };
       final Object? json;
       try {
-        final (status, text) = await _post(endpoint, jsonEncode(body));
+        final (status, text) = await raceCancellation(
+          _post(
+            endpoint,
+            jsonEncode(body),
+            cancellation: cancellation,
+            hasConsent: hasConsent,
+          ),
+          cancellation,
+        ).timeout(const Duration(seconds: 12));
         if (status == 400 && _isNoPath(text)) return null;
         // Server, rate-limit or request errors are never proof of no path.
         if (status != 200) throw const WalkingRouteProviderUnavailable();
@@ -219,7 +236,10 @@ final class ValhallaAvoidingRoutePlanner implements AvoidingRoutePlanner {
       }
     });
     _queue = run.then((_) {}, onError: (_) {});
-    return run;
+    // A queued caller can leave immediately while the preceding request keeps
+    // its own lifetime. The queued operation still checks cancellation before
+    // it could send anything.
+    return raceCancellation(run, cancellation);
   }
 
   static _Line? _parse(Object? json) {

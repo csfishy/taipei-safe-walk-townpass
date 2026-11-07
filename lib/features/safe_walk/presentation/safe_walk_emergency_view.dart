@@ -197,11 +197,8 @@ class _SmsReportCardState extends State<_SmsReportCard> {
 
   bool get _usesSender => widget.mode == sw.DataMode.live && widget.onSend != null;
 
-  /// Live without a configured sender is Unavailable, never a simulated success.
-  bool get _unavailable => widget.mode == sw.DataMode.live && widget.onSend == null;
-
   Future<void> _send() async {
-    if (_unavailable) return;
+    if (widget.mode == sw.DataMode.live && widget.onSend == null) return;
     setState(() => _step = _SmsStep.sending);
     // Mock 一律只在本地模擬，即使 M1 已注入 sender 也不呼叫，避免帶位置的內容外傳。
     bool ok;
@@ -215,7 +212,7 @@ class _SmsReportCardState extends State<_SmsReportCard> {
 
   @override
   Widget build(BuildContext context) {
-    if (_unavailable) {
+    if (widget.mode == sw.DataMode.live && widget.onSend == null) {
       return const SwStateMessage(
         icon: Icons.sms_failed_outlined,
         title: '簡訊求助尚未配置',

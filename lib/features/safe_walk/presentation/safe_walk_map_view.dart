@@ -156,6 +156,8 @@ class SafeWalkMapView extends StatefulWidget {
     this.routingConsent = false,
     this.crimeConsent = false,
     this.destinationConfigured = true,
+    this.showMapTiles = true,
+    this.onMapTileConsent,
   });
 
   /// 犯罪參考位置及產品設定的避讓緩衝（紫色，非案發範圍）。
@@ -169,6 +171,8 @@ class SafeWalkMapView extends StatefulWidget {
   /// Whether the walker currently allows the crime reference query.
   final bool crimeConsent;
   final bool destinationConfigured;
+  final bool showMapTiles;
+  final VoidCallback? onMapTileConsent;
 
   /// 使用者在地圖上指定的起點；null＝用目前位置（GPS）。
   final LatLng? manualStart;
@@ -231,12 +235,21 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
   AnomalyCategory _category = AnomalyCategory.suspicious;
   final _note = TextEditingController();
 
-  LatLng get _start => widget.position == null
-      ? DemoGeo.start
-      : LatLng(
-          widget.position!.coordinates.lat,
-          widget.position!.coordinates.lng,
-        );
+  LatLng get _start {
+    final position = widget.position;
+    if (position != null) {
+      return LatLng(position.coordinates.lat, position.coordinates.lng);
+    }
+    if (widget.manualStart != null) return widget.manualStart!;
+    final path = widget.routeState.path;
+    if (path != null && path.isNotEmpty) return path.first;
+    // A default city viewport is not a location fix. Live mode hides its start
+    // marker until an actual GPS fix, manual origin, or route is available.
+    return widget.routeState.allowDemoFallback
+        ? DemoGeo.start
+        : const LatLng(25.033, 121.5654);
+  }
+
   LatLng _at(sw.AssistancePoint p) =>
       LatLng(p.coordinates.lat, p.coordinates.lng);
 
@@ -368,6 +381,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
               children: [
                 Positioned.fill(
                   child: DemoMap(
+                    showTiles: widget.showMapTiles,
                     // 真實路線從使用者實際位置出發。
                     start:
                         widget.manualStart ??
@@ -381,7 +395,8 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                     anomalies: widget.anomalies,
                     path: _pointsView ? const [] : path,
                     destination: place.at,
-                    showDestination: widget.destinationConfigured,
+                    showDestination:
+                        widget.destinationConfigured && place.at != null,
                     showStart:
                         widget.routeState.allowDemoFallback ||
                         widget.manualStart != null ||
@@ -478,6 +493,33 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                         : null,
                   ),
                 ),
+                if (widget.onMapTileConsent != null)
+                  Positioned(
+                    top: MediaQuery.paddingOf(context).top + 64,
+                    left: 12,
+                    right: 12,
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Material(
+                        color: SwColors.surface,
+                        borderRadius: BorderRadius.circular(12),
+                        child: TextButton.icon(
+                          key: const Key('m3-map-tiles'),
+                          onPressed: widget.onMapTileConsent,
+                          icon: Icon(
+                            widget.showMapTiles
+                                ? Icons.layers_clear_outlined
+                                : Icons.map_outlined,
+                          ),
+                          label: Text(
+                            widget.showMapTiles
+                                ? '停止載入 OSM 圖磚'
+                                : '同意載入 OSM 圖磚（分享檢視範圍）',
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 SafeArea(
                   bottom: false,
                   child: Padding(
@@ -2192,7 +2234,12 @@ class _Toast extends StatelessWidget {
 }
 
 class _Legend extends StatelessWidget {
-  const _Legend({required this.pointsView, required this.showShortcut, this.live = false, this.crime = false});
+  const _Legend({
+    required this.pointsView,
+    required this.showShortcut,
+    this.live = false,
+    this.crime = false,
+  });
   final bool pointsView, showShortcut, live, crime;
   @override
   Widget build(BuildContext context) {
@@ -2264,7 +2311,10 @@ class _Legend extends StatelessWidget {
               Container(
                 width: 18,
                 height: 4,
-                decoration: BoxDecoration(color: TPColors.grayscale400, borderRadius: BorderRadius.circular(2)),
+                decoration: BoxDecoration(
+                  color: TPColors.grayscale400,
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
               '其他可選路線',
             ),
@@ -2274,8 +2324,19 @@ class _Legend extends StatelessWidget {
                 width: 18,
                 height: 18,
                 alignment: Alignment.center,
-                decoration: BoxDecoration(shape: BoxShape.circle, color: crimeMarkColor.withValues(alpha: .14), border: Border.all(color: crimeMarkColor)),
-                child: Container(width: 6, height: 6, decoration: const BoxDecoration(shape: BoxShape.circle, color: crimeMarkColor)),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: crimeMarkColor.withValues(alpha: .14),
+                  border: Border.all(color: crimeMarkColor),
+                ),
+                child: Container(
+                  width: 6,
+                  height: 6,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: crimeMarkColor,
+                  ),
+                ),
               ),
               '犯罪參考位置（50 公尺避讓緩衝區）',
             ),

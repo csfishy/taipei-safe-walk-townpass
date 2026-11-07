@@ -44,9 +44,18 @@ class SafeWalkFlow extends StatefulWidget {
     this.homeLocation,
     this.onHomeChanged,
     this.onExit,
+    this.reportBuilder,
+    this.onLeaveReport,
+    this.showMapTiles = true,
   });
   final sw.DataMode mode;
   final bool allowRealCalls;
+  final bool showMapTiles;
+
+  /// Reference status only: this entry does not start navigation or read GPS.
+  final Widget Function(BuildContext context, VoidCallback onBack)?
+  reportBuilder;
+  final VoidCallback? onLeaveReport;
 
   /// 求助地點（M4 → M1 提供）。未配置時只有 Mock 使用 M3 示範資料。
   final List<sw.AssistancePoint>? points;
@@ -109,6 +118,7 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> with WidgetsBindingObserver
   sw.Position? _position;
   LatLng? _manualStart;
   int _editGeneration = 0;
+  bool _mapTileConsent = false;
 
   void _setStart(LatLng? at) {
     ++_editGeneration;
@@ -123,7 +133,9 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> with WidgetsBindingObserver
 
   /// 進行中的模擬來電；去地圖看路再回來會接續。結束通話、拒絕、緊急求助、回首頁時丟棄。
   SafeWalkCallSession? _call;
-  late final List<SavedPlace> _places = [...demoPlaces()];
+  late final List<SavedPlace> _places = widget.mode == sw.DataMode.mock
+      ? [...demoPlaces()]
+      : [const SavedPlace('home', '家', null)];
   String _placeId = 'home';
 
   @override
@@ -144,6 +156,7 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> with WidgetsBindingObserver
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden || state == AppLifecycleState.detached) {
       ++_editGeneration;
+      if (mounted) setState(() => _mapTileConsent = false);
     }
   }
 
@@ -160,20 +173,28 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> with WidgetsBindingObserver
     }
   }
 
-  /// 已儲存的家取代示範的家；缺值保留 Mock 展示資料，Live 由規劃入口阻擋。
+  /// Live 的家只使用已儲存座標；未設定時沒有可供導航或顯示的目的地。
   void _applyHome() {
     if (widget.mode == sw.DataMode.live) {
       _places.removeWhere((p) => p.id == 'work');
     }
     final i = _places.indexWhere((p) => p.isHome);
     final h = widget.homeLocation;
-    final next = h == null ? demoPlaces().first : SavedPlace('home', '家', LatLng(h.lat, h.lng));
+    final next = h != null
+        ? SavedPlace('home', '家', LatLng(h.lat, h.lng))
+        : widget.mode == sw.DataMode.mock
+        ? demoPlaces().first
+        : const SavedPlace('home', '家', null);
     if (i >= 0) {
       _places[i] = next;
     }
   }
 
-  bool _isMapScreen(_Screen screen) => screen == _Screen.map || screen == _Screen.points || screen == _Screen.report;
+  bool _isMapScreen(_Screen screen) =>
+      screen == _Screen.map ||
+      (screen == _Screen.points &&
+          !(widget.mode == sw.DataMode.live && widget.pointsError != null)) ||
+      (screen == _Screen.report && widget.reportBuilder == null);
 
   Future<void> _editPlace(String id, String name, LatLng at) async {
     final generation = ++_editGeneration;
@@ -234,11 +255,15 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> with WidgetsBindingObserver
 
   void _planRoute({sw.Coordinates? savedDestination}) {
     if (_missingLiveHome && savedDestination == null) return;
+    final placeAt = _place.at;
+    if (savedDestination == null && placeAt == null) return;
     widget.onReportsChanged?.call([
       for (final a in _anomalies)
         if (a.status != AnomalyStatus.cleared) (id: a.id, center: sw.Coordinates(lat: a.at.lat, lng: a.at.lng)),
     ]);
-    widget.onPlanRoute?.call(savedDestination ?? sw.Coordinates(lat: _place.at.lat, lng: _place.at.lng));
+    widget.onPlanRoute?.call(
+      savedDestination ?? sw.Coordinates(lat: placeAt!.lat, lng: placeAt.lng),
+    );
   }
 
   void _selectPlace(String id) {
@@ -256,6 +281,13 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> with WidgetsBindingObserver
   );
 
   void _go(_Screen s) {
+    if (_screen == _Screen.emergency && s != _Screen.emergency) {
+      widget.onLeaveMap?.call();
+      _position = null;
+    }
+    if (_screen == _Screen.report && s != _Screen.report) {
+      widget.onLeaveReport?.call();
+    }
     if (_screen == _Screen.call && s != _Screen.call) {
       _callKey.currentState?.leave();
     }
@@ -263,6 +295,7 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> with WidgetsBindingObserver
     if (_isMapScreen(s) && !_isMapScreen(_screen)) _planRoute();
     if (!_isMapScreen(s) && _isMapScreen(_screen)) {
       ++_editGeneration;
+      _mapTileConsent = false;
       widget.onLeaveMap?.call();
     }
     if (s == _Screen.home) _call = null;
@@ -277,6 +310,8 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> with WidgetsBindingObserver
 
   void _openEmergency() {
     ++_editGeneration;
+    _mapTileConsent = false;
+    widget.onLeaveReport?.call();
     if (_isMapScreen(_screen)) widget.onLeaveMap?.call();
     _call = null;
     _callKey.currentState?.leave();
@@ -325,6 +360,12 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> with WidgetsBindingObserver
     Widget map({MapStartView start = MapStartView.route}) => SafeWalkMapView(
       key: ValueKey(start),
       position: widget.livePosition ?? _position,
+      showMapTiles:
+          widget.showMapTiles &&
+          (widget.mode == sw.DataMode.mock || _mapTileConsent),
+      onMapTileConsent: widget.showMapTiles && widget.mode == sw.DataMode.live
+          ? () => setState(() => _mapTileConsent = !_mapTileConsent)
+          : null,
       pointsState: _pointsState,
       routeState: _routeState,
       manualStart: _manualStart,
@@ -363,6 +404,7 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> with WidgetsBindingObserver
     );
     final child = switch (_screen) {
       _Screen.home => SafeWalkHomeView(
+        isLive: widget.mode == sw.DataMode.live,
         destination: _place.label,
         homeSet: widget.homeLocation != null,
         onEditHome: widget.onHomeChanged == null ? null : () => _go(_Screen.homeSetting),
@@ -383,8 +425,22 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> with WidgetsBindingObserver
         onBack: () => _go(_Screen.home),
       ),
       _Screen.map => map(),
-      _Screen.points => map(start: MapStartView.points),
-      _Screen.report => map(start: MapStartView.report),
+      _Screen.points =>
+        widget.mode == sw.DataMode.live && widget.pointsError != null
+            ? Scaffold(
+                appBar: AppBar(
+                  title: const Text('附近求助地點'),
+                  leading: BackButton(onPressed: () => _go(_Screen.home)),
+                ),
+                body: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text(widget.pointsError!),
+                ),
+              )
+            : map(start: MapStartView.points),
+      _Screen.report =>
+        widget.reportBuilder?.call(context, () => _go(_Screen.home)) ??
+            map(start: MapStartView.report),
       _Screen.call => SafeWalkCallView(
         key: _callKey,
         speaker: widget.speaker,

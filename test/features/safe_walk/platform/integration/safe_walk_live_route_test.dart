@@ -7,6 +7,7 @@ import 'package:town_pass/features/safe_walk/platform/home_location/home_locatio
 import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_composition_root.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_route_speaker.dart';
 import 'package:town_pass/features/safe_walk/platform/platform_service.dart';
+import 'package:town_pass/features/safe_walk/presentation/safe_walk_flow.dart';
 import 'package:town_pass/features/safe_walk/safety_data/crime_reference/crime_reference_repository.dart';
 import 'package:town_pass/features/safe_walk/shared/contracts/cancellation.dart';
 import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart'
@@ -100,6 +101,29 @@ void main() {
       positions.add(_at(25.0330, 121.5655)); // on the route
       await t.pump();
       expect(routes.requests, hasLength(1));
+
+      positions.add(
+        sw.Position(
+          coordinates: sw.Coordinates(lat: 25.05, lng: 121.59),
+          source: sw.PositionSource.gps,
+          accuracyMeters: 8,
+          observedAt: DateTime.now()
+              .subtract(const Duration(minutes: 2))
+              .toUtc()
+              .toIso8601String(),
+        ),
+      );
+      await t.pump();
+      expect(routes.requests, hasLength(1));
+      expect(
+        t
+            .widget<SafeWalkFlow>(find.byType(SafeWalkFlow))
+            .livePosition!
+            .coordinates
+            .lat,
+        25.0330,
+        reason: 'a rejected old fix cannot replace the displayed live location',
+      );
 
       positions.add(_at(25.0400, 121.5655)); // ~780 m north: off route
       await t.pumpAndSettle();

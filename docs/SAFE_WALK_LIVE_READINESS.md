@@ -107,6 +107,6 @@ controller 的 mode 存活期間固定；切換須新 session 並取消/清理�
 
 `03f98f2` 原始盤點時，#26（speaker 共用 lifecycle，head `f919e6218546a2572219d81abb7fc80d5e28c37c`）、#28（知識圖譜）、#29（OSM 圖磚）均未合併；完整 SHA／CI 原始快照見 [審查報告](SAFE_WALK_SPEC_AUDIT.md)。審查更新至 `65ee6f7` 時，#26 已合併，後續保留其修正與回歸並補 R9 裝置證據；#28／#29 仍待審查，不計入主線完成或裝置驗收。
 
-#27 已合併，新增 `platform/nearby_emergency/nearby_live_test_main.dart`／`nearby_live_test_page.dart` 與 fake Widget tests；以 NEARBY_LIVE_ENABLED、URL、公開 key 三項設定隔離，直接 geolocator reader 僅在此獨立開發入口，未接正常 TownPass。此為現存例外，不擴大為正式導航第二份 GPS；不作為通知安全或裝置送達證據，不因設定齊全就解除 BLOCKED。
+歷史：#27 新增 `platform/nearby_emergency/nearby_live_test_main.dart`／`nearby_live_test_page.dart` 與 fake Widget tests，當時以 NEARBY_LIVE_ENABLED、URL、公開 key 三項設定隔離，未接正常 TownPass。PR #41 已移除匿名配置並停用 nearby transport，只保留額外 SMS 測試旗標與分別同意的隔離入口，未新增 LIVE_VERIFIED 證據。附近通知仍 BLOCKED；目前限制與後端撤權未部署狀態見[安全狀態](SAFE_WALK_NEARBY_SECURITY.md)。
 
 R13 必須完成可信身分/通知資格、資料所有權、RLS/RPC 授權與跨帳號拒絕、頻率/濫用保護、位置保留到期/刪除、明確同意及真後端/裝置測試，才可重新評估。匿名 UUID 不是身分或授權。R14 無官方授權時保持 BLOCKED。兩者不阻擋 R1–R11 的合法實作/分項驗收。

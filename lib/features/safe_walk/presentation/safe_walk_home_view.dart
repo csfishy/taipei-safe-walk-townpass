@@ -11,7 +11,19 @@ enum SafeWalkEntry { map, call, points, report }
 /// 入口頁：比照臺北通開啟服務時的樣式——上方主色長條＋右上關閉；
 /// 時間情境卡、「安心行」主卡（臺北天際線插圖）、其他功能一項一行、最下方緊急求助。
 class SafeWalkHomeView extends StatelessWidget {
-  const SafeWalkHomeView({super.key, required this.onOpen, required this.onEmergency, required this.avoided, this.destination = '家', this.homeSet = false, this.onEditHome, this.onBack, this.now});
+  const SafeWalkHomeView({
+    super.key,
+    required this.onOpen,
+    required this.onEmergency,
+    required this.avoided,
+    this.destination = '家',
+    this.homeSet = false,
+    this.onEditHome,
+    this.onBack,
+    this.now,
+    this.isLive = false,
+  });
+  final bool isLive;
   final ValueChanged<SafeWalkEntry> onOpen;
   final VoidCallback onEmergency;
 
@@ -48,7 +60,9 @@ class SafeWalkHomeView extends StatelessWidget {
             CloseButton(
               color: TPColors.white,
               onPressed: onBack,
-              style: const ButtonStyle(iconSize: WidgetStatePropertyAll<double>(24)),
+              style: const ButtonStyle(
+                iconSize: WidgetStatePropertyAll<double>(24),
+              ),
             )
           else
             const SizedBox(width: 56),
@@ -60,19 +74,49 @@ class SafeWalkHomeView extends StatelessWidget {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
               children: [
-                Semantics(header: true, label: '臺北安心行', child: const SizedBox.shrink()),
+                Semantics(
+                  header: true,
+                  label: '臺北安心行',
+                  child: const SizedBox.shrink(),
+                ),
                 _ContextCard(now: t),
                 const SizedBox(height: 16),
-                _GoHomeCard(destination: destination, avoided: avoided, onTap: () => onOpen(SafeWalkEntry.map)),
+                _GoHomeCard(
+                  destination: destination,
+                  avoided: avoided,
+                  isLive: isLive,
+                  onTap: () => onOpen(SafeWalkEntry.map),
+                ),
                 if (onEditHome != null) ...[
                   const SizedBox(height: 16),
-                  _FeatureRow(icon: Icons.home_rounded, name: homeSet ? '編輯「家」' : '設定「家」', desc: homeSet ? '更換或移除家的位置' : '第一次使用請先設定，儲存在裝置上', onTap: onEditHome!),
+                  _FeatureRow(
+                    icon: Icons.home_rounded,
+                    name: homeSet ? '編輯「家」' : '設定「家」',
+                    desc: homeSet ? '更換或移除家的位置' : '第一次使用請先設定，儲存在裝置上',
+                    onTap: onEditHome!,
+                  ),
                 ],
                 const SizedBox(height: 24),
-                Semantics(header: true, child: Text('其他功能', style: SwText.bodyStrong)),
+                Semantics(
+                  header: true,
+                  child: Text('其他功能', style: SwText.bodyStrong),
+                ),
                 const SizedBox(height: 12),
-                for (final (id, icon, name, desc) in _more) ...[_FeatureRow(icon: icon, name: name, desc: desc, onTap: () => onOpen(id)), const SizedBox(height: 10)],
-                const Align(alignment: Alignment.centerLeft, child: SwSourcesLink()),
+                for (final (id, icon, name, desc) in _more) ...[
+                  _FeatureRow(
+                    icon: icon,
+                    name: name,
+                    desc: isLive && id == SafeWalkEntry.report
+                        ? '歷史資料來源、更新日期與限制'
+                        : desc,
+                    onTap: () => onOpen(id),
+                  ),
+                  const SizedBox(height: 10),
+                ],
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: SwSourcesLink(),
+                ),
               ],
             ),
           ),
@@ -90,23 +134,48 @@ class _ContextCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final night = now.hour >= 18 || now.hour < 6;
-    final hhmm = '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+    final hhmm =
+        '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(color: night ? TPColors.primary800 : SwColors.surface, borderRadius: BorderRadius.circular(12), boxShadow: SwShadow.card),
+      decoration: BoxDecoration(
+        color: night ? TPColors.primary800 : SwColors.surface,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: SwShadow.card,
+      ),
       child: IntrinsicHeight(
         child: Row(
           children: [
-            Icon(night ? Icons.nightlight_round : Icons.wb_sunny_rounded, color: night ? TPColors.secondary300 : TPColors.secondary600, size: 32),
+            Icon(
+              night ? Icons.nightlight_round : Icons.wb_sunny_rounded,
+              color: night ? TPColors.secondary300 : TPColors.secondary600,
+              size: 32,
+            ),
             const SizedBox(width: 14),
-            VerticalDivider(width: 1, thickness: 1, color: night ? TPColors.primary600 : SwColors.border),
+            VerticalDivider(
+              width: 1,
+              thickness: 1,
+              color: night ? TPColors.primary600 : SwColors.border,
+            ),
             const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('$hhmm・${night ? '天色已暗' : '白天'}', style: SwText.bodyStrong.copyWith(color: night ? SwColors.onDeep : SwColors.text)),
-                  Text(night ? '建議走明亮的大路' : '出門前看看沿路回報', style: SwText.body.copyWith(color: night ? TPColors.primary100 : SwColors.textSecondary)),
+                  Text(
+                    '$hhmm・${night ? '天色已暗' : '白天'}',
+                    style: SwText.bodyStrong.copyWith(
+                      color: night ? SwColors.onDeep : SwColors.text,
+                    ),
+                  ),
+                  Text(
+                    night ? '建議走明亮的大路' : '出門前看看沿路回報',
+                    style: SwText.body.copyWith(
+                      color: night
+                          ? TPColors.primary100
+                          : SwColors.textSecondary,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -119,7 +188,13 @@ class _ContextCard extends StatelessWidget {
 
 /// Figma 主卡：左下透明文字動作、右下原始天際線插圖。
 class _GoHomeCard extends StatefulWidget {
-  const _GoHomeCard({required this.destination, required this.avoided, required this.onTap});
+  const _GoHomeCard({
+    required this.destination,
+    required this.avoided,
+    required this.onTap,
+    required this.isLive,
+  });
+  final bool isLive;
   final String destination;
   final int avoided;
   final VoidCallback onTap;
@@ -136,9 +211,14 @@ class _GoHomeCardState extends State<_GoHomeCard> {
   @override
   Widget build(BuildContext context) => Semantics(
     button: true,
-    label: '安心行，前往${widget.destination}，已繞開 ${widget.avoided} 個異常回報，點擊開始',
+    label: widget.isLive
+        ? '安心行，選擇目的地並規劃步行路線，點擊開始'
+        : '安心行，前往${widget.destination}，已繞開 ${widget.avoided} 個異常回報，點擊開始',
     child: DecoratedBox(
-      decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), boxShadow: SwShadow.float),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: SwShadow.float,
+      ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(12),
         child: Material(
@@ -155,32 +235,61 @@ class _GoHomeCardState extends State<_GoHomeCard> {
                   const Positioned.fill(
                     child: DecoratedBox(
                       decoration: BoxDecoration(
-                        gradient: LinearGradient(colors: [TPColors.primary700, TPColors.primary600, TPColors.primary500], stops: [0, .45, 1]),
+                        gradient: LinearGradient(
+                          colors: [
+                            TPColors.primary700,
+                            TPColors.primary600,
+                            TPColors.primary500,
+                          ],
+                          stops: [0, .45, 1],
+                        ),
                       ),
                     ),
                   ),
                   Positioned.fill(
-                    child: SvgPicture.string(swCardArtSvg, fit: BoxFit.cover, alignment: Alignment.bottomRight),
+                    child: SvgPicture.string(
+                      swCardArtSvg,
+                      fit: BoxFit.cover,
+                      alignment: Alignment.bottomRight,
+                    ),
                   ),
                   ConstrainedBox(
-                    constraints: const BoxConstraints(minHeight: 211, minWidth: double.infinity),
+                    constraints: const BoxConstraints(
+                      minHeight: 211,
+                      minWidth: double.infinity,
+                    ),
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('安心行', style: SwText.title.copyWith(color: TPColors.white)),
-                          Text('Safe Walk', style: SwText.small.copyWith(color: TPColors.white)),
+                          Text(
+                            '安心行',
+                            style: SwText.title.copyWith(color: TPColors.white),
+                          ),
+                          Text(
+                            'Safe Walk',
+                            style: SwText.small.copyWith(color: TPColors.white),
+                          ),
                           const SizedBox(height: 48),
                           ConstrainedBox(
                             constraints: const BoxConstraints(minHeight: 56),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                SvgPicture.string(swCardNavigationSvg, width: 26, height: 26),
+                                SvgPicture.string(
+                                  swCardNavigationSvg,
+                                  width: 26,
+                                  height: 26,
+                                ),
                                 const SizedBox(width: 10),
                                 Flexible(
-                                  child: Text('點擊開始', style: SwText.bodyStrong.copyWith(color: TPColors.white)),
+                                  child: Text(
+                                    '點擊開始',
+                                    style: SwText.bodyStrong.copyWith(
+                                      color: TPColors.white,
+                                    ),
+                                  ),
                                 ),
                               ],
                             ),
@@ -194,7 +303,9 @@ class _GoHomeCardState extends State<_GoHomeCard> {
                       child: AnimatedOpacity(
                         opacity: _pressed ? 1 : 0,
                         duration: SwMotion.of(context, 100),
-                        child: ColoredBox(color: TPColors.primary800.withValues(alpha: .25)),
+                        child: ColoredBox(
+                          color: TPColors.primary800.withValues(alpha: .25),
+                        ),
                       ),
                     ),
                   ),
@@ -210,13 +321,21 @@ class _GoHomeCardState extends State<_GoHomeCard> {
 
 /// 其他功能：一項一行的卡片（圖示｜名稱＋說明｜箭頭），點擊範圍整行。
 class _FeatureRow extends StatelessWidget {
-  const _FeatureRow({required this.icon, required this.name, required this.desc, required this.onTap});
+  const _FeatureRow({
+    required this.icon,
+    required this.name,
+    required this.desc,
+    required this.onTap,
+  });
   final IconData icon;
   final String name, desc;
   final VoidCallback onTap;
   @override
   Widget build(BuildContext context) => DecoratedBox(
-    decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), boxShadow: SwShadow.card),
+    decoration: BoxDecoration(
+      borderRadius: BorderRadius.circular(12),
+      boxShadow: SwShadow.card,
+    ),
     child: SwPressable(
       onTap: onTap,
       color: SwColors.surface,
@@ -239,7 +358,10 @@ class _FeatureRow extends StatelessWidget {
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right_rounded, color: SwColors.textSecondary),
+            const Icon(
+              Icons.chevron_right_rounded,
+              color: SwColors.textSecondary,
+            ),
           ],
         ),
       ),

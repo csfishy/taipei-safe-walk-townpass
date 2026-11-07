@@ -46,6 +46,7 @@ class DemoMap extends StatelessWidget {
     this.showDestination = true,
     this.showStart = true,
     this.showAttribution = true,
+    this.showTiles = true,
     this.crimeSpots = const [],
     this.onCrime,
     this.avoidRadiusMeters = 0,
@@ -73,6 +74,7 @@ class DemoMap extends StatelessWidget {
 
   /// false 時由外層（例如下方資訊框）顯示 OSM 版權標示。
   final bool showAttribution;
+  final bool showTiles;
 
   /// 紫色參考位置及產品設定的 50 公尺繞行緩衝，並非案發範圍。
   final List<({LatLng at, String label})> crimeSpots;
@@ -263,14 +265,15 @@ class DemoMap extends StatelessWidget {
             : (_, at) => onPick!(LatLng(at.latitude, at.longitude)),
       ),
       children: [
-        TileLayer(
-          urlTemplate: _kTileUrl,
-          userAgentPackageName: _kUserAgentPackage,
-          maxNativeZoom: 19,
-          // Native uses flutter_map's HTTP-aware built-in cache; web uses the
-          // browser cache. Tests inject tiles without changing these defaults.
-          tileProvider: createTileProvider(),
-        ),
+        if (showTiles)
+          TileLayer(
+            urlTemplate: _kTileUrl,
+            userAgentPackageName: _kUserAgentPackage,
+            maxNativeZoom: 19,
+            // Native uses flutter_map's HTTP-aware built-in cache; web uses the
+            // browser cache. Tests inject tiles without changing these defaults.
+            tileProvider: createTileProvider(),
+          ),
         if (avoidRadiusMeters > 0)
           CircleLayer(
             circles: [

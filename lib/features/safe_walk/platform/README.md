@@ -25,9 +25,10 @@
 | 據點 | 目前注入 `MockSafetyDataRepository`，驗證同模式 snapshot 後供 M2 lookup | M4 真實據點 repository、來源/有效性與 Live UI；`_loadPoints()` 目前固定 Mock 並拒絕 Live 混入 |
 | 音訊 | 預設 `TtsSafeWalkSpeaker.device()` 已接 M5 裝置 TTS，#26 lifecycle 修正已包含，SOS 優先 stop，離開時 dispose | iPhone 真聲音、無 voice 的 Unavailable／文字預覽、背景／回前景及非同步競態驗收；不把 #37 已被 #49 撤回的增量當成本基線成果 |
 | 系統求助交接 | `requestEmergency()` 契約與 Mock SOS 流程存在 | `TownPassPlatformAdapter` 尚無 dial/share/report adapter，任何旗標仍回 `not_configured`；需實作系統撥號/官方入口交接 |
+| 正式入口 Live 閉環（整合 #57／#58／#59） | `TPRoute.safeWalk` 以 `SafeWalkCompositionRoot(liveRoutes: true)` 保留 M3 地圖、Valhalla 15／50 公尺產品避讓與 OSRM 降級揭露；定位、路線外傳、Supabase 路線外框查詢及 OSM 圖磚各有操作／同意邊界。家須先儲存，未設定不查路線；地圖僅顯示真實 provider geometry、已取得的位置或使用者選點。犯罪參考來自受限唯讀 repository，本機回報由使用者標記，Live 不載入示範異常／場所。「回報狀況」接回 #58 資料庫資訊頁，每次進入只查無位置的現況與來源時效，不觸發 GPS 或路線；有證據的邊界與產品緩衝分開。未配置據點、SOS／SMS 明示不可用。離開、背景、取消／撤回會中止遲到工作 | **WIRED_NOT_VERIFIED**：隔離測試不等同真實 Supabase／路線 provider 或 iPhone 驗收。未查詢／無資料不代表安全，產品 50 公尺不冒充官方犯罪邊界。 |
 | 附近協助者 | service、RPC transport、匿名 UUID store 與 SQL 已合併；Supabase 有獨立唯讀連線檢查 | **BLOCKED**：可信身分、接收資格、ownership、RLS/RPC、頻率、防濫用、保留刪除與後端/裝置驗證；未接主 App |
 
-原生入口固定 Mock 違反現行完成定義，應以獨立程式 PR 修正。不能以未驗證為由繼續在正式入口供應假資料，也不能只改 readiness／live=true 冒稱完成。未完成能力回 Unavailable，其他已符合驗收的真能力獨立接入；附近通知 BLOCKED 不阻擋合法 GPS、OSRM、唯讀資料查詢或 TTS。
+上述舊基線的固定 Mock 入口由 P0-3 增量修正；只有隔離測試可選用舊 Mock 路徑。不能以未驗證為由在正式入口供應假資料，也不能只改 readiness／live=true 冒稱完成。未完成能力回 Unavailable，其他已符合驗收的真能力獨立接入；附近通知 BLOCKED 不阻擋合法 GPS、OSRM、唯讀資料查詢或 TTS。
 
 ## 位置與同意
 
@@ -39,7 +40,7 @@
 
 求助不等待定位成功。求助接線先中斷陪伴及路線，再執行使用者選擇的系統交接；不以介面成功或受理編號暗示已接通、警方已接案或派遣。未獲官方授權不得自動送警消案件。
 
-附近協助者不是官方警消通報。`supabase/nearby_emergency.sql` 的 security-definer RPC 目前接受呼叫者 UUID 並授權 anon，沒有身分與資料所有權核對；表級 RLS 本身不能補上缺口。不得僅憑匿名 UUID、公開 key、按下同意或增加 Live 旗標就公開傳送陌生人的精確位置。部署前提與既有唯讀連線證據見 [Supabase](../../../../docs/SAFE_WALK_SUPABASE.md)。
+附近協助者不是官方警消通報。舊 security-definer RPC 接受呼叫者 UUID 並授權 anon，缺少身分與資料所有權核對；表級 RLS 不能補上缺口。PR #41 已停用匿名 transport 的全部網路呼叫，`supabase/nearby_emergency.sql` 改為手動撤權腳本，尚未在遠端執行。附近通知維持 BLOCKED，不能由 UUID、key、同意或 Live 旗標開啟。隔離簡訊入口與重新啟用條件見[附近通知安全狀態](../../../../docs/SAFE_WALK_NEARBY_SECURITY.md)。
 
 ## 驗證與後續交付
 
