@@ -38,7 +38,7 @@ jobs:
       - name: Guard persistent crime reference data isolation
         run: |
           python3 tool/check_crime_database_isolation.py
-          python3 -m unittest discover -s tool -p 'test_crime_database_isolation.py' -v
+          python3 -m unittest discover -s tool -p 'test_*crime*.py' -v
       - name: Validate source and release version
         id: metadata
         run: python3 tool/release_metadata.py
