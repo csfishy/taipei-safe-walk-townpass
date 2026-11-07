@@ -120,7 +120,7 @@ final class EmergencyDispatch {
     var stopped = stopReason();
     if (stopped != null) return finish(stopped);
 
-    final nearbyAvailable = _transport is! UnavailableNearbyAlertBackend;
+    final nearbyAvailable = nearbyBackendUnavailableReason(_transport) == null;
     final nearbySelected = _consented(hasNearbyConsent);
     final smsSelected = _consented(hasSmsConsent);
     if (!nearbyAvailable) {
