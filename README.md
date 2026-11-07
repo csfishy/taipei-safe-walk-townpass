@@ -4,7 +4,7 @@
 
 - **Repository**：[csfishy/taipei-safe-walk-townpass](https://github.com/csfishy/taipei-safe-walk-townpass)；Public，預設分支 `main`。
 - **開發基線**：Flutter **3.47.6**／Dart **3.13.5**，依 [.fvmrc](.fvmrc) 與已提交的 [pubspec.lock](pubspec.lock)；同一個 Flutter App，以模組分支協作。
-- **目前狀態**：`main` 已包含五模組初始化基線；[預覽建置與 CI 修正 PR #2](https://github.com/csfishy/taipei-safe-walk-townpass/pull/2) 尚未合併。請查看 [GitHub Actions](https://github.com/csfishy/taipei-safe-walk-townpass/actions) 對應 commit 的實際結果；工作流存在不代表全部檢查、建置或部署已成功。
+- **目前狀態**：五模組初始化及預覽建置設定均已合併至 `main`；[預覽建置與 CI 修正 PR #2](https://github.com/csfishy/taipei-safe-walk-townpass/pull/2) 為已合併的歷史紀錄。產物與部署狀態請查看 [GitHub Actions](https://github.com/csfishy/taipei-safe-walk-townpass/actions) 對應 commit 的實際結果，不能將設定已合併視為全部檢查或部署成功。
 
 ## Clone 與五人分工
 
@@ -26,28 +26,29 @@ git fetch origin
 | M4 信義 | `git switch --track origin/feat/m4-safety-data` | `lib/features/safe_walk/safety_data/`；資料來源、Parser、Repository 與 fixtures |
 | M5 奶爸 | `git switch --track origin/feat/m5-companion` | `lib/features/safe_walk/companion/`；無 UI 控制器、Audio adapter、取消與清理 |
 
-正式開工前同步已合併的共同基線：`git fetch origin` 後，在自己的分支執行 `git merge origin/main`。有衝突時與 M1 協調，不 force push 或重設隊友歷史。未合併的 PR 不會自動出現在 main 或五個分支；如需審查 PR #2，可使用已登入的 GitHub CLI 執行 `gh pr checkout 2`，不要將審查分支當成已合併基線。
+正式開工前同步已合併的共同基線：`git fetch origin` 後，在自己的分支執行 `git merge origin/main`。有衝突時與 M1 協調，不 force push 或重設隊友歷史。main 已包含下列開發與預覽流程，無須切到 PR #2；其他待審模組 PR 的成果仍須合併後才會進入共同基線。
 
 共用 Schema、Dart models／contracts、套件／lock、CI、官方 route 與跨模組修改由 M1 統一協調。模組透過共用型別及依賴注入整合，不直接 import 其他模組實作。詳細輸入／輸出、狀態與第一輪交付見 [五人模組契約](docs/SAFE_WALK_MODULES.md) 及各模組 README。
 
 ## 首次安裝與產生檔案
 
-`main` 的初始化基線需要 Git 與指定版本的 Flutter／Dart。可使用 FVM 管理 [.fvmrc](.fvmrc)：先執行 `fvm install`，並將以下 `flutter`／`dart` 指令分別改用 `fvm flutter`／`fvm dart`。不要以套件 upgrade 或重建 lockfile 排除版本差異。
+需要 Git、真正可執行的 **Python 3**、指定版本的 Flutter／Dart；Chrome 測試與 Web 開發另需安裝 Chrome。可使用 FVM 管理 [.fvmrc](.fvmrc)：先執行 `fvm install`，並將以下 `flutter`／`dart` 指令分別改用 `fvm flutter`／`fvm dart`。不要以套件 upgrade 或重建 lockfile 排除版本差異。
 
-在 Repository 根目錄依序執行。**若目前分支包含 `tool/release_metadata.py`，需先以 Python 3 執行 `python3 tool/release_metadata.py`，再進行下列 pub get；目前 main 尚無此工具，不需執行該指令。**
+更新 main／模組分支後，在 Repository 根目錄依序執行。**先產生 metadata，再執行 pub get**：
 
 ```sh
 flutter --version
 dart --version
+python3 tool/release_metadata.py
 flutter pub get --enforce-lockfile
 dart run build_runner build
 dart run tool/generate_safe_walk_contracts.dart --check
 dart run tool/check_safe_walk_baseline.dart
 ```
 
-PR #2 的 `release_metadata.py` 會產生 `assets/build-info.json`，內容包含版本、build number、source commit 與 Flutter 版本。metadata 與官方 Dart／asset binding 產物依專案設定產生，不手改；Schema 產物則需與版控來源保持一致。若要審查預覽分支，先執行 `gh pr checkout 2`；不要假設這些新增工具已存在 main。
+`release_metadata.py` 會產生 `assets/build-info.json`，內容包含版本、build number、source commit 與 Flutter 版本。metadata 與官方 Dart／asset binding 產物依專案設定產生，不手改；Schema 產物則需與版控來源保持一致。
 
-### 預覽分支使用的 Python
+### Windows 的 Python 3
 
 Windows 請使用真正的 Python 3 解譯器；若已安裝 Windows Python，可將 metadata 指令改為 `py -3 tool/release_metadata.py`，或以已安裝的 `python.exe` 執行。不要把 Windows Store 的 Python 執行別名誤當成可用解譯器。WSL 是選項，並非必要條件；若已安裝 WSL、Linux Python 3 與 Git，可在這份 clone 根目錄使用：
 
@@ -63,38 +64,31 @@ WSL 內需可讀取這份 clone 並執行 Git；本文不假設本機已有 WSL�
 
 ```sh
 flutter analyze --no-pub lib/features/safe_walk tool test/features/safe_walk
-flutter analyze --no-pub
-flutter test --no-pub --reporter expanded
-flutter devices
-flutter run -d 裝置ID
-```
-
-第一個分析命令檢查安心行、新工具與模組測試，採嚴格門檻。main 的完整分析仍可能回報上游既有 warnings／info，詳見初始化紀錄；不能將 scoped 檢查成功寫成整個 TownPass 都無診斷。
-
-以下只適用於包含 Web 支援與瀏覽器測試的 **PR #2 預覽分支**，需另有 Chrome；目前 main 不包含 `test/web_startup_test.dart` 或 Web 平台：
-
-```sh
 flutter analyze --no-pub --no-fatal-infos
+flutter test --no-pub --reporter expanded
 flutter test --no-pub --platform chrome test/web_startup_test.dart --reporter expanded
+flutter devices
 flutter run -d chrome
 ```
 
-預覽分支的 `--no-fatal-infos` 允許既有 style info，error／warning 仍會失敗。Chrome guard 測試明確替換裝置資訊 plugin 邊界，仍檢查真正服務的瀏覽器分支；它不等於已驗證真實裝置資訊或原生功能。
+第一個分析命令檢查安心行、新工具與模組測試，採嚴格門檻。全專案分析的 `--no-fatal-infos` 允許既有 style info，error／warning 仍會失敗；如需查看包含 fatal infos 的原始診斷，可另外執行 `flutter analyze --no-pub`。Safe Walk CI 另保存完整分析報告，不能將 scoped 檢查成功寫成整個 TownPass 都無診斷。
 
-Android／iOS 開發使用 `flutter run -d 裝置ID`，先安裝對應 SDK、模擬器或準備實機。Android 需 JDK／Android SDK；iOS 需 macOS、Xcode 與對應裝置設定，Windows 不能本機編譯 iOS。不要用真實緊急電話、官方登入或通報流程做初始化測試。
+Chrome guard 測試明確替換裝置資訊 plugin 邊界，仍檢查真正服務的瀏覽器分支；它不等於已驗證真實裝置資訊或原生功能。
+
+Android／iOS 開發使用 `flutter run -d 裝置ID`，先安裝對應 SDK、模擬器或準備實機。Android 預覽 CI 使用 JDK 21 與 Repository 的 Android SDK 設定；iOS 使用 macOS 15／Xcode 26.1.1，以符合鎖定的裝置資訊套件需求。Windows 不能本機編譯 iOS。不要用真實緊急電話、官方登入或通報流程做初始化測試。
 
 ## CI、預覽包與網站
 
-main 既有工作流與 PR #2 提案的規則分開看；以下預覽包、Release 與 Pages 流程仍待該 PR 合併及必要驗證：
+下列兩份工作流均已在 main；執行規則與實際結果分開看，預覽產物、Release 與 Pages 以對應 run 為準：
 
 | 工作流 | 觸發與用途 |
 |---|---|
 | [Safe Walk CI](https://github.com/csfishy/taipei-safe-walk-townpass/actions/workflows/safe_walk.yml) | PR、main／migration push、手動執行；Schema 一致性、模組／工具分析、完整測試與原始診斷報告；可手動選擇 Android debug build |
-| [check-and-build（PR #2）](https://github.com/csfishy/taipei-safe-walk-townpass/pull/2) | 尚未合併 main；設計為 PR、main push、`v*-pre.*` tag、手動執行，檢查後產生 Android APK／unsigned iOS IPA／Web 預覽產物 |
+| [check-and-build](https://github.com/csfishy/taipei-safe-walk-townpass/actions/workflows/build.yml) | PR、main push、`v*-pre.*` tag、手動執行；檢查後產生 Android APK／unsigned iOS IPA／Web 預覽產物 |
 
-PR／main／manual run 產生可下載 artifacts，不直接等於 GitHub Release。只有 **push 事件推送符合 pubspec 版本的預發佈 tag**，且全部必要平台建置通過後，才發布 GitHub prerelease；例如 `0.0.12-pre.1+1` 對應 `v0.0.12-pre.1`。手動對既有 tag 執行不會建立 Release；Pages 仍依下述網站部署條件判斷。不要覆寫已發布 tag。手動執行入口需工作流已存在於預設分支；完整規則見 [建置與部署（PR #2）](https://github.com/csfishy/taipei-safe-walk-townpass/blob/codex/townpass-prerelease-builds/docs/BUILDS.md)。
+PR／main／manual run 產生可下載 artifacts，不直接等於 GitHub Release。只有 **push 事件推送符合 pubspec 版本的預發佈 tag**，且全部必要平台建置通過後，才發布 GitHub prerelease；例如 `0.0.12-pre.1+1` 對應 `v0.0.12-pre.1`。手動對既有 tag 執行不會建立 Release；Pages 仍依下述網站部署條件判斷。不要覆寫已發布 tag。手動執行入口需工作流已存在於預設分支；完整規則見 [建置與部署](docs/BUILDS.md)。
 
-以下預覽建置指令與獨立 App 身份只適用於 **PR #2 分支**。先執行 `gh pr checkout 2`，並完成該分支的 metadata／pub get／generation；iOS 範例的純數字版本對應該分支的 pubspec：
+本機可在完成相同 metadata／pub get／generation 後建置；以下 iOS 範例的純數字版本對應目前 pubspec：
 
 ```sh
 flutter build apk --release --no-pub
@@ -102,7 +96,7 @@ flutter build ios --release --no-codesign --no-pub --build-name 0.0.12 --build-n
 flutter build web --release --no-pub --base-href /taipei-safe-walk-townpass/ --no-web-resources-cdn
 ```
 
-iOS `--build-name` 使用 pubspec 版本的純數字部分，升版時需同步調整。這些命令需要對應平台工具；列出命令不是已完成建置的證明。預覽使用獨立身份 `Town Pass Preview`／`io.github.csfishy.taipeisafewalktownpass.preview`，不是正式市政服務發行版。Android APK 使用測試金鑰；unsigned IPA 沒有 provisioning profile／簽章，不能直接安裝或當作 TestFlight 版本，仍需適當簽署。下載與安裝限制見 [預發佈說明（PR #2）](https://github.com/csfishy/taipei-safe-walk-townpass/blob/codex/townpass-prerelease-builds/docs/PRERELEASE-NOTES.md)。
+iOS `--build-name` 使用 pubspec 版本的純數字部分，升版時需同步調整。這些命令需要對應平台工具；列出命令不是已完成建置的證明。預覽使用獨立身份 `Town Pass Preview`／`io.github.csfishy.taipeisafewalktownpass.preview`，不是正式市政服務發行版。Android APK 使用測試金鑰；unsigned IPA 沒有 provisioning profile／簽章，不能直接安裝或當作 TestFlight 版本，仍需適當簽署。下載與安裝限制見 [預發佈說明](docs/PRERELEASE-NOTES.md)。
 
 GitHub Pages 只在非 PR run、Web／Android／iOS 三個建置成功，且 owner／admin 已將 Settings → Pages 的 Source 設為 **GitHub Actions**、允許對應 main／tag environment 部署後才可能發布；未配置時保留 Web ZIP 並明確跳過部署。預期專案網址為 [csfishy.github.io/taipei-safe-walk-townpass](https://csfishy.github.io/taipei-safe-walk-townpass/)，**部署成功前僅是預期網址**，實際以 Pages deployment 回傳連結為準。Web ZIP 或 Release 下載頁不是已上線網站。
 
@@ -126,7 +120,7 @@ GitHub Pages 只在非 PR run、Web／Android／iOS 三個建置成功，且 own
 | [顏色規範](docs/SAFE_WALK_COLOR_SPEC.md) | 官方 TPColors 語意；不預先定義 UI 版型 |
 | [初始化驗證紀錄](docs/SAFE_WALK_INITIALIZATION.md) | 初始化時的實跑證據與限制；後續狀態以新 run 為準 |
 | [Safe Walk CI](docs/SAFE_WALK_CI.md) | scoped 門檻、完整分析報告與選用建置 |
-| [建置與部署（PR #2）](https://github.com/csfishy/taipei-safe-walk-townpass/blob/codex/townpass-prerelease-builds/docs/BUILDS.md)、[預發佈說明（PR #2）](https://github.com/csfishy/taipei-safe-walk-townpass/blob/codex/townpass-prerelease-builds/docs/PRERELEASE-NOTES.md) | artifacts、tag、Pages、平台工具與安裝限制 |
+| [建置與部署](docs/BUILDS.md)、[預發佈說明](docs/PRERELEASE-NOTES.md) | artifacts、tag、Pages、平台工具與安裝限制 |
 | [來源紀錄](docs/SAFE_WALK_UPSTREAM.json) | 官方 base commit 與來源追溯 |
 | [競賽與授權待確認](docs/SAFE_WALK_COMPETITION_LICENSE.md) | 正式交付形式、AGPL 要求與待確認事項 |
 

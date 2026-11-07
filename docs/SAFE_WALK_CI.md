@@ -1,5 +1,7 @@
 # Safe Walk CI 與選用雲端建置
 
+後續跨平台預覽交付另見 [Checks, prereleases and GitHub Pages](BUILDS.md)。`check-and-build` 會保留本文件的 Schema／完整測試／嚴格 scoped 門檻，另以 errors/warnings fatal、既有 style infos advisory 的全專案分析作建置閘門，建置 APK／unsigned IPA／Web 並處理預發佈與 Pages。原 Safe Walk CI／Codemagic 在 pub get 前新增產生必要的 build-info asset；以下初始化時的驗證敘述仍為歷史紀錄，不代表新的部署已執行。
+
 2026-11-07。Flutter 專案就在 Repository 根目錄，沿用 `.fvmrc` 的 **Flutter 3.47.6** 與官方 `pubspec.lock`。這份文件描述新增工作流；配置存在不等於 GitHub／Codemagic 已執行，更不等於裝置驗收或正式發佈完成。
 
 本次只追加 `.github/workflows/safe_walk.yml`、根目錄 `codemagic.yaml` 與本文件，不修改上游 UI、Theme、LICENSE、pubspec 或原生簽章設定。整體本機與遠端的實際驗證結果以 `SAFE_WALK_INITIALIZATION.md` 為準。

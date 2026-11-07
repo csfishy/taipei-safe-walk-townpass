@@ -1,0 +1,13 @@
+{
+  "name": "Town Pass Preview",
+  "short_name": "Town Pass",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#FFFFFF",
+  "theme_color": "#FFFFFF",
+  "description": "Town Pass 開發預覽，非正式市政服務。",
+  "icons": [
+    {"src": "icons/Icon-192.png", "sizes": "192x192", "type": "image/png"},
+    {"src": "icons/Icon-1024.png", "sizes": "1024x1024", "type": "image/png"}
+  ]
+}
