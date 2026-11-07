@@ -296,7 +296,6 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
           (widget.liveRoutes
               ? AvoidingRouteService(
                   planner: ValhallaAvoidingRoutePlanner(
-                    transport: transport,
                     hasConsent: hasConsent,
                   ),
                   fallback: osrm,

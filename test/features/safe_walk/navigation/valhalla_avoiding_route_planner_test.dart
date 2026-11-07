@@ -168,7 +168,7 @@ void main() {
       return _direct;
     });
     final planner = ValhallaAvoidingRoutePlanner(
-      transport: t,
+      post: t.post,
       hasConsent: () => consent,
       wait: (_) async {},
     );
@@ -195,7 +195,7 @@ void main() {
   test('without consent nothing is sent', () async {
     final t = _Fake((_) => _direct);
     final planner = ValhallaAvoidingRoutePlanner(
-      transport: t,
+      post: t.post,
       hasConsent: () => false,
       wait: (_) async {},
     );
@@ -222,7 +222,7 @@ void main() {
       (body) => body.containsKey('exclude_polygons') ? _detour : _direct,
     );
     final planner = ValhallaAvoidingRoutePlanner(
-      transport: t,
+      post: t.post,
       hasConsent: () => true,
       wait: (d) async => waits.add(d),
     );
@@ -237,7 +237,7 @@ void main() {
 }
 
 ValhallaAvoidingRoutePlanner _planner(_Fake t) => ValhallaAvoidingRoutePlanner(
-  transport: t,
+  post: t.post,
   hasConsent: () => true,
   wait: (_) async {},
 );
@@ -246,6 +246,12 @@ final class _Fake implements JsonTransport {
   _Fake(this.answer);
   final List<List<double>>? Function(Map<String, Object?> body) answer;
   final bodies = <Map<String, Object?>>[];
+
+  /// The planner POSTs; reuse the GET fake so every case stays the same.
+  Future<(int, String)> post(Uri url, String body) async {
+    final result = await getJson(url.replace(queryParameters: {'json': body}));
+    return (200, jsonEncode(result));
+  }
 
   @override
   Future<Object?> getJson(Uri url, {SafeWalkCancellation? cancellation}) async {

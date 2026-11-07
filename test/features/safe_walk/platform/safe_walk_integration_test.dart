@@ -415,7 +415,7 @@ void main() {
     await t.pump(const Duration(seconds: 1));
     await t.pumpAndSettle();
     expect(sent, 0);
-    expect(find.text('簡訊內容已準備好'), findsOneWidget);
+    expect(find.text('示範完成／未傳送簡訊'), findsOneWidget);
   });
 
   testWidgets('SOS cancels a reply before the outgoing call animation ends', (

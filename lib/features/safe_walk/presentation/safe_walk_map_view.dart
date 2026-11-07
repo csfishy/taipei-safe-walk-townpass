@@ -586,6 +586,8 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                         ? _Legend(
                             pointsView: _pointsView,
                             showShortcut: atHome && demoHome && !_pointsView,
+                            live: rs.live,
+                            crime: widget.crimeSpots.isNotEmpty,
                           )
                         : const SizedBox.shrink(),
                   ),
@@ -897,7 +899,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
         const SizedBox(height: 8),
         SwMockBadge(text: rs.insideWarning!),
       ],
-      if (rs.options.length > 1) ...[
+      if (rs.options.isNotEmpty) ...[
         const SizedBox(height: 12),
         Semantics(header: true, child: Text('選擇路線', style: SwText.smallStrong)),
         const SizedBox(height: 6),
@@ -2153,8 +2155,8 @@ class _Toast extends StatelessWidget {
 }
 
 class _Legend extends StatelessWidget {
-  const _Legend({required this.pointsView, required this.showShortcut});
-  final bool pointsView, showShortcut;
+  const _Legend({required this.pointsView, required this.showShortcut, this.live = false, this.crime = false});
+  final bool pointsView, showShortcut, live, crime;
   @override
   Widget build(BuildContext context) {
     Widget item(Widget key, String text) => Padding(
@@ -2218,8 +2220,28 @@ class _Legend extends StatelessWidget {
               size: 18,
               color: SwColors.warnMark,
             ),
-            '異常回報',
+            live ? '異常回報（50 公尺避讓）' : '異常回報',
           ),
+          if (live && !pointsView)
+            item(
+              Container(
+                width: 18,
+                height: 4,
+                decoration: BoxDecoration(color: TPColors.grayscale400, borderRadius: BorderRadius.circular(2)),
+              ),
+              '其他可選路線',
+            ),
+          if (crime)
+            item(
+              Container(
+                width: 18,
+                height: 18,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(shape: BoxShape.circle, color: crimeMarkColor.withValues(alpha: .14), border: Border.all(color: crimeMarkColor)),
+                child: Container(width: 6, height: 6, decoration: const BoxDecoration(shape: BoxShape.circle, color: crimeMarkColor)),
+              ),
+              '犯罪參考位置（50 公尺避讓緩衝區）',
+            ),
           item(
             const Icon(Icons.home_rounded, size: 18, color: SwColors.brand),
             '家',
