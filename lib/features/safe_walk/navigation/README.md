@@ -1,10 +1,12 @@
 # M2｜Steven：座標運算與 RouteService
 
+**現行政策：LIVE-FIRST DEVELOPMENT + NO PRODUCTION MOCK。** 正式入口只使用真實 OSRM／合法路網與 App 內 OSM 地圖；不導往 Google Maps 作為競賽導航。Fake／Mock／fixtures 僅限隔離測試，不作為 Live 前置版本或正式 fallback。功能須從主動定位／獨立同意、查詢、目的地選擇、真實路線到 UI 與取消／錯誤完整交付，見 [完成定義](../../../../docs/SAFE_WALK_LIVE_FIRST.md)。
+
 所有成員均可跨 M1～M5 修改功能與相應測試，自行 AI Coding、除錯及建立 PR。修改其他模組時說明目的、影響檔案及原主要負責人，先核對進行中的 PR 避免同時改同一檔；普通 Level A 變更不需小魚事前批准，Level B 合併前確認；Level C 合併前須隊長明確授權及安全／隱私審查，正式啟用前完成適用驗收。完整規則見 [開放協作](../../../../docs/SAFE_WALK_COLLABORATION.md)。
 
 先讀根目錄 AGENTS、[Live MVP](../../../../docs/SAFE_WALK_LIVE_MVP.md)、[Live Readiness](../../../../docs/SAFE_WALK_LIVE_READINESS.md)、[五人模組契約](../../../../docs/SAFE_WALK_MODULES.md) 與 [導航接線契約](../../../../docs/SAFE_WALK_NAVIGATION_PRESENTATION_CONTRACT.md)。初始化文件是歷史紀錄。Steven 是路線／跟隨的主要聯絡人，莅紋是正式 UI/UX 設計主要負責人，小魚是平台／共用契約主要聯絡人；這些分工不限制誰能編寫跨模組功能。
 
-2026-11-07 稽核基線 `03f98f2b7b5254db73774c4d097eb4d610499c2c`：OSRM、RouteFollower、最近便利商店與外部導航連結已有實作；正式操作尚未接線，不是只允許抽象介面的初始化階段。本次文件調整不啟用 Live。
+2026-11-08 盤點 main `7b99fea`（#49 恢復 `3c433001`）：OSRM、RouteFollower、OSM 店家來源已有實作；正式操作仍固定 Mock，是待修正缺口。#35 的受控 Live 接線已不在此基線，需另 PR 重用／驗證而非改旗標。本文件不將未接線能力改標 LIVE_VERIFIED。
 
 ## 主要負責人與輸入輸出
 
@@ -16,7 +18,7 @@
 
 ## Mock 與整合
 
-Mock 僅供單元測試、離線開發及清楚標示的展示；正式功能完成相應驗收後，必須能透過正式操作使用 Live provider。無 provider、未同意或服務失敗時明確回不可用／失敗，不用 mock／直線冒稱真實步行網路。取消或舊請求不得覆蓋新結果。Unavailable 沿用既有 failure／reason，不新增 DataMode wire 值。
+Mock provider 與 DataMode.mock 保留測試相容性，但正式入口不得選用，亦不要求先完成 Mock 才做 Live。無 provider、未同意或服務失敗回 Unavailable／失敗及下一步，不用 Mock／直線冒稱真實步行網路。取消或舊請求不得覆蓋新結果；沿用既有 failure／reason，不改 wire enum。
 
 M1 將完整據點 lookup／provider 注入本模組；不得直接 import M4 實作。途經點 ID／來源／營業狀態須核對，行政區歷史犯罪統計不能直接形成即時道路安全分數。
 
@@ -32,7 +34,7 @@ M1 將完整據點 lookup／provider 注入本模組；不得直接 import M4 �
 | `nearest_point.dart` | `nearestPoints()`：依直線距離排序，只回「記錄為營業中且近期檢查過」的點 |
 | `json_transport.dart`、`io_json_transport.dart`、`unsupported_json_transport.dart`、`default_json_transport.dart` | 不需新套件的 HTTPS JSON 客戶端（`dart:io`；web 預覽自動改為「不可用」） |
 | `consent.dart`、`cancellable.dart` | 同意例外；取消／搶先完成的小工具 |
-| `mock_walking_route_provider.dart` | 只供 `DataMode.mock` 測試及展示，標示未驗證路網、禁止作實地導航；App 目前固定 Mock 是尚未驗收的隔離現況，不是永久交付目標 |
+| `mock_walking_route_provider.dart` | 僅供隔離測試與 DataMode.mock 相容性；正式入口不得使用。當前 App 固定 Mock 屬缺陷，不是允許交付的隔離模式 |
 | `nearest_store_planner.dart` | `NearestStorePlanner`：找最近、營業中的便利商店，挑出實際步行最短的一間，並產生 Google 地圖步行導航連結 |
 | `google_maps_link.dart` | `googleMapsWalkingUri()`：Google 地圖「步行＋開始導航」連結 |
 | `route_follower.dart` | `RouteFollower`：把 M1 提供的位置對到路線上，算出已走／剩餘距離、剩餘時間、行進方向、偏離路線、抵達；純計算，不讀 GPS |
@@ -64,7 +66,9 @@ if (nearest.isNotEmpty) {
 
 `hasConsent` 每次請求都會重新讀取，可隨時撤回。
 
-## 一鍵導向最近的 24 小時便利商店（含 Google 地圖連結）
+## 歷史外連工具（禁止接入競賽正式導航）
+
+以下 NearestStorePlanner／Google URI 是既有 API 的歷史使用說明，保留追溯，不是目前開發指令。正式功能必須使用上節 OSM 真實店家與 RouteService，在 App 內顯示 OSRM 路線；服務失敗回 Unavailable，不以外部 Google Maps 代替完成。
 
 ```dart
 final planner = NearestStorePlanner(
@@ -110,7 +114,7 @@ switch (result.status) {
 
 ### 「真的地圖」還缺什麼（不在 M2）
 
-- 目前 M3 的 `DemoMap` 是手繪的示意圖（虛構區域），不是真實地圖；任何成員可開發真實底圖與 `presentation/` 的地圖接線；新增地圖套件／變更 `pubspec.yaml` 屬 Level B，合併前由小魚確認，正式 UI 大型改版由莅紋確認，一般 callback／狀態修正不需事前批准。底圖用 OpenStreetMap 圖磚時須顯示 © OpenStreetMap contributors，且公共圖磚伺服器不適合正式大量使用。
+- main `7b99fea` 的 `DemoMap` 已使用 flutter_map／OSM 真實圖磚，類名保留不表示仍是手繪底圖；目前缺口在 DemoGeo／示範路線覆蓋物與 Live 接線，不能為修正政策重做底圖。一般 callback／狀態修正可由任何成員實作，套件／共用契約與重大 UI 仍依 Level B。保留 © OpenStreetMap contributors 及公共圖磚使用限制。
 - M3 的地圖把 `cameraCenter` 當中心、`bearingDegrees` 當朝向，用 `snapped` 以後的路線段畫「剩餘路線」即可跟隨。
 
 ## 行為

@@ -1,6 +1,6 @@
 # 臺北安心行：TownPass Flutter 初始化紀錄
 
-> 本文件為初始化歷史紀錄，現行開發規格請以 [SAFE_WALK_LIVE_MVP.md](SAFE_WALK_LIVE_MVP.md) 為準。以下分支 pending、無 UI、未接 Provider 與測試結果均保留當時事實，不作為現行開發禁令；目前狀態見 [Live Readiness](SAFE_WALK_LIVE_READINESS.md)。
+> 本文件全篇為初始化歷史紀錄；SHA、分支 pending、無 UI、抽象介面、Mock 與測試數字均保留當時事實，不作為持續開發限制，也不證明目前 main 已驗證。現行政策是 [LIVE-FIRST／NO PRODUCTION MOCK](SAFE_WALK_LIVE_FIRST.md)：不要求先 Mock／Demo／Prototype，正式功能交真實完整流程，Fake／fixtures 僅隔離測試。驗收見 [Live MVP](SAFE_WALK_LIVE_MVP.md)，目前基線與缺口見 [Live Readiness](SAFE_WALK_LIVE_READINESS.md)。
 
 日期：2026-11-07（Asia/Taipei）。初始化分支 `migration/townpass-native-base`；透過 PR 交付，**不自行合併**。
 

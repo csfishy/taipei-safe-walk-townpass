@@ -1,10 +1,12 @@
 # CI／Demo 資料庫重設（Level C 待審查）
 
-本輪基準 main `c441070`；影響 M1 的 CI、隔離資料庫權限及人工位置 fixture。依協作規範屬 Level B/C，交小魚／隊長及安全／隱私審查；本 PR 不自行合併、配置遠端 Secrets 或啟用遠端重設。
+本程序原始開發基準 main `c441070`，由 #40 合入；以下是 main `7b99fea` 仍保有的工作流及隔離重設設計。影響 M1 的 CI、隔離資料庫權限及人工位置 fixture，屬 Level B/C；遠端白名單仍空。本次文件不配置遠端 Secrets、啟用重設或放寬保護。#47 的明確啟用修正仍待合併，不能將其 variable／disabled 放行行為描述為目前 main 已有。
+
+依 [LIVE-FIRST／NO PRODUCTION MOCK](SAFE_WALK_LIVE_FIRST.md)，這裡的 Demo／seed 僅用於隔離初始化、安全及可重複測試，不是 Production 使用者資料來源。主 App 不消費 `safe_walk_demo`，人工 seed 不能接到正式畫面；初始化成功、CI build 或 Demo 重設成功均不證明正式 Provider／業務資料已驗收。正式持久資料以 Supabase 主庫為整合方向，#44 尚待合併及 Level C 審查，不在本程序自動授權範圍。
 
 ## 資料盤點與範圍
 
-- 既有 Supabase client 透過 PostgREST，只有 `supabase/nearby_emergency.sql` 定義 `public.helpers`、`public.emergency_alerts`、`public.alert_recipients` 與三個 RPC。沒有 Supabase CLI config、正式 migrations 或 seed。Repository 定義不證明遠端已部署哪些表。
+- 原有 Supabase client 透過 PostgREST，只有 `supabase/nearby_emergency.sql` 定義 `public.helpers`、`public.emergency_alerts`、`public.alert_recipients` 與三個 RPC。原有架構沒有 Supabase CLI config、正式 migrations 或 seed（不含本程序新增的 `supabase/demo/`）；Repository 定義不證明遠端已部署哪些表。
 - 舊匿名 security-definer RPC 缺可信身分／ownership 驗證，仍 BLOCKED；新程序不執行舊 SQL。
 - 新程序只管理專用 `safe_walk_demo` schema 的同形三表及 migration checksum journal；不改 public、Auth、Storage 或其他專案。不 DROP DATABASE／SCHEMA，不 CASCADE，也不執行 Supabase 全庫 reset。
 - 初始 fixture 固定為 2 helpers、1 alert、1 recipient：人工 UUID、公開地標人工座標與 `2000-01-01T00:00:00Z`，無真人或通知外送。fixture 不是已送達通知／派遣紀錄。

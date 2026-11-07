@@ -2,7 +2,9 @@
 
 CI／Demo 資料庫 gate：兩份編譯／檢查工作流先跑 runner-local PostGIS 驗證。main 的 check／Web／Android／iOS 全部通過後，`build.yml` 僅執行一次專用 Demo reset；成功才允許下列 main prerelease／Pages 步驟。缺白名單、Secrets 或驗證失敗會阻擋發布；版本 tag 不重設共享 Demo。遠端尚待 Level C 審查與配置，見 [隔離資料庫重設](SAFE_WALK_DATABASE_RESET.md)。
 
-The product target is [Live MVP](SAFE_WALK_LIVE_MVP.md), with per-capability gates in [Readiness](SAFE_WALK_LIVE_READINESS.md). A successful build, prerelease or Pages deployment does not verify real providers or iPhone behavior. The current Demo preview is a snapshot, not a permanent Mock product requirement.
+The delivery policy is [LIVE-FIRST / NO PRODUCTION MOCK](SAFE_WALK_LIVE_FIRST.md), with full user-flow acceptance in [Live MVP](SAFE_WALK_LIVE_MVP.md) and per-capability evidence in [Readiness](SAFE_WALK_LIVE_READINESS.md). Production must use real providers or show Unavailable with the true blocker and next step; Fake, Mock and fixtures belong only in isolated Unit/Integration tests. New features do not require a prior Mock/Demo/Prototype. A successful build, prerelease or Pages deployment does not verify real providers or iPhone behavior.
+
+The current main baseline `7b99fea` still has a Mock production entry after #49 restored `3c433001` and removed #35's P0 wiring. This is a pending implementation gap, not a compliant delivery or a new runtime gate added by this document. #39 is merged into a feature branch, #44 remains open, and #47's explicit Demo activation fix is also pending; the #40 database gate described above remains in main. Competition delivery excludes Google Maps and AED functionality. Production switches, database permissions and deployment still require the applicable Level C review.
 
 The `check-and-build` workflow runs on main pushes, pull requests, matching `v*-pre.*` tags, and manual dispatch. Flutter is pinned to `.fvmrc`'s 3.47.6 and dependencies are installed with `--enforce-lockfile`; code generation runs on every clean checkout.
 

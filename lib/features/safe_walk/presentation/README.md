@@ -1,10 +1,14 @@
 # M3｜莅紋：安心行 UI/UX
 
+**現行政策：LIVE-FIRST DEVELOPMENT + NO PRODUCTION MOCK。** 正式入口只能呈現真實資料與操作結果；Mock／DemoGeo／假異常點／固定 ETA／固定成功不能進入正式流程。Fake／fixtures 僅供隔離測試；未配置回 Unavailable、真實阻塞與下一步。新功能直接完成真實 Provider 到 UI 的閉環，不須先交付 Demo，見 [完成定義](../../../../docs/SAFE_WALK_LIVE_FIRST.md)。
+
 所有成員均可跨 M1～M5 修改功能與相應測試，自行 AI Coding、除錯及建立 PR。修改其他模組時說明目的、影響檔案及原主要負責人，先核對進行中的 PR 避免同時改同一檔；普通 Level A 變更不需小魚事前批准，Level B 合併前確認；Level C 合併前須隊長明確授權及安全／隱私審查，正式啟用前完成適用驗收。完整規則見 [開放協作](../../../../docs/SAFE_WALK_COLLABORATION.md)。
 
 先讀根目錄 AGENTS、[Live MVP](../../../../docs/SAFE_WALK_LIVE_MVP.md)、[Live Readiness](../../../../docs/SAFE_WALK_LIVE_READINESS.md)、[五人模組契約](../../../../docs/SAFE_WALK_MODULES.md)、[導航接線契約](../../../../docs/SAFE_WALK_NAVIGATION_PRESENTATION_CONTRACT.md) 與 [顏色規範](../../../../docs/SAFE_WALK_COLOR_SPEC.md)。初始化文件是歷史紀錄，不再以「不得建立 UI」阻擋正式功能。莅紋是正式 UI/UX 設計主要負責人；任何成員可維護一般 UI／callback／狀態及測試，正式 UI 大型改版須在合併前由莅紋確認。本次只改文件，不改版面或色彩。
 
-## 畫面（2026-11-07）
+## 歷史畫面設計與待修正現況（2026-11-07）
+
+以下表格與互動記錄保留原 UI 的設計／行為，不是允許 Mock 正式交付的現行規範。2026-11-08 main `7b99fea` 經 #49 恢復早期快照，Flow 仍有這些示範資料路徑；#35 的 Live coordinator／UI 已被撤回。正式入口須另以程式 PR 修正，不能把表格中的示範成功或語音未配置當成已完成。
 
 稽核基線 `03f98f2b7b5254db73774c4d097eb4d610499c2c`。已由 M1 從臺北通「服務 > 臺北安心行」與首頁入口卡進入（`SafeWalkCompositionRoot` → `SafeWalkFlow`），畫面與 route API 已合併。`presentation/` 與 `test/features/safe_walk/presentation/` 是主要路徑，功能主責可同一 PR 跨 platform／navigation／資料／音訊完成接線與測試，不再受目錄獨占限制。以下為目前 Mock 畫面盤點，虛構街區、避讓件數及示範 ETA 不是 Live 驗收標準。
 
@@ -41,17 +45,17 @@
 
 ## 既有 constructor 與目前接線
 
-以下是介面示意，不是可直接貼用的程式；null 時補 Demo 是目前 Mock 行為，Live 必須改為明確未配置／缺值。DataMode wire 仍只有 mock／live，Unavailable 以既有 failure／reason 及程序內狀態呈現。
+以下是目標接線示意，不是可直接貼用的程式，也不代表 main 已完成。正式入口必須為 Live，null／缺 callback 時回明確 Unavailable，不能補 Demo。DataMode wire 保留 mock／live 相容性，mock 僅供隔離測試；Unavailable 沿用既有 failure／reason。
 
 ```dart
 SafeWalkFlow(
-  mode: sw.DataMode.mock,          // 顯式傳入
+  mode: sw.DataMode.live,          // 正式入口唯一模式；仍須完成真實接線與驗收
   allowRealCalls: false,
-  points: <M4 → M1 提供的 AssistancePoint>,   // 目前 null 補 Demo；只允許 Mock
+  points: <真實來源 → M1 提供的 AssistancePoint>, // 缺配置回 Unavailable，不補 Demo
   pointsLoading: <載入中>, pointsError: <錯誤訊息>, onRetryPoints: <重試>,
   route: <RouteService.planRoute 的 RouteResult>,  // Live null 不得補 Demo
   routeLoading: <計算中>,
-  onPlanRoute: (destination) => <用目前位置與 destination 呼叫 planRoute，結果傳回 route>,  // 使用者開地圖、換目的地、按「再試一次」時呼叫
+  onPlanRoute: (destination) => <用真實位置與 destination 呼叫 planRoute，結果傳回 route>,  // 明確開始／重試，重驗兩份同意及前景狀態
   speaker: <TTS 或 M5 音訊 Adapter 實作 SafeWalkSpeaker>,
   onLocate: () => platform.getCurrentPosition(mode: ..., userInitiated: true),
   onEmergency: (channel) => platform.requestEmergency(mode: ..., channel: channel, userInitiated: true, allowRealCalls: ...),
@@ -68,11 +72,11 @@ SafeWalkFlow(
 
 ## Live MVP 交付條件
 
-- Mock 僅供開發、測試及清楚標示的展示。正式功能完成相應驗收後必須由正式操作使用 Live；目前固定 Mock 與 readiness false 是未驗收隔離，不是永久禁令，各能力可分別啟用。
+- 正式流程 Live-only；Mock／Fake 僅限隔離測試。main 固定 Mock 是缺口，應修完整 Provider／UI／同意／取消接線，不能只將 readiness 設為 true。已驗收能力不受其他 BLOCKED 能力的全域模式限制。
 - 使用者主動開始導航／更新位置才由平台入口取 TownPass 真實 GPS；定位權限與第三方路線查詢同意分開，提供拒絕及撤回。Flow 目前只在使用者進入地圖／換常用目的地／重試時呼叫既有 callback，無初始化自動規劃，但尚無完整 Live 同意／取消操作。
 - 沿用既有 TownPass 介面與 #29 的 OSM 底圖 renderer，不因 `DemoMap` 類名重做底圖；接入並驗證正式 M2 RouteResult geometry、viewport、距離及可取得時間。GeoJSON 為 `[longitude, latitude]`；資料模式取決於來源與接線，真圖磚不會使 Mock 覆蓋物成為 Live，iPhone／底圖失敗呈現仍待驗。
 - durationSeconds null 顯示未知；目前 RouteState.minutes 與據點卡會呼叫 walkMinutes，Live 必須移除這些示範 ETA。完整呈現 result／candidate warnings、explanations、provider、loading、cancel、error 與下一步。
-- Live 不補 DemoGeo 起點、demoPlaces、demoPoints、demoAnomalies、L 形路線、虛構避險件數或示範地標。網路失敗提供重試或使用者選擇外部導航，不偷偷換 Mock；OSRM 路線不宣稱已驗證安全。
+- Live 不補 DemoGeo 起點、demoPlaces、demoPoints、demoAnomalies、L 形路線、虛構避險件數或示範地標。網路失敗提供錯誤／重試／Unavailable，不偷偷換 Mock，也不以 Google Maps 外連替代競賽 App 內導航；OSRM 路線不宣稱已驗證安全。
 - 保留 Flow 已有座標 callback，由平台 adapter 建立 canonical request；最近據點／下一據點／帶我去也必須通知目的地變更及重新規劃。取消、換目的地、離開導航、切至通話、SOS、背景或撤回同意立即取消舊意圖；等待定位的 Future 需 generation 檢查，防止遲到重啟。
 - 功能主責可直接在組合根接 RouteFollower 並把結果交 presentation，畫面不另開 GPS；目前尚未接 App。OSRM steps=false，現有幾何方向步驟不等於正式逐路口導航。
 - Live 的撥號、簡訊／官方通報入口明示 handoff 狀態，開啟不等於接通、送達、受理或派遣；附近協助者與官方派遣的 BLOCKED 條件不阻擋合法導航、TTS 或使用者主動開啟求助管道。
