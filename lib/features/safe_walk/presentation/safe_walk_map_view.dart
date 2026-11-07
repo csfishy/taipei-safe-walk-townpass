@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart' show mapEquals;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:town_pass/features/safe_walk/presentation/demo_map.dart';
 import 'package:town_pass/features/safe_walk/presentation/mock/safe_walk_demo_data.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_ui.dart';
@@ -530,6 +531,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
   }
 
   void _update(Anomaly a, String text, {required bool bump}) {
+    HapticFeedback.lightImpact(); // 送出成功的觸覺回饋
     setState(() {
       if (bump) {
         a.reportCount++;
@@ -555,6 +557,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
     );
     widget.anomalies.add(a);
     widget.onAnomaliesChanged();
+    HapticFeedback.lightImpact(); // 送出成功的觸覺回饋
     setState(() {
       _note.clear();
       _pin = null;
@@ -1142,18 +1145,16 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
           ],
           Row(
             children: [
-              AnimatedSwitcher(
-                duration: SwMotion.of(context, 250),
-                transitionBuilder: (c, a) => ScaleTransition(
-                  scale: Tween(begin: .8, end: 1.0).animate(a),
-                  child: FadeTransition(opacity: a, child: c),
-                ),
-                child: Text.rich(
-                  key: ValueKey(meters),
+              // 換路線或改道時，分鐘數從舊值滾到新值，看得出「改道了」。
+              TweenAnimationBuilder<double>(
+                tween: Tween(end: (minutes ?? 0).toDouble()),
+                duration: SwMotion.of(context, 700),
+                curve: SwMotion.curve,
+                builder: (_, value, _) => Text.rich(
                   TextSpan(
                     children: [
                       TextSpan(
-                        text: minutes == null ? '時間未知' : '$minutes',
+                        text: minutes == null ? '時間未知' : '${value.round()}',
                         style: SwText.title.copyWith(
                           height: 1,
                           color: SwColors.brand,
@@ -1175,6 +1176,14 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView> {
                       style: SwText.secondary,
                       overflow: TextOverflow.ellipsis,
                     ),
+                    if (isHome && minutes != null && rs.options.length > 1)
+                      _ExtraMinutes(
+                        extra: minutes - rs.options
+                            .map((r) => r.durationSeconds)
+                            .whereType<num>()
+                            .map((d) => (d / 60).ceil())
+                            .fold(minutes, (a, b) => a < b ? a : b),
+                      ),
                     if (isHome && rs.best != null && rs.options.length < 2)
                       Text(
                         rs.best!.explanations.firstOrNull ??
@@ -2621,6 +2630,34 @@ class _Fact extends StatelessWidget {
         Expanded(child: Text(value, style: SwText.body)),
       ],
     ),
+  );
+}
+
+/// 選了較長的避讓路線時，提示比最短路線多走幾分鐘；數值改變時淡入。
+class _ExtraMinutes extends StatelessWidget {
+  const _ExtraMinutes({required this.extra});
+  final int extra;
+  @override
+  Widget build(BuildContext context) => AnimatedSwitcher(
+    duration: SwMotion.of(context, 300),
+    child: extra <= 0
+        ? const SizedBox(key: ValueKey(0), width: double.infinity)
+        : Semantics(
+            key: ValueKey(extra),
+            liveRegion: true,
+            child: Container(
+              margin: const EdgeInsets.only(top: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+              decoration: BoxDecoration(
+                color: SwColors.brandSoft,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                '比最短路線多 $extra 分鐘',
+                style: SwText.smallStrong.copyWith(color: SwColors.brandText),
+              ),
+            ),
+          ),
   );
 }
 

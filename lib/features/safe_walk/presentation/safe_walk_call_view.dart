@@ -634,7 +634,7 @@ class _Bubble extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(entry.text, style: SwText.body),
+                    _Caption(entry.text),
                     const SizedBox(height: 4),
                     Row(
                       mainAxisSize: MainAxisSize.min,
@@ -653,6 +653,30 @@ class _Bubble extends StatelessWidget {
       ],
     );
   }
+}
+
+/// 對方的話像字幕一樣逐字出現（跟著語音朗讀的節奏）；
+/// 還沒出現的字先透明佔位，泡泡大小不跳動；系統關閉動畫時直接整句顯示。
+class _Caption extends StatelessWidget {
+  const _Caption(this.text);
+  final String text;
+  @override
+  Widget build(BuildContext context) => TweenAnimationBuilder<int>(
+    tween: IntTween(begin: 0, end: text.length),
+    duration: SwMotion.of(context, (text.length * 60).clamp(1200, 7000)),
+    builder: (_, shown, _) => Text.rich(
+      TextSpan(
+        children: [
+          TextSpan(text: text.substring(0, shown)),
+          TextSpan(
+            text: text.substring(shown),
+            style: const TextStyle(color: Colors.transparent),
+          ),
+        ],
+      ),
+      style: SwText.body,
+    ),
+  );
 }
 
 class _CallNote extends StatelessWidget {
