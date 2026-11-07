@@ -107,7 +107,7 @@ class SafeWalkEmergencyView extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('告訴對方你在哪裡', style: SwText.heading),
+                      Text('告訴對方你在哪裡', style: SwText.bodyStrong),
                       const SizedBox(height: 6),
                       Text(
                         position == null
@@ -243,7 +243,7 @@ class _SmsReportCardState extends State<_SmsReportCard> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('簡訊報警', style: SwText.heading.copyWith(color: SwColors.sos)),
+                            Text('簡訊報警', style: SwText.bodyStrong.copyWith(color: SwColors.sos)),
                             Text('不方便說話時，用文字通知', style: SwText.secondary),
                           ],
                         ),
@@ -327,7 +327,7 @@ class _SmsReportCardState extends State<_SmsReportCard> {
                             else
                               const Icon(Icons.send_rounded, color: SwColors.onDeep),
                             const SizedBox(width: 8),
-                            Text(_step == _SmsStep.sending ? '傳送中…' : '傳送簡訊', style: SwText.heading.copyWith(color: SwColors.onDeep)),
+                            Text(_step == _SmsStep.sending ? '傳送中…' : '傳送簡訊', style: SwText.bodyStrong.copyWith(color: SwColors.onDeep)),
                           ],
                         ),
                       ),
@@ -360,7 +360,7 @@ class _SmsReportCardState extends State<_SmsReportCard> {
               ),
             ),
             const SizedBox(width: 12),
-            Expanded(child: Text(mock ? '示範完成／未傳送簡訊' : '已開啟簡訊 App', style: SwText.heading)),
+            Expanded(child: Text(mock ? '示範完成／未傳送簡訊' : '已開啟簡訊 App', style: SwText.bodyStrong)),
           ],
         ),
         const SizedBox(height: 8),

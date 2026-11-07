@@ -108,8 +108,8 @@ void main() {
     await t.pump(const Duration(milliseconds: 300));
     await t.tap(find.text('接聽'));
     await t.pump(const Duration(milliseconds: 300));
-    expect(speaker.spoken, ['喂，你走到哪裡啦？晚餐吃了沒？']);
-    await t.tap(find.text('我正在回家路上，已經吃過了。'));
+    expect(speaker.spoken, ['喂，你到哪了？']);
+    await t.tap(find.text('我在大馬路上，快到了。'));
     await t.pump(const Duration(milliseconds: 100));
     expect(speaker.spoken.length, 1, reason: '自己的回應不朗讀');
     await t.pump(const Duration(seconds: 1));
@@ -176,7 +176,7 @@ void main() {
     await t.pump(const Duration(milliseconds: 300));
     await t.tap(find.text('接聽'));
     await t.pump(const Duration(milliseconds: 300));
-    await t.tap(find.text('我正在回家路上，已經吃過了。'));
+    await t.tap(find.text('我在大馬路上，快到了。'));
     await t.pump(const Duration(milliseconds: 800));
     await t.tap(find.text('緊急求助').first);
     await t.pump(const Duration(milliseconds: 100));
@@ -313,12 +313,13 @@ void main() {
       ],
     );
 
-    testWidgets('進入時與換目的地時都請 M1 重新規劃', (t) async {
+    testWidgets('打開地圖與換目的地時才請 M1 規劃；一進安心行不自動送出', (t) async {
       final asked = <sw.Coordinates>[];
       await _pump(t, SafeWalkFlow(onPlanRoute: asked.add));
-      expect(asked, hasLength(1), reason: '第一次進入就要求回家路線');
+      expect(asked, isEmpty, reason: '還在首頁，使用者沒操作前不規劃');
       await t.tap(find.text('安心行'));
       await t.pumpAndSettle();
+      expect(asked, hasLength(1), reason: '點主卡打開地圖才規劃');
       await t.tap(find.textContaining('→ 家'));
       await t.pumpAndSettle();
       await t.tap(find.text('公司'));
