@@ -11,12 +11,9 @@ import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart
 import 'package:town_pass/util/tp_colors.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-const pointGlyph = {
-  sw.AssistancePointKind.police: '警',
-  sw.AssistancePointKind.partnerStore: '店',
-  sw.AssistancePointKind.convenienceStore: '店',
-  sw.AssistancePointKind.publicFacility: '公',
-};
+/// 求助地點在地圖、圖例與清單上一律用同一個圖示（捧著愛心的手：這裡有人能幫你）；
+/// 種類（超商、派出所…）寫在文字裡。
+const helpPointIcon = Icons.volunteer_activism_rounded;
 
 /// OpenStreetMap 標準圖磚（不需 API Key）。使用條款要求標示來源並帶有可辨識的 User-Agent。
 const _kTileUrl = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
@@ -39,6 +36,8 @@ class DemoMap extends StatelessWidget {
     super.key,
     required this.start,
     required this.points,
+    this.heading,
+    this.follow,
     required this.anomalies,
     required this.path,
     this.altPaths = const [],
@@ -62,6 +61,12 @@ class DemoMap extends StatelessWidget {
   });
   final LatLng start;
   final List<sw.AssistancePoint> points;
+
+  /// 手機朝向（度，從北方順時針）；有值時起點畫成指向箭頭（地圖固定北方朝上）。
+  final double? heading;
+
+  /// 導覽中：鏡頭以目前位置為中心（約 10 公尺移動才重新置中）。
+  final LatLng? follow;
   final List<Anomaly> anomalies;
   final List<LatLng> path;
 
@@ -174,16 +179,13 @@ class DemoMap extends StatelessWidget {
         marker(
           LatLng(p.coordinates.lat, p.coordinates.lng),
           p.id == selectedPointId ? 40 : 26,
-          _PointMark(
-            glyph: pointGlyph[p.kind]!,
-            selected: p.id == selectedPointId,
-          ),
+          HelpPointMark(selected: p.id == selectedPointId),
           label: '${p.name}，查看詳細資訊',
           onTap: onPoint == null ? null : () => onPoint!(p.id),
         ),
       if (showDestination)
         marker(destination ?? DemoGeo.home, 32, _HomeMark(active: homeActive)),
-      if (showStart) marker(start, 34, const _StartMark()),
+      if (showStart) marker(start, 44, _StartMark(heading: heading)),
       if (pin != null)
         marker(
           pin!,
@@ -234,20 +236,30 @@ class DemoMap extends StatelessWidget {
     final map = FlutterMap(
       // A changed destination gets a fresh fit. Unchanged route values retain
       // the user's current pan/zoom through other view rebuilds.
-      key: ValueKey(path.map((at) => '${at.lat},${at.lng}').join('|')),
+      key: ValueKey(
+        follow != null
+            ? 'follow ${follow!.lat.toStringAsFixed(4)},${follow!.lng.toStringAsFixed(4)}'
+            : path.map((at) => '${at.lat},${at.lng}').join('|'),
+      ),
       options: MapOptions(
-        initialCameraFit: CameraFit.bounds(
-          bounds: fit,
-          padding: compact
-              ? const EdgeInsets.all(16)
-              : EdgeInsets.fromLTRB(
-                  math.min(40, viewport.width * .1),
-                  topInset,
-                  math.min(40, viewport.width * .1),
-                  bottomInset,
-                ),
-          maxZoom: 18,
-        ),
+        initialCenter: follow == null
+            ? const ll.LatLng(50.5, 30.51)
+            : _ll(follow!),
+        initialZoom: follow == null ? 13 : 17,
+        initialCameraFit: follow != null
+            ? null
+            : CameraFit.bounds(
+                bounds: fit,
+                padding: compact
+                    ? const EdgeInsets.all(16)
+                    : EdgeInsets.fromLTRB(
+                        math.min(40, viewport.width * .1),
+                        topInset,
+                        math.min(40, viewport.width * .1),
+                        bottomInset,
+                      ),
+                maxZoom: 18,
+              ),
         minZoom: 3,
         maxZoom: 19,
         backgroundColor: SwColors.surface,
@@ -402,28 +414,26 @@ class _AnomalyMark extends StatelessWidget {
   }
 }
 
-class _PointMark extends StatelessWidget {
-  const _PointMark({required this.glyph, required this.selected});
-  final String glyph;
+/// 求助地點標記：主色圓底白色求助圖示；地圖與圖例共用。
+class HelpPointMark extends StatelessWidget {
+  const HelpPointMark({super.key, this.selected = false, this.size = 26});
   final bool selected;
+  final double size;
   @override
   Widget build(BuildContext context) => Container(
-    width: selected ? 36 : 26,
-    height: selected ? 36 : 26,
+    width: selected ? size + 10 : size,
+    height: selected ? size + 10 : size,
     alignment: Alignment.center,
     decoration: BoxDecoration(
       shape: BoxShape.circle,
       color: SwColors.brand,
       border: Border.all(
         color: selected ? SwColors.brand : SwColors.surface,
-        width: 3,
+        width: size < 24 ? 2 : 3,
       ),
       boxShadow: SwShadow.float,
     ),
-    child: Text(
-      glyph,
-      style: SwText.caption.copyWith(color: SwColors.onBrand, height: 1),
-    ),
+    child: Icon(helpPointIcon, size: size * .55, color: SwColors.onBrand),
   );
 }
 
@@ -448,9 +458,30 @@ class _HomeMark extends StatelessWidget {
 }
 
 class _StartMark extends StatelessWidget {
-  const _StartMark();
+  const _StartMark({this.heading});
+  final double? heading;
   @override
-  Widget build(BuildContext context) => Container(
+  Widget build(BuildContext context) => heading == null
+      ? _dot()
+      // 導航箭頭（像 Google 地圖導航）：尖端指向使用者面對的方向。
+      : Container(
+          width: 44,
+          height: 44,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: SwColors.brand.withValues(alpha: .18),
+          ),
+          child: Transform.rotate(
+            angle: heading! * math.pi / 180,
+            child: CustomPaint(
+              size: const Size(30, 30),
+              painter: _ArrowPainter(),
+            ),
+          ),
+        );
+
+  Widget _dot() => Container(
     width: 30,
     height: 30,
     alignment: Alignment.center,
@@ -468,4 +499,31 @@ class _StartMark extends StatelessWidget {
       ),
     ),
   );
+}
+
+/// 朝上（北方，旋轉前）的導航箭頭：主色填滿、白色描邊、底部內凹。
+class _ArrowPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width, h = size.height;
+    final path = Path()
+      ..moveTo(w * .5, h * .06)
+      ..lineTo(w * .9, h * .9)
+      ..lineTo(w * .5, h * .7)
+      ..lineTo(w * .1, h * .9)
+      ..close();
+    canvas.drawShadow(path, Colors.black, 2, false);
+    canvas.drawPath(path, Paint()..color = SwColors.brand);
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = SwColors.surface
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.5
+        ..strokeJoin = StrokeJoin.round,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_ArrowPainter old) => false;
 }

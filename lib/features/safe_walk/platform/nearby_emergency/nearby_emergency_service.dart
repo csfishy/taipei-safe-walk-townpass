@@ -42,11 +42,18 @@ final class NearbyEmergencyService {
   final NearbyAlertTransport _transport;
   final int radiusMeters;
 
-  String? get unavailableReason {
+  String? get unavailableReason => nearbyBackendUnavailableReason(_transport);
+
+  /// Null when the backend can be used now. Waits for any identity the
+  /// transport has to set up first (see [NearbyAlertPreparation]).
+  Future<String?> _prepare() async {
+    final reason = unavailableReason;
+    if (reason != null) return reason;
     final transport = _transport;
-    return transport is UnavailableNearbyAlertBackend
-        ? (transport as UnavailableNearbyAlertBackend).unavailableReason
-        : null;
+    if (transport is NearbyAlertPreparation) {
+      return (transport as NearbyAlertPreparation).prepare();
+    }
+    return null;
   }
 
   Future<NearbyEmergencyResult> triggerEmergency({
@@ -73,7 +80,15 @@ final class NearbyEmergencyService {
         '已取消',
       );
     }
-    final backendFailure = unavailableReason;
+    final String? backendFailure;
+    try {
+      backendFailure = await _whileActive(_prepare(), cancellation);
+    } on SafeWalkCancelledException {
+      return const NearbyEmergencyNotSent(
+        NearbyEmergencyBlock.cancelled,
+        '已取消',
+      );
+    }
     if (backendFailure != null) {
       return NearbyEmergencyNotSent(
         NearbyEmergencyBlock.backendUnavailable,
@@ -155,7 +170,7 @@ final class NearbyEmergencyService {
       throw const NearbyAlertException('User action required');
     }
     cancellation?.throwIfCancelled();
-    final backendFailure = unavailableReason;
+    final backendFailure = await _whileActive(_prepare(), cancellation);
     if (backendFailure != null) throw NearbyAlertException(backendFailure);
     sw.Coordinates? location;
     if (enabled) {
@@ -183,6 +198,45 @@ final class NearbyEmergencyService {
       cancellation,
     );
     cancellation?.throwIfCancelled();
+  }
+
+  /// Whether the backend stores guard areas.
+  bool get supportsGuardAreas => _transport is NearbyHelperAreas;
+
+  NearbyHelperAreas get _areas {
+    final transport = _transport;
+    if (transport is! NearbyHelperAreas) {
+      throw const NearbyAlertException('目前的後端不支援守護區');
+    }
+    return transport as NearbyHelperAreas;
+  }
+
+  Future<List<NearbyGuardArea>> fetchGuardAreas() => _areas.fetchGuardAreas();
+
+  Future<void> replaceGuardAreas(List<NearbyGuardArea> areas) =>
+      _areas.replaceGuardAreas(areas);
+
+  /// One fresh position, read because the person asked for it (for example to
+  /// set a guard area here). Throws [NearbyAlertException] with the reason when
+  /// no position can be read.
+  Future<sw.Coordinates> readCurrentPosition({
+    required sw.DataMode mode,
+    SafeWalkCancellation? cancellation,
+  }) async {
+    cancellation?.throwIfCancelled();
+    final result = await _whileActive(
+      _platform.getCurrentPosition(
+        mode: mode,
+        userInitiated: true,
+        cancellation: cancellation,
+      ),
+      cancellation,
+    );
+    cancellation?.throwIfCancelled();
+    if (result is! sw.LocationSuccess) {
+      throw NearbyAlertException((result as sw.LocationFailure).message);
+    }
+    return result.position.coordinates;
   }
 
   Future<List<NearbyAlert>> fetchPendingAlerts(String helperId) =>

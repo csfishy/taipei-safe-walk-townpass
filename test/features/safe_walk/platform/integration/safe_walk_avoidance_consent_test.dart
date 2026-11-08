@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:town_pass/features/safe_walk/navigation/route_service.dart';
 import 'package:town_pass/features/safe_walk/platform/home_location/home_location_service.dart';
@@ -13,6 +14,7 @@ import 'package:town_pass/features/safe_walk/platform/platform_service.dart';
 import 'package:town_pass/features/safe_walk/platform/supabase/safe_walk_supabase_config.dart';
 import 'package:town_pass/features/safe_walk/platform/supabase/supabase_rpc_client.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_flow.dart';
+import 'package:town_pass/features/safe_walk/presentation/demo_map.dart';
 import 'package:town_pass/features/safe_walk/safety_data/crime_reference/crime_reference_repository.dart';
 import 'package:town_pass/features/safe_walk/shared/contracts/cancellation.dart';
 import 'package:town_pass/features/safe_walk/shared/contracts/safe_walk_navigation_scope.dart';
@@ -79,6 +81,9 @@ final class _Platform implements PlatformService {
 }
 
 final class _Routes implements RouteService {
+  _Routes({this.succeed = false});
+
+  final bool succeed;
   final requests = <sw.RouteRequest>[];
   @override
   Future<sw.RouteResult> planRoute(
@@ -86,6 +91,33 @@ final class _Routes implements RouteService {
     SafeWalkCancellation? cancellation,
   }) async {
     requests.add(request);
+    if (succeed) {
+      return sw.RouteSuccess(
+        requestId: request.requestId,
+        mode: request.mode,
+        generatedAt: DateTime.now().toUtc().toIso8601String(),
+        warnings: const [],
+        routes: [
+          sw.RouteCandidate(
+            id: 'artificial-route',
+            kind: sw.RouteKind.direct,
+            geometry: sw.LineString(
+              coordinates: const [
+                (longitude: 121.5, latitude: 25.0),
+                (longitude: 121.501, latitude: 25.001),
+              ],
+            ),
+            distanceMeters: 150,
+            durationSeconds: 120,
+            viaPointIds: const [],
+            provider: 'artificial',
+            walkingNetworkVerified: true,
+            explanations: const [],
+            warnings: const [],
+          ),
+        ],
+      );
+    }
     return sw.RouteFailure(
       requestId: request.requestId,
       mode: request.mode,
@@ -198,6 +230,13 @@ Future<void> _start(WidgetTester tester, {bool crime = true}) async {
   }
 }
 
+Future<void> _openCrimeSettings(WidgetTester tester) async {
+  await tester.tap(find.text('資料來源與授權').last);
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('犯罪資料查詢設定'));
+  await tester.pumpAndSettle();
+}
+
 void _interrupt(WidgetTester tester, String reason) {
   switch (reason) {
     case 'leave':
@@ -214,6 +253,141 @@ void _interrupt(WidgetTester tester, String reason) {
 }
 
 void main() {
+  testWidgets('unconfigured crime setting opens an actionable dialog', (
+    tester,
+  ) async {
+    final platform = _Platform();
+    final routes = _Routes();
+    await _mount(
+      tester,
+      platform,
+      routes,
+      CrimeReferenceRepository(transport: null),
+    );
+    // 查詢設定移到首頁的「資料來源與授權」。
+    await _openCrimeSettings(tester);
+    expect(find.text('犯罪資料查詢暫時無法使用'), findsOneWidget);
+    expect(find.textContaining('請更新至最新版本'), findsOneWidget);
+    expect(find.textContaining('SUPABASE_'), findsNothing);
+    expect(platform.locations, isEmpty);
+    expect(routes.requests, isEmpty);
+    await tester.tap(find.text('知道了'));
+    await tester.pumpAndSettle();
+    expect(find.byType(AlertDialog), findsNothing);
+    await tester.tap(find.text('安心行'));
+    await tester.pumpAndSettle();
+    await _skipSetHome(tester);
+    expect(find.byKey(const Key('crime-query-status')), findsOneWidget);
+  });
+
+  testWidgets('configured setting asks consent without starting a query', (
+    tester,
+  ) async {
+    var queries = 0;
+    final platform = _Platform();
+    final routes = _Routes();
+    await _mount(
+      tester,
+      platform,
+      routes,
+      CrimeReferenceRepository(
+        transport: (_, {cancellation}) async {
+          queries++;
+          return _answer();
+        },
+      ),
+    );
+    await _openCrimeSettings(tester);
+    expect(find.text('犯罪參考資料查詢同意'), findsOneWidget);
+    await tester.tap(find.text('同意查詢'));
+    await tester.pumpAndSettle();
+    expect(queries, 0);
+    expect(platform.locations, isEmpty);
+    expect(routes.requests, isEmpty);
+    await tester.tap(find.text('安心行'));
+    await tester.pumpAndSettle();
+    await _skipSetHome(tester);
+    expect(
+      tester.widget<Text>(find.byKey(const Key('crime-query-status'))).data,
+      contains('重新規劃路線時才會查詢'),
+    );
+  });
+
+  testWidgets('consented map query renders reference markers and 50m buffers', (
+    tester,
+  ) async {
+    var queries = 0;
+    final platform = _Platform();
+    final routes = _Routes(succeed: true);
+    await _mount(
+      tester,
+      platform,
+      routes,
+      CrimeReferenceRepository(
+        transport: (_, {cancellation}) async {
+          queries++;
+          return _answer();
+        },
+      ),
+    );
+    await _flow(tester)
+        .onHomeChanged!(sw.Coordinates(lat: 25.001, lng: 121.501));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('安心行'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('同意'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('同意查詢'));
+    await tester.pumpAndSettle();
+    expect(queries, 0, reason: 'query waits for a real position boundary');
+    platform.locations.single.complete(_position());
+    await tester.pumpAndSettle();
+    expect(queries, 1);
+    final map = tester.widget<DemoMap>(find.byType(DemoMap));
+    expect(map.crimeSpots, hasLength(1));
+    expect(map.crimeSpots.single.label, contains('人工測試來源'));
+    expect(map.crimeSpots.single.label, contains('門牌參考位置'));
+    final circles = tester
+        .widget<CircleLayer>(find.byType(CircleLayer))
+        .circles;
+    expect(circles, hasLength(1));
+    expect(circles.single.radius, 50);
+    expect(circles.single.useRadiusInMeter, isTrue);
+    expect(
+      tester.widget<Text>(find.byKey(const Key('crime-query-status'))).data,
+      contains('已取得 1 筆歷史參考位置'),
+    );
+    expect(find.bySemanticsLabel(RegExp('^50 公尺避讓緩衝區：人工類別')), findsOneWidget);
+  });
+
+  for (final (response, message) in [
+    (const CrimeReferenceHttpResponse(401, '{}'), '資料服務拒絕存取'),
+    (const CrimeReferenceHttpResponse(404, '{}'), '資料查詢服務尚未開放'),
+    (const CrimeReferenceHttpResponse(503, '{}'), '資料服務忙碌或暫時中斷'),
+  ]) {
+    testWidgets(
+      'crime query explains $message without showing service details',
+      (tester) async {
+        final platform = _Platform();
+        await _mount(
+          tester,
+          platform,
+          _Routes(),
+          CrimeReferenceRepository(
+            transport: (_, {cancellation}) async => response,
+          ),
+        );
+        await _start(tester);
+        platform.locations.single.complete(_position());
+        await tester.pumpAndSettle();
+        expect(_flow(tester).crimeQueryStatus, contains(message));
+        expect(_flow(tester).crimeQueryStatus, contains('本次路線未套用'));
+        expect(_flow(tester).crimeQueryStatus, isNot(contains('example.test')));
+        expect(_flow(tester).crimeSpots, isEmpty);
+      },
+    );
+  }
+
   for (final boundary in ['leave', 'background']) {
     testWidgets('late routing setting after $boundary cannot persist consent', (
       tester,
@@ -567,4 +741,11 @@ void main() {
       },
     );
   }
+}
+
+/// 還沒設定家時，地圖一打開會先請使用者點選家；這些測試只看查詢狀態，先跳過。
+Future<void> _skipSetHome(WidgetTester tester) async {
+  if (find.text('稍後再設定').evaluate().isEmpty) return;
+  await tester.tap(find.text('稍後再設定'));
+  await tester.pumpAndSettle();
 }

@@ -191,7 +191,7 @@ typedef CrimeSpot = ({String id, LatLng at, String label});
 const reportAvoidRadiusMeters = 50.0;
 
 class Anomaly {
-  Anomaly({required this.id, required this.category, required this.at, required this.firstReportedAt, required this.reportCount, required this.status, List<String>? updates})
+  Anomaly({required this.id, required this.category, required this.at, required this.firstReportedAt, required this.reportCount, required this.status, List<String>? updates, this.mode = sw.DataMode.mock})
     : updates = updates ?? [];
   final String id;
   final AnomalyCategory category;
@@ -200,7 +200,7 @@ class Anomaly {
   int reportCount;
   AnomalyStatus status;
   final List<String> updates;
-  final sw.DataMode mode = sw.DataMode.mock;
+  final sw.DataMode mode;
 }
 
 /// 回家示範路線刻意不走西側 121.5000 那條街與北側西段；落在那裡、尚未解除的回報就是「已繞開」。

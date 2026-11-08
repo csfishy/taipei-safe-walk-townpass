@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 import 'package:town_pass/bean/activity.dart';
 import 'package:town_pass/bean/home_banner.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_composition_root.dart';
+import 'package:town_pass/features/safe_walk/presentation/safe_walk_emergency_view.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_flow.dart';
 import 'package:town_pass/page/city_service/model/my_service_model.dart';
 import 'package:town_pass/page/city_service/widget/pinned_service_widget.dart';
@@ -62,6 +63,16 @@ void main() {
     expect(registrations, hasLength(1));
     // Constructing the widget does not mount it or request native capabilities.
     expect(registrations.single.page(), isA<SafeWalkCompositionRoot>());
+    // The official entry is Live and turns on the phone dialer (the person's own
+    // tap opens it; nothing is dialled by the app) and TownPass's own online
+    // reporting service.
+    final root = registrations.single.page() as SafeWalkCompositionRoot;
+    expect(root.liveRoutes, isTrue);
+    expect(root.allowEmergencyDialer, isTrue);
+    expect(root.onOpenOfficialReport, isNotNull);
+    // Tests carry no Supabase configuration, so nearby notification is absent
+    // (shown as unavailable) rather than half-configured.
+    expect(root.nearbyAlerts, isNull);
   });
 
   testWidgets('the visible default service opens the native route', (
@@ -95,6 +106,37 @@ void main() {
   });
 
   testWidgets(
+    'the official emergency page offers the dialer and online reporting',
+    (tester) async {
+      await _homeApp(tester);
+      final item = MyServiceItemId.safeWalk.item;
+      await tester.tap(
+        find.ancestor(
+          of: find.text(item.title),
+          matching: find.byType(ListTile),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.tap(find.text('緊急求助').first);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
+
+      final view = tester.widget<SafeWalkEmergencyView>(
+        find.byType(SafeWalkEmergencyView),
+      );
+      expect(view.allowRealCalls, isTrue);
+      expect(view.onOfficialReport, isNotNull);
+      expect(find.text('線上報案（臺北通）', skipOffstage: false), findsOneWidget);
+      expect(
+        find.textContaining('按下後由手機開啟撥號，不代表已接通或已受理', skipOffstage: false),
+        findsOneWidget,
+      );
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
+
+  testWidgets(
     'the homepage card precedes news and opens the real Safe Walk flow',
     (tester) async {
       await _homeApp(tester);
@@ -123,7 +165,9 @@ void main() {
         TPRoute.safeWalk,
       );
       final flow = tester.widget<SafeWalkFlow>(find.byType(SafeWalkFlow));
-      expect(flow.allowRealCalls, isFalse);
+      // Deliberate (was false): the official entry hands 110/119 to the phone.
+      expect(flow.allowRealCalls, isTrue);
+      expect(flow.onOfficialReport, isNotNull);
 
       await tester.binding.handlePopRoute();
       await tester.pump();

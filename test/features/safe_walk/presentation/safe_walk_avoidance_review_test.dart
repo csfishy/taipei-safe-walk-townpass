@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:town_pass/features/safe_walk/presentation/demo_map.dart';
 import 'package:town_pass/features/safe_walk/presentation/mock/safe_walk_demo_data.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_flow.dart';
+import 'package:town_pass/features/safe_walk/presentation/safe_walk_home_view.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_map_view.dart';
 import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart'
     as sw;
@@ -85,13 +86,22 @@ void main() {
     );
     await tester.tap(find.text('安心行'));
     await tester.pumpAndSettle();
-    expect(find.text('尚未同意犯罪資料查詢；未送出座標。'), findsNothing, reason: '不在資訊框下方顯示狀態');
+    expect(find.byKey(const Key('crime-query-status')), findsOneWidget);
+    // 查詢設定在首頁的「資料來源與授權」。
+    tester.widget<SafeWalkMapView>(find.byType(SafeWalkMapView)).onBack();
+    await tester.pumpAndSettle();
     for (final name in ['路線查詢設定', '犯罪資料查詢設定']) {
       final link = find.text('資料來源與授權').last;
       await tester.ensureVisible(link);
       await tester.tap(link);
       await tester.pumpAndSettle();
-      expect(find.textContaining('尚未同意犯罪資料查詢；未送出座標。'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(BottomSheet),
+          matching: find.textContaining('尚未同意犯罪資料查詢；未送出座標。'),
+        ),
+        findsOneWidget,
+      );
       await tester.tap(find.text(name));
       await tester.pumpAndSettle();
     }
@@ -145,13 +155,17 @@ void main() {
           routingConsent: true,
         ),
       );
-      await tester.tap(find.text('安心行'));
-      await tester.pumpAndSettle();
       final link = find.text('資料來源與授權').last;
       await tester.ensureVisible(link);
       await tester.tap(link);
       await tester.pumpAndSettle();
-      expect(find.textContaining(status), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(BottomSheet),
+          matching: find.textContaining(status),
+        ),
+        findsOneWidget,
+      );
       expect(find.textContaining('已同意路線查詢'), findsOneWidget);
       expect(find.textContaining('未同意行程範圍查詢'), findsOneWidget);
     });
@@ -235,7 +249,7 @@ void main() {
     );
     await tester.tap(find.text('安心行'));
     await tester.pumpAndSettle();
-    expect(find.text('路線來源：test-only'), findsOneWidget);
+    expect(find.text('路線來源：test-only'), findsNothing);
     expect(find.text('暫時無法避讓緩衝區，這是一般步行路線'), findsOneWidget);
   });
 
@@ -281,11 +295,11 @@ void main() {
     });
   }
 
-  for (final entry in ['安心行', '回報狀況', '附近求助地點']) {
-    testWidgets('$entry 進入 SOS 都通知平台停止導航', (tester) async {
+  for (final entry in [SafeWalkEntry.map, SafeWalkEntry.report, SafeWalkEntry.points]) {
+    testWidgets('${entry.name} 進入 SOS 都通知平台停止導航', (tester) async {
       var left = 0;
       await _pump(tester, SafeWalkFlow(onLeaveMap: () => left++));
-      await tester.tap(find.text(entry).first);
+      tester.widget<SafeWalkHomeView>(find.byType(SafeWalkHomeView)).onOpen(entry);
       await tester.pumpAndSettle();
       await tester.tap(find.text('緊急求助').first);
       await tester.pumpAndSettle();

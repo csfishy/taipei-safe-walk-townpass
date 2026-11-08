@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:town_pass/features/safe_walk/presentation/safe_walk_home_view.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_flow.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_speaker.dart';
 import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart' as sw;
@@ -57,7 +58,11 @@ Future<void> _app(WidgetTester t, {SafeWalkSpeaker speaker = const UnavailableSp
 
 Future<void> _shot(WidgetTester t, String name) async {
   await t.pumpAndSettle(const Duration(milliseconds: 50));
+  // 測試預設把陰影畫成實心色帶；截圖時改畫跟手機一樣的柔和陰影，拍完還原。
+  debugDisableShadows = false;
+  await t.pump();
   await expectLater(find.byType(MaterialApp), matchesGoldenFile('screenshots/$name.png'));
+  debugDisableShadows = true;
 }
 
 Future<void> _tap(WidgetTester t, String text) async {
@@ -161,7 +166,8 @@ void main() {
       ),
     );
     await t.pumpAndSettle();
-    await _tap(t, '附近求助地點');
+    await _openNearby(t);
+    await t.pumpAndSettle();
     await _shot(t, '10-points-error');
   }, skip: _skip);
 
@@ -175,13 +181,16 @@ void main() {
 
   testWidgets('05 附近求助地點', (t) async {
     await _app(t);
-    await _tap(t, '附近求助地點');
+    await _openNearby(t);
+    await t.pumpAndSettle();
     await _shot(t, '05-points');
   }, skip: _skip);
 
   testWidgets('06 回報狀況', (t) async {
     await _app(t);
-    await _tap(t, '回報狀況');
+    // 首頁不再有「回報狀況」；從地圖頂部的「回報」進入。
+    await _tap(t, '安心行');
+    await _tap(t, '回報');
     await _tap(t, '用我目前的位置');
     await _shot(t, '06-report-form');
   }, skip: _skip);
@@ -244,4 +253,11 @@ void main() {
     await _tap(t, '緊急求助');
     await _shot(t, '09-emergency');
   }, skip: _skip);
+}
+
+/// 首頁不再有「附近求助地點」入口（主要入口是地圖面板的「最近求助地點」）；
+/// 清單畫面的程式碼仍保留，測試直接開啟它。
+Future<void> _openNearby(WidgetTester t) async {
+  t.widget<SafeWalkHomeView>(find.byType(SafeWalkHomeView)).onOpen(SafeWalkEntry.points);
+  await t.pump();
 }

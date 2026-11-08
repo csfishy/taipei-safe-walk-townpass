@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:town_pass/features/safe_walk/presentation/mock/safe_walk_demo_data.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_call_view.dart';
@@ -6,12 +7,24 @@ import 'package:town_pass/features/safe_walk/presentation/safe_walk_emergency_vi
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_home_setting_view.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_home_view.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_map_view.dart';
+import 'package:town_pass/features/safe_walk/presentation/safe_walk_nearby_broadcast.dart';
+import 'package:town_pass/features/safe_walk/presentation/safe_walk_nearby_helper.dart';
+import 'package:town_pass/features/safe_walk/presentation/safe_walk_settings_view.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_speaker.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_ui.dart';
 import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart'
     as sw;
 
-enum _Screen { home, map, points, report, call, emergency, homeSetting }
+enum _Screen {
+  home,
+  settings,
+  map,
+  points,
+  report,
+  call,
+  emergency,
+  homeSetting,
+}
 
 /// 安心行入口（M3）。所有對外動作經由 callback 交給 M1 接線；M3 不取 GPS、不撥號、不 import 其他模組。
 /// 一個要避開的回報點（中心）；半徑由路線規劃決定（系統內回報為 [reportAvoidRadiusMeters]）。
@@ -26,10 +39,15 @@ class SafeWalkFlow extends StatefulWidget {
     this.pointsLoading = false,
     this.pointsError,
     this.onRetryPoints,
+    this.pointRoutes = const {},
+    this.onSelectPoint,
     this.route,
     this.routeLoading = false,
     this.onPlanRoute,
     this.onReportsChanged,
+    this.onSaveReport,
+    this.onResolveReport,
+    this.onLoadReports,
     this.onStartChanged,
     this.crimeSpots = const [],
     this.crimeQueryStatus,
@@ -38,26 +56,27 @@ class SafeWalkFlow extends StatefulWidget {
     this.routingConsent = false,
     this.crimeConsent = false,
     this.livePosition,
+    this.liveHeading,
     this.onLeaveMap,
+    this.onStartNavigation,
+    this.onEndNavigation,
     this.speaker = const UnavailableSpeaker(),
     this.onLocate,
     this.onEmergency,
     this.onSendSms,
+    this.nearbyBroadcast,
+    this.onOfficialReport,
+    this.nearbyHelper,
     this.homeLocation,
     this.onHomeChanged,
     this.onExit,
     this.reportBuilder,
     this.onLeaveReport,
     this.showMapTiles = true,
-    this.askMapTilesOnOpen = false,
   });
   final sw.DataMode mode;
   final bool allowRealCalls;
   final bool showMapTiles;
-
-  /// Official entry: ask once for the separate OSM tile consent when the map
-  /// opens. Nothing loads until the walker taps 同意載入.
-  final bool askMapTilesOnOpen;
 
   /// Reference status only: this entry does not start navigation or read GPS.
   final Widget Function(BuildContext context, VoidCallback onBack)?
@@ -70,6 +89,14 @@ class SafeWalkFlow extends StatefulWidget {
   final String? pointsError;
   final VoidCallback? onRetryPoints;
 
+  /// Live: walking routes to each point (id → result), same avoiding routes as
+  /// a destination; points are already ranked safest, then fastest.
+  final Map<String, sw.RouteResult> pointRoutes;
+
+  /// M1: the walker chose this point as the target; navigate there with the
+  /// route already planned for it.
+  final ValueChanged<String>? onSelectPoint;
+
   /// 前往目前目的地的路線（M2 RouteService → M1 提供）。未配置時只有 Mock 使用示範路線；Live 顯示 unavailable。
   final sw.RouteResult? route;
   final bool routeLoading;
@@ -80,6 +107,11 @@ class SafeWalkFlow extends StatefulWidget {
 
   /// 每次規劃路線前，送出目前尚未解除的回報點（真實路線會避開以它們為中心的圓）。
   final ValueChanged<List<ReportSpot>>? onReportsChanged;
+
+  /// Live reports are shown only after the database confirms the write.
+  final Future<Anomaly> Function(Anomaly draft)? onSaveReport;
+  final Future<void> Function(String reportId)? onResolveReport;
+  final Future<List<Anomaly>> Function()? onLoadReports;
 
   /// 犯罪參考位置與產品設定的 50 公尺避讓緩衝（非案發範圍）。
   final List<CrimeSpot> crimeSpots;
@@ -93,8 +125,12 @@ class SafeWalkFlow extends StatefulWidget {
   /// 導航中持續更新的目前位置（只在地圖開著時由 M1 提供）。
   final sw.Position? livePosition;
 
+  /// 手機朝向（從北方順時針的度數），地圖上的位置點畫成箭頭；null＝只畫圓點。
+  final double? liveHeading;
+
   /// 離開地圖時呼叫，讓 M1 停止持續定位與路線請求。
   final VoidCallback? onLeaveMap;
+  final VoidCallback? onStartNavigation, onEndNavigation;
   final SafeWalkSpeaker speaker;
 
   /// M1：使用者按「取得目前位置」時呼叫 PlatformService.getCurrentPosition(userInitiated: true)。
@@ -106,6 +142,15 @@ class SafeWalkFlow extends StatefulWidget {
 
   /// M1：使用者確認簡訊內容後，交給手機開啟簡訊 App；null 時只模擬傳送畫面。
   final Future<bool> Function(String body)? onSendSms;
+
+  /// M1：緊急求助頁的「通知附近的人」；null 時不顯示。
+  final SafeWalkNearbyBroadcast? nearbyBroadcast;
+
+  /// M1：附近協助者（加入／退出、收到求助的橫幅）；null 時不顯示。
+  final SafeWalkNearbyHelper? nearbyHelper;
+
+  /// M1：開啟官方線上報案；null 時求助頁不顯示該按鈕。
+  final VoidCallback? onOfficialReport;
   final VoidCallback? onExit;
 
   /// M1：使用者已儲存在裝置上的「家」。null＝尚未設定；只有 Mock 可沿用示範的家。
@@ -119,19 +164,43 @@ class SafeWalkFlow extends StatefulWidget {
   State<SafeWalkFlow> createState() => _SafeWalkFlowState();
 }
 
-class _SafeWalkFlowState extends State<SafeWalkFlow> with WidgetsBindingObserver {
+class _SafeWalkFlowState extends State<SafeWalkFlow>
+    with WidgetsBindingObserver {
   _Screen _screen = _Screen.home;
   _Screen _back = _Screen.home;
   bool _forward = true;
   sw.Position? _position;
   LatLng? _manualStart;
   int _editGeneration = 0;
-  bool _mapTileConsent = false;
+  int _reportsGeneration = 0;
+  bool _reportsLoading = false;
+  String? _reportsError;
+  final Map<String, Anomaly> _confirmedReports = {};
+  final Set<String> _resolvedReportIds = {};
+  String? _lastPlannedReports;
+  bool _appActive = true;
+
+  /// 目前導航的目標：null＝目的地（家／常用地點）；否則是求助地點 id。
+  String? _targetPointId;
+
+  void _setTarget(sw.AssistancePoint? point) {
+    if (point == null && _targetPointId == null) return;
+    if (point?.id != _targetPointId) {
+      setState(() => _targetPointId = point?.id);
+    }
+    if (point == null) {
+      _planRoute();
+    } else {
+      widget.onSelectPoint?.call(point.id);
+    }
+  }
 
   void _setStart(LatLng? at) {
     ++_editGeneration;
     setState(() => _manualStart = at);
-    widget.onStartChanged?.call(at == null ? null : sw.Coordinates(lat: at.lat, lng: at.lng));
+    widget.onStartChanged?.call(
+      at == null ? null : sw.Coordinates(lat: at.lat, lng: at.lng),
+    );
     _planRoute();
   }
 
@@ -156,15 +225,26 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> with WidgetsBindingObserver
   @override
   void dispose() {
     ++_editGeneration;
+    ++_reportsGeneration;
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden || state == AppLifecycleState.detached) {
+    if (state == AppLifecycleState.resumed) _appActive = true;
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.detached) {
       ++_editGeneration;
-      if (mounted) setState(() => _mapTileConsent = false);
+      _appActive = false;
+      ++_reportsGeneration;
+      if (_reportsLoading) {
+        setState(() {
+          _reportsLoading = false;
+          _reportsError = '回報資料載入已中斷，請重新載入；目前清單可能不完整。';
+        });
+      }
     }
   }
 
@@ -176,8 +256,17 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> with WidgetsBindingObserver
     }
     if (old.mode != widget.mode) {
       ++_editGeneration;
-      _anomalies = widget.mode == sw.DataMode.mock ? demoAnomalies() : <Anomaly>[];
-      _demoPoints = widget.mode == sw.DataMode.mock ? demoAssistancePoints() : const <sw.AssistancePoint>[];
+      ++_reportsGeneration;
+      _reportsLoading = false;
+      _reportsError = null;
+      _confirmedReports.clear();
+      _resolvedReportIds.clear();
+      _anomalies = widget.mode == sw.DataMode.mock
+          ? demoAnomalies()
+          : <Anomaly>[];
+      _demoPoints = widget.mode == sw.DataMode.mock
+          ? demoAssistancePoints()
+          : const <sw.AssistancePoint>[];
     }
   }
 
@@ -200,8 +289,7 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> with WidgetsBindingObserver
 
   bool _isMapScreen(_Screen screen) =>
       screen == _Screen.map ||
-      (screen == _Screen.points &&
-          !(widget.mode == sw.DataMode.live && widget.pointsError != null)) ||
+      screen == _Screen.points ||
       (screen == _Screen.report && widget.reportBuilder == null);
 
   Future<void> _editPlace(String id, String name, LatLng at) async {
@@ -223,11 +311,14 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> with WidgetsBindingObserver
       _placeId = id;
     });
     _planRoute(
-      savedDestination: id == 'home' ? sw.Coordinates(lat: at.lat, lng: at.lng) : null,
+      savedDestination: id == 'home'
+          ? sw.Coordinates(lat: at.lat, lng: at.lng)
+          : null,
     );
   }
 
-  SavedPlace get _place => _places.firstWhere((p) => p.id == _placeId, orElse: () => _places.first);
+  SavedPlace get _place =>
+      _places.firstWhere((p) => p.id == _placeId, orElse: () => _places.first);
   // Live mode never shows invented danger points or stand-in assistance points.
   late List<Anomaly> _anomalies = widget.mode == sw.DataMode.mock
       ? demoAnomalies()
@@ -236,13 +327,108 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> with WidgetsBindingObserver
       ? demoAssistancePoints()
       : const <sw.AssistancePoint>[];
 
+  Future<void> _loadReports() async {
+    if (widget.mode != sw.DataMode.live) return;
+    final load = widget.onLoadReports;
+    if (load == null) {
+      setState(() => _reportsError = '回報資料庫尚未配置，無法載入已儲存的回報。');
+      return;
+    }
+    final generation = ++_reportsGeneration;
+    final confirmedAtStart = Map<String, Anomaly>.of(_confirmedReports);
+    setState(() {
+      _reportsLoading = true;
+      _reportsError = null;
+    });
+    try {
+      final reports = await load();
+      if (!mounted || generation != _reportsGeneration) return;
+      setState(() {
+        // This query is authoritative for confirmations that predate it.
+        // Keep only writes confirmed while the query was in flight.
+        for (final entry in confirmedAtStart.entries) {
+          if (identical(_confirmedReports[entry.key], entry.value)) {
+            _confirmedReports.remove(entry.key);
+          }
+        }
+        _anomalies = {
+          for (final report in reports)
+            if (!_resolvedReportIds.contains(report.id)) report.id: report,
+          ..._confirmedReports,
+        }.values.toList();
+        _reportsLoading = false;
+      });
+      _planRoute();
+    } catch (_) {
+      if (!mounted || generation != _reportsGeneration) return;
+      setState(() {
+        _reportsLoading = false;
+        _reportsError = '回報資料載入失敗，請再試一次；目前清單可能不完整。';
+      });
+    }
+  }
+
+  Future<Anomaly> _saveReport(Anomaly draft) async {
+    final save = widget.onSaveReport;
+    if (save == null) throw StateError('Report storage unavailable');
+    final mode = widget.mode;
+    final report = await save(draft);
+    if (_resolvedReportIds.contains(report.id)) {
+      throw StateError('Report already resolved');
+    }
+    // Overlay confirmed writes on query results without cancelling the query:
+    // it may still contain other persisted reports needed for avoidance.
+    if (mounted && widget.mode == mode) {
+      setState(() {
+        _confirmedReports[report.id] = report;
+        _anomalies.removeWhere((item) => item.id == report.id);
+        _anomalies.add(report);
+      });
+      if (_isMapScreen(_screen) && _appActive) {
+        _planRoute();
+      } else {
+        widget.onReportsChanged?.call(_reportSpots);
+      }
+    }
+    return report;
+  }
+
+  Future<void> _resolveReport(String reportId) async {
+    final resolve = widget.onResolveReport;
+    if (resolve == null) throw StateError('Report removal unavailable');
+    final mode = widget.mode;
+    await resolve(reportId);
+    if (!mounted || widget.mode != mode) return;
+    setState(() {
+      _resolvedReportIds.add(reportId);
+      _confirmedReports.remove(reportId);
+      _anomalies.removeWhere((report) => report.id == reportId);
+    });
+    if (_isMapScreen(_screen) && _appActive) {
+      _planRoute();
+    } else {
+      widget.onReportsChanged?.call(_reportSpots);
+    }
+  }
+
   String? get _nearestPointName {
     final pts = _pointsState.points;
     if (pts.isEmpty) return null;
     final position = widget.livePosition ?? _position;
     if (position == null && widget.mode == sw.DataMode.live) return null;
-    final from = position == null ? DemoGeo.start : LatLng(position.coordinates.lat, position.coordinates.lng);
-    final sorted = [...pts]..sort((a, b) => metersBetween(from, LatLng(a.coordinates.lat, a.coordinates.lng)).compareTo(metersBetween(from, LatLng(b.coordinates.lat, b.coordinates.lng))));
+    final from = position == null
+        ? DemoGeo.start
+        : LatLng(position.coordinates.lat, position.coordinates.lng);
+    final sorted = [...pts]
+      ..sort(
+        (a, b) =>
+            metersBetween(
+              from,
+              LatLng(a.coordinates.lat, a.coordinates.lng),
+            ).compareTo(
+              metersBetween(from, LatLng(b.coordinates.lat, b.coordinates.lng)),
+            ),
+      );
     return sorted.first.name;
   }
 
@@ -252,7 +438,7 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> with WidgetsBindingObserver
       widget.homeLocation == null;
 
   RouteState get _routeState {
-    if (_missingLiveHome) {
+    if (_missingLiveHome && _targetPointId == null) {
       return RouteState(
         result: sw.RouteFailure(
           requestId: 'home-not-set',
@@ -273,23 +459,43 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> with WidgetsBindingObserver
     );
   }
 
+  List<ReportSpot> get _reportSpots => [
+    for (final a in _anomalies)
+      if (a.status != AnomalyStatus.cleared)
+        (id: a.id, center: sw.Coordinates(lat: a.at.lat, lng: a.at.lng)),
+  ];
+
+  String get _reportSignature => _anomalies
+      .map((a) => '${a.id}:${a.status.name}:${a.reportCount}')
+      .join('|');
+
   void _planRoute({sw.Coordinates? savedDestination}) {
+    _lastPlannedReports = _reportSignature;
+    widget.onReportsChanged?.call(_reportSpots);
+    if (savedDestination != null) _targetPointId = null;
+    // 目標是求助地點時，重新規劃（例如回報變了）也是往那個地點。
+    final target = _targetPointId == null
+        ? null
+        : _pointsState.points.where((p) => p.id == _targetPointId).firstOrNull;
+    if (target != null) {
+      widget.onPlanRoute?.call(target.coordinates);
+      return;
+    }
     if (_missingLiveHome && savedDestination == null) return;
     final placeAt = _place.at;
     if (savedDestination == null && placeAt == null) return;
-    widget.onReportsChanged?.call([
-      for (final a in _anomalies)
-        if (a.status != AnomalyStatus.cleared) (id: a.id, center: sw.Coordinates(lat: a.at.lat, lng: a.at.lng)),
-    ]);
     widget.onPlanRoute?.call(
       savedDestination ?? sw.Coordinates(lat: placeAt!.lat, lng: placeAt.lng),
     );
   }
 
   void _selectPlace(String id) {
-    if (id == _placeId) return;
+    if (id == _placeId && _targetPointId == null) return;
     ++_editGeneration;
-    setState(() => _placeId = id);
+    setState(() {
+      _placeId = id;
+      _targetPointId = null;
+    });
     _planRoute();
   }
 
@@ -302,6 +508,7 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> with WidgetsBindingObserver
     loading: widget.pointsLoading,
     error: widget.pointsError,
     onRetry: widget.onRetryPoints,
+    routes: widget.pointRoutes,
   );
 
   void _go(_Screen s) {
@@ -317,16 +524,13 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> with WidgetsBindingObserver
     }
     // 使用者明確打開地圖（點「安心行」主卡）時才請 M1 規劃路線；一進安心行不自動送出。
     if (_isMapScreen(s) && !_isMapScreen(_screen)) {
-      _planRoute();
-      if (widget.askMapTilesOnOpen && widget.showMapTiles && widget.mode == sw.DataMode.live && !_mapTileConsent) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted && _isMapScreen(_screen) && !_mapTileConsent) unawaited(_askMapTileConsent());
-        });
-      }
+      _afterMapOpened(s);
     }
     if (!_isMapScreen(s) && _isMapScreen(_screen)) {
       ++_editGeneration;
-      _mapTileConsent = false;
+      ++_reportsGeneration;
+      _reportsLoading = false;
+      _targetPointId = null;
       widget.onLeaveMap?.call();
     }
     if (s == _Screen.home) _call = null;
@@ -339,9 +543,36 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> with WidgetsBindingObserver
     });
   }
 
+  /// 打開地圖後的第一個查詢；路線與犯罪資料的同意會依序在這裡問。
+  void _afterMapOpened(_Screen s) {
+    if (widget.mode == sw.DataMode.live && widget.onLoadReports != null) {
+      unawaited(_loadReportsThenPlan(s));
+      return;
+    }
+    unawaited(_loadReports());
+    _planOpenedMap(s);
+  }
+
+  Future<void> _loadReportsThenPlan(_Screen s) async {
+    await _loadReports();
+    if (!mounted || _screen != s) return;
+    // _loadReports also replans on success; retry failures still allow the user
+    // to navigate with an explicit incomplete-report disclosure.
+    if (_reportsError != null || s == _Screen.points) _planOpenedMap(s);
+  }
+
+  void _planOpenedMap(_Screen s) {
+    if (s == _Screen.points && widget.mode == sw.DataMode.live) {
+      widget.onRetryPoints?.call();
+    } else {
+      _planRoute();
+    }
+  }
+
   void _openEmergency() {
     ++_editGeneration;
-    _mapTileConsent = false;
+    ++_reportsGeneration;
+    _reportsLoading = false;
     widget.onLeaveReport?.call();
     if (_isMapScreen(_screen)) widget.onLeaveMap?.call();
     _call = null;
@@ -373,7 +604,10 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> with WidgetsBindingObserver
       _position = result is sw.LocationSuccess ? result.position : null;
       _emergencyError = result is sw.LocationFailure;
       _emergencyMessage = switch (result) {
-        sw.LocationSuccess() => widget.mode == sw.DataMode.mock ? '已取得示範位置；不是真實定位，未傳送給任何人。' : '已取得位置；尚未傳送給任何人。',
+        sw.LocationSuccess() =>
+          widget.mode == sw.DataMode.mock
+              ? '已取得示範位置；不是真實定位，未傳送給任何人。'
+              : '已取得位置；尚未傳送給任何人。',
         sw.LocationFailure(:final message) => message,
       };
     });
@@ -388,35 +622,19 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> with WidgetsBindingObserver
     });
   }
 
-  /// Same agree/decline dialog as the route and crime query settings.
-  Future<void> _askMapTileConsent() async {
-    final agreed = await showDialog<bool>(
-      context: context,
-      builder: (dialog) => AlertDialog(
-        title: const Text('地圖載入設定'),
-        content: const Text('載入地圖會向 OpenStreetMap（tile.openstreetmap.org）請求目前檢視範圍的圖磚，對方會看到檢視範圍與 IP。'),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(dialog).pop(false), child: const Text('不載入')),
-          TextButton(onPressed: () => Navigator.of(dialog).pop(true), child: const Text('同意載入')),
-        ],
-      ),
-    );
-    if (agreed != null && mounted) setState(() => _mapTileConsent = agreed);
-  }
-
   @override
   Widget build(BuildContext context) {
     Widget map({MapStartView start = MapStartView.route}) => SafeWalkMapView(
       key: ValueKey(start),
       position: widget.livePosition ?? _position,
-      showMapTiles:
-          widget.showMapTiles &&
-          (widget.mode == sw.DataMode.mock || _mapTileConsent),
-      onMapTileConsent: widget.showMapTiles && widget.mode == sw.DataMode.live
-          ? () => unawaited(_askMapTileConsent())
-          : null,
+      heading: widget.liveHeading,
+      showMapTiles: widget.showMapTiles,
       pointsState: _pointsState,
       routeState: _routeState,
+      targetPointId: _targetPointId,
+      onTarget: _setTarget,
+      onStartNavigation: widget.onStartNavigation,
+      onEndNavigation: widget.onEndNavigation,
       manualStart: _manualStart,
       crimeSpots: widget.crimeSpots,
       crimeQueryStatus: widget.crimeQueryStatus,
@@ -425,13 +643,26 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> with WidgetsBindingObserver
       routingConsent: widget.routingConsent,
       crimeConsent: widget.crimeConsent,
       destinationConfigured: !_missingLiveHome,
+      canSetHome: widget.onHomeChanged != null,
       onStartChanged: widget.onStartChanged == null ? null : _setStart,
       anomalies: _anomalies,
+      isLive: widget.mode == sw.DataMode.live,
+      onSaveReport: widget.onSaveReport == null ? null : _saveReport,
+      onResolveReport: widget.onResolveReport == null ? null : _resolveReport,
+      reportsLoading: _reportsLoading,
+      reportsError: _reportsError,
+      onRetryReports: () => unawaited(_loadReports()),
       startView: start,
       onAnomaliesChanged: () {
         setState(() {});
         // 新增或解除回報後立刻重新規劃，路線馬上改道。
-        _planRoute();
+        if (_lastPlannedReports != _reportSignature) {
+          if (_isMapScreen(_screen) && _appActive) {
+            _planRoute();
+          } else {
+            widget.onReportsChanged?.call(_reportSpots);
+          }
+        }
       },
       places: _places,
       placeId: _placeId,
@@ -458,13 +689,39 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> with WidgetsBindingObserver
     final child = switch (_screen) {
       _Screen.home => SafeWalkHomeView(
         isLive: widget.mode == sw.DataMode.live,
+        settings: [
+          if (widget.onManageRoutingConsent != null)
+            (
+              icon: Icons.alt_route_rounded,
+              label: '路線查詢設定',
+              status: widget.routingConsent
+                  ? '已同意路線查詢；可在此撤回。系統定位權限另行設定，地圖圖磚自動載入。'
+                  : '未同意路線查詢；不會傳送起點、目的地與避讓緩衝。',
+              onTap: widget.onManageRoutingConsent!,
+            ),
+          if (widget.onManageCrimeConsent != null)
+            (
+              icon: Icons.policy_outlined,
+              label: '犯罪資料查詢設定',
+              status: [
+                widget.crimeConsent ? '已同意行程範圍查詢；可在此撤回。' : '未同意行程範圍查詢。',
+                if (widget.crimeQueryStatus != null) widget.crimeQueryStatus!,
+              ].join('\n'),
+              onTap: widget.onManageCrimeConsent!,
+            ),
+          // 首頁不再放「回報狀況」；正式模式的回報資料說明頁改從這裡進入。
+          if (widget.reportBuilder != null)
+            (
+              icon: Icons.campaign_outlined,
+              label: '回報資料說明',
+              status: '歷史資料來源、更新日期與限制',
+              onTap: () => _go(_Screen.report),
+            ),
+        ],
         destination: _place.label,
-        homeSet: widget.homeLocation != null,
-        onEditHome: widget.onHomeChanged == null
-            ? null
-            : () => _go(_Screen.homeSetting),
         avoided: avoidedCount(_anomalies),
         onBack: widget.onExit,
+        onOpenSettings: () => _go(_Screen.settings),
         onEmergency: _openEmergency,
         onOpen: (e) => _go(switch (e) {
           SafeWalkEntry.map => _Screen.map,
@@ -473,6 +730,15 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> with WidgetsBindingObserver
           SafeWalkEntry.report => _Screen.report,
         }),
       ),
+      _Screen.settings => SafeWalkSettingsView(
+        onBack: () => _go(_Screen.home),
+        homeSet: widget.homeLocation != null,
+        onEditHome: widget.onHomeChanged == null
+            ? null
+            : () => _go(_Screen.homeSetting),
+        nearbyHelper: widget.nearbyHelper,
+      ),
+      // 儲存或移除家之後回到「安心行設定」，不直接跳回首頁。
       _Screen.homeSetting => SafeWalkHomeSettingView(
         initial: widget.homeLocation == null
             ? null
@@ -482,22 +748,10 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> with WidgetsBindingObserver
         onClear: widget.homeLocation == null
             ? null
             : () => widget.onHomeChanged!(null),
-        onBack: () => _go(_Screen.home),
+        onBack: () => _go(_Screen.settings),
       ),
       _Screen.map => map(),
-      _Screen.points =>
-        widget.mode == sw.DataMode.live && widget.pointsError != null
-            ? Scaffold(
-                appBar: AppBar(
-                  title: const Text('附近求助地點'),
-                  leading: BackButton(onPressed: () => _go(_Screen.home)),
-                ),
-                body: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Text(widget.pointsError!),
-                ),
-              )
-            : map(start: MapStartView.points),
+      _Screen.points => map(start: MapStartView.points),
       _Screen.report =>
         widget.reportBuilder?.call(context, () => _go(_Screen.home)) ??
             map(start: MapStartView.report),
@@ -520,17 +774,25 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> with WidgetsBindingObserver
         statusIsError: _emergencyError,
         locating: _locating,
         onSendSms: widget.onSendSms,
+        nearbyBroadcast: widget.nearbyBroadcast,
+        onOfficialReport: widget.onOfficialReport,
         nearbyPointName: _nearestPointName,
         onChannel: _channel,
         onLocate: _locate,
         onClose: () => _go(_back),
       ),
     };
-    return PopScope(
+    final screen = PopScope(
       canPop: _screen == _Screen.home,
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) {
-          _go(_screen == _Screen.emergency || _screen == _Screen.call ? _back : _Screen.home);
+          _go(
+            _screen == _Screen.emergency || _screen == _Screen.call
+                ? _back
+                : _screen == _Screen.homeSetting
+                ? _Screen.settings
+                : _Screen.home,
+          );
         }
       },
       // 換頁：往深一層由右滑入，返回由左滑入；緊急求助由下方升起，強調「這是另一種狀態」。
@@ -552,6 +814,23 @@ class _SafeWalkFlowState extends State<SafeWalkFlow> with WidgetsBindingObserver
         },
         child: KeyedSubtree(key: ValueKey(_screen), child: child),
       ),
+    );
+    final helper = widget.nearbyHelper;
+    if (helper == null) return screen;
+    // Alerts from nearby people appear over whichever screen is open.
+    return Stack(
+      children: [
+        screen,
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          child: SafeWalkNearbyAlertBanner(
+            helper: helper,
+            onOpenEmergency: _openEmergency,
+          ),
+        ),
+      ],
     );
   }
 }

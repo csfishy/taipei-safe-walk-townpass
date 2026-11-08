@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:town_pass/features/safe_walk/presentation/mock/safe_walk_demo_data.dart';
+import 'package:town_pass/features/safe_walk/presentation/safe_walk_nearby_broadcast.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_ui.dart';
 import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart'
     as sw;
@@ -16,6 +17,8 @@ class SafeWalkEmergencyView extends StatelessWidget {
     required this.onLocate,
     required this.onClose,
     this.onSendSms,
+    this.nearbyBroadcast,
+    this.onOfficialReport,
     this.nearbyPointName,
     this.statusMessage,
     this.statusIsError = false,
@@ -30,6 +33,13 @@ class SafeWalkEmergencyView extends StatelessWidget {
   /// M1：使用者確認後交給手機開啟簡訊（OS handoff）；回傳 true 表示已開啟簡訊 App，不代表已送達或受理。
   /// null 時為示範：只模擬「已準備好並送出」的畫面，不會真的傳送。
   final Future<bool> Function(String body)? onSendSms;
+
+  /// M1：「通知附近的人」。null 時不顯示這張卡；有值但 unavailableReason 非 null 時只顯示原因。
+  final SafeWalkNearbyBroadcast? nearbyBroadcast;
+
+  /// M1：開啟臺北通既有的官方線上報案服務；null 時不顯示這個按鈕。
+  /// 開啟只是進入該服務，不代表已報案或已受理。
+  final VoidCallback? onOfficialReport;
   final String? nearbyPointName;
   final String? statusMessage;
   final bool statusIsError, locating;
@@ -65,9 +75,11 @@ class SafeWalkEmergencyView extends StatelessWidget {
                     ),
                     const SizedBox(height: 8),
                     Wrap(
-                      spacing: 8,
-                      runSpacing: 6,
-                      children: [for (final n in notes) SwMockBadge(text: n)],
+                      spacing: 12,
+                      runSpacing: 4,
+                      children: [
+                        for (final n in notes) Text(n, style: SwText.secondary),
+                      ],
                     ),
                   ],
                 ),
@@ -91,6 +103,19 @@ class SafeWalkEmergencyView extends StatelessWidget {
                   when: '受傷、身體不舒服、火災',
                   onTap: () => onChannel(sw.EmergencyChannel.fire),
                 ),
+                if (onOfficialReport != null) ...[
+                  const SizedBox(height: 12),
+                  _CallButton(
+                    icon: Icons.assignment_rounded,
+                    title: '線上報案（臺北通）',
+                    when: '開啟臺北通的線上、語音報案服務；開啟不代表已受理',
+                    onTap: onOfficialReport!,
+                  ),
+                ],
+                if (nearbyBroadcast != null) ...[
+                  const SizedBox(height: 12),
+                  SafeWalkNearbyBroadcastCard(broadcast: nearbyBroadcast!),
+                ],
                 const SizedBox(height: 12),
                 _SmsReportCard(
                   mode: mode,
@@ -241,6 +266,7 @@ class _SmsReportCardState extends State<_SmsReportCard> {
   static const _situations = ['被跟蹤', '有人打架', '可疑人士', '身體不舒服', '其他危險'];
   String _situation = _situations.first;
   bool _shareLocation = true;
+  bool _preview = false; // 預設收合，讓「傳送簡訊」在第一個畫面就看得到
   _SmsStep _step = _SmsStep.draft;
 
   String get _body {
@@ -392,22 +418,47 @@ class _SmsReportCardState extends State<_SmsReportCard> {
                     style: SwText.secondary,
                   ),
                   const SizedBox(height: 6),
-                  Semantics(
-                    label: '簡訊內容預覽',
-                    child: AnimatedSwitcher(
-                      duration: SwMotion.of(context, 180),
-                      child: Container(
-                        key: ValueKey('$_situation$_shareLocation'),
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: SwColors.bg,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(_body, style: SwText.body),
+                  SwPressable(
+                    onTap: () => setState(() => _preview = !_preview),
+                    color: SwColors.bg,
+                    pressedColor: SwColors.brandSoft,
+                    radius: 12,
+                    semanticsLabel: _preview ? '收合簡訊內容' : '查看簡訊內容',
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: SizedBox(
+                      height: swTouch,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text('查看簡訊內容', style: SwText.bodyStrong),
+                          ),
+                          Icon(
+                            _preview
+                                ? Icons.expand_less_rounded
+                                : Icons.expand_more_rounded,
+                            color: SwColors.textSecondary,
+                          ),
+                        ],
                       ),
                     ),
                   ),
+                  if (_preview)
+                    Semantics(
+                      label: '簡訊內容預覽',
+                      child: AnimatedSwitcher(
+                        duration: SwMotion.of(context, 180),
+                        child: Container(
+                          key: ValueKey('$_situation$_shareLocation'),
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: SwColors.bg,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(_body, style: SwText.body),
+                        ),
+                      ),
+                    ),
                   const SizedBox(height: 8),
                   Material(
                     type: MaterialType.transparency,

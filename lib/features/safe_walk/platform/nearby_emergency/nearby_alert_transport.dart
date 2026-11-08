@@ -9,14 +9,17 @@ import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart
 final class NearbyAlert {
   const NearbyAlert({
     required this.alertId,
-    required this.senderId,
+    this.senderId,
     required this.location,
     required this.radiusMeters,
     required this.createdAt,
   });
 
   final String alertId;
-  final String senderId;
+
+  /// The authenticated backend never reveals who sent an alert, so this is
+  /// null there. Only legacy/fake transports may supply a value.
+  final String? senderId;
   final sw.Coordinates location;
   final int radiusMeters;
   final DateTime createdAt;
@@ -45,7 +48,8 @@ abstract interface class NearbyAlertTransport {
     required int radiusMeters,
   });
 
-  /// Returns unseen alerts and marks them as seen.
+  /// Returns alerts addressed to the caller that are still valid. Results may
+  /// repeat across calls; callers de-duplicate by [NearbyAlert.alertId].
   Future<List<NearbyAlert>> fetchPendingAlerts(String helperId);
 }
 
@@ -53,6 +57,57 @@ abstract interface class NearbyAlertTransport {
 /// This exposes a failure reason, never a client-controlled authorization flag.
 abstract interface class UnavailableNearbyAlertBackend {
   String get unavailableReason;
+}
+
+/// For transports whose readiness depends on runtime state, such as a signed-in
+/// session. Returns null only when the backend can currently be used. It is
+/// derived from verified state and is never a client-settable flag.
+abstract interface class NearbyAlertAvailability {
+  String? get currentUnavailableReason;
+}
+
+/// Optional capability for transports that must do async work (such as
+/// creating an anonymous identity) before they can be used. The service awaits
+/// it before reading the person's location, so a backend that turns out to be
+/// unusable never costs a location read.
+abstract interface class NearbyAlertPreparation {
+  /// Null when ready, otherwise why the backend cannot be used.
+  Future<String?> prepare();
+}
+
+/// A place where a helper asks to be notified about an SOS even when their live
+/// position is unknown. The backend rounds [center] to about 100 m.
+final class NearbyGuardArea {
+  const NearbyGuardArea({required this.center, required this.radiusMeters});
+  final sw.Coordinates center;
+  final int radiusMeters;
+}
+
+/// Radii a helper can choose for a guard area, in metres.
+const nearbyGuardAreaRadii = [500, 1000];
+
+/// At most this many guard areas per helper.
+const nearbyGuardAreaMax = 3;
+
+/// Optional capability: transports whose backend stores guard areas.
+abstract interface class NearbyHelperAreas {
+  Future<List<NearbyGuardArea>> fetchGuardAreas();
+
+  /// Replaces all of the caller's guard areas with [areas] (at most
+  /// [nearbyGuardAreaMax]).
+  Future<void> replaceGuardAreas(List<NearbyGuardArea> areas);
+}
+
+/// Why [transport] cannot be used right now, or null when it can. Callers use
+/// this to refuse before collecting location.
+String? nearbyBackendUnavailableReason(NearbyAlertTransport transport) {
+  if (transport is UnavailableNearbyAlertBackend) {
+    return (transport as UnavailableNearbyAlertBackend).unavailableReason;
+  }
+  if (transport is NearbyAlertAvailability) {
+    return (transport as NearbyAlertAvailability).currentUnavailableReason;
+  }
+  return null;
 }
 
 /// Production placeholder with no credentials, identity, or network client.

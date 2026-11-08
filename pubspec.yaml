@@ -60,6 +60,7 @@ dependencies:
   flutter_map: ^8.3.2
   latlong2: ^0.10.1
   audioplayers: 6.1.0
+  sensors_plus: ^7.1.1
 
 dev_dependencies:
   device_info_plus_platform_interface: 8.1.0
@@ -98,6 +99,7 @@ flutter:
   assets:
     - assets/build-info.json
     - assets/mock_data/
+    - assets/safe_walk/
     - assets/image/
     - assets/svg/
 

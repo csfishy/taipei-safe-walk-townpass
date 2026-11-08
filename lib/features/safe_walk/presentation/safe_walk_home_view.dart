@@ -17,37 +17,65 @@ class SafeWalkHomeView extends StatelessWidget {
     required this.onEmergency,
     required this.avoided,
     this.destination = '家',
-    this.homeSet = false,
-    this.onEditHome,
+    this.onOpenSettings,
     this.onBack,
     this.now,
     this.isLive = false,
+    this.settings = const [],
   });
   final bool isLive;
+
+  /// 查詢設定與回報資料說明，放在「資料來源與授權」裡（地圖上不再重複放這個連結）。
+  final List<SwQuerySetting> settings;
   final ValueChanged<SafeWalkEntry> onOpen;
   final VoidCallback onEmergency;
 
   /// 關閉安心行、回到臺北通（右上 ✕）。
   final VoidCallback? onBack;
+
+  /// 開啟「安心行設定」（家的位置、附近協助者）；null 時不顯示右上齒輪。
+  final VoidCallback? onOpenSettings;
   final int avoided;
   final String destination;
-
-  /// 使用者是否已設定自己的「家」；[onEditHome] 為 null 時不顯示設定入口。
-  final bool homeSet;
-  final VoidCallback? onEditHome;
 
   /// 測試可固定時間；正式由裝置時間決定。
   final DateTime? now;
 
-  static const _more = [
-    (SafeWalkEntry.call, Icons.phone_in_talk_rounded, '模擬來電', '家人來電陪你'),
-    (SafeWalkEntry.points, Icons.local_police_rounded, '附近求助地點', '警察局、超商'),
-    (SafeWalkEntry.report, Icons.campaign_rounded, '回報狀況', '標出暗路、打架等'),
-  ];
-
   @override
   Widget build(BuildContext context) {
     final t = now ?? DateTime.now();
+    // 一般字級：首頁不捲動，安心行主卡占滿中間剩餘高度。字級很大時（與 SwActionBar 同一門檻）
+    // 固定主卡高度並允許捲動，避免內容溢出。
+    final bigText = MediaQuery.textScalerOf(context).scale(16) > 20;
+    final card = _GoHomeCard(
+      destination: destination,
+      avoided: avoided,
+      isLive: isLive,
+      onTap: () => onOpen(SafeWalkEntry.map),
+    );
+    final column = Column(
+      children: [
+        Semantics(header: true, label: '臺北安心行', child: const SizedBox.shrink()),
+        _ContextCard(now: t),
+        const SizedBox(height: 16),
+        if (bigText)
+          SizedBox(height: 260, child: card)
+        else
+          Expanded(child: card),
+        const SizedBox(height: 16),
+        SwFeatureRow(
+          icon: Icons.phone_in_talk_rounded,
+          name: '模擬來電',
+          desc: '家人來電陪你',
+          onTap: () => onOpen(SafeWalkEntry.call),
+        ),
+        const SizedBox(height: 4),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: SwSourcesLink(settings: settings),
+        ),
+      ],
+    );
     return Scaffold(
       backgroundColor: SwColors.bg,
       // 與臺北通網頁服務（TPWebView）同一套：主色長條＋右上 CloseButton，hover／按壓效果由官方元件處理。
@@ -56,6 +84,13 @@ class SafeWalkHomeView extends StatelessWidget {
         foregroundColor: TPColors.white,
         leading: const SizedBox.shrink(),
         actions: [
+          if (onOpenSettings != null)
+            IconButton(
+              tooltip: '安心行設定',
+              color: TPColors.white,
+              icon: const Icon(Icons.settings_rounded),
+              onPressed: onOpenSettings,
+            ),
           if (onBack != null)
             CloseButton(
               color: TPColors.white,
@@ -71,53 +106,9 @@ class SafeWalkHomeView extends StatelessWidget {
       body: Column(
         children: [
           Expanded(
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-              children: [
-                Semantics(
-                  header: true,
-                  label: '臺北安心行',
-                  child: const SizedBox.shrink(),
-                ),
-                _ContextCard(now: t),
-                const SizedBox(height: 16),
-                _GoHomeCard(
-                  destination: destination,
-                  avoided: avoided,
-                  isLive: isLive,
-                  onTap: () => onOpen(SafeWalkEntry.map),
-                ),
-                if (onEditHome != null) ...[
-                  const SizedBox(height: 16),
-                  _FeatureRow(
-                    icon: Icons.home_rounded,
-                    name: homeSet ? '編輯「家」' : '設定「家」',
-                    desc: homeSet ? '更換或移除家的位置' : '第一次使用請先設定，儲存在裝置上',
-                    onTap: onEditHome!,
-                  ),
-                ],
-                const SizedBox(height: 24),
-                Semantics(
-                  header: true,
-                  child: Text('其他功能', style: SwText.bodyStrong),
-                ),
-                const SizedBox(height: 12),
-                for (final (id, icon, name, desc) in _more) ...[
-                  _FeatureRow(
-                    icon: icon,
-                    name: name,
-                    desc: isLive && id == SafeWalkEntry.report
-                        ? '歷史資料來源、更新日期與限制'
-                        : desc,
-                    onTap: () => onOpen(id),
-                  ),
-                  const SizedBox(height: 10),
-                ],
-                const Align(
-                  alignment: Alignment.centerLeft,
-                  child: SwSourcesLink(),
-                ),
-              ],
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+              child: bigText ? SingleChildScrollView(child: column) : column,
             ),
           ),
           SwActionBar.single(onEmergency: onEmergency),
@@ -271,7 +262,7 @@ class _GoHomeCardState extends State<_GoHomeCard> {
                             'Safe Walk',
                             style: SwText.small.copyWith(color: TPColors.white),
                           ),
-                          const SizedBox(height: 48),
+                          const Spacer(),
                           ConstrainedBox(
                             constraints: const BoxConstraints(minHeight: 56),
                             child: Row(
@@ -313,56 +304,6 @@ class _GoHomeCardState extends State<_GoHomeCard> {
               ),
             ),
           ),
-        ),
-      ),
-    ),
-  );
-}
-
-/// 其他功能：一項一行的卡片（圖示｜名稱＋說明｜箭頭），點擊範圍整行。
-class _FeatureRow extends StatelessWidget {
-  const _FeatureRow({
-    required this.icon,
-    required this.name,
-    required this.desc,
-    required this.onTap,
-  });
-  final IconData icon;
-  final String name, desc;
-  final VoidCallback onTap;
-  @override
-  Widget build(BuildContext context) => DecoratedBox(
-    decoration: BoxDecoration(
-      borderRadius: BorderRadius.circular(12),
-      boxShadow: SwShadow.card,
-    ),
-    child: SwPressable(
-      onTap: onTap,
-      color: SwColors.surface,
-      pressedColor: SwColors.brandSoft,
-      border: const BorderSide(color: TPColors.grayscale100),
-      radius: 12,
-      semanticsLabel: '$name，$desc',
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      child: ExcludeSemantics(
-        child: Row(
-          children: [
-            Icon(icon, size: 30, color: SwColors.brand),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(name, style: SwText.bodyStrong),
-                  Text(desc, style: SwText.secondary),
-                ],
-              ),
-            ),
-            const Icon(
-              Icons.chevron_right_rounded,
-              color: SwColors.textSecondary,
-            ),
-          ],
         ),
       ),
     ),

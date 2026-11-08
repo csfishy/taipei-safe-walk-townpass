@@ -8,6 +8,7 @@ import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_comp
 import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_route_speaker.dart';
 import 'package:town_pass/features/safe_walk/platform/platform_service.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_flow.dart';
+import 'package:town_pass/features/safe_walk/presentation/safe_walk_map_view.dart';
 import 'package:town_pass/features/safe_walk/safety_data/crime_reference/crime_reference_repository.dart';
 import 'package:town_pass/features/safe_walk/shared/contracts/cancellation.dart';
 import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart'
@@ -163,6 +164,85 @@ void main() {
     expect(gps.calls, 0);
     expect(routes.requests, isEmpty);
   });
+
+  testWidgets('ending guidance cancels GPS and late replan; starting resumes', (
+    t,
+  ) async {
+    final routes = _DelayedReplan();
+    var listeners = 0;
+    var cancellations = 0;
+    final positions = StreamController<sw.Position>.broadcast(
+      onListen: () => listeners++,
+      onCancel: () => cancellations++,
+    );
+    await mount(t, routes, _Gps(), watch: () => positions.stream);
+    await t.tap(find.text('同意'));
+    await t.pumpAndSettle();
+    final original = t
+        .widget<SafeWalkMapView>(find.byType(SafeWalkMapView))
+        .routeState
+        .result;
+    await t.ensureVisible(find.text('開始導覽'));
+    await t.tap(find.text('開始導覽'));
+    await t.pumpAndSettle();
+    expect(listeners, 1);
+
+    positions.add(_at(25.0400, 121.5655));
+    await t.pump();
+    await t.pump();
+    expect(routes.requests, hasLength(2));
+    expect(find.text('路線重新規劃中…'), findsOneWidget);
+    await t.tap(find.text('結束導覽'));
+    await t.pumpAndSettle();
+    expect(cancellations, 1);
+    expect(routes.tokens.last?.isCancelled, isTrue);
+    expect(
+      t.widget<SafeWalkMapView>(find.byType(SafeWalkMapView)).routeState.result,
+      same(original),
+      reason: 'ending retains the last route as a preview',
+    );
+
+    routes.delayed.complete(await _Answering().planRoute(routes.requests.last));
+    positions.add(_at(25.05, 121.59));
+    await t.pumpAndSettle();
+    expect(routes.requests, hasLength(2));
+    expect(listeners, 1, reason: 'late work cannot restart GPS');
+    expect(
+      t.widget<SafeWalkMapView>(find.byType(SafeWalkMapView)).routeState.result,
+      same(original),
+    );
+
+    await t.ensureVisible(find.text('開始導覽'));
+    await t.tap(find.text('開始導覽'));
+    await t.pumpAndSettle();
+    expect(listeners, 2, reason: 'an explicit start resumes GPS');
+    positions.add(_at(25.0330, 121.5655));
+    await t.pumpAndSettle();
+    expect(
+      t.widget<SafeWalkFlow>(find.byType(SafeWalkFlow)).livePosition,
+      isNotNull,
+    );
+    await t.pumpWidget(const SizedBox.shrink());
+    await t.runAsync(positions.close);
+  });
+}
+
+final class _DelayedReplan implements RouteService {
+  final requests = <sw.RouteRequest>[];
+  final tokens = <SafeWalkCancellation?>[];
+  final delayed = Completer<sw.RouteResult>();
+
+  @override
+  Future<sw.RouteResult> planRoute(
+    sw.RouteRequest request, {
+    SafeWalkCancellation? cancellation,
+  }) {
+    requests.add(request);
+    tokens.add(cancellation);
+    return requests.length == 2
+        ? delayed.future
+        : _Answering().planRoute(request);
+  }
 }
 
 // Artificial saved destination for these routing regressions. This fake never

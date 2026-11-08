@@ -3,8 +3,11 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:town_pass/features/safe_walk/presentation/safe_walk_home_view.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:town_pass/features/safe_walk/platform/home_location/home_location_service.dart';
+import 'package:town_pass/features/safe_walk/presentation/mock/safe_walk_demo_data.dart'
+    show LatLng;
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_flow.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_map_view.dart';
 import 'package:town_pass/features/safe_walk/navigation/route_reference_area_check.dart';
@@ -54,8 +57,10 @@ final class _Platform implements PlatformService {
     SafeWalkCancellation? cancellation,
   }) {
     calls++;
-    expect(mode, sw.DataMode.live);
-    expect(userInitiated, isTrue);
+    // 不用 expect：定位可能在另一個 tap 執行中被觸發，flutter_test 會判定為呼叫衝突。
+    if (mode != sw.DataMode.live || !userInitiated) {
+      throw StateError('live, user-initiated location only');
+    }
     return (answer ?? () async => _ok())();
   }
 
@@ -108,6 +113,68 @@ sw.RouteResult _success(
   routes: [candidate ?? _candidate()],
   warnings: const ['路線僅反映所用路網'],
 );
+
+/// An artificial convenience store recorded as open (or closed) just now.
+sw.AssistancePoint _store(
+  String id,
+  double lat, {
+  String availability = 'open',
+}) => sw.AssistancePoint.fromJson({
+  'schemaVersion': '1.0.0',
+  'id': id,
+  'name': '人工店家 $id',
+  'kind': 'convenience_store',
+  'coordinates': {'lat': lat, 'lng': 121.5},
+  'address': null,
+  'publicPhone': null,
+  'recognition': {
+    'status': 'unconfirmed',
+    'evidenceUrl': null,
+    'checkedAt': null,
+  },
+  'availability': availability,
+  'availabilityCheckedAt': DateTime.now().toUtc().toIso8601String(),
+  'capabilities': ['unknown'],
+  'source': {
+    'datasetId': 'test-stores',
+    'title': '人工測試資料',
+    'dataMode': 'live',
+    'sourceUrl': 'https://example.test/',
+    'retrievedAt': DateTime.now().toUtc().toIso8601String(),
+    'dataUpdatedAt': null,
+    'license': null,
+    'coverage': '人工',
+    'limitations': ['人工測試資料'],
+  },
+});
+
+/// A route to [r]'s destination taking [seconds].
+sw.RouteResult _storeRoute(sw.RouteRequest r, double seconds) =>
+    sw.RouteSuccess(
+      requestId: r.requestId,
+      mode: r.mode,
+      generatedAt: _now.toIso8601String(),
+      routes: [
+        sw.RouteCandidate(
+          id: 'r',
+          kind: sw.RouteKind.direct,
+          geometry: sw.LineString(
+            coordinates: [
+              (longitude: 121.5, latitude: 25.0),
+              (longitude: r.destination.lng, latitude: r.destination.lat),
+            ],
+          ),
+          distanceMeters: seconds,
+          durationSeconds: seconds,
+          viaPointIds: const [],
+          provider: 'valhalla-pedestrian (test)',
+          walkingNetworkVerified: true,
+          explanations: const ['依 OpenStreetMap 步行路網計算'],
+          warnings: const ['僅反映路網，不保證路段安全'],
+        ),
+      ],
+      warnings: const ['路線僅反映所用路網'],
+    );
 
 sw.RouteResult _routeFail(sw.RouteRequest r, sw.RouteFailureStatus status) =>
     sw.RouteFailure(
@@ -234,6 +301,69 @@ Future<void> _ready(
 }
 
 void main() {
+  group('standalone maps load without tile confirmation', () {
+    testWidgets('route map loads after location without enabling queries', (
+      t,
+    ) async {
+      final platform = _Platform();
+      final routes = _Routes();
+      final db = _Db();
+      final c = _loop(platform: platform, routes: routes, db: db)
+        ..setLocationConsent(true);
+      addTearDown(c.dispose);
+      await c.locate();
+      expect(c.origin, isNotNull);
+      t.view.physicalSize = const Size(900, 3000);
+      t.view.devicePixelRatio = 1;
+      addTearDown(t.view.reset);
+      await t.pumpWidget(
+        MaterialApp(
+          home: SafeWalkLiveRoutePage(
+            controller: c,
+            onBack: () {},
+            onEmergency: () {},
+          ),
+        ),
+      );
+      await t.pumpAndSettle();
+      expect(find.byType(TileLayer), findsOneWidget);
+      expect(find.byKey(const Key('live-consent-map')), findsNothing);
+      expect(c.routingConsent, isFalse);
+      expect(c.referenceConsent, isFalse);
+      expect(platform.calls, 1);
+      expect(routes.requests, isEmpty);
+      expect(db.calls, isEmpty);
+      await t.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets('report map loads reviewed areas without a tile switch', (
+      t,
+    ) async {
+      final db = _Db();
+      final c = SafeWalkReportStatusController(
+        repository: db.repository,
+        reviewedAreas: [_area()],
+        clock: () => _now,
+      );
+      addTearDown(c.dispose);
+      t.view.physicalSize = const Size(900, 3000);
+      t.view.devicePixelRatio = 1;
+      addTearDown(t.view.reset);
+      await t.pumpWidget(
+        MaterialApp(
+          home: SafeWalkReportStatusPage(controller: c, onBack: () {}),
+        ),
+      );
+      await t.pumpAndSettle();
+      expect(find.byType(TileLayer), findsOneWidget);
+      expect(find.byKey(const Key('report-map-consent')), findsNothing);
+      expect(find.textContaining('檢視範圍與 IP'), findsOneWidget);
+      expect(db.calls, hasLength(1));
+      expect(db.calls.single['p_limit'], 1);
+      await t.pumpWidget(const SizedBox.shrink());
+    });
+  });
+
   group('live loop: consent and the connected flow', () {
     test('no GPS read without location consent', () async {
       final platform = _Platform();
@@ -938,7 +1068,8 @@ void main() {
       List<RouteReferenceArea> areas = const [],
       bool showMap = false,
       sw.Coordinates? home,
-      bool askTiles = false,
+      List<sw.AssistancePoint>? stores,
+      List<sw.Coordinates>? storeQueries,
     }) async {
       t.view.physicalSize = const Size(900, 3000);
       t.view.devicePixelRatio = 1;
@@ -953,7 +1084,10 @@ void main() {
             crimeRepository: db.repository,
             reviewedAreas: areas,
             showLiveMap: showMap,
-            askMapTilesOnOpen: askTiles,
+            findStores: (origin, {cancellation}) async {
+              storeQueries?.add(origin);
+              return stores ?? const [];
+            },
             watchPosition: () => const Stream<sw.Position>.empty(),
             homeLocationStore: _HomeStore(home),
             speaker: _SilentSpeaker(),
@@ -994,26 +1128,42 @@ void main() {
     }
 
     testWidgets(
-      'opening the map asks for OSM tiles once; nothing loads until 同意載入',
+      'map tiles load directly on entry, re-entry, resume and return from SOS',
       (t) async {
         final platform = _livePlatform();
         final routes = _Routes();
         final db = _Db();
-        await pumpRoot(t, platform: platform, routes: routes, db: db, showMap: true, askTiles: true);
+        await pumpRoot(
+          t,
+          platform: platform,
+          routes: routes,
+          db: db,
+          showMap: true,
+        );
         await openMap(t);
-        expect(find.text('地圖載入設定'), findsOneWidget, reason: 'separate tile consent is asked, not granted');
-        expect(find.byType(TileLayer), findsNothing);
-        await t.tap(find.text('不載入'));
-        await t.pumpAndSettle();
-        expect(map(t).showMapTiles, isFalse);
-        expect(find.byType(TileLayer), findsNothing);
+        void expectDirectMap() {
+          expect(find.text('地圖載入設定'), findsNothing);
+          expect(find.text('同意載入'), findsNothing);
+          expect(find.text('不載入'), findsNothing);
+          expect(map(t).showMapTiles, isTrue);
+          expect(find.byType(TileLayer), findsOneWidget);
+        }
+
+        expectDirectMap();
         await leaveMap(t);
         await openMap(t);
-        await t.tap(find.text('同意載入'));
+        expectDirectMap();
+        t.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+        await t.pump();
+        t.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
         await t.pumpAndSettle();
-        expect(map(t).showMapTiles, isTrue);
-        expect(find.byType(TileLayer), findsOneWidget);
-        expect(platform.calls, 0, reason: 'tile consent never reads GPS');
+        expectDirectMap();
+        map(t).onEmergency();
+        await t.pumpAndSettle();
+        await t.binding.handlePopRoute();
+        await t.pumpAndSettle();
+        expectDirectMap();
+        expect(platform.calls, 0, reason: 'loading tiles never reads GPS');
         expect(routes.requests, isEmpty);
         expect(db.calls, isEmpty);
         await t.pumpWidget(const SizedBox.shrink());
@@ -1069,7 +1219,7 @@ void main() {
     );
 
     testWidgets(
-      'official entry keeps unconfigured points and SMS unavailable without GPS',
+      'nearby points ask for route consent first; declining sends nothing',
       (t) async {
         final platform = _livePlatform();
         final routes = _Routes();
@@ -1086,11 +1236,14 @@ void main() {
           sw.DataMode.live,
         );
         expect(find.text('目前為示範資料，未連線真實服務'), findsNothing);
-        await t.tap(find.text('附近求助地點'));
+        await _openNearby(t);
         await t.pumpAndSettle();
-        expect(find.byType(SafeWalkMapView), findsNothing);
-        expect(find.textContaining('附近求助地點查詢尚未接線'), findsOneWidget);
-        await t.tap(find.byType(BackButton));
+        expect(find.byType(SafeWalkMapView), findsOneWidget);
+        expect(find.text('規劃路線需要你的位置'), findsOneWidget);
+        await t.tap(find.text('不要'));
+        await t.pumpAndSettle();
+        expect(find.textContaining('需要同意路線查詢並取得位置'), findsOneWidget);
+        t.widget<SafeWalkMapView>(find.byType(SafeWalkMapView)).onBack();
         await t.pumpAndSettle();
         await t.tap(find.text('緊急求助'));
         await t.pumpAndSettle();
@@ -1105,55 +1258,190 @@ void main() {
     );
 
     testWidgets(
-      'saved home requires routing consent and does not grant OSM tile consent',
+      'nearby points: three nearest open places, nearest first, switchable',
       (t) async {
         final platform = _livePlatform();
-        final routes = _Routes();
+        final routes = _Routes(
+          (r) async => _storeRoute(r, switch (r.destination.lat) {
+            25.002 => 300, // nearest: shown first even though slower
+            25.003 => 120,
+            25.004 => 200,
+            _ => 100, // 25.005: fourth nearest, never routed
+          }),
+        );
         final db = _Db();
+        final queries = <sw.Coordinates>[];
         await pumpRoot(
           t,
           platform: platform,
           routes: routes,
           db: db,
-          showMap: true,
           home: _destination,
+          storeQueries: queries,
+          stores: [
+            _store('closed', 25.0015, availability: 'closed'),
+            _store('a', 25.002),
+            _store('b', 25.003),
+            _store('c', 25.004),
+            _store('d', 25.005),
+          ],
         );
-        await openMap(t);
-        expect(map(t).showMapTiles, isFalse);
-        expect(find.byType(TileLayer), findsNothing);
-        expect(platform.calls, 0);
-        await runLoop(t, referenceConsent: false);
-        expect(
-          routes.requests.single.destination.toJson(),
-          _destination.toJson(),
-        );
-        expect(platform.calls, 1);
-        expect(db.calls, isEmpty);
-        expect(map(t).showMapTiles, isFalse);
-        expect(find.byType(TileLayer), findsNothing);
-        // Map loading is a setting in 資料來源與授權, like the query settings.
-        Future<void> tileSetting(String choice) async {
-          final link = find.text('資料來源與授權').last;
-          await t.ensureVisible(link);
-          await t.tap(link);
-          await t.pumpAndSettle();
-          await t.tap(find.text('地圖載入設定'));
-          await t.pumpAndSettle();
-          await t.tap(find.text(choice));
+        await _openNearby(t);
+        await t.pumpAndSettle();
+        await t.tap(find.text('同意'));
+        await t.pumpAndSettle();
+        // The crime query consent follows; decline it.
+        if (find.text('不要查詢').evaluate().isNotEmpty) {
+          await t.tap(find.text('不要查詢'));
           await t.pumpAndSettle();
         }
+        expect(queries, hasLength(1));
+        final map = t.widget<SafeWalkMapView>(find.byType(SafeWalkMapView));
+        expect(map.pointsState.points.map((p) => p.id), ['a', 'b', 'c']);
+        expect(
+          routes.requests.where((r) => r.destination.lat == 25.005),
+          isEmpty,
+        );
+        expect(map.pointsState.routes.keys, containsAll(['a', 'b', 'c']));
+        expect(find.textContaining('人工店家 closed'), findsNothing);
 
-        await tileSetting('同意載入');
-        expect(map(t).showMapTiles, isTrue);
-        expect(find.byType(TileLayer), findsOneWidget);
-        await tileSetting('不載入');
-        expect(find.byType(TileLayer), findsNothing);
-        expect(platform.calls, 1);
-        expect(routes.requests, hasLength(1));
-        expect(db.calls, isEmpty);
+        // Go to the first store: the three stores show as switchable options.
+        await t.tap(find.text('帶我去這裡').first);
+        await t.pumpAndSettle();
+        expect(find.text('附近的求助地點'), findsOneWidget);
+        expect(find.textContaining('人工店家 d'), findsNothing);
+        // The chosen store is the navigation target: same controller.
+        expect(
+          t.widget<SafeWalkMapView>(find.byType(SafeWalkMapView)).targetPointId,
+          'a',
+        );
+        await t.tap(find.text('人工店家 b').first);
+        await t.pumpAndSettle();
+        expect(find.textContaining('2 分鐘'), findsWidgets);
+        final after = t.widget<SafeWalkMapView>(find.byType(SafeWalkMapView));
+        expect(after.targetPointId, 'b');
+        expect(after.routeState.result, same(after.pointsState.routes['b']));
+        // Start navigation: the card waits for a position, then can end.
+        await t.tap(find.text('開始導覽'));
+        await t.pumpAndSettle();
+        expect(find.text('等待定位…'), findsOneWidget);
+        await t.tap(find.text('結束導覽'));
+        await t.pumpAndSettle();
+        expect(find.text('開始導覽'), findsOneWidget);
+        // Back to the destination: the target and its route come back.
+        await t.tap(find.text('目的地').first);
+        await t.pumpAndSettle();
+        expect(
+          t.widget<SafeWalkMapView>(find.byType(SafeWalkMapView)).targetPointId,
+          isNull,
+        );
         await t.pumpWidget(const SizedBox.shrink());
       },
     );
+
+    testWidgets(
+      'nearby points without a usable fix use the shared picked start',
+      (t) async {
+        final platform = _Platform(() async => _locFail('unavailable'));
+        final routes = _Routes((r) async => _storeRoute(r, 120));
+        final queries = <sw.Coordinates>[];
+        await pumpRoot(
+          t,
+          platform: platform,
+          routes: routes,
+          db: _Db(),
+          home: _destination,
+          storeQueries: queries,
+          stores: [_store('a', 25.002)],
+        );
+        await _openNearby(t);
+        await t.pumpAndSettle();
+        await t.tap(find.text('同意'));
+        await t.pumpAndSettle();
+        if (find.text('不要查詢').evaluate().isNotEmpty) {
+          await t.tap(find.text('不要查詢'));
+          await t.pumpAndSettle();
+        }
+        expect(queries, isEmpty);
+        expect(find.textContaining('取得不到夠精確的位置'), findsOneWidget);
+        expect(find.text('在地圖上選起點'), findsOneWidget);
+
+        // The header shows and changes the same start setting as the route.
+        await t.tap(find.text('目前位置 → 附近求助地點'));
+        await t.pumpAndSettle();
+        expect(find.text('從哪裡出發？'), findsOneWidget);
+        await t.tapAt(const Offset(10, 10)); // close the menu
+        await t.pumpAndSettle();
+
+        final map = t.widget<SafeWalkMapView>(find.byType(SafeWalkMapView));
+        map.onStartChanged!(const LatLng(25.01, 121.51));
+        map.pointsState.onRetry!();
+        await t.pumpAndSettle();
+        expect(queries.single.lat, 25.01);
+        expect(routes.requests.last.origin.source, sw.PositionSource.manual);
+        expect(find.text('指定起點 → 附近求助地點'), findsOneWidget);
+        expect(
+          t
+              .widget<SafeWalkMapView>(find.byType(SafeWalkMapView))
+              .pointsState
+              .points
+              .single
+              .id,
+          'a',
+        );
+        await t.pumpWidget(const SizedBox.shrink());
+      },
+    );
+
+    testWidgets('tiles load independently of routing and crime query consent', (
+      t,
+    ) async {
+      final platform = _livePlatform();
+      final routes = _Routes();
+      final db = _Db();
+      await pumpRoot(
+        t,
+        platform: platform,
+        routes: routes,
+        db: db,
+        showMap: true,
+        home: _destination,
+      );
+      await openMap(t);
+      expect(map(t).showMapTiles, isTrue);
+      expect(find.byType(TileLayer), findsOneWidget);
+      expect(platform.calls, 0);
+      expect(routes.requests, isEmpty);
+      expect(db.calls, isEmpty);
+      await runLoop(t, referenceConsent: false);
+      expect(
+        routes.requests.single.destination.toJson(),
+        _destination.toJson(),
+      );
+      expect(platform.calls, 1);
+      expect(db.calls, isEmpty);
+      expect(map(t).showMapTiles, isTrue);
+      expect(find.byType(TileLayer), findsOneWidget);
+      // 查詢設定移到首頁的「資料來源與授權」。
+      map(t).onBack();
+      await t.pumpAndSettle();
+      final link = find.text('資料來源與授權').last;
+      await t.ensureVisible(link);
+      await t.tap(link);
+      await t.pumpAndSettle();
+      expect(find.text('地圖載入設定'), findsNothing);
+      expect(find.text('路線查詢設定'), findsOneWidget);
+      expect(find.text('犯罪資料查詢設定'), findsOneWidget);
+      // 來源卡片預設收合；展開「地圖與步行路網」才看得到限制說明。
+      await t.ensureVisible(find.text('地圖與步行路網'));
+      await t.tap(find.text('地圖與步行路網'));
+      await t.pumpAndSettle();
+      expect(find.textContaining('地圖圖磚自動載入，不再詢問'), findsOneWidget);
+      expect(platform.calls, 1);
+      expect(routes.requests, hasLength(1));
+      expect(db.calls, isEmpty);
+      await t.pumpWidget(const SizedBox.shrink());
+    });
 
     testWidgets('unset Live home contains no demo coordinates or route', (
       t,
@@ -1174,17 +1462,19 @@ void main() {
       await t.pumpWidget(const SizedBox.shrink());
     });
 
-    testWidgets('home settings does not automatically read GPS or load tiles', (
+    testWidgets('home settings loads tiles directly without reading GPS', (
       t,
     ) async {
       final platform = _livePlatform();
       final routes = _Routes();
       final db = _Db();
       await pumpRoot(t, platform: platform, routes: routes, db: db);
+      await t.tap(find.byTooltip('安心行設定'));
+      await t.pumpAndSettle();
       await t.tap(find.text('設定「家」'));
       await t.pumpAndSettle();
-      expect(find.text('載入地圖'), findsOneWidget);
-      expect(find.byType(TileLayer), findsNothing);
+      expect(find.text('載入地圖'), findsNothing);
+      expect(find.byType(TileLayer), findsOneWidget);
       expect(platform.calls, 0);
       expect(routes.requests, isEmpty);
       expect(db.calls, isEmpty);
@@ -1251,7 +1541,7 @@ void main() {
           home: _destination,
         );
         expect(db.calls, isEmpty);
-        await t.tap(find.text('回報狀況'));
+        await _openReportStatus(t);
         await t.pumpAndSettle();
         expect(find.byType(SafeWalkReportStatusPage), findsOneWidget);
         expect(find.byType(SafeWalkMapView), findsNothing);
@@ -1264,7 +1554,7 @@ void main() {
         expect(find.textContaining('人工測試邊界證據'), findsOneWidget);
         await t.tap(find.byType(BackButton));
         await t.pumpAndSettle();
-        await t.tap(find.text('回報狀況'));
+        await _openReportStatus(t);
         await t.pumpAndSettle();
         expect(db.calls, hasLength(2));
         expect(platform.calls, 0);
@@ -1292,7 +1582,7 @@ void main() {
               db: db,
               home: _destination,
             );
-            await t.tap(find.text('回報狀況'));
+            await _openReportStatus(t);
             await t.pump();
             await t.pump(const Duration(milliseconds: 350));
             final controller = t
@@ -1312,7 +1602,7 @@ void main() {
             await t.pump(const Duration(milliseconds: 50));
             expect(controller.stage, ReportStatusStage.cancelled);
             // Re-enter before the previous report page's 280ms exit finishes.
-            await t.tap(find.text('回報狀況'));
+            await _openReportStatus(t);
             await t.pump();
             expect(t.takeException(), isNull);
             expect(db.calls, hasLength(2));
@@ -1360,7 +1650,7 @@ void main() {
           ..answer = () async =>
               CrimeReferenceHttpResponse(200, jsonEncode(_body(total: 0)));
         await pumpRoot(t, platform: _livePlatform(), routes: _Routes(), db: db);
-        await t.tap(find.text('回報狀況'));
+        await _openReportStatus(t);
         await t.pumpAndSettle();
         expect(find.textContaining('空資料'), findsOneWidget);
         expect(find.byKey(const Key('report-no-areas')), findsOneWidget);
@@ -1382,7 +1672,7 @@ void main() {
           db: db,
           home: _destination,
         );
-        await t.tap(find.text('回報狀況'));
+        await _openReportStatus(t);
         await t.pump();
         await t.pump(const Duration(milliseconds: 350));
         final controller = t
@@ -1485,4 +1775,20 @@ final class _SilentSpeaker implements SafeWalkRouteSpeaker {
   Future<void> stopForEmergency() async {}
   @override
   Future<void> dispose() async {}
+}
+
+/// 回報資料說明頁改從首頁「資料來源與授權」進入（首頁不再有「回報狀況」）。
+Future<void> _openReportStatus(WidgetTester t) async {
+  await t.tap(find.text('資料來源與授權').last);
+  await t.pumpAndSettle();
+  await t.tap(find.text('回報資料說明'));
+}
+
+/// 首頁不再有「附近求助地點」入口（主要入口是地圖面板的「最近求助地點」）；
+/// 清單畫面的程式碼仍保留，測試直接開啟它。
+Future<void> _openNearby(WidgetTester t) async {
+  t
+      .widget<SafeWalkHomeView>(find.byType(SafeWalkHomeView))
+      .onOpen(SafeWalkEntry.points);
+  await t.pump();
 }

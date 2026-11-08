@@ -16,6 +16,14 @@ Future<void> _pump(WidgetTester t, Widget w) async {
   await t.pumpAndSettle();
 }
 
+/// 家的設定在「安心行設定」裡：先從首頁齒輪進入，再點項目。
+Future<void> _tapInSettings(WidgetTester t, String label) async {
+  await t.tap(find.byTooltip('安心行設定'));
+  await t.pumpAndSettle();
+  await t.tap(find.text(label));
+  await t.pumpAndSettle();
+}
+
 void main() {
   testWidgets('Live 未設定家時不送示範座標，提示先設定家', (t) async {
     final asked = <sw.Coordinates>[];
@@ -47,15 +55,19 @@ void main() {
         ),
       ),
     );
-    await t.tap(find.text('編輯「家」'));
+    await _tapInSettings(t, '編輯「家」');
     await t.pumpAndSettle();
     await t.tap(find.text('移除'));
     await t.pumpAndSettle();
     expect(home, isNull);
+    // 移除後回到「安心行設定」，再回首頁。
+    await t.tap(find.byTooltip('返回'));
+    await t.pumpAndSettle();
     await t.tap(find.text('安心行'));
     await t.pumpAndSettle();
     expect(asked, isEmpty);
-    expect(find.text('請先返回首頁設定「家」的位置，再規劃回家路線。'), findsWidgets);
+    // 可以儲存家時，一進地圖就直接請使用者在地圖上點選家。
+    expect(find.text('家在哪裡？'), findsOneWidget);
     expect(
       t.widget<SafeWalkMapView>(find.byType(SafeWalkMapView)).routeState.path,
       isNull,
@@ -89,12 +101,9 @@ void main() {
       ),
     );
     expect(t.takeException(), isNull);
-    expect(find.byType(FlutterMap), findsNothing);
-    await t.ensureVisible(find.text('載入地圖'));
-    await t.tap(find.text('載入地圖'));
-    await t.pumpAndSettle();
-    expect(t.takeException(), isNull);
     expect(find.byType(FlutterMap), findsOneWidget);
+    expect(find.text('載入地圖'), findsNothing);
+    expect(find.textContaining('檢視範圍與 IP'), findsOneWidget);
     expect(find.text('儲存').hitTestable(), findsOneWidget);
   });
 
@@ -106,7 +115,7 @@ void main() {
   testWidgets('第一次：選點後才能儲存，儲存交給 callback', (t) async {
     final saved = <sw.Coordinates?>[];
     await _pump(t, SafeWalkFlow(onHomeChanged: (h) async => saved.add(h)));
-    await t.tap(find.text('設定「家」'));
+    await _tapInSettings(t, '設定「家」');
     await t.pumpAndSettle();
 
     // 尚未選點：儲存不可用。
@@ -114,10 +123,9 @@ void main() {
     await t.pumpAndSettle();
     expect(saved, isEmpty);
 
-    expect(find.byType(FlutterMap), findsNothing);
+    expect(find.byType(FlutterMap), findsOneWidget);
+    expect(find.text('載入地圖'), findsNothing);
     expect(find.text('© OpenStreetMap contributors'), findsOneWidget);
-    await t.tap(find.text('載入地圖'));
-    await t.pumpAndSettle();
     await t.tapAt(const Offset(200, 300));
     await t.pumpAndSettle();
     await t.tap(find.text('儲存'));
@@ -125,8 +133,8 @@ void main() {
 
     expect(saved, hasLength(1));
     expect(saved.single, isNotNull);
-    // 儲存後回到首頁。
-    expect(find.text('點擊開始'), findsOneWidget);
+    // 儲存後回到「安心行設定」。
+    expect(find.text('安心行設定'), findsOneWidget);
   });
 
   testWidgets('已設定：顯示編輯與移除，移除回傳 null', (t) async {
@@ -139,12 +147,36 @@ void main() {
       ),
     );
     expect(find.text('設定「家」'), findsNothing);
-    await t.tap(find.text('編輯「家」'));
+    await _tapInSettings(t, '編輯「家」');
     await t.pumpAndSettle();
-    expect(find.byType(FlutterMap), findsNothing);
+    expect(find.byType(FlutterMap), findsOneWidget);
+    expect(find.text('載入地圖'), findsNothing);
     await t.tap(find.text('移除'));
     await t.pumpAndSettle();
     expect(saved, [null]);
+  });
+
+  testWidgets('編輯時直接載入儲存的家，無需確認即可儲存', (t) async {
+    final saved = <sw.Coordinates?>[];
+    await _pump(
+      t,
+      SafeWalkFlow(
+        homeLocation: sw.Coordinates(lat: 0.5, lng: 0.75),
+        onHomeChanged: (h) async => saved.add(h),
+      ),
+    );
+    await _tapInSettings(t, '編輯「家」');
+    await t.pumpAndSettle();
+    final map = t.widget<FlutterMap>(find.byType(FlutterMap));
+    expect(map.options.initialCenter.latitude, 0.5);
+    expect(map.options.initialCenter.longitude, 0.75);
+    expect(find.text('載入地圖'), findsNothing);
+    expect(find.textContaining('範圍包含已儲存的家'), findsOneWidget);
+    await t.tap(find.text('儲存'));
+    await t.pumpAndSettle();
+    expect(saved.single?.lat, 0.5);
+    expect(saved.single?.lng, 0.75);
+    expect(find.text('安心行設定'), findsOneWidget);
   });
 
   testWidgets('儲存失敗時留在畫面並顯示錯誤，不顯示例外內容', (t) async {
@@ -152,9 +184,7 @@ void main() {
       t,
       SafeWalkFlow(onHomeChanged: (h) async => throw StateError('secret 0.5')),
     );
-    await t.tap(find.text('設定「家」'));
-    await t.pumpAndSettle();
-    await t.tap(find.text('載入地圖'));
+    await _tapInSettings(t, '設定「家」');
     await t.pumpAndSettle();
     await t.tapAt(const Offset(200, 300));
     await t.pumpAndSettle();
