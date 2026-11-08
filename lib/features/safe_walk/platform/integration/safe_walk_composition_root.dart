@@ -7,10 +7,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show HapticFeedback, rootBundle;
 import 'package:town_pass/features/safe_walk/navigation/avoid_area.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/crime_reference_wiring.dart';
+import 'package:town_pass/features/safe_walk/platform/integration/map_report_wiring.dart';
 import 'package:town_pass/features/safe_walk/platform/supabase/safe_walk_supabase_config.dart';
 import 'package:town_pass/features/safe_walk/platform/supabase/web_rpc_post.dart';
 import 'package:town_pass/features/safe_walk/safety_data/crime_reference/crime_reference_models.dart';
 import 'package:town_pass/features/safe_walk/safety_data/crime_reference/crime_reference_repository.dart';
+import 'package:town_pass/features/safe_walk/safety_data/map_reports/map_report_repository.dart';
 import 'package:town_pass/features/safe_walk/navigation/default_json_transport.dart';
 import 'package:town_pass/features/safe_walk/navigation/default_route_service.dart';
 import 'package:town_pass/features/safe_walk/navigation/json_transport.dart';
@@ -59,6 +61,7 @@ class SafeWalkCompositionRoot extends StatefulWidget {
     this.routeTransport,
     this.homeLocationStore,
     this.crimeRepository,
+    this.mapReportRepository,
     this.crimeServiceHost,
     this.onExit,
     this.liveRoutes = false,
@@ -137,6 +140,10 @@ class SafeWalkCompositionRoot extends StatefulWidget {
   /// Optional read-only dependency for isolated integration verification.
   final CrimeReferenceRepository? crimeRepository;
 
+  /// Public map reports are persisted separately from historical crime data.
+  /// Tests inject a repository transport without contacting external services.
+  final MapReportRepository? mapReportRepository;
+
   /// Public recipient hostname shown in the query consent. Never a credential.
   final String? crimeServiceHost;
   final VoidCallback? onExit;
@@ -212,6 +219,43 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
 
   /// Unresolved reports to route around (50 m circles), sent by the map.
   List<AvoidArea> _areas = const [];
+
+  late final MapReportWiring _mapReports = widget.mapReportRepository == null
+      ? MapReportWiring.fromEnvironment()
+      : MapReportWiring(widget.mapReportRepository!);
+  final _mapReportRequests = <_RouteCancellation>{};
+
+  Future<T> _mapReportOperation<T>(
+    Future<T> Function(SafeWalkCancellation cancellation) action,
+  ) async {
+    if (!mounted || !_foreground || _lifetime.isCancelled) {
+      throw const SafeWalkCancelledException();
+    }
+    final operation = _RouteCancellation();
+    _mapReportRequests.add(operation);
+    try {
+      final result = await action(operation);
+      operation.throwIfCancelled();
+      return result;
+    } finally {
+      _mapReportRequests.remove(operation);
+    }
+  }
+
+  void _cancelMapReports() {
+    for (final operation in _mapReportRequests) {
+      operation.cancel();
+    }
+    _mapReportRequests.clear();
+  }
+
+  Future<Anomaly> _saveMapReport(Anomaly draft) => _mapReportOperation(
+    (cancellation) => _mapReports.save(draft, cancellation: cancellation),
+  );
+
+  Future<List<Anomaly>> _loadMapReports() => _mapReportOperation(
+    (cancellation) => _mapReports.load(cancellation: cancellation),
+  );
 
   /// Product-defined buffers around reference positions; not incident bounds.
   late final CrimeReferenceRepository _crime =
@@ -1024,6 +1068,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
   }
 
   void _closeNavigation() {
+    _cancelMapReports();
     _navigationActive = false;
     _destination = null;
     _clearNearby();
@@ -1329,6 +1374,8 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
               source: 'report',
             ),
         ],
+        onSaveReport: widget.liveRoutes ? _saveMapReport : null,
+        onLoadReports: widget.liveRoutes ? _loadMapReports : null,
         speaker: _speaker,
         onLocate: _locate,
         onEmergency: _emergency,
@@ -1348,6 +1395,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _cancelMapReports();
     _stopFollowing();
     _navigation.removeListener(_syncFollowing);
     _operation?.cancel();
