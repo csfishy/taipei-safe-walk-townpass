@@ -16,6 +16,12 @@ const nearbyHelperConsentVersion = '2026-11-08.v1';
 /// decided outside this file (`SupabaseAnonymousNearbySession` gives every phone a
 /// server-issued anonymous one); nothing here creates accounts, stores
 /// credentials or accepts a caller-chosen identity.
+abstract interface class NearbyExistingIdentity {
+  /// A token for an identity that already exists on this phone, or null. Never
+  /// creates one.
+  Future<String?> existingAccessToken();
+}
+
 abstract interface class NearbySession {
   /// True while the session can supply a token: a verified session exists, or
   /// one can be created on demand and the backend is not currently refusing.
@@ -41,7 +47,9 @@ final class AuthenticatedNearbyAlertTransport
         NearbyAlertTransport,
         NearbyAlertAvailability,
         NearbyAlertPreparation,
-        NearbyHelperAreas {
+        NearbyHelperAreas,
+        NearbyIdentityRestore,
+        NearbyTrustedContacts {
   AuthenticatedNearbyAlertTransport({
     required this._rpc,
     required this._session,
@@ -146,11 +154,133 @@ final class AuthenticatedNearbyAlertTransport
             ),
             radiusMeters: row['radius_m'] as int,
             createdAt: DateTime.parse(row['created_at'] as String),
+            fromContact: row['from_contact'] == true,
+            senderName: row['sender_name'] as String?,
           ),
       ];
     } on Object {
       throw const NearbyAlertException('附近通知回應格式錯誤');
     }
+  }
+
+  @override
+  Future<bool> restoreExistingIdentity() async {
+    final session = _session;
+    final token = session is NearbyExistingIdentity
+        ? await (session as NearbyExistingIdentity).existingAccessToken()
+        : await session.accessToken();
+    return token != null && _jwtShape.hasMatch(token.trim());
+  }
+
+  static final _uuid = RegExp(
+    r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+  );
+
+  Object? _json(String body) {
+    try {
+      return jsonDecode(body);
+    } on FormatException {
+      throw const NearbyAlertException('附近通知回應格式錯誤');
+    }
+  }
+
+  List<Map<String, dynamic>> _rows(String body) {
+    final decoded = _json(body);
+    if (decoded is! List) {
+      throw const NearbyAlertException('附近通知回應格式錯誤');
+    }
+    try {
+      return decoded.cast<Map<String, dynamic>>();
+    } on Object {
+      throw const NearbyAlertException('附近通知回應格式錯誤');
+    }
+  }
+
+  @override
+  Future<NearbyContactInvite> createContactInvite(String displayName) async {
+    final name = displayName.trim();
+    if (name.isEmpty || name.runes.length > nearbyContactNameMax) {
+      throw const NearbyAlertException('名字需要 1 到 20 個字');
+    }
+    final rows = _rows(
+      await _call('nearby_contact_invite_create', {'p_display_name': name}),
+    );
+    try {
+      final row = rows.single;
+      return NearbyContactInvite(
+        code: row['code'] as String,
+        expiresAt: DateTime.parse(row['expires_at'] as String),
+      );
+    } on Object {
+      throw const NearbyAlertException('附近通知回應格式錯誤');
+    }
+  }
+
+  @override
+  Future<NearbyInviteResult> acceptContactInvite(String code) async {
+    final normalized = normalizeNearbyInviteCode(code);
+    // A malformed code is never sent, so it does not use up an attempt.
+    if (normalized == null) return NearbyInviteResult.invalid;
+    final status = _json(
+      await _call('nearby_contact_invite_accept', {'p_code': normalized}),
+    );
+    return switch (status) {
+      'ok' => NearbyInviteResult.paired,
+      'invalid' => NearbyInviteResult.invalid,
+      'self' => NearbyInviteResult.self,
+      'owner_full' => NearbyInviteResult.ownerFull,
+      'following_full' => NearbyInviteResult.followingFull,
+      _ => throw const NearbyAlertException('附近通知回應格式錯誤'),
+    };
+  }
+
+  @override
+  Future<List<NearbyContactLink>> listMyContacts() async {
+    final rows = _rows(await _call('nearby_contact_list_mine', const {}));
+    try {
+      return [
+        for (final row in rows)
+          NearbyContactLink(
+            id: row['link_id'] as String,
+            since: DateTime.parse(row['since'] as String),
+          ),
+      ];
+    } on Object {
+      throw const NearbyAlertException('附近通知回應格式錯誤');
+    }
+  }
+
+  @override
+  Future<void> removeContact(String linkId) async {
+    if (!_uuid.hasMatch(linkId)) {
+      throw const NearbyAlertException('找不到這位聯絡人');
+    }
+    await _call('nearby_contact_remove', {'p_link_id': linkId});
+  }
+
+  @override
+  Future<List<NearbyFollowing>> listFollowing() async {
+    final rows = _rows(await _call('nearby_contact_following', const {}));
+    try {
+      return [
+        for (final row in rows)
+          NearbyFollowing(
+            id: row['link_id'] as String,
+            name: row['display_name'] as String,
+            since: DateTime.parse(row['since'] as String),
+          ),
+      ];
+    } on Object {
+      throw const NearbyAlertException('附近通知回應格式錯誤');
+    }
+  }
+
+  @override
+  Future<void> unfollow(String linkId) async {
+    if (!_uuid.hasMatch(linkId)) {
+      throw const NearbyAlertException('找不到這位聯絡人');
+    }
+    await _call('nearby_contact_unfollow', {'p_link_id': linkId});
   }
 
   @override
@@ -230,6 +360,8 @@ final class AuthenticatedNearbyAlertTransport
 
   static String _messageFor(int status) => switch (status) {
     401 || 403 => '附近通知需要登入，或沒有使用權限',
+    404 => '找不到，或已過期',
+    409 => '已達上限',
     429 => '操作太頻繁，請稍後再試',
     400 || 422 => '附近通知要求無效',
     >= 500 => '附近通知服務暫時無法使用',

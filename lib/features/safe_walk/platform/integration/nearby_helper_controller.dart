@@ -16,6 +16,10 @@ import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart
 ///  * polls for alerts addressed to them every [pollInterval] and surfaces each
 ///    one once through [incoming].
 ///
+/// The same alert delivery also serves trusted contacts: a person who has been
+/// paired as someone's contact (with an invite code) is listened for on the same
+/// poll, even though they never joined as a helper and share no position.
+///
 /// There is no push channel: when the app is backgrounded or closed nothing is
 /// polled or refreshed, the stored position expires on the server (10 minutes),
 /// and no alert is received. Joining is the explicit, revocable consent for this
@@ -45,6 +49,13 @@ final class NearbyHelperController extends ChangeNotifier
   bool _messageIsError = false;
   final _incoming = <SafeWalkNearbyAlert>[];
   final _areas = <SafeWalkGuardArea>[];
+  final _myContacts = <SafeWalkContactLink>[];
+  final _following = <SafeWalkFollowing>[];
+  SafeWalkContactInvite? _invite;
+  bool _contactsBusy = false;
+  String? _contactsMessage;
+  bool _contactsMessageIsError = false;
+  bool _restored = false;
   final _known = <String>{};
   _Operation? _operation;
   NearbyAlertWatcher? _watcher;
@@ -67,6 +78,24 @@ final class NearbyHelperController extends ChangeNotifier
   bool get guardAreasSupported => _service.supportsGuardAreas;
   @override
   List<SafeWalkGuardArea> get guardAreas => List.unmodifiable(_areas);
+  @override
+  bool get contactsSupported => _service.supportsContacts;
+  @override
+  bool get contactsBusy => _contactsBusy;
+  @override
+  String? get contactsMessage => _contactsMessage;
+  @override
+  bool get contactsMessageIsError => _contactsMessageIsError;
+  @override
+  List<SafeWalkContactLink> get myContacts => List.unmodifiable(_myContacts);
+  @override
+  List<SafeWalkFollowing> get following => List.unmodifiable(_following);
+  @override
+  SafeWalkContactInvite? get invite => _invite;
+
+  /// Whether alerts are being listened for: joined as a helper, or someone's
+  /// trusted contact.
+  bool get _listening => _on || _following.isNotEmpty;
 
   @override
   Future<void> enable() async {
@@ -128,6 +157,7 @@ final class NearbyHelperController extends ChangeNotifier
     _busy = false;
     _operation = null;
     _areas.clear();
+    _syncPolling();
     _say(
       deleted
           ? '已停止協助，你的位置已刪除。${hadAreas ? '守護區也已刪除。' : ''}'
@@ -252,7 +282,7 @@ final class NearbyHelperController extends ChangeNotifier
   /// coming back refreshes the position and resumes, because the person already
   /// consented to foreground sharing when joining.
   void setForeground(bool foreground) {
-    if (_disposed || !_on) return;
+    if (_disposed || !_listening) return;
     if (!foreground) {
       _paused = true;
       _stop();
@@ -261,7 +291,7 @@ final class NearbyHelperController extends ChangeNotifier
     if (_paused) {
       _paused = false;
       _start();
-      unawaited(_refresh());
+      if (_on) unawaited(_refresh());
     }
   }
 
@@ -299,18 +329,31 @@ final class NearbyHelperController extends ChangeNotifier
 
   void _start() {
     _stop();
-    final watcher = _watcher = NearbyAlertWatcher(
-      service: _service,
-      helperId: '',
-      interval: pollInterval,
-    );
-    _subscription = watcher.alerts.listen(_onAlert);
-    watcher.start();
-    unawaited(watcher.poll());
-    _refreshTimer = Timer.periodic(
-      refreshInterval,
-      (_) => unawaited(_refresh()),
-    );
+    if (_listening) {
+      final watcher = _watcher = NearbyAlertWatcher(
+        service: _service,
+        helperId: '',
+        interval: pollInterval,
+      );
+      _subscription = watcher.alerts.listen(_onAlert);
+      watcher.start();
+      unawaited(watcher.poll());
+    }
+    // Only a joined helper has a position to keep fresh.
+    if (_on) {
+      _refreshTimer = Timer.periodic(
+        refreshInterval,
+        (_) => unawaited(_refresh()),
+      );
+    }
+  }
+
+  /// Starts or stops listening to match who this person currently is (helper,
+  /// someone's contact, both or neither). Does nothing while in the background.
+  void _syncPolling() {
+    if (_disposed) return;
+    _stop();
+    if (!_paused && _listening) _start();
   }
 
   void _stop() {
@@ -323,13 +366,17 @@ final class NearbyHelperController extends ChangeNotifier
   }
 
   void _onAlert(NearbyAlert alert) {
-    if (_disposed || !_on || _paused || !_known.add(alert.alertId)) return;
+    if (_disposed || !_listening || _paused || !_known.add(alert.alertId)) {
+      return;
+    }
     _incoming.insert(
       0,
       SafeWalkNearbyAlert(
         alertId: alert.alertId,
         location: alert.location,
         createdAt: alert.createdAt,
+        fromContact: alert.fromContact,
+        senderName: alert.senderName,
       ),
     );
     notifyListeners();
@@ -344,6 +391,141 @@ final class NearbyHelperController extends ChangeNotifier
 
   String _describe(Object error, [String fallback = '無法加入附近協助，請稍後再試']) =>
       error is NearbyAlertException ? error.message : fallback;
+
+  /// Called once when the feature opens. Brings back an identity this phone
+  /// already has (it never creates one) and, if any exists, loads the trusted
+  /// contacts so a person who is someone's contact starts hearing their alerts
+  /// without having to do anything. A phone that never used the feature stays
+  /// untouched: no request is made and no account exists.
+  Future<void> restore() async {
+    if (_disposed || _restored) return;
+    _restored = true;
+    if (!_service.supportsContacts || _service.unavailableReason != null) {
+      return;
+    }
+    if (!await _service.restoreIdentity() || _disposed) return;
+    await _loadContacts();
+  }
+
+  Future<void> _loadContacts() async {
+    // The controller may have been disposed while an earlier step was waiting.
+    if (_disposed) return;
+    try {
+      final mine = await _service.listMyContacts();
+      final following = await _service.listFollowing();
+      if (_disposed) return;
+      _myContacts
+        ..clear()
+        ..addAll([
+          for (final c in mine) SafeWalkContactLink(id: c.id, since: c.since),
+        ]);
+      _following
+        ..clear()
+        ..addAll([
+          for (final f in following)
+            SafeWalkFollowing(id: f.id, name: f.name, since: f.since),
+        ]);
+      _syncPolling();
+      notifyListeners();
+    } on Object catch (error) {
+      if (_disposed) return;
+      _sayContacts(_describe(error, '無法讀取緊急聯絡人'), error: true);
+    }
+  }
+
+  @override
+  Future<void> createInvite(String displayName) async {
+    if (_disposed || _contactsBusy || !_service.supportsContacts) return;
+    if (_myContacts.length >= nearbyContactMax) return;
+    await _contactsAction('無法產生邀請碼，請稍後再試', () async {
+      final made = await _service.createContactInvite(displayName);
+      _invite = SafeWalkContactInvite(
+        code: made.code,
+        expiresAt: made.expiresAt,
+      );
+      await _loadContacts();
+      return '已產生邀請碼。請用你信任的方式傳給對方。';
+    });
+  }
+
+  @override
+  void clearInvite() {
+    if (_invite == null || _disposed) return;
+    _invite = null;
+    notifyListeners();
+  }
+
+  @override
+  Future<void> acceptInvite(String code) async {
+    if (_disposed || _contactsBusy || !_service.supportsContacts) return;
+    await _contactsAction('無法使用邀請碼，請稍後再試', () async {
+      final result = await _service.acceptContactInvite(code);
+      switch (result) {
+        case NearbyInviteResult.paired:
+          await _loadContacts();
+          return '已加入。對方按下 SOS 時，你會在 App 內收到通知（App 開啟時才收得到）。';
+        case NearbyInviteResult.invalid:
+          throw const NearbyAlertException('邀請碼不正確、已過期或已被使用');
+        case NearbyInviteResult.self:
+          throw const NearbyAlertException('這是你自己的邀請碼，請交給對方輸入');
+        case NearbyInviteResult.ownerFull:
+          throw const NearbyAlertException('對方的緊急聯絡人已滿');
+        case NearbyInviteResult.followingFull:
+          throw const NearbyAlertException('你已經是太多人的緊急聯絡人了');
+      }
+    });
+  }
+
+  @override
+  Future<void> removeContact(String linkId) async {
+    if (_disposed || _contactsBusy || !_service.supportsContacts) return;
+    await _contactsAction('無法移除，請稍後再試', () async {
+      await _service.removeContact(linkId);
+      await _loadContacts();
+      return '已移除這位緊急聯絡人，他不會再收到你的求助。';
+    });
+  }
+
+  @override
+  Future<void> unfollow(String linkId) async {
+    if (_disposed || _contactsBusy || !_service.supportsContacts) return;
+    await _contactsAction('無法停止接收，請稍後再試', () async {
+      await _service.unfollow(linkId);
+      await _loadContacts();
+      return '已停止接收這個人的求助。';
+    });
+  }
+
+  /// One contact operation at a time, with its own busy flag and message so the
+  /// helper card is not disturbed.
+  Future<void> _contactsAction(
+    String failure,
+    Future<String> Function() run,
+  ) async {
+    _contactsBusy = true;
+    _contactsMessage = null;
+    notifyListeners();
+    try {
+      final done = await run();
+      if (_disposed) return;
+      // _loadContacts may have set its own error; do not hide it.
+      if (!_contactsMessageIsError || _contactsMessage == null) {
+        _sayContacts(done, error: false, notify: false);
+      }
+    } on Object catch (error) {
+      if (_disposed) return;
+      _sayContacts(_describe(error, failure), error: true, notify: false);
+    } finally {
+      _contactsBusy = false;
+      if (!_disposed) notifyListeners();
+    }
+  }
+
+  void _sayContacts(String? text, {required bool error, bool notify = true}) {
+    _contactsMessage = text;
+    _contactsMessageIsError = text != null && error;
+    if (notify && !_disposed) notifyListeners();
+  }
 
   @override
   void dispose() {

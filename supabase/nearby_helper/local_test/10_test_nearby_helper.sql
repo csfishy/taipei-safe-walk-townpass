@@ -114,7 +114,13 @@ begin
     'public.nearby_sos_send(double precision,double precision,uuid)',
     'public.nearby_helper_fetch_alerts()',
     'public.nearby_helper_set_areas(jsonb)',
-    'public.nearby_helper_get_areas()'
+    'public.nearby_helper_get_areas()',
+    'public.nearby_contact_invite_create(text)',
+    'public.nearby_contact_invite_accept(text)',
+    'public.nearby_contact_list_mine()',
+    'public.nearby_contact_remove(uuid)',
+    'public.nearby_contact_following()',
+    'public.nearby_contact_unfollow(uuid)'
   ] loop
     perform pg_temp.check(not has_function_privilege('anon', fn, 'EXECUTE'), 'anon cannot execute ' || fn);
     perform pg_temp.check(has_function_privilege('authenticated', fn, 'EXECUTE'), 'authenticated can execute ' || fn);
@@ -125,7 +131,7 @@ begin
     'authenticated cannot purge');
   foreach r in array array['anon', 'authenticated'] loop
     perform pg_temp.check(not has_schema_privilege(r, 'safe_walk_nearby', 'USAGE'), r || ' has no schema usage');
-    foreach tbl in array array['helper_profiles', 'helper_locations', 'alerts', 'alert_deliveries', 'helper_areas'] loop
+    foreach tbl in array array['helper_profiles', 'helper_locations', 'alerts', 'alert_deliveries', 'helper_areas', 'contact_invites', 'trusted_contacts', 'contact_invite_attempts'] loop
       perform pg_temp.check(
         not has_table_privilege(r, 'safe_walk_nearby.' || tbl, 'SELECT')
         and not has_table_privilege(r, 'safe_walk_nearby.' || tbl, 'INSERT')
@@ -523,6 +529,224 @@ begin
   perform pg_temp.as_user(a_in);
   perform pg_temp.expect_state($q$select * from public.nearby_helper_get_areas()$q$, '42501');
   reset role;
+end $t$;
+
+-- 6c. Trusted contacts -----------------------------------------------------
+do $t$
+declare
+  owner_u uuid := '00000000-0000-4000-8000-00000000000b';
+  c1 uuid := '00000000-0000-4000-8000-00000000000c';
+  c2 uuid := '00000000-0000-4000-8000-00000000000d';
+  stranger uuid := '00000000-0000-4000-8000-00000000000e';
+  helper_u uuid := (select uid from pts where name = 'same');
+  code text;
+  code2 text;
+  res text;
+  n integer;
+  r record;
+  b record;
+  link1 uuid;
+  extra uuid;
+  i integer;
+begin
+  select * into b from pts where name = 'sender';
+  insert into auth.users (id) values (owner_u), (c1), (c2), (stranger);
+
+  -- A code: 8 unambiguous characters, stored only as a hash.
+  perform pg_temp.as_user(owner_u);
+  perform pg_temp.expect_state($q$select * from public.nearby_contact_invite_create('')$q$, '22023');
+  perform pg_temp.expect_state($q$select * from public.nearby_contact_invite_create(repeat('x', 21))$q$, '22023');
+  select i2.code into code from public.nearby_contact_invite_create('小明') i2;
+  reset role;
+  perform pg_temp.check(code ~ '^[A-HJKMNP-Z2-9]{8}$', 'an invite code is 8 unambiguous characters');
+  perform pg_temp.check(
+    exists (select 1 from safe_walk_nearby.contact_invites
+             where owner_id = owner_u
+               and code_hash = encode(extensions.digest(code, 'sha256'), 'hex'))
+    and not exists (select 1 from safe_walk_nearby.contact_invites where code_hash = code),
+    'only a hash of the code is stored');
+  -- Creating again right away is rate limited.
+  perform pg_temp.as_user(owner_u);
+  perform pg_temp.expect_state($q$select * from public.nearby_contact_invite_create('小明')$q$, 'PT429');
+  reset role;
+
+  -- A wrong code is refused with a status (and recorded), a right one pairs.
+  perform pg_temp.as_user(c1);
+  res := public.nearby_contact_invite_accept('ABCDEFGH');
+  perform pg_temp.check(res = 'invalid', 'a wrong code is invalid');
+  res := public.nearby_contact_invite_accept('');
+  perform pg_temp.check(res = 'invalid', 'an empty code is invalid');
+  res := public.nearby_contact_invite_accept(lower(substr(code, 1, 4) || ' - ' || substr(code, 5)));
+  perform pg_temp.check(res = 'ok', 'case and separators in a code are ignored');
+  res := public.nearby_contact_invite_accept(code);
+  perform pg_temp.check(res = 'invalid', 'a code works only once');
+  reset role;
+
+  -- Your own code does not pair you with yourself and is not consumed.
+  update safe_walk_nearby.contact_invites set created_at = now() - interval '1 minute';
+  perform pg_temp.as_user(owner_u);
+  select i2.code into code2 from public.nearby_contact_invite_create('小明') i2;
+  res := public.nearby_contact_invite_accept(code2);
+  perform pg_temp.check(res = 'self', 'cannot pair with your own code');
+  reset role;
+  perform pg_temp.check(
+    exists (select 1 from safe_walk_nearby.contact_invites
+             where code_hash = encode(extensions.digest(code2, 'sha256'), 'hex')),
+    'your own code is not consumed');
+
+  -- An expired code is invalid.
+  update safe_walk_nearby.contact_invites set expires_at = now() - interval '1 second';
+  perform pg_temp.as_user(c2);
+  res := public.nearby_contact_invite_accept(code2);
+  perform pg_temp.check(res = 'invalid', 'an expired code is invalid');
+  reset role;
+
+  -- Guessing is throttled: ten tries an hour, then a 429. Failed tries count.
+  perform pg_temp.as_user(stranger);
+  for i in 1..10 loop
+    res := public.nearby_contact_invite_accept('ZZZZZZZ' || (2 + i % 8)::text);
+    perform pg_temp.check(res = 'invalid', 'wrong guess ' || i);
+  end loop;
+  perform pg_temp.expect_state($q$select public.nearby_contact_invite_accept('ABCDEFGH')$q$, 'PT429');
+  reset role;
+  perform pg_temp.check(
+    (select count(*) from safe_walk_nearby.contact_invite_attempts where user_id = stranger) = 10,
+    'every failed try was recorded');
+
+  -- Each side sees only its own side of the link.
+  perform pg_temp.as_user(owner_u);
+  select count(*) into n from public.nearby_contact_list_mine();
+  perform pg_temp.check(n = 1, 'the owner has one contact');
+  select count(*) into n from public.nearby_contact_following();
+  perform pg_temp.check(n = 0, 'the owner follows nobody');
+  reset role;
+  perform pg_temp.as_user(c1);
+  select * into r from public.nearby_contact_following();
+  perform pg_temp.check(r.display_name = '小明', 'the contact sees the name the owner chose');
+  select count(*) into n from public.nearby_contact_list_mine();
+  perform pg_temp.check(n = 0, 'the contact has no contacts of their own');
+  reset role;
+  perform pg_temp.as_user(stranger);
+  select count(*) into n from public.nearby_contact_list_mine();
+  perform pg_temp.check(n = 0, 'a stranger sees no contacts');
+  select count(*) into n from public.nearby_contact_following();
+  perform pg_temp.check(n = 0, 'a stranger follows nobody');
+  reset role;
+  select id into link1 from safe_walk_nearby.trusted_contacts where owner_id = owner_u and contact_id = c1;
+
+  -- Up to five contacts; the sixth is refused, and so is a sixth invite.
+  for i in 1..4 loop
+    extra := gen_random_uuid();
+    insert into auth.users (id) values (extra);
+    update safe_walk_nearby.contact_invites set created_at = now() - interval '1 minute';
+    perform pg_temp.as_user(owner_u);
+    select i2.code into code2 from public.nearby_contact_invite_create('小明') i2;
+    reset role;
+    perform pg_temp.as_user(extra);
+    res := public.nearby_contact_invite_accept(code2);
+    reset role;
+    perform pg_temp.check(res = 'ok', 'contact ' || (i + 1) || ' pairs');
+  end loop;
+  extra := gen_random_uuid();
+  insert into auth.users (id) values (extra);
+  update safe_walk_nearby.contact_invites set created_at = now() - interval '1 minute';
+  perform pg_temp.as_user(owner_u);
+  perform pg_temp.expect_state($q$select * from public.nearby_contact_invite_create('小明')$q$, 'PT409');
+  reset role;
+  -- A full owner cannot take a sixth contact even with a valid code.
+  insert into safe_walk_nearby.contact_invites (code_hash, owner_id, display_name, expires_at)
+  values (encode(extensions.digest('ZYXWVUTS', 'sha256'), 'hex'), owner_u, '小明', now() + interval '1 hour');
+  perform pg_temp.as_user(extra);
+  res := public.nearby_contact_invite_accept('ZYXWVUTS');
+  perform pg_temp.check(res = 'owner_full', 'a sixth contact is refused');
+  reset role;
+
+  -- Following is capped at 20.
+  for i in 1..20 loop
+    extra := gen_random_uuid();
+    insert into auth.users (id) values (extra);
+    insert into safe_walk_nearby.trusted_contacts (owner_id, contact_id, display_name)
+    values (extra, c2, 'x');
+  end loop;
+  insert into safe_walk_nearby.contact_invites (code_hash, owner_id, display_name, expires_at)
+  values (encode(extensions.digest('ZYXWVU22', 'sha256'), 'hex'), stranger, '路人', now() + interval '1 hour');
+  perform pg_temp.as_user(c2);
+  res := public.nearby_contact_invite_accept('ZYXWVU22');
+  perform pg_temp.check(res = 'following_full', 'following more than 20 people is refused');
+  reset role;
+  delete from safe_walk_nearby.trusted_contacts where contact_id = c2;
+
+  -- SOS reaches the contacts whatever the distance, and tells them who.
+  perform pg_temp.as_user(owner_u);
+  n := public.nearby_sos_send(b.lat, b.lng, '30000000-0000-4000-8000-000000000001');
+  reset role;
+  perform pg_temp.check(
+    n = (select count(*) from safe_walk_nearby.alert_deliveries d
+           join safe_walk_nearby.alerts a on a.id = d.alert_id
+          where a.client_request_id = '30000000-0000-4000-8000-000000000001'),
+    'the count includes contacts');
+  perform pg_temp.check(
+    (select count(*) from safe_walk_nearby.alert_deliveries d
+       join safe_walk_nearby.alerts a on a.id = d.alert_id
+       join safe_walk_nearby.trusted_contacts tc
+         on tc.owner_id = a.sender_id and tc.contact_id = d.recipient_id
+      where a.client_request_id = '30000000-0000-4000-8000-000000000001') = 5,
+    'all five contacts are notified although none shared a position');
+
+  perform pg_temp.as_user(c1);
+  select * into r from public.nearby_helper_fetch_alerts();
+  perform pg_temp.check(r.from_contact and r.sender_name = '小明',
+    'the contact sees it came from their contact, by name');
+  perform pg_temp.check(abs(r.lat - b.lat) < 0.00001, 'the contact sees the SOS position');
+  reset role;
+  -- A helper who is not a contact never learns who sent it.
+  perform pg_temp.as_user(helper_u);
+  select * into r from public.nearby_helper_fetch_alerts();
+  perform pg_temp.check(not r.from_contact and r.sender_name is null,
+    'a nearby helper gets no sender name');
+  reset role;
+  -- Neither a helper nor a contact: nothing.
+  perform pg_temp.as_user(stranger);
+  perform pg_temp.expect_state($q$select * from public.nearby_helper_fetch_alerts()$q$, '42501');
+  reset role;
+
+  -- Removing a contact takes effect at once, and only the right person can.
+  perform pg_temp.as_user(stranger);
+  perform public.nearby_contact_remove(link1);
+  perform public.nearby_contact_unfollow(link1);
+  reset role;
+  perform pg_temp.as_user(c2);
+  perform public.nearby_contact_remove(link1);
+  perform public.nearby_contact_unfollow(link1);
+  reset role;
+  perform pg_temp.check(
+    exists (select 1 from safe_walk_nearby.trusted_contacts where id = link1),
+    'other people cannot remove or leave someone else''s link');
+  perform pg_temp.as_user(owner_u);
+  perform public.nearby_contact_remove(link1);
+  reset role;
+  perform pg_temp.check(
+    not exists (select 1 from safe_walk_nearby.trusted_contacts where id = link1),
+    'the owner removes a contact');
+  perform pg_temp.as_user(c1);
+  perform pg_temp.expect_state($q$select * from public.nearby_helper_fetch_alerts()$q$, '42501');
+  reset role;
+
+  -- A contact can also leave on their own.
+  select id into link1 from safe_walk_nearby.trusted_contacts where owner_id = owner_u limit 1;
+  perform pg_temp.as_user((select contact_id from safe_walk_nearby.trusted_contacts where id = link1));
+  perform public.nearby_contact_unfollow(link1);
+  reset role;
+  perform pg_temp.check(
+    not exists (select 1 from safe_walk_nearby.trusted_contacts where id = link1),
+    'a contact can stop following');
+
+  -- Deleting an account removes its links and invites.
+  delete from auth.users where id = owner_u;
+  perform pg_temp.check(
+    not exists (select 1 from safe_walk_nearby.trusted_contacts where owner_id = owner_u)
+    and not exists (select 1 from safe_walk_nearby.contact_invites where owner_id = owner_u),
+    'deleting the owner removes their contacts and invites');
 end $t$;
 
 -- 7. Retention and account deletion ----------------------------------------

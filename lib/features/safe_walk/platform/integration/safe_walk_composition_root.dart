@@ -487,6 +487,9 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
             onAlertArrived: () => unawaited(HapticFeedback.heavyImpact()),
           )
         : null;
+    // Brings back an identity this phone already has (never creates one), so a
+    // person who is someone's trusted contact hears their alerts again.
+    unawaited(_helper?.restore());
     _safetyData = widget.liveRoutes
         ? null
         : widget.safetyData ??
@@ -1080,7 +1083,15 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     final active = state == AppLifecycleState.resumed;
     _speaker.setLifecycleActive(active);
     _report?.setForeground(active);
-    _helper?.setForeground(active);
+    // `inactive` is transient (a system dialog), so it must not pause helping or
+    // cost a position refresh on return; only really leaving the app does.
+    if (state == AppLifecycleState.resumed) {
+      _helper?.setForeground(true);
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.detached) {
+      _helper?.setForeground(false);
+    }
     // `inactive` is transient (a system dialog, or the browser window losing
     // focus on web); only really leaving the app clears the route.
     if (state == AppLifecycleState.paused ||

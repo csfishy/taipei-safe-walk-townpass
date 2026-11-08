@@ -99,11 +99,30 @@ team lead authorizes it (Level C).
 
 RPCs: `nearby_helper_opt_in`, `nearby_helper_opt_out`, `nearby_helper_report_location`,
 `nearby_sos_send`, `nearby_helper_fetch_alerts`, `nearby_helper_set_areas`,
-`nearby_helper_get_areas`. **Guard areas** (`helper_areas`): a helper may set up to 3 circles
+`nearby_helper_get_areas`, `nearby_contact_invite_create`, `nearby_contact_invite_accept`,
+`nearby_contact_list_mine`, `nearby_contact_remove`, `nearby_contact_following`,
+`nearby_contact_unfollow`. **Guard areas** (`helper_areas`): a helper may set up to 3 circles
 (500 or 1000 m, centre rounded to ~100 m by the server); an SOS also notifies a
 helper whose guard area covers it, once per helper. The server cannot verify that a centre
 is where the helper really is; see the design doc's known-risk note. `safe_walk_nearby.purge_expired()` is
 hygiene only (every read already filters on expiry) and is not exposed to API roles.
+
+**Trusted contacts** (not SMS): a person pairs a contact with a one-time invite code (8 characters
+from 31 unambiguous ones, 24 h, single use, at most 3 open). Only the code's SHA-256 hash is
+stored (`contact_invites`); the pairing lives in `trusted_contacts` (at most 5 contacts per
+person, 20 followed per person); every attempt to use a code is recorded in
+`contact_invite_attempts`. An SOS also notifies the sender's contacts whatever the distance,
+and `nearby_helper_fetch_alerts` returns `from_contact` and `sender_name` for them (and also
+serves contacts who are not helpers); nearby helpers still never learn who sent an alert. A
+failed `nearby_contact_invite_accept` **returns a status** (`invalid`, `self`, `owner_full`,
+`following_full`) instead of raising, because an exception would roll back the attempt record
+and defeat the throttle (10 attempts an hour, then `PT429`).
+
+**Forward migration needed.** For this to work, `alert_deliveries.recipient_id` now references
+`auth.users` (it was `helper_profiles`), three tables were added, and
+`nearby_helper_fetch_alerts` returns two more columns. Tables already applied to a remote
+project need a reviewed forward migration; `001_nearby_helper.sql` is the fresh-install
+source. This SQL, including the new tests, has still never been run on PostGIS.
 
 Limits built in: location reports at most every 10 s; SOS at most one per 15 s and 5 per
 hour per sender; SOS is idempotent per `client_request_id`; reported accuracy above

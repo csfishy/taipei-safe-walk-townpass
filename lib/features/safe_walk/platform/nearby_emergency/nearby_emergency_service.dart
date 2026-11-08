@@ -200,6 +200,52 @@ final class NearbyEmergencyService {
     cancellation?.throwIfCancelled();
   }
 
+  /// Whether the backend can pair trusted contacts.
+  bool get supportsContacts => _transport is NearbyTrustedContacts;
+
+  /// Brings back an identity that already exists on this phone, without ever
+  /// creating one. True when one is ready; false (and no error) otherwise.
+  Future<bool> restoreIdentity() async {
+    final transport = _transport;
+    if (transport is! NearbyIdentityRestore) return false;
+    try {
+      return await (transport as NearbyIdentityRestore)
+          .restoreExistingIdentity();
+    } on Object {
+      return false;
+    }
+  }
+
+  Future<T> _withContacts<T>(
+    Future<T> Function(NearbyTrustedContacts contacts) run,
+  ) async {
+    final transport = _transport;
+    if (transport is! NearbyTrustedContacts) {
+      throw const NearbyAlertException('目前的後端不支援緊急聯絡人');
+    }
+    final reason = await _prepare();
+    if (reason != null) throw NearbyAlertException(reason);
+    return run(transport as NearbyTrustedContacts);
+  }
+
+  Future<NearbyContactInvite> createContactInvite(String displayName) =>
+      _withContacts((c) => c.createContactInvite(displayName));
+
+  Future<NearbyInviteResult> acceptContactInvite(String code) =>
+      _withContacts((c) => c.acceptContactInvite(code));
+
+  Future<List<NearbyContactLink>> listMyContacts() =>
+      _withContacts((c) => c.listMyContacts());
+
+  Future<void> removeContact(String linkId) =>
+      _withContacts((c) => c.removeContact(linkId));
+
+  Future<List<NearbyFollowing>> listFollowing() =>
+      _withContacts((c) => c.listFollowing());
+
+  Future<void> unfollow(String linkId) =>
+      _withContacts((c) => c.unfollow(linkId));
+
   /// Whether the backend stores guard areas.
   bool get supportsGuardAreas => _transport is NearbyHelperAreas;
 

@@ -1,6 +1,7 @@
 // 附近協助者：首頁的加入卡片（兩段式同意）與「附近有人求助」橫幅。
 // 只測呈現；沒有後端、沒有位置。
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_flow.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_nearby_helper.dart';
@@ -55,6 +56,71 @@ class _Helper extends ChangeNotifier implements SafeWalkNearbyHelper {
       () => guardAreas = [
         for (var i = 0; i < guardAreas.length; i++)
           if (i != index) guardAreas[i],
+      ],
+    );
+  }
+
+  // ---- trusted contacts
+  @override
+  bool contactsSupported = false;
+  @override
+  bool contactsBusy = false;
+  @override
+  String? contactsMessage;
+  @override
+  bool contactsMessageIsError = false;
+  @override
+  List<SafeWalkContactLink> myContacts = [];
+  @override
+  List<SafeWalkFollowing> following = [];
+  @override
+  SafeWalkContactInvite? invite;
+  final createdInvites = <String>[];
+  final accepted = <String>[];
+  final removedContacts = <String>[];
+  final unfollowed = <String>[];
+  int clearedInvites = 0;
+
+  @override
+  Future<void> createInvite(String displayName) async {
+    createdInvites.add(displayName);
+    change(
+      () => invite = SafeWalkContactInvite(
+        code: 'ABCDEFGH',
+        expiresAt: DateTime(2026, 11, 8, 23, 30),
+      ),
+    );
+  }
+
+  @override
+  void clearInvite() {
+    clearedInvites++;
+    change(() => invite = null);
+  }
+
+  @override
+  Future<void> acceptInvite(String code) async {
+    accepted.add(code);
+  }
+
+  @override
+  Future<void> removeContact(String linkId) async {
+    removedContacts.add(linkId);
+    change(
+      () => myContacts = [
+        for (final c in myContacts)
+          if (c.id != linkId) c,
+      ],
+    );
+  }
+
+  @override
+  Future<void> unfollow(String linkId) async {
+    unfollowed.add(linkId);
+    change(
+      () => following = [
+        for (final f in following)
+          if (f.id != linkId) f,
       ],
     );
   }
@@ -370,6 +436,319 @@ void main() {
       await expectLater(t, meetsGuideline(labeledTapTargetGuideline));
       await expectLater(t, meetsGuideline(textContrastGuideline));
       handle.dispose();
+    });
+  });
+
+  group('trusted contacts card', () {
+    final since = DateTime(2026, 11, 8, 12);
+
+    SafeWalkContactLink link(String id) =>
+        SafeWalkContactLink(id: id, since: since);
+
+    _Helper supported() => _Helper()..contactsSupported = true;
+
+    Finder field(String label) =>
+        find.widgetWithText(TextField, label, skipOffstage: false);
+
+    // Clipboard writes are captured instead of reaching a platform.
+    List<String> captureClipboard(WidgetTester t) {
+      final copied = <String>[];
+      t.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async {
+          if (call.method == 'Clipboard.setData') {
+            copied.add((call.arguments as Map)['text'] as String);
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => t.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+      return copied;
+    }
+
+    testWidgets('not shown when the backend cannot pair contacts', (t) async {
+      await _open(t, _Helper());
+      await _show(t, _t('加入附近協助者'));
+      expect(_t('緊急聯絡人'), findsNothing);
+      expect(_t('邀請緊急聯絡人'), findsNothing);
+    });
+
+    testWidgets('unavailable with no contacts: only the reason, no buttons', (
+      t,
+    ) async {
+      final helper = supported()..unavailableReason = '測試：尚未登入';
+      await _open(t, helper);
+      await _show(t, _t('緊急聯絡人：目前無法使用'));
+      expect(_t('邀請緊急聯絡人'), findsNothing);
+      expect(_t('加入'), findsNothing);
+      expect(helper.createdInvites, isEmpty);
+      expect(helper.accepted, isEmpty);
+    });
+
+    testWidgets('empty state says there is nobody yet', (t) async {
+      await _open(t, supported());
+      await _show(t, _t('緊急聯絡人'));
+      expect(_tc('按 SOS 時，你邀請的人會在他們的 App 內收到通知'), findsOneWidget);
+      expect(_t('我的緊急聯絡人（0／5）'), findsOneWidget);
+      expect(_t('還沒有緊急聯絡人。'), findsOneWidget);
+      expect(_t('我是誰的緊急聯絡人'), findsOneWidget);
+      expect(_t('目前沒有。'), findsOneWidget);
+      expect(_t('邀請緊急聯絡人'), findsOneWidget);
+    });
+
+    testWidgets('inviting is two-step and nothing is made until confirmed', (
+      t,
+    ) async {
+      final helper = supported();
+      await _open(t, helper);
+      await _tap(t, '邀請緊急聯絡人');
+      await _show(t, field('對方會看到的名字（最多 20 字）'));
+      expect(_tc('24 小時內有效、只能用一次'), findsOneWidget);
+      expect(_tc('你可以隨時移除他'), findsOneWidget);
+      expect(helper.createdInvites, isEmpty);
+
+      // Cancelling goes back to the button and makes nothing.
+      await _tap(t, '取消');
+      expect(_t('邀請緊急聯絡人'), findsOneWidget);
+      expect(helper.createdInvites, isEmpty);
+    });
+
+    testWidgets('an empty name makes no invite; a name is passed trimmed', (
+      t,
+    ) async {
+      final helper = supported();
+      await _open(t, helper);
+      await _tap(t, '邀請緊急聯絡人');
+      await _tap(t, '產生邀請碼');
+      expect(helper.createdInvites, isEmpty);
+      expect(_t('產生邀請碼'), findsOneWidget, reason: 'the form stays open');
+
+      await _show(t, field('對方會看到的名字（最多 20 字）'));
+      await t.enterText(field('對方會看到的名字（最多 20 字）'), '  小明  ');
+      await t.pump();
+      await _tap(t, '產生邀請碼');
+      expect(helper.createdInvites, ['小明']);
+    });
+
+    testWidgets('the code is shown once, spaced, and is not sent by SMS', (
+      t,
+    ) async {
+      final helper = supported()
+        ..invite = SafeWalkContactInvite(
+          code: 'ABCDEFGH',
+          expiresAt: DateTime(2026, 11, 8, 23, 30),
+        );
+      await _open(t, helper);
+      await _show(t, _t('ABCD EFGH'));
+      expect(_tc('前有效，只能用一次'), findsOneWidget);
+      expect(_tc('不會經過簡訊'), findsOneWidget);
+      expect(_tc('只會顯示這一次'), findsOneWidget);
+      // While a code is showing there is no second invite button.
+      expect(_t('邀請緊急聯絡人'), findsNothing);
+    });
+
+    testWidgets('copying puts the plain code on the clipboard', (t) async {
+      final copied = captureClipboard(t);
+      final helper = supported()
+        ..invite = SafeWalkContactInvite(
+          code: 'ABCDEFGH',
+          expiresAt: DateTime(2026, 11, 8, 23, 30),
+        );
+      await _open(t, helper);
+      await _tap(t, '複製邀請碼');
+      expect(copied, ['ABCDEFGH']);
+      expect(_t('已複製'), findsOneWidget);
+      expect(_t('複製邀請碼'), findsNothing);
+    });
+
+    testWidgets('「完成」 clears the code', (t) async {
+      final helper = supported()
+        ..invite = SafeWalkContactInvite(
+          code: 'ABCDEFGH',
+          expiresAt: DateTime(2026, 11, 8, 23, 30),
+        );
+      await _open(t, helper);
+      await _tap(t, '完成');
+      expect(helper.clearedInvites, 1);
+      expect(_t('ABCD EFGH'), findsNothing);
+      expect(_t('邀請緊急聯絡人'), findsOneWidget);
+    });
+
+    testWidgets('contacts are listed by number and can be removed', (t) async {
+      final helper = supported()..myContacts = [link('c-1'), link('c-2')];
+      await _open(t, helper);
+      await _show(t, _t('我的緊急聯絡人（2／5）'));
+      expect(_t('第 1 位・11/8 加入'), findsOneWidget);
+      expect(_t('第 2 位・11/8 加入'), findsOneWidget);
+      await _show(t, _t('移除').first);
+      await t.tap(_t('移除').first);
+      await t.pump();
+      await t.pump(const Duration(milliseconds: 400));
+      expect(helper.removedContacts, ['c-1']);
+      // The list is numbered by position, so the remaining contact is now 1st.
+      expect(_t('第 1 位・11/8 加入'), findsOneWidget);
+      expect(_t('第 2 位・11/8 加入'), findsNothing);
+      expect(_t('我的緊急聯絡人（1／5）'), findsOneWidget);
+    });
+
+    testWidgets('at five contacts there is no invite button', (t) async {
+      final helper = supported()
+        ..myContacts = [for (var i = 1; i <= 5; i++) link('c-$i')];
+      await _open(t, helper);
+      await _show(t, _t('最多 5 位緊急聯絡人。'));
+      expect(_t('我的緊急聯絡人（5／5）'), findsOneWidget);
+      expect(_t('邀請緊急聯絡人'), findsNothing);
+    });
+
+    testWidgets('people you follow are listed and can be left', (t) async {
+      final helper = supported()
+        ..following = [
+          SafeWalkFollowing(id: 'f-1', name: '小明', since: since),
+          SafeWalkFollowing(id: 'f-2', name: '阿美', since: since),
+        ];
+      await _open(t, helper);
+      await _show(t, _t('小明'));
+      expect(_t('阿美'), findsOneWidget);
+      expect(_t('目前沒有。'), findsNothing);
+      await _show(t, _t('不再接收').first);
+      await t.tap(_t('不再接收').first);
+      await t.pump();
+      await t.pump(const Duration(milliseconds: 400));
+      expect(helper.unfollowed, ['f-1']);
+      expect(_t('小明'), findsNothing);
+      expect(_t('阿美'), findsOneWidget);
+    });
+
+    testWidgets('entering a code and tapping 加入 uses it once and clears the '
+        'field', (t) async {
+      final helper = supported();
+      await _open(t, helper);
+      await _show(t, field('輸入對方給你的邀請碼'));
+      await t.enterText(field('輸入對方給你的邀請碼'), 'abcd-efgh');
+      await t.pump();
+      await _tap(t, '加入');
+      expect(helper.accepted, ['abcd-efgh']);
+      expect(
+        t.widget<TextField>(field('輸入對方給你的邀請碼')).controller!.text,
+        isEmpty,
+      );
+      expect(_tc('只有 App 開啟時才收得到（目前沒有推播）'), findsOneWidget);
+      expect(_tc('你沒有義務前往'), findsWidgets);
+    });
+
+    testWidgets('busy shows progress instead of controls', (t) async {
+      final helper = supported()..contactsBusy = true;
+      await _open(t, helper);
+      await _show(t, _t('處理中…'));
+      expect(_t('邀請緊急聯絡人'), findsNothing);
+      expect(_t('加入'), findsNothing);
+      expect(_t('還沒有緊急聯絡人。'), findsNothing);
+    });
+
+    testWidgets('an error is shown as an error, a note as a note', (t) async {
+      final helper = supported()
+        ..contactsMessage = '測試：邀請碼不正確'
+        ..contactsMessageIsError = true;
+      await _open(t, helper);
+      await _show(t, _t('沒有成功'));
+      expect(_tc('測試：邀請碼不正確'), findsOneWidget);
+
+      helper.change(() {
+        helper.contactsMessage = '測試：已移除';
+        helper.contactsMessageIsError = false;
+      });
+      await t.pump();
+      expect(_t('沒有成功'), findsNothing);
+      expect(_t('目前狀態'), findsOneWidget);
+      expect(_tc('測試：已移除'), findsOneWidget);
+    });
+
+    testWidgets('the populated card meets accessibility guidelines', (t) async {
+      final handle = t.ensureSemantics();
+      final helper = supported()
+        ..myContacts = [link('c-1'), link('c-2')]
+        ..following = [SafeWalkFollowing(id: 'f-1', name: '小明', since: since)];
+      await _open(t, helper);
+      await _show(t, _t('我的緊急聯絡人（2／5）'));
+      await expectLater(t, meetsGuideline(androidTapTargetGuideline));
+      await expectLater(t, meetsGuideline(labeledTapTargetGuideline));
+      await expectLater(t, meetsGuideline(textContrastGuideline));
+      handle.dispose();
+    });
+  });
+
+  group('banner for a trusted contact', () {
+    SafeWalkNearbyAlert fromContact(String id, String? name) =>
+        SafeWalkNearbyAlert(
+          alertId: id,
+          location: sw.Coordinates(lat: 25.034, lng: 121.566),
+          createdAt: DateTime.utc(2026, 11, 8, 1, 2, 3),
+          fromContact: true,
+          senderName: name,
+        );
+
+    testWidgets('names the contact and says it came from them', (t) async {
+      final helper = _Helper()..alerts = [fromContact('a1', '小明')];
+      await _open(t, helper);
+      expect(_t('小明 向你求助'), findsOneWidget);
+      expect(_t('附近有人求助'), findsNothing);
+      expect(_tc('25.03400, 121.56600'), findsOneWidget);
+      expect(_tc('這是你的緊急聯絡人發出的求助'), findsOneWidget);
+      expect(_tc('不要獨自涉險'), findsOneWidget);
+      expect(_tc('110／119'), findsWidgets);
+      // It is a contact's own alert, not an unverified stranger's.
+      expect(_tc('未經查證'), findsNothing);
+    });
+
+    testWidgets('a blank name falls back to a generic one', (t) async {
+      for (final name in [null, '', '   ']) {
+        final helper = _Helper()..alerts = [fromContact('a1', name)];
+        await _open(t, helper);
+        expect(_t('你的緊急聯絡人 向你求助'), findsOneWidget, reason: '「$name」');
+      }
+    });
+
+    testWidgets('several alerts say how many', (t) async {
+      final helper = _Helper()
+        ..alerts = [fromContact('a1', '小明'), fromContact('a2', '阿美')];
+      await _open(t, helper);
+      expect(_t('小明 向你求助（共 2 則）'), findsOneWidget);
+    });
+
+    testWidgets('a nearby helper alert is unchanged and stays anonymous', (
+      t,
+    ) async {
+      final helper = _Helper()..alerts = [_alert('a1')];
+      await _open(t, helper);
+      expect(_t('附近有人求助'), findsOneWidget);
+      expect(_tc('未經查證'), findsOneWidget);
+      expect(_tc('向你求助'), findsNothing);
+      expect(_tc('緊急聯絡人發出的求助'), findsNothing);
+    });
+
+    testWidgets('「知道了」 dismisses a contact alert', (t) async {
+      final helper = _Helper()..alerts = [fromContact('a1', '小明')];
+      await _open(t, helper);
+      await t.tap(_t('知道了'));
+      await t.pump();
+      expect(helper.dismissed, ['a1']);
+      expect(_t('小明 向你求助'), findsNothing);
+    });
+
+    testWidgets('nothing claims a report, dispatch, verification or arrival', (
+      t,
+    ) async {
+      final helper = _Helper()..alerts = [fromContact('a1', '小明')];
+      await _open(t, helper);
+      final text = _allText(t);
+      for (final phrase in _forbidden) {
+        expect(text, isNot(contains(phrase)), reason: phrase);
+      }
     });
   });
 }

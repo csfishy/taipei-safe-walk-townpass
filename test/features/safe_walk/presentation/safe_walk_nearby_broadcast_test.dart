@@ -116,6 +116,7 @@ void main() {
     await _tap(t, '通知附近協助者');
     await _show(t, _t('確認通知'));
     expect(_tc('設了守護區'), findsWidgets);
+    expect(_tc('你邀請的緊急聯絡人不論多遠也會收到'), findsOneWidget);
     expect(_tc('不是報警'), findsOneWidget);
     expect(_tc('這支手機的匿名帳號'), findsOneWidget);
     expect(_tc('110／119'), findsWidgets);
@@ -138,7 +139,8 @@ void main() {
     expect(_t('確認通知'), findsNothing);
     calls.pending!.complete(const NearbyBroadcastSent(3));
     await _settle(t);
-    await _show(t, _t('已通知 3 位附近協助者'));
+    await _show(t, _t('已通知 3 位'));
+    expect(_tc('你邀請的緊急聯絡人'), findsOneWidget);
     expect(_tc('不代表有人會趕到'), findsOneWidget);
     expect(calls.count, 1);
     _expectNoOverclaim(t);
@@ -151,8 +153,9 @@ void main() {
     await _tap(t, '確認通知');
     calls.pending!.complete(const NearbyBroadcastSent(0));
     await _settle(t);
-    await _show(t, _t('已送出，但附近沒有人可通知'));
+    await _show(t, _t('已送出，但沒有人可通知'));
     expect(_tc('沒有已加入協助的人'), findsOneWidget);
+    expect(_tc('你也還沒有緊急聯絡人'), findsOneWidget);
     _expectNoOverclaim(t);
   });
 
@@ -218,7 +221,7 @@ void main() {
     // A late answer after leaving must not touch the disposed card.
     calls.pending!.complete(const NearbyBroadcastSent(5));
     await _settle(t);
-    expect(_t('已通知 5 位附近協助者'), findsNothing);
+    expect(_t('已通知 5 位'), findsNothing);
     expect(t.takeException(), isNull);
   });
 

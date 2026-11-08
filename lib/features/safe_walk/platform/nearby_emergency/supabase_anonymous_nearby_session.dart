@@ -55,7 +55,8 @@ final class SharedPreferencesNearbySessionStore implements NearbySessionStore {
 /// [isSignedIn] means "can supply a token": the project is reachable and was
 /// not recently refusing. After a refusal it reports false for [blockFor] so the
 /// UI shows "unavailable" instead of retrying on every tap.
-final class SupabaseAnonymousNearbySession implements NearbySession {
+final class SupabaseAnonymousNearbySession
+    implements NearbySession, NearbyExistingIdentity {
   SupabaseAnonymousNearbySession({
     required this._auth,
     required this._store,
@@ -91,10 +92,28 @@ final class SupabaseAnonymousNearbySession implements NearbySession {
     }
     if (!isSignedIn) return Future.value(null);
     // One request at a time; concurrent callers share its result.
-    return _inFlight ??= _obtain().whenComplete(() => _inFlight = null);
+    return _inFlight ??= _obtain(allowCreate: true)
+        .whenComplete(() => _inFlight = null);
   }
 
-  Future<String?> _obtain() async {
+  /// Brings back the identity this phone already has, for example after a
+  /// restart, so alerts can be received. It never creates one: with nothing
+  /// stored it returns null, and a refresh token the server rejects is only
+  /// cleared. A person who never used the feature still has no account.
+  @override
+  Future<String?> existingAccessToken() async {
+    final session = _session;
+    if (session != null &&
+        session.expiresAt.isAfter(_clock().toUtc().add(refreshMargin))) {
+      return session.accessToken;
+    }
+    if (!isSignedIn) return null;
+    if (_session == null && await _store.read() == null) return null;
+    return _inFlight ??= _obtain(allowCreate: false)
+        .whenComplete(() => _inFlight = null);
+  }
+
+  Future<String?> _obtain({required bool allowCreate}) async {
     try {
       final refreshToken = _session?.refreshToken ?? await _store.read();
       if (refreshToken != null) {
@@ -106,14 +125,18 @@ final class SupabaseAnonymousNearbySession implements NearbySession {
           // network never throws away a good identity.)
           _session = null;
           await _store.clear();
+          if (!allowCreate) return null;
         }
       }
+      if (!allowCreate) return null;
       return await _adopt(await _auth.signUpAnonymously());
     } on SupabaseAuthRejected {
       _blockedUntil = _clock().add(blockFor);
       return null;
     } on Object {
-      _blockedUntil = _clock().add(retryAfterFailure);
+      // A failed background restore (app start) must not penalise the person's
+      // first explicit action, so only a real attempt backs off.
+      if (allowCreate) _blockedUntil = _clock().add(retryAfterFailure);
       return null;
     }
   }

@@ -124,6 +124,10 @@ class SafeWalkHomeView extends StatelessWidget {
                   const SizedBox(height: 6),
                   SafeWalkNearbyHelperCard(helper: nearbyHelper!),
                   const SizedBox(height: 16),
+                  if (nearbyHelper!.contactsSupported) ...[
+                    SafeWalkTrustedContactsCard(helper: nearbyHelper!),
+                    const SizedBox(height: 16),
+                  ],
                 ],
                 Align(
                   alignment: Alignment.centerLeft,

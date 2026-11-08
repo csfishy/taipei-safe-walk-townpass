@@ -178,7 +178,7 @@ class _SafeWalkNearbyBroadcastCardState
     _Step.idle => [_action('通知附近協助者', Icons.cell_tower_rounded, _ask)],
     _Step.confirming => [
       Text(
-        '按下確認後，會取得你目前的精確位置，傳給附近已加入協助的人：500 公尺內的人，以及設了守護區、範圍涵蓋這裡的人。',
+        '按下確認後，會取得你目前的精確位置，傳給附近已加入協助的人：500 公尺內的人，以及設了守護區、範圍涵蓋這裡的人。你邀請的緊急聯絡人不論多遠也會收到。',
         style: SwText.body,
       ),
       const SizedBox(height: 6),
@@ -211,10 +211,10 @@ class _SafeWalkNearbyBroadcastCardState
     _Step.sent => [
       SwStateMessage(
         icon: Icons.check_circle_outline_rounded,
-        title: _recipients == 0 ? '已送出，但附近沒有人可通知' : '已通知 $_recipients 位附近協助者',
+        title: _recipients == 0 ? '已送出，但沒有人可通知' : '已通知 $_recipients 位',
         message: _recipients == 0
-            ? '目前附近沒有已加入協助的人。這不是報警，請撥打 110／119。'
-            : '這只表示通知已送出，不代表有人會趕到，也不是報警。請同時撥打 110／119。',
+            ? '目前附近沒有已加入協助的人，你也還沒有緊急聯絡人。這不是報警，請撥打 110／119。'
+            : '包含附近已加入協助的人，以及你邀請的緊急聯絡人。這只表示通知已送出，不代表有人會趕到，也不是報警。請同時撥打 110／119。',
       ),
     ],
     _Step.failed => [

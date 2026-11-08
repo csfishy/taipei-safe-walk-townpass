@@ -37,6 +37,25 @@ class _Session implements NearbySession {
   }
 }
 
+class _ExistingSession implements NearbySession, NearbyExistingIdentity {
+  String? existing = _token;
+  int existingReads = 0;
+  int tokenReads = 0;
+  @override
+  bool get isSignedIn => true;
+  @override
+  Future<String?> existingAccessToken() async {
+    existingReads++;
+    return existing;
+  }
+
+  @override
+  Future<String?> accessToken() async {
+    tokenReads++;
+    return 'must.not.be.used';
+  }
+}
+
 class _SlowSession implements NearbySession {
   final completer = Completer<String?>();
   @override
@@ -634,6 +653,416 @@ void main() {
         await transport.prepare(),
         AuthenticatedNearbyAlertTransport.signedOutReason,
       );
+    });
+  });
+
+  group('trusted contacts', () {
+    const link = '11111111-2222-4333-8444-555555555555';
+
+    Future<void> expectRefused(Future<Object?> call) =>
+        expectLater(call, throwsA(isA<NearbyAlertException>()));
+
+    test(
+      'createContactInvite sends the trimmed name and parses the code',
+      () async {
+        net.body = jsonEncode([
+          {'code': 'ABCDEFGH', 'expires_at': '2026-11-09T01:02:03+00:00'},
+        ]);
+        final invite = await transport.createContactInvite('  小明  ');
+        final call = net.sent.single;
+        expect(call.url.path, '/rest/v1/rpc/nearby_contact_invite_create');
+        expect(call.headers['authorization'], 'Bearer $_token');
+        expect(call.json, {'p_display_name': '小明'});
+        expect(invite.code, 'ABCDEFGH');
+        expect(invite.expiresAt.toUtc(), DateTime.utc(2026, 11, 9, 1, 2, 3));
+      },
+    );
+
+    test('names are counted in code points, 1 to 20', () async {
+      net.body = jsonEncode([
+        {'code': 'ABCDEFGH', 'expires_at': '2026-11-09T01:02:03+00:00'},
+      ]);
+      await transport.createContactInvite('字' * 20);
+      await transport.createContactInvite('😀' * 20);
+      expect(net.sent, hasLength(2));
+      net.sent.clear();
+      await expectRefused(transport.createContactInvite(''));
+      await expectRefused(transport.createContactInvite('   '));
+      await expectRefused(transport.createContactInvite('字' * 21));
+      await expectRefused(transport.createContactInvite('😀' * 21));
+      expect(net.sent, isEmpty, reason: 'a bad name never reaches the wire');
+    });
+
+    test('a malformed invite answer is rejected, not guessed', () async {
+      for (final body in [
+        'not json',
+        '{}',
+        '[]',
+        '[{"code":1,"expires_at":"x"}]',
+        '[{"code":"ABCDEFGH"}]',
+        '[{"code":"ABCDEFGH","expires_at":"nope"}]',
+      ]) {
+        net.body = body;
+        await expectRefused(transport.createContactInvite('小明'));
+      }
+    });
+
+    test('acceptContactInvite normalizes case, spaces and dashes', () async {
+      net.body = '"ok"';
+      for (final typed in [
+        'abcdefgh',
+        'ABCD EFGH',
+        ' abcd-efgh ',
+        'AbCd - EfGh',
+      ]) {
+        final result = await transport.acceptContactInvite(typed);
+        expect(result, NearbyInviteResult.paired, reason: typed);
+      }
+      expect(net.sent, hasLength(4));
+      for (final call in net.sent) {
+        expect(call.url.path, '/rest/v1/rpc/nearby_contact_invite_accept');
+        expect(call.json, {'p_code': 'ABCDEFGH'});
+        expect(call.headers['authorization'], 'Bearer $_token');
+      }
+    });
+
+    test('a malformed code is invalid and never sent', () async {
+      for (final typed in [
+        '',
+        'ABCDEFG',
+        'ABCDEFGHJ',
+        'ABCDEFGI', // I is not in the alphabet
+        'ABCDEFGL', // L is not either
+        'ABCDEFGO',
+        'ABCDEFG0',
+        'ABCDEFG1',
+        'ABCDEF!H',
+      ]) {
+        expect(
+          await transport.acceptContactInvite(typed),
+          NearbyInviteResult.invalid,
+          reason: typed,
+        );
+      }
+      expect(net.sent, isEmpty, reason: 'it must not use up an attempt');
+      expect(session.tokenReads, 0);
+    });
+
+    test('the server status strings map to the result', () async {
+      const expected = {
+        '"ok"': NearbyInviteResult.paired,
+        '"invalid"': NearbyInviteResult.invalid,
+        '"self"': NearbyInviteResult.self,
+        '"owner_full"': NearbyInviteResult.ownerFull,
+        '"following_full"': NearbyInviteResult.followingFull,
+      };
+      for (final entry in expected.entries) {
+        net.body = entry.key;
+        expect(
+          await transport.acceptContactInvite('ABCDEFGH'),
+          entry.value,
+          reason: entry.key,
+        );
+      }
+    });
+
+    test('an unknown or malformed status is an error, not a pairing', () async {
+      for (final body in [
+        '"weird"',
+        '"OK"',
+        'null',
+        '1',
+        'true',
+        '{}',
+        'not json',
+      ]) {
+        net.body = body;
+        await expectRefused(transport.acceptContactInvite('ABCDEFGH'));
+      }
+    });
+
+    test('listMyContacts parses ids and dates', () async {
+      net.body = jsonEncode([
+        {'link_id': link, 'since': '2026-11-08T01:02:03+00:00'},
+        {
+          'link_id': '99999999-2222-4333-8444-555555555555',
+          'since': '2026-11-08T02:00:00+00:00',
+        },
+      ]);
+      final mine = await transport.listMyContacts();
+      expect(mine.map((c) => c.id), [
+        link,
+        '99999999-2222-4333-8444-555555555555',
+      ]);
+      expect(mine.first.since.toUtc(), DateTime.utc(2026, 11, 8, 1, 2, 3));
+      expect(net.sent.single.url.path, '/rest/v1/rpc/nearby_contact_list_mine');
+      expect(net.sent.single.json, isEmpty);
+    });
+
+    test('listFollowing parses the names the owners chose', () async {
+      net.body = jsonEncode([
+        {
+          'link_id': link,
+          'display_name': '小明',
+          'since': '2026-11-08T01:02:03+00:00',
+        },
+      ]);
+      final following = await transport.listFollowing();
+      expect(following.single.id, link);
+      expect(following.single.name, '小明');
+      expect(net.sent.single.url.path, '/rest/v1/rpc/nearby_contact_following');
+      expect(net.sent.single.json, isEmpty);
+    });
+
+    test('malformed list bodies are rejected', () async {
+      for (final body in [
+        'not json',
+        '{}',
+        '[1]',
+        '[{"link_id":1,"since":"2026-11-08T01:02:03+00:00"}]',
+        '[{"link_id":"$link"}]',
+        '[{"link_id":"$link","since":"nope"}]',
+      ]) {
+        net.body = body;
+        await expectRefused(transport.listMyContacts());
+      }
+      for (final body in [
+        'not json',
+        '{}',
+        '[{"link_id":"$link","since":"2026-11-08T01:02:03+00:00"}]',
+        '[{"link_id":"$link","display_name":1,"since":"2026-11-08T01:02:03+00:00"}]',
+      ]) {
+        net.body = body;
+        await expectRefused(transport.listFollowing());
+      }
+    });
+
+    test('remove and unfollow send only the link id', () async {
+      await transport.removeContact(link);
+      await transport.unfollow(link.toUpperCase());
+      expect(net.sent[0].url.path, '/rest/v1/rpc/nearby_contact_remove');
+      expect(net.sent[0].json, {'p_link_id': link});
+      expect(net.sent[1].url.path, '/rest/v1/rpc/nearby_contact_unfollow');
+      expect(net.sent[1].json, {'p_link_id': link.toUpperCase()});
+      for (final call in net.sent) {
+        expect(call.headers['authorization'], 'Bearer $_token');
+      }
+    });
+
+    test('a link id that is not a UUID is refused without a request', () async {
+      for (final bad in ['', 'x', 'not-a-uuid', '$link; drop', ' $link']) {
+        await expectRefused(transport.removeContact(bad));
+        await expectRefused(transport.unfollow(bad));
+      }
+      expect(net.sent, isEmpty);
+    });
+
+    test(
+      'fetch parses who a contact alert is from, and nothing for a helper',
+      () async {
+        net.body = jsonEncode([
+          {
+            'alert_id': '40000000-0000-4000-8000-000000000001',
+            'lat': 25.0331,
+            'lng': 121.5655,
+            'radius_m': 500,
+            'created_at': '2026-11-08T01:02:03+00:00',
+            'expires_at': '2026-11-08T01:32:03+00:00',
+            'from_contact': true,
+            'sender_name': '小明',
+          },
+          {
+            'alert_id': '40000000-0000-4000-8000-000000000002',
+            'lat': 25.0331,
+            'lng': 121.5655,
+            'radius_m': 500,
+            'created_at': '2026-11-08T01:02:03+00:00',
+            'expires_at': '2026-11-08T01:32:03+00:00',
+            'from_contact': false,
+            'sender_name': null,
+          },
+          {
+            // An older backend row without the new columns at all.
+            'alert_id': '40000000-0000-4000-8000-000000000003',
+            'lat': 25.0331,
+            'lng': 121.5655,
+            'radius_m': 500,
+            'created_at': '2026-11-08T01:02:03+00:00',
+            'expires_at': '2026-11-08T01:32:03+00:00',
+          },
+        ]);
+        final alerts = await transport.fetchPendingAlerts(_callerIdentity);
+        expect(alerts[0].fromContact, isTrue);
+        expect(alerts[0].senderName, '小明');
+        for (final helperAlert in alerts.skip(1)) {
+          expect(helperAlert.fromContact, isFalse);
+          expect(helperAlert.senderName, isNull);
+          expect(helperAlert.senderId, isNull);
+        }
+      },
+    );
+
+    test('404 and 409 become plain messages without token or body', () async {
+      const secretBody = '{"message":"SECRET-DETAIL ABCDEFGH"}';
+      net.body = secretBody;
+      for (final entry in {404: '找不到，或已過期', 409: '已達上限'}.entries) {
+        net.status = entry.key;
+        for (final call in <Future<Object?> Function()>[
+          () => transport.createContactInvite('小明'),
+          () => transport.acceptContactInvite('ABCDEFGH'),
+          () => transport.listMyContacts(),
+          () => transport.removeContact(link),
+          () => transport.listFollowing(),
+          () => transport.unfollow(link),
+        ]) {
+          await expectLater(
+            call(),
+            throwsA(
+              isA<NearbyAlertException>()
+                  .having((e) => e.message, 'message', entry.value)
+                  .having((e) => e.message, 'no token', isNot(contains(_token)))
+                  .having(
+                    (e) => e.message,
+                    'no body',
+                    isNot(contains('SECRET-DETAIL')),
+                  ),
+            ),
+            reason: 'HTTP ${entry.key}',
+          );
+        }
+      }
+    });
+
+    test('signed out: every contact call is refused with no request', () async {
+      session.signedIn = false;
+      await expectRefused(transport.createContactInvite('小明'));
+      await expectRefused(transport.acceptContactInvite('ABCDEFGH'));
+      await expectRefused(transport.listMyContacts());
+      await expectRefused(transport.removeContact(link));
+      await expectRefused(transport.listFollowing());
+      await expectRefused(transport.unfollow(link));
+      expect(net.sent, isEmpty);
+      expect(session.tokenReads, 0);
+    });
+
+    test(
+      'a token that is missing or malformed is never sent for contacts',
+      () async {
+        for (final bad in [null, '', 'not-a-jwt', 'aaa.bbb.ccc\r\nX-Evil: 1']) {
+          session.token = bad;
+          await expectRefused(transport.listFollowing());
+        }
+        expect(net.sent, isEmpty);
+      },
+    );
+
+    test(
+      'the service exposes the contact capability only when the backend has it',
+      () {
+        expect(transport, isA<NearbyTrustedContacts>());
+        final service = NearbyEmergencyService(
+          platform: _Platform(),
+          transport: transport,
+        );
+        expect(service.supportsContacts, isTrue);
+      },
+    );
+  });
+
+  group('restoring an existing identity', () {
+    test(
+      'a session that knows existing identities uses only that path',
+      () async {
+        final existing = _ExistingSession();
+        final restoring = AuthenticatedNearbyAlertTransport(
+          rpc: net.client(),
+          session: existing,
+        );
+        expect(await restoring.restoreExistingIdentity(), isTrue);
+        expect(existing.existingReads, 1);
+        expect(existing.tokenReads, 0, reason: 'accessToken would create one');
+        expect(net.sent, isEmpty);
+      },
+    );
+
+    test(
+      'no existing identity means false, still without creating one',
+      () async {
+        final existing = _ExistingSession()..existing = null;
+        final restoring = AuthenticatedNearbyAlertTransport(
+          rpc: net.client(),
+          session: existing,
+        );
+        expect(await restoring.restoreExistingIdentity(), isFalse);
+        expect(existing.tokenReads, 0);
+      },
+    );
+
+    test('a malformed existing token is not an identity', () async {
+      final existing = _ExistingSession()..existing = 'not-a-jwt';
+      final restoring = AuthenticatedNearbyAlertTransport(
+        rpc: net.client(),
+        session: existing,
+      );
+      expect(await restoring.restoreExistingIdentity(), isFalse);
+      existing.existing = 'aaa.bbb.ccc\r\nX-Evil: 1';
+      expect(await restoring.restoreExistingIdentity(), isFalse);
+    });
+
+    test('a plain session falls back to its access token', () async {
+      expect(await transport.restoreExistingIdentity(), isTrue);
+      expect(session.tokenReads, 1);
+      session.token = null;
+      expect(await transport.restoreExistingIdentity(), isFalse);
+      session.token = 'not-a-jwt';
+      expect(await transport.restoreExistingIdentity(), isFalse);
+      expect(net.sent, isEmpty);
+    });
+
+    test(
+      'the service reports a restored identity, and false on any failure',
+      () async {
+        final service = NearbyEmergencyService(
+          platform: _Platform(),
+          transport: transport,
+        );
+        expect(await service.restoreIdentity(), isTrue);
+        session.token = null;
+        expect(await service.restoreIdentity(), isFalse);
+      },
+    );
+  });
+
+  group('normalizeNearbyInviteCode', () {
+    test('ignores case, spaces and dashes', () {
+      expect(normalizeNearbyInviteCode('abcd-efgh'), 'ABCDEFGH');
+      expect(normalizeNearbyInviteCode(' ab cd  ef-gh '), 'ABCDEFGH');
+      expect(normalizeNearbyInviteCode('PQRS2345'), 'PQRS2345');
+      expect(normalizeNearbyInviteCode('jkmn6789'), 'JKMN6789');
+    });
+
+    test('the alphabet leaves out I, L, O, 0 and 1', () {
+      for (final bad in ['I', 'L', 'O', '0', '1']) {
+        expect(normalizeNearbyInviteCode('ABCDEFG$bad'), isNull, reason: bad);
+        expect(
+          normalizeNearbyInviteCode('ABCDEFG${bad.toLowerCase()}'),
+          isNull,
+        );
+      }
+    });
+
+    test('anything that is not exactly eight characters is not a code', () {
+      for (final bad in [
+        '',
+        '-',
+        'ABCDEFG',
+        'ABCDEFGHJ',
+        'ABCD EFG',
+        'ABCDEFG!',
+        'ＡＢＣＤＥＦＧＨ',
+      ]) {
+        expect(normalizeNearbyInviteCode(bad), isNull, reason: bad);
+      }
     });
   });
 }
