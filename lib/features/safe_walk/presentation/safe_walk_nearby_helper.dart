@@ -66,7 +66,7 @@ final class SafeWalkGuardArea {
 /// M1 implements it; M3 only presents it. Alerts are delivered inside the app
 /// while it is open; there is no push, so nothing arrives when it is closed.
 abstract interface class SafeWalkNearbyHelper implements Listenable {
-  /// Non-null means joining cannot work right now (not signed in, backend not
+  /// Non-null means joining cannot work right now (backend not set up or unreachable, no identity
   /// configured). The card shows it and offers no button.
   String? get unavailableReason;
 

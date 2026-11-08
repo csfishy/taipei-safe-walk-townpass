@@ -383,7 +383,9 @@ void main() {
     await helper.enable();
     transport.reason = '測試：已登出';
     await _until(() => !helper.isOn, reason: 'stopped after sign-out');
-    expect(helper.message, contains('已登出'));
+    expect(helper.message, contains('連線已中斷'));
+    expect(helper.message, isNot(contains('登入')));
+    expect(helper.message, isNot(contains('登出')));
     expect(helper.messageIsError, isTrue);
     final fetches = transport.fetches;
     await _quiet();

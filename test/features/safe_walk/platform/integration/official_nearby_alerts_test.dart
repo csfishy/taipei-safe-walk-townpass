@@ -131,7 +131,10 @@ void main() {
       )!;
 
       final reason = await (transport as NearbyAlertPreparation).prepare();
-      expect(reason, AuthenticatedNearbyAlertTransport.signedOutReason);
+      expect(
+        reason,
+        AuthenticatedNearbyAlertTransport.identityUnavailableReason,
+      );
       // It now reports unavailable instead of retrying on every tap.
       expect(nearbyBackendUnavailableReason(transport), isNotNull);
       await expectLater(

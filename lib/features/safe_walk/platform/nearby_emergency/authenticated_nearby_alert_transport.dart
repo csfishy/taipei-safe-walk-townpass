@@ -65,7 +65,9 @@ final class AuthenticatedNearbyAlertTransport
   /// The backend fixes the alert radius at 500 m.
   static const radiusMeters = 500;
 
-  static const signedOutReason = '附近通知需要先登入，目前無法使用；請使用電話或緊急聯絡人求助';
+  /// Shown when no identity can be had. There is no login in this app: the
+  /// identity is made automatically, so this must never tell anyone to log in.
+  static const identityUnavailableReason = '附近通知目前無法使用（服務尚未開啟，或暫時連不上）；請改用電話求助';
 
   static final _jwtShape = RegExp(
     r'^[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]*$',
@@ -73,7 +75,7 @@ final class AuthenticatedNearbyAlertTransport
 
   @override
   String? get currentUnavailableReason =>
-      _session.isSignedIn ? null : signedOutReason;
+      _session.isSignedIn ? null : identityUnavailableReason;
 
   @override
   Future<String?> prepare() async {
@@ -82,7 +84,7 @@ final class AuthenticatedNearbyAlertTransport
     final token = await _session.accessToken();
     return token != null && _jwtShape.hasMatch(token.trim())
         ? null
-        : signedOutReason;
+        : identityUnavailableReason;
   }
 
   @override
@@ -336,7 +338,7 @@ final class AuthenticatedNearbyAlertTransport
     if (unavailable != null) throw NearbyAlertException(unavailable);
     final token = await _session.accessToken();
     if (token == null || !_jwtShape.hasMatch(token.trim())) {
-      throw const NearbyAlertException(signedOutReason);
+      throw const NearbyAlertException(identityUnavailableReason);
     }
     final SupabaseRpcResponse response;
     try {
@@ -359,7 +361,7 @@ final class AuthenticatedNearbyAlertTransport
   }
 
   static String _messageFor(int status) => switch (status) {
-    401 || 403 => '附近通知需要登入，或沒有使用權限',
+    401 || 403 => '附近通知暫時無法驗證這支手機，請稍後再試',
     404 => '找不到，或已過期',
     409 => '已達上限',
     429 => '操作太頻繁，請稍後再試',
