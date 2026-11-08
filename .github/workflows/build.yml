@@ -279,6 +279,18 @@ jobs:
           test -s taipei-safe-walk-townpass-ios-unsigned.ipa
           test -s taipei-safe-walk-townpass-web.zip
           sha256sum *.apk *.ipa *.zip build-info.json > SHA256SUMS.txt
+      - name: Rolling release — delete oldest prereleases, keep newest 9 before publishing
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ needs.check.outputs.release_tag }}
+        run: |
+          gh release list --limit 1000 --json tagName,isPrerelease,createdAt \
+            --jq "[.[] | select(.isPrerelease and .tagName != \"$RELEASE_TAG\")] | sort_by(.createdAt) | reverse | .[9:] | .[].tagName" |
+          while read -r tag; do
+            echo "Deleting old prerelease $tag"
+            gh release delete "$tag" --yes --cleanup-tag
+          done
       - name: Publish prerelease
         env:
           GH_TOKEN: ${{ github.token }}
