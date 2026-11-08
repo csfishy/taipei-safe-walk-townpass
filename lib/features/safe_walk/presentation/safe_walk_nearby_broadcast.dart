@@ -177,9 +177,12 @@ class _SafeWalkNearbyBroadcastCardState
   List<Widget> _body() => switch (_step) {
     _Step.idle => [_action('通知附近協助者', Icons.cell_tower_rounded, _ask)],
     _Step.confirming => [
-      Text('按下確認後，會取得你目前的精確位置，傳給附近已加入協助的人：500 公尺內的人，以及設了守護區、範圍涵蓋這裡的人。', style: SwText.body),
+      Text(
+        '按下確認後，會取得你目前的精確位置，傳給附近已加入協助的人：500 公尺內的人，以及設了守護區、範圍涵蓋這裡的人。',
+        style: SwText.body,
+      ),
       const SizedBox(height: 6),
-      Text('對方看不到你是誰。這不是報警，也不保證有人會趕到。', style: SwText.body),
+      Text('對方看不到你是誰（只會用這支手機的匿名帳號送出）。這不是報警，也不保證有人會趕到。', style: SwText.body),
       const SizedBox(height: 6),
       Text('請同時撥打 110／119。', style: SwText.bodyStrong),
       const SizedBox(height: 12),

@@ -319,6 +319,7 @@ class _SafeWalkNearbyHelperCardState extends State<SafeWalkNearbyHelperCard> {
   }
 
   static const _consentLines = [
+    '會在伺服器建立一個匿名帳號代表這支手機（不含姓名、電話或任何個人資料）；重新安裝後會是新的帳號。',
     'App 開啟期間，每 4 分鐘左右取得並上傳你的位置，只保存最新一筆。',
     '離開安心行、關閉 App 或停止協助後，位置最多 10 分鐘內自動刪除。',
     '500 公尺內有人按下求助時，會在 App 內通知你；對方看不到你是誰，你也看不到對方是誰。',

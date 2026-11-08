@@ -1,4 +1,5 @@
 import 'package:get/get.dart';
+import 'package:town_pass/features/safe_walk/platform/integration/official_nearby_alerts.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_composition_root.dart';
 import 'package:town_pass/page/account/account_view.dart';
 import 'package:town_pass/page/account/account_view_controller.dart';
@@ -89,6 +90,10 @@ abstract class TPRoute {
         allowEmergencyDialer: true,
         // TownPass's own online and voice reporting service.
         onOpenOfficialReport: () => openUri(uri: 'local://online_police'),
+        // Nearby notification: an anonymous per-phone identity, created only when
+        // the person first joins or sends an SOS. Null (unavailable) when this
+        // build has no Supabase configuration.
+        nearbyAlerts: createOfficialNearbyAlerts(),
       ),
     ),
     GetPage(

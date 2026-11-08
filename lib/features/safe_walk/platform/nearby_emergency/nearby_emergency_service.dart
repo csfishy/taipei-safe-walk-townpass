@@ -44,6 +44,18 @@ final class NearbyEmergencyService {
 
   String? get unavailableReason => nearbyBackendUnavailableReason(_transport);
 
+  /// Null when the backend can be used now. Waits for any identity the
+  /// transport has to set up first (see [NearbyAlertPreparation]).
+  Future<String?> _prepare() async {
+    final reason = unavailableReason;
+    if (reason != null) return reason;
+    final transport = _transport;
+    if (transport is NearbyAlertPreparation) {
+      return (transport as NearbyAlertPreparation).prepare();
+    }
+    return null;
+  }
+
   Future<NearbyEmergencyResult> triggerEmergency({
     required sw.DataMode mode,
     required String senderId,
@@ -68,7 +80,15 @@ final class NearbyEmergencyService {
         '已取消',
       );
     }
-    final backendFailure = unavailableReason;
+    final String? backendFailure;
+    try {
+      backendFailure = await _whileActive(_prepare(), cancellation);
+    } on SafeWalkCancelledException {
+      return const NearbyEmergencyNotSent(
+        NearbyEmergencyBlock.cancelled,
+        '已取消',
+      );
+    }
     if (backendFailure != null) {
       return NearbyEmergencyNotSent(
         NearbyEmergencyBlock.backendUnavailable,
@@ -150,7 +170,7 @@ final class NearbyEmergencyService {
       throw const NearbyAlertException('User action required');
     }
     cancellation?.throwIfCancelled();
-    final backendFailure = unavailableReason;
+    final backendFailure = await _whileActive(_prepare(), cancellation);
     if (backendFailure != null) throw NearbyAlertException(backendFailure);
     sw.Coordinates? location;
     if (enabled) {
