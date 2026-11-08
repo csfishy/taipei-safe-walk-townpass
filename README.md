@@ -15,6 +15,7 @@
 - [專案結構](#專案結構)
 - [架構與模組分工](#架構與模組分工)
 - [技術框架](#技術框架)
+- [近期應用技術](#近期應用技術)
 - [資料、隱私與安全原則](#資料隱私與安全原則)
 - [測試與驗證](#測試與驗證)
 - [CI、預覽版與網站](#ci預覽版與網站)
@@ -194,6 +195,24 @@ Android、iOS 執行前需先安裝對應 SDK、模擬器或準備實機。執�
 
 官方 TownPass 原有的 WebView、通知、掃碼、圖片選取等能力沿用其既有套件，本專案不另外改寫。
 
+## 近期應用技術
+
+以下依 2026-11-08 GitHub `main` 最近五筆 PR 合併整理，核對版本為 [`1e89dfe`](https://github.com/csfishy/taipei-safe-walk-townpass/commit/1e89dfef47bb723f23743ddda571c2b6f9360c4c)。本節記錄合併程式的技術應用；遠端部署、已安裝 App 與實機驗收須分別核對對應版本。
+
+| 功能／PR | 應用技術 | 實際用途 |
+|---|---|---|
+| 設定頁與首頁版面（[#87](https://github.com/csfishy/taipei-safe-walk-townpass/pull/87)） | Flutter Widgets、`TPAppBar`／`TPColors`、`MediaQuery.textScalerOf`、`Expanded`／`SingleChildScrollView` | 以既有 TownPass 元件建立安心行設定頁，集中家的位置與協助者設定；首頁一般字級固定版面，大字級時切換可捲動內容，並處理儲存後與系統返回的頁面狀態 |
+| 地圖回報「已排除」（[#89](https://github.com/csfishy/taipei-safe-walk-townpass/pull/89)） | Supabase RPC、PostgreSQL 交易與 advisory lock、UUID、JSON 回應驗證 | `safe_walk_map_report_resolve` 只處理選定的回報 UUID；App 核對 `reportId`／`removed` 回應後才移除標示並更新避讓。伺服器保存已排除 UUID／時間以阻止舊提交重建，支援冪等重試；失敗保留標示與重試入口 |
+| 日夜判斷與夜間路燈偏好（[#88](https://github.com/csfishy/taipei-safe-walk-townpass/pull/88)） | Dart `dart:math`、NOAA／Meeus 太陽位置演算、開源 Valhalla `pedestrian` costing、OpenStreetMap `lit` 標記 | 依起點經緯度與請求當下時間在本機計算太陽高度，以 −0.833° 為日夜門檻；夜間的最短、15 公尺與 50 公尺避讓請求均帶 `costing_options.pedestrian.use_lit = 1.0`，並在路線警示揭露偏好是否套用 |
+| 犯罪資料來源與授權（[#90](https://github.com/csfishy/taipei-safe-walk-townpass/pull/90)） | Flutter `SwDataSource` 資料來源模型、來源／授權 URL、中繼資料揭露 | 在 App 的來源卡片明列犯罪快照 10 個資源採用[政府資料開放授權條款－第 1 版](https://data.gov.tw/license)；移除當時卡片中缺少完整來源資訊的參考圖資項目。離線定位使用的圖資與開源套件另見[犯罪資料定位流程](#犯罪資料定位流程與開源技術) |
+| 緊急聯絡人配對與通知（[#91](https://github.com/csfishy/taipei-safe-walk-townpass/pull/91)） | Supabase Auth 匿名 session、`auth.uid()`、私有資料表與 RLS、PostgreSQL／`pgcrypto`、受限 RPC、`shared_preferences`、前景輪詢與生命週期控制 | 以隨機 8 碼、24 小時有效的一次性邀請碼建立聯絡人關係，資料庫只存 SHA-256 雜湊；RPC 處理配對、撤銷與嘗試次數限制。SOS 將聯絡人納入不受距離限制的收件人，前景每 10 秒輪詢並顯示 App 內橫幅；啟動時只還原既有身分，聯絡人不必上傳位置 |
+
+上述應用的限制：
+
+- **路燈是路線偏好**：`use_lit` 依 OSM 標記計算，不保證實際照明；白天尚無可驗證的樹蔭資料，顯示未套用。OSRM 備援與據點路線亦揭露未套用。演算法與參數說明見 [NOAA 太陽計算依據](https://gml.noaa.gov/grad/solcalc/calcdetails.html)、[Valhalla 步行參數](https://valhalla.github.io/valhalla/api/route/api-reference/#pedestrian-costing-options)。
+- **通知採 App 內輪詢**：尚未實作 FCM／APNs 背景推播；App 在背景或關閉時不主動通知。匿名 session 與邀請碼配對不等於協助者資格審核；refresh token 目前存在 App 偏好設定，尚非加密安全儲存。截至上述合併版本，聯絡人後端仍待 PostGIS 執行驗證、受審查的前向 migration 與雙裝置驗收，附近通知維持該版本的 BLOCKED 狀態。技術依據見 [#91 安全與驗收紀錄](https://github.com/csfishy/taipei-safe-walk-townpass/pull/91)。
+- **回報排除是社群操作**：以後端確認為準，不表示官方認定事件已解除；失敗、取消與遲到回應不以畫面假成功代替資料確認。回報功能與持久犯罪參考資料分開。
+
 ## 資料、隱私與安全原則
 
 - **位置由使用者主動觸發**：只在使用者明確操作（如開始導航、更新位置）時透過 TownPass 原生定位服務取得；進入頁面不會自動取位置，也不建立第二個 GPS 監聽。
@@ -206,6 +225,18 @@ Android、iOS 執行前需先安裝對應 SDK、模擬器或準備實機。執�
 - **陪伴不是真人**：模擬陪伴不要求麥克風、不錄音，也不冒充真人、警察或已派遣的人員。
 - **敏感資料不進版控**：不提交 secrets、憑證、Token、真實位置紀錄、住家或聯絡人資料；App 不持有 `service_role`、管理金鑰或資料庫密碼。
 - **犯罪參考資料隔離**：北北基犯罪參考資料位於持久 Supabase 資料，與 CI 及 Demo 重設隔離，build 與測試不得 import、seed、更新或刪除它。本機離線備份須放在所有 Git checkout 之外。
+
+### 犯罪資料定位流程與開源技術
+
+犯罪 JSON 的地點文字先經地址正規化，再比對官方參考圖資，最後將門牌平面座標轉成經緯度。這是 App 外的離線資料前處理流程；下載官方資料後，地址比對與座標轉換均在本機完成。
+
+| 階段 | 技術／資料 | 用途 |
+|---|---|---|
+| 讀取與整理 | Python 3.13 標準函式庫（`json`、`csv`、`re`、`unicodedata`、`math` 等）與自行撰寫的比對規則 | 解析 JSON／CSV，統一全半形、臺／台及中文數字，按城市、行政區、道路、段、巷弄與門牌範圍比對 |
+| 地點參考 | [臺北市門牌位置數值資料](https://data.taipei/dataset/detail?id=b7c8e724-1e98-45ee-a0bd-f3840623ed97)、[新北市門牌位置數值資料](https://data.ntpc.gov.tw/datasets/d7b568ab-3819-40c8-a6e7-a6b199443101)、[臺北捷運車站出入口座標](https://data.taipei/dataset/detail?id=cfa4778c-62c1-497b-b704-756231de348b) | 使用政府開放資料離線比對，選取實際公布的門牌／出入口參考點；資料採政府資料開放授權條款第 1 版 |
+| 座標轉換 | Dart 與開源套件 [proj4dart 3.0.0](https://pub.dev/packages/proj4dart/versions/3.0.0)（[MIT 授權](https://pub.dev/packages/proj4dart/versions/3.0.0/license)） | 將 TWD97／TM2 121（EPSG:3826）平面座標轉為 WGS84（EPSG:4326）經緯度；GeoJSON 順序為 `[longitude, latitude]` |
+
+新北門牌欄位 `x_3826`／`y_3826` 明示座標系統；臺北門牌原始檔未明列 CRS，本次依政府地址標準與獨立官方地址交叉核對後推定 EPSG:3826。輸出保留來源、版本／日期、比對方法與精度限制；**參考座標不是精確案發點**，無法可靠比對時保留 `null`，不以行政區中心補值。詳細定位語意與資料保存規則見 [犯罪參考資料文件](docs/SAFE_WALK_CRIME_DATABASE.md#地點與座標語意)。
 
 ## 測試與驗證
 
