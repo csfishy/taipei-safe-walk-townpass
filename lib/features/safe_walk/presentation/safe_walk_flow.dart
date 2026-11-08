@@ -46,6 +46,7 @@ class SafeWalkFlow extends StatefulWidget {
     this.onPlanRoute,
     this.onReportsChanged,
     this.onSaveReport,
+    this.onResolveReport,
     this.onLoadReports,
     this.onStartChanged,
     this.crimeSpots = const [],
@@ -109,6 +110,7 @@ class SafeWalkFlow extends StatefulWidget {
 
   /// Live reports are shown only after the database confirms the write.
   final Future<Anomaly> Function(Anomaly draft)? onSaveReport;
+  final Future<void> Function(String reportId)? onResolveReport;
   final Future<List<Anomaly>> Function()? onLoadReports;
 
   /// 犯罪參考位置與產品設定的 50 公尺避讓緩衝（非案發範圍）。
@@ -174,6 +176,7 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
   bool _reportsLoading = false;
   String? _reportsError;
   final Map<String, Anomaly> _confirmedReports = {};
+  final Set<String> _resolvedReportIds = {};
   String? _lastPlannedReports;
   bool _appActive = true;
 
@@ -257,6 +260,7 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
       _reportsLoading = false;
       _reportsError = null;
       _confirmedReports.clear();
+      _resolvedReportIds.clear();
       _anomalies = widget.mode == sw.DataMode.mock
           ? demoAnomalies()
           : <Anomaly>[];
@@ -331,6 +335,7 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
       return;
     }
     final generation = ++_reportsGeneration;
+    final confirmedAtStart = Map<String, Anomaly>.of(_confirmedReports);
     setState(() {
       _reportsLoading = true;
       _reportsError = null;
@@ -339,8 +344,16 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
       final reports = await load();
       if (!mounted || generation != _reportsGeneration) return;
       setState(() {
+        // This query is authoritative for confirmations that predate it.
+        // Keep only writes confirmed while the query was in flight.
+        for (final entry in confirmedAtStart.entries) {
+          if (identical(_confirmedReports[entry.key], entry.value)) {
+            _confirmedReports.remove(entry.key);
+          }
+        }
         _anomalies = {
-          for (final report in reports) report.id: report,
+          for (final report in reports)
+            if (!_resolvedReportIds.contains(report.id)) report.id: report,
           ..._confirmedReports,
         }.values.toList();
         _reportsLoading = false;
@@ -360,6 +373,9 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
     if (save == null) throw StateError('Report storage unavailable');
     final mode = widget.mode;
     final report = await save(draft);
+    if (_resolvedReportIds.contains(report.id)) {
+      throw StateError('Report already resolved');
+    }
     // Overlay confirmed writes on query results without cancelling the query:
     // it may still contain other persisted reports needed for avoidance.
     if (mounted && widget.mode == mode) {
@@ -375,6 +391,24 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
       }
     }
     return report;
+  }
+
+  Future<void> _resolveReport(String reportId) async {
+    final resolve = widget.onResolveReport;
+    if (resolve == null) throw StateError('Report removal unavailable');
+    final mode = widget.mode;
+    await resolve(reportId);
+    if (!mounted || widget.mode != mode) return;
+    setState(() {
+      _resolvedReportIds.add(reportId);
+      _confirmedReports.remove(reportId);
+      _anomalies.removeWhere((report) => report.id == reportId);
+    });
+    if (_isMapScreen(_screen) && _appActive) {
+      _planRoute();
+    } else {
+      widget.onReportsChanged?.call(_reportSpots);
+    }
   }
 
   String? get _nearestPointName {
@@ -614,6 +648,7 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
       anomalies: _anomalies,
       isLive: widget.mode == sw.DataMode.live,
       onSaveReport: widget.onSaveReport == null ? null : _saveReport,
+      onResolveReport: widget.onResolveReport == null ? null : _resolveReport,
       reportsLoading: _reportsLoading,
       reportsError: _reportsError,
       onRetryReports: () => unawaited(_loadReports()),

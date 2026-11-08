@@ -24,8 +24,13 @@ Future<void> _pump(WidgetTester t, {double textScale = 1}) async {
 
 Future<void> _openSheet(WidgetTester t) async {
   final link = find.text('資料來源與授權');
-  // 首頁清單只建立看得到的項目；字放大時連結在畫面外，先捲過去。
-  await t.scrollUntilVisible(link, 200, scrollable: find.byType(Scrollable).first);
+  // 一般字級的首頁不捲動；大字體清單則先捲到實際入口再點選。
+  final scrollables = find.byType(Scrollable);
+  if (scrollables.evaluate().isNotEmpty) {
+    await t.scrollUntilVisible(link, 200, scrollable: scrollables.first);
+  } else {
+    await t.ensureVisible(link);
+  }
   await t.tap(link);
   await t.pumpAndSettle();
 }

@@ -2,15 +2,23 @@
 
 使用者主動選點並按「標示到地圖」時，App 透過公開 client key 呼叫 `safe_walk_map_report_submit`；資料庫確認後才更新地圖。`safe_walk_map_report_query` 提供重新進入時的持久回報。這些是使用者公開分享、未經核實的地圖標記，不是官方報案、警方受理或犯罪參考來源紀錄。
 
-`01_map_report_api.sql` 是需審查後手動套用的 Level C SQL，不由 App、CI、build、seed 或 Demo reset 執行。獨立 private `safe_walk_reports` schema 啟用 RLS／FORCE、撤銷 client 直接存取，只開放兩個驗證參數、空 search_path、固定輸出欄位的 RPC。它不改動 `crime_reference`、`safe_walk_demo` 或附近求助設定。
+`01_map_report_api.sql` 是需審查後手動套用的 Level C SQL，不由 App、CI、build、seed 或 Demo reset 執行。獨立 private `safe_walk_reports` schema 啟用 RLS／FORCE、撤銷 client 直接存取，只開放新增、查詢與單筆排除三個驗證參數、空 search_path、固定輸出欄位的 RPC。它不改動 `crime_reference`、`safe_walk_demo` 或附近求助設定。
 
 儲存欄位僅回報 UUID、分類、使用者選點、說明及伺服器時間。不記錄 GPS 歷程、使用者身分、聯絡人、電話或官方受理編號。說明與點位會公開供地圖查詢，提交前必須揭露並提醒不要輸入個資。
 
 - UUID 是冪等 request id，不是身分或更新權杖。同一 UUID 與原內容重試只回原紀錄；內容不同回衝突，不覆蓋原資料。未知提交結果可重試原 request id。
-- 僅提供新增與讀取；沒有匿名修改、解除或刪除 RPC，知道公開 UUID 不能編輯他人回報。
+- 依 2026-11-08 使用者明確要求，任何可查看公開回報的 App 使用者都可在該回報詳情右側按「已排除」，透過 `safe_walk_map_report_resolve(p_report_id)` 實體刪除那一筆 `reports` 資料。這是社群排除模式，未宣稱身分驗證、原作者 ownership 或警方確認；沒有匿名修改內容、批次刪除、座標條件刪除或直接讀寫資料表的介面。
 - 分類限定五項；座標需有限且在 WGS84 範圍；說明最長 500 字元。查詢每頁最多 200、offset 最多 5000，選用 bbox 每方向最多 0.5 度。回傳總筆數讓 App 揭露資料截斷。
 - 新增以交易鎖序列化、每分鐘全域最多 60 筆、總容量 100,000 筆；重試既有 UUID 不受新資料限額影響。這是容量／突發保護，不是每人身分驗證或完整防濫用。未核實資料與官方資料保持分離，無靜默清除／到期或 Demo reset。
 - 取消／逾時無法保證已送出的 INSERT 回滾，App 不得宣稱「取消即未儲存」。需保留同一 request id 供相同內容安全重試；讀取重載可核對已提交回報。
+
+## 地圖回報「已排除」
+
+點選黃色三角形後，詳情右側提供「已排除」。App 等待資料庫對該 UUID 的刪除確認後，移除標記、關閉詳情並重新計算回報避讓；等待時禁止重複操作，失敗則保留原標示與重試提示。已被其他人排除的回報可安全重試，重新載入不會再顯示。
+
+既有服務使用手動增量 `04_resolve_map_reports.sql`；新安裝的 `01_map_report_api.sql` 已同步。排除 RPC 只接受一個 UUID，實體刪除對應回報的座標、分類、補充內容與時間。private `resolved_ids` 僅保留 UUID 和排除時間，防止原本延遲的提交重試重新建立已刪回報，不保留回報位置、說明或身分。沒有資料的 UUID 不會新增技術紀錄；每分鐘最多 60 次實際排除、技術紀錄容量 1,000,000 筆是全域容量保護，不是每人防濫用驗證。
+
+`05_verify_resolve_rollback.sql` 只對交易內新建的人工 UUID 驗證單筆實體刪除、保留另一筆、重試／不存在目標、重讀、拒絕舊 UUID 重建及直接表權限；全部 ROLLBACK，不清除既有回報。SQL 套用本身不刪除任何回報。本次是 App 介面與接線變更，按鈕需更新至包含此功能的版本後才能使用。
 
 `02_verify_rollback.sql` 以 anon 角色驗證新增、原 UUID 重試、重新查詢、衝突、分類／NaN／查詢上限與直接表權限，所有人工測試 INSERT 在同一交易 ROLLBACK。套用後另用公開 client key 驗證真實 HTTP RPC、錯誤與 App 操作；SQL 測試不等同裝置驗收。
 
