@@ -1432,6 +1432,10 @@ void main() {
       expect(find.text('地圖載入設定'), findsNothing);
       expect(find.text('路線查詢設定'), findsOneWidget);
       expect(find.text('犯罪資料查詢設定'), findsOneWidget);
+      // 來源卡片預設收合；展開「地圖與步行路網」才看得到限制說明。
+      await t.ensureVisible(find.text('地圖與步行路網'));
+      await t.tap(find.text('地圖與步行路網'));
+      await t.pumpAndSettle();
       expect(find.textContaining('地圖圖磚自動載入，不再詢問'), findsOneWidget);
       expect(platform.calls, 1);
       expect(routes.requests, hasLength(1));
