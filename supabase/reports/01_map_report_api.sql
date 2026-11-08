@@ -58,6 +58,9 @@ LANGUAGE plpgsql
 VOLATILE
 SECURITY DEFINER
 SET search_path = ''
+-- Preserve float8 coordinates through JSON even when the caller uses rounded
+-- output (extra_float_digits=0). The App checks the saved point exactly.
+SET extra_float_digits = 3
 AS $body$
 DECLARE
   v_report safe_walk_reports.reports%ROWTYPE;
@@ -117,6 +120,7 @@ LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
 SET search_path = ''
+SET extra_float_digits = 3
 AS $body$
 DECLARE
   v_bbox boolean;

@@ -171,6 +171,73 @@ void main() {
   });
 
   test(
+    'precise map coordinates survive submit, retry and reload exactly',
+    () async {
+      const latitude = 0.012345678901234567;
+      const longitude = 0.0567890123456789123;
+      final persisted = _record(latitude: latitude, longitude: longitude);
+      final functions = <String>[];
+      final repo = MapReportRepository(
+        transport: (function, args, {cancellation}) async {
+          functions.add(function);
+          if (function == mapReportSubmitRpcFunction) {
+            expect(args['p_latitude'], latitude);
+            expect(args['p_longitude'], longitude);
+            return MapReportHttpResponse(
+              200,
+              jsonEncode({'interfaceVersion': 1, 'report': persisted}),
+            );
+          }
+          return MapReportHttpResponse(
+            200,
+            jsonEncode(_page(records: [persisted])),
+          );
+        },
+      );
+      final first = await _submit(
+        repo,
+        latitude: latitude,
+        longitude: longitude,
+      );
+      final retry = await _submit(
+        repo,
+        latitude: latitude,
+        longitude: longitude,
+      );
+      final reloaded = (await repo.query(mode: _live)).records.single;
+      for (final record in [first, retry, reloaded]) {
+        expect(record.latitude, latitude);
+        expect(record.longitude, longitude);
+        expect(record.id, _id);
+      }
+      expect(functions, [
+        mapReportSubmitRpcFunction,
+        mapReportSubmitRpcFunction,
+        mapReportQueryRpcFunction,
+      ]);
+    },
+  );
+
+  test('a rounded coordinate in HTTP 200 is not a confirmed exact write', () async {
+    const latitude = 0.012345678901234567;
+    const longitude = 0.0567890123456789123;
+    // PostgreSQL extra_float_digits=0 formerly emitted only 15 significant
+    // digits, even though the stored float8 retained the precise chosen point.
+    final roundedLatitude = double.parse(latitude.toStringAsPrecision(15));
+    final roundedLongitude = double.parse(longitude.toStringAsPrecision(15));
+    expect(roundedLatitude, isNot(latitude));
+    expect(roundedLongitude, isNot(longitude));
+    final repo = _repo({
+      'interfaceVersion': 1,
+      'report': _record(latitude: roundedLatitude, longitude: roundedLongitude),
+    });
+    await expectLater(
+      _submit(repo, latitude: latitude, longitude: longitude),
+      _fails(MapReportFailure.invalidResponse),
+    );
+  });
+
+  test(
     'wrong id or persisted field in 200 reply is not a successful write',
     () async {
       for (final record in [

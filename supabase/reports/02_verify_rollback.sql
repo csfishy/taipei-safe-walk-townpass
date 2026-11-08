@@ -3,6 +3,9 @@
 BEGIN;
 SET LOCAL lock_timeout = '5s';
 SET LOCAL statement_timeout = '30s';
+-- Reproduce the API session setting that previously rounded saved coordinates
+-- in a successful HTTP response and caused the App to reject the acknowledgement.
+SET LOCAL extra_float_digits = 0;
 DO $grants$
 DECLARE
   v_role text;
@@ -30,15 +33,26 @@ DECLARE
   v_first jsonb;
   v_retry jsonb;
   v_page jsonb;
+  v_reloaded jsonb;
+  v_lat constant double precision := 0.012345678901234567;
+  v_lng constant double precision := 0.0567890123456789123;
 BEGIN
   v_first := public.safe_walk_map_report_submit(
-    v_id, 'other', 0.01234, 0.05678, '人工驗證資料，交易結束即回滾');
+    v_id, 'other', v_lat, v_lng, '人工驗證資料，交易結束即回滾');
   v_retry := public.safe_walk_map_report_submit(
-    v_id, 'other', 0.01234, 0.05678, '人工驗證資料，交易結束即回滾');
+    v_id, 'other', v_lat, v_lng, '人工驗證資料，交易結束即回滾');
+  -- PostgREST serializes the jsonb after the function restores caller settings.
+  v_first := (v_first::text)::jsonb;
+  v_retry := (v_retry::text)::jsonb;
   IF v_first <> v_retry OR (v_first->'report'->>'id')::uuid <> v_id THEN
     RAISE EXCEPTION 'idempotent acknowledgement failed';
   END IF;
-  v_page := public.safe_walk_map_report_query(0.01234, 0.05678, 0.01234, 0.05678, 200, 0);
+  IF (v_first->'report'->>'latitude')::double precision IS DISTINCT FROM v_lat
+     OR (v_first->'report'->>'longitude')::double precision IS DISTINCT FROM v_lng THEN
+    RAISE EXCEPTION 'submitted coordinates lost precision in acknowledgement';
+  END IF;
+  v_page := public.safe_walk_map_report_query(v_lat, v_lng, v_lat, v_lng, 200, 0);
+  v_page := (v_page::text)::jsonb;
   IF NOT EXISTS (SELECT 1 FROM jsonb_array_elements(v_page->'records') r
                  WHERE (r->>'id')::uuid = v_id) THEN
     RAISE EXCEPTION 'submitted report missing from reload';
@@ -47,13 +61,22 @@ BEGIN
        WHERE (r->>'id')::uuid = v_id) <> 1 THEN
     RAISE EXCEPTION 'retry duplicated the report';
   END IF;
+  SELECT r INTO v_reloaded FROM jsonb_array_elements(v_page->'records') r
+    WHERE (r->>'id')::uuid = v_id;
+  IF (v_reloaded->>'latitude')::double precision IS DISTINCT FROM v_lat
+     OR (v_reloaded->>'longitude')::double precision IS DISTINCT FROM v_lng THEN
+    RAISE EXCEPTION 'reloaded coordinates lost precision';
+  END IF;
+  IF current_setting('extra_float_digits') <> '0' THEN
+    RAISE EXCEPTION 'RPC precision setting leaked into caller session';
+  END IF;
   BEGIN
     PERFORM 1 FROM safe_walk_reports.reports LIMIT 1;
     RAISE EXCEPTION 'anon direct table access accepted';
   EXCEPTION WHEN insufficient_privilege THEN NULL;
   END;
   BEGIN
-    PERFORM public.safe_walk_map_report_submit(v_id, 'fight', 0.01234, 0.05678, 'changed');
+    PERFORM public.safe_walk_map_report_submit(v_id, 'fight', v_lat, v_lng, 'changed');
     RAISE EXCEPTION 'changed retry must fail';
   EXCEPTION WHEN unique_violation THEN NULL;
   END;
