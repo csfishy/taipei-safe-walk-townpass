@@ -289,7 +289,7 @@ jobs:
             --jq "[.[] | select(.isPrerelease and .tagName != \"$RELEASE_TAG\")] | sort_by(.createdAt) | reverse | .[47:] | .[].tagName" |
           while read -r tag; do
             echo "Deleting old prerelease $tag"
-            gh release delete "$tag" --yes --cleanup-tag
+            gh release delete "$tag" --yes --cleanup-tag || echo "::warning::Could not delete $tag (already gone?)"
           done
       - name: Publish prerelease
         env:
