@@ -56,7 +56,7 @@ create table if not exists safe_walk_nearby.alert_deliveries (
   alert_id uuid not null
     references safe_walk_nearby.alerts (id) on delete cascade,
   recipient_id uuid not null
-    references safe_walk_nearby.helper_profiles (user_id) on delete cascade,
+    references auth.users (id) on delete cascade,
   delivered_at timestamptz not null default now(),
   seen_at timestamptz,
   primary key (alert_id, recipient_id)
@@ -81,11 +81,51 @@ create index if not exists helper_areas_center_idx
 create index if not exists helper_areas_user_idx
   on safe_walk_nearby.helper_areas (user_id);
 
+-- Trusted contacts: people a person has paired with an invite code. When that
+-- person sends an SOS, their contacts are notified in the app whatever the
+-- distance, and see the name the person chose. The code is only ever stored as a
+-- hash. Neither side learns the other's identity beyond that name.
+create table if not exists safe_walk_nearby.contact_invites (
+  code_hash text primary key,
+  owner_id uuid not null references auth.users (id) on delete cascade,
+  display_name text not null check (char_length(display_name) between 1 and 20),
+  created_at timestamptz not null default now(),
+  expires_at timestamptz not null
+);
+create index if not exists contact_invites_owner_idx
+  on safe_walk_nearby.contact_invites (owner_id);
+
+create table if not exists safe_walk_nearby.trusted_contacts (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null references auth.users (id) on delete cascade,
+  contact_id uuid not null references auth.users (id) on delete cascade,
+  display_name text not null check (char_length(display_name) between 1 and 20),
+  created_at timestamptz not null default now(),
+  unique (owner_id, contact_id),
+  check (owner_id <> contact_id)
+);
+create index if not exists trusted_contacts_owner_idx
+  on safe_walk_nearby.trusted_contacts (owner_id);
+create index if not exists trusted_contacts_contact_idx
+  on safe_walk_nearby.trusted_contacts (contact_id);
+
+-- Every attempt to use a code, so guessing can be throttled. (A failed attempt
+-- must not raise: the exception would roll the record back.)
+create table if not exists safe_walk_nearby.contact_invite_attempts (
+  user_id uuid not null references auth.users (id) on delete cascade,
+  attempted_at timestamptz not null default now()
+);
+create index if not exists contact_invite_attempts_idx
+  on safe_walk_nearby.contact_invite_attempts (user_id, attempted_at);
+
 alter table safe_walk_nearby.helper_profiles enable row level security;
 alter table safe_walk_nearby.helper_locations enable row level security;
 alter table safe_walk_nearby.alerts enable row level security;
 alter table safe_walk_nearby.alert_deliveries enable row level security;
 alter table safe_walk_nearby.helper_areas enable row level security;
+alter table safe_walk_nearby.contact_invites enable row level security;
+alter table safe_walk_nearby.trusted_contacts enable row level security;
+alter table safe_walk_nearby.contact_invite_attempts enable row level security;
 -- Deliberately no policies: deny by default. Only the SECURITY DEFINER
 -- functions below (owned by the migration owner) touch these tables.
 
@@ -313,14 +353,25 @@ begin
     limit 50
   ) as nearest;
 
-  get diagnostics v_count = row_count;
+  -- The sender's trusted contacts, whatever the distance. They do not count
+  -- against the 50 helper limit (a person has at most 5 contacts).
+  insert into safe_walk_nearby.alert_deliveries (alert_id, recipient_id)
+  select v_alert_id, tc.contact_id
+  from safe_walk_nearby.trusted_contacts tc
+  where tc.owner_id = v_uid
+  on conflict (alert_id, recipient_id) do nothing;
+
+  select count(*)::integer into v_count
+    from safe_walk_nearby.alert_deliveries where alert_id = v_alert_id;
   return v_count;
 end;
 $$;
 
--- Alerts addressed to the caller that are still valid. The sender's identity is
--- never returned. Calls may repeat results; clients de-duplicate by alert_id so
--- a crash after fetching cannot lose an SOS.
+-- Alerts addressed to the caller that are still valid, for an active helper or a
+-- trusted contact. A helper never learns who sent one. A trusted contact sees the
+-- name the sender chose for them (from_contact, sender_name). Calls may repeat
+-- results; clients de-duplicate by alert_id so a crash after fetching cannot lose
+-- an SOS.
 create or replace function public.nearby_helper_fetch_alerts()
 returns table (
   alert_id uuid,
@@ -328,7 +379,9 @@ returns table (
   lng double precision,
   radius_m integer,
   created_at timestamptz,
-  expires_at timestamptz
+  expires_at timestamptz,
+  from_contact boolean,
+  sender_name text
 )
 language plpgsql
 security definer
@@ -342,9 +395,13 @@ begin
     raise exception 'not_authenticated' using errcode = '28000';
   end if;
   if not exists (
-    select 1 from safe_walk_nearby.helper_profiles
-    where user_id = v_uid and revoked_at is null
-  ) then
+       select 1 from safe_walk_nearby.helper_profiles
+       where user_id = v_uid and revoked_at is null
+     )
+     and not exists (
+       select 1 from safe_walk_nearby.trusted_contacts
+       where contact_id = v_uid
+     ) then
     raise exception 'not_a_helper' using errcode = '42501';
   end if;
   return query
@@ -355,13 +412,17 @@ begin
       where d.alert_id = a.id
         and d.recipient_id = v_uid
         and a.expires_at > now()
-      returning a.id, a.geog, a.radius_m, a.created_at, a.expires_at
+      returning a.id, a.geog, a.radius_m, a.created_at, a.expires_at, a.sender_id
   )
   select t.id,
          extensions.st_y(t.geog::extensions.geometry),
          extensions.st_x(t.geog::extensions.geometry),
-         t.radius_m, t.created_at, t.expires_at
+         t.radius_m, t.created_at, t.expires_at,
+         tc.id is not null,
+         tc.display_name
   from touched t
+  left join safe_walk_nearby.trusted_contacts tc
+    on tc.owner_id = t.sender_id and tc.contact_id = v_uid
   order by t.created_at desc;
 end;
 $$;
@@ -461,6 +522,203 @@ begin
 end;
 $$;
 
+-- Creates a one-time invite code (24 h) for pairing a trusted contact. The code
+-- is returned once and stored only as a hash. [p_display_name] is how this
+-- person will appear to the contact.
+create or replace function public.nearby_contact_invite_create(p_display_name text)
+returns table (code text, expires_at timestamptz)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_uid uuid := auth.uid();
+  v_name text;
+  v_code text := '';
+  v_expires timestamptz := now() + interval '24 hours';
+  v_last timestamptz;
+  i integer;
+begin
+  if v_uid is null then
+    raise exception 'not_authenticated' using errcode = '28000';
+  end if;
+  v_name := btrim(coalesce(p_display_name, ''));
+  if char_length(v_name) not between 1 and 20 then
+    raise exception 'invalid_input' using errcode = '22023';
+  end if;
+  delete from safe_walk_nearby.contact_invites ci
+    where ci.owner_id = v_uid and ci.expires_at <= now();
+  select max(ci.created_at) into v_last
+    from safe_walk_nearby.contact_invites ci where ci.owner_id = v_uid;
+  if v_last is not null and v_last > now() - interval '5 seconds' then
+    raise exception 'rate_limited' using errcode = 'PT429';
+  end if;
+  if (select count(*) from safe_walk_nearby.contact_invites ci
+        where ci.owner_id = v_uid) >= 3 then
+    raise exception 'too_many_invites' using errcode = 'PT429';
+  end if;
+  if (select count(*) from safe_walk_nearby.trusted_contacts tc
+        where tc.owner_id = v_uid) >= 5 then
+    raise exception 'contact_limit' using errcode = 'PT409';
+  end if;
+  -- 8 characters from 31 unambiguous ones (no I, L, O, 0, 1).
+  for i in 1..8 loop
+    v_code := v_code || substr(
+      'ABCDEFGHJKMNPQRSTUVWXYZ23456789',
+      (get_byte(extensions.gen_random_bytes(1), 0) % 31) + 1, 1);
+  end loop;
+  insert into safe_walk_nearby.contact_invites
+    (code_hash, owner_id, display_name, expires_at)
+  values (encode(extensions.digest(v_code, 'sha256'), 'hex'),
+          v_uid, v_name, v_expires);
+  return query select v_code, v_expires;
+end;
+$$;
+
+-- Uses a code to become someone's trusted contact. Returns a status instead of
+-- raising on a bad code, so every attempt stays recorded and guessing is
+-- throttled (10 attempts an hour): 'ok', 'invalid' (wrong, expired or already
+-- used), 'self', 'owner_full' (they already have 5 contacts) or 'following_full'
+-- (this person already follows 20).
+create or replace function public.nearby_contact_invite_accept(p_code text)
+returns text
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_uid uuid := auth.uid();
+  v_code text;
+  v_hash text;
+  v_invite record;
+  v_paired boolean;
+begin
+  if v_uid is null then
+    raise exception 'not_authenticated' using errcode = '28000';
+  end if;
+  if (select count(*) from safe_walk_nearby.contact_invite_attempts a
+        where a.user_id = v_uid
+          and a.attempted_at > now() - interval '1 hour') >= 10 then
+    raise exception 'rate_limited' using errcode = 'PT429';
+  end if;
+  insert into safe_walk_nearby.contact_invite_attempts (user_id) values (v_uid);
+
+  v_code := upper(regexp_replace(coalesce(p_code, ''), '[\s-]', '', 'g'));
+  if v_code !~ '^[A-HJKMNP-Z2-9]{8}$' then
+    return 'invalid';
+  end if;
+  v_hash := encode(extensions.digest(v_code, 'sha256'), 'hex');
+  select * into v_invite from safe_walk_nearby.contact_invites ci
+    where ci.code_hash = v_hash and ci.expires_at > now();
+  if not found then
+    return 'invalid';
+  end if;
+  if v_invite.owner_id = v_uid then
+    return 'self';
+  end if;
+  v_paired := exists (
+    select 1 from safe_walk_nearby.trusted_contacts tc
+    where tc.owner_id = v_invite.owner_id and tc.contact_id = v_uid);
+  if not v_paired
+     and (select count(*) from safe_walk_nearby.trusted_contacts tc
+            where tc.owner_id = v_invite.owner_id) >= 5 then
+    return 'owner_full';
+  end if;
+  if not v_paired
+     and (select count(*) from safe_walk_nearby.trusted_contacts tc
+            where tc.contact_id = v_uid) >= 20 then
+    return 'following_full';
+  end if;
+  insert into safe_walk_nearby.trusted_contacts (owner_id, contact_id, display_name)
+  values (v_invite.owner_id, v_uid, v_invite.display_name)
+  on conflict (owner_id, contact_id) do update
+    set display_name = excluded.display_name;
+  delete from safe_walk_nearby.contact_invites ci where ci.code_hash = v_hash;
+  return 'ok';
+end;
+$$;
+
+-- The caller's own trusted contacts: only link ids and dates, never who they are.
+create or replace function public.nearby_contact_list_mine()
+returns table (link_id uuid, since timestamptz)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_uid uuid := auth.uid();
+begin
+  if v_uid is null then
+    raise exception 'not_authenticated' using errcode = '28000';
+  end if;
+  return query
+  select tc.id, tc.created_at
+  from safe_walk_nearby.trusted_contacts tc
+  where tc.owner_id = v_uid
+  order by tc.created_at, tc.id;
+end;
+$$;
+
+-- Removes one of the caller's own contacts. Someone else's link is untouched.
+create or replace function public.nearby_contact_remove(p_link_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_uid uuid := auth.uid();
+begin
+  if v_uid is null then
+    raise exception 'not_authenticated' using errcode = '28000';
+  end if;
+  delete from safe_walk_nearby.trusted_contacts tc
+    where tc.id = p_link_id and tc.owner_id = v_uid;
+end;
+$$;
+
+-- The people the caller is a trusted contact of, by the name they chose.
+create or replace function public.nearby_contact_following()
+returns table (link_id uuid, display_name text, since timestamptz)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_uid uuid := auth.uid();
+begin
+  if v_uid is null then
+    raise exception 'not_authenticated' using errcode = '28000';
+  end if;
+  return query
+  select tc.id, tc.display_name, tc.created_at
+  from safe_walk_nearby.trusted_contacts tc
+  where tc.contact_id = v_uid
+  order by tc.created_at, tc.id;
+end;
+$$;
+
+-- The caller stops being someone's trusted contact.
+create or replace function public.nearby_contact_unfollow(p_link_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_uid uuid := auth.uid();
+begin
+  if v_uid is null then
+    raise exception 'not_authenticated' using errcode = '28000';
+  end if;
+  delete from safe_walk_nearby.trusted_contacts tc
+    where tc.id = p_link_id and tc.contact_id = v_uid;
+end;
+$$;
+
 -- Hygiene only: every read already filters on expiry. Not exposed to API roles;
 -- schedule it manually (for example with pg_cron) after review.
 create or replace function safe_walk_nearby.purge_expired()
@@ -471,6 +729,9 @@ set search_path = ''
 as $$
   delete from safe_walk_nearby.helper_locations where expires_at <= now();
   delete from safe_walk_nearby.alerts where expires_at <= now() - interval '1 hour';
+  delete from safe_walk_nearby.contact_invites where expires_at <= now();
+  delete from safe_walk_nearby.contact_invite_attempts
+    where attempted_at <= now() - interval '1 day';
 $$;
 
 -- ---------------------------------------------------------------- grants
@@ -488,6 +749,12 @@ begin
     'public.nearby_helper_fetch_alerts()'::regprocedure,
     'public.nearby_helper_set_areas(jsonb)'::regprocedure,
     'public.nearby_helper_get_areas()'::regprocedure,
+    'public.nearby_contact_invite_create(text)'::regprocedure,
+    'public.nearby_contact_invite_accept(text)'::regprocedure,
+    'public.nearby_contact_list_mine()'::regprocedure,
+    'public.nearby_contact_remove(uuid)'::regprocedure,
+    'public.nearby_contact_following()'::regprocedure,
+    'public.nearby_contact_unfollow(uuid)'::regprocedure,
     'safe_walk_nearby.purge_expired()'::regprocedure
   ] loop
     execute format('revoke all on function %s from public', fn);
@@ -510,6 +777,12 @@ begin
     grant execute on function public.nearby_helper_fetch_alerts() to authenticated;
     grant execute on function public.nearby_helper_set_areas(jsonb) to authenticated;
     grant execute on function public.nearby_helper_get_areas() to authenticated;
+    grant execute on function public.nearby_contact_invite_create(text) to authenticated;
+    grant execute on function public.nearby_contact_invite_accept(text) to authenticated;
+    grant execute on function public.nearby_contact_list_mine() to authenticated;
+    grant execute on function public.nearby_contact_remove(uuid) to authenticated;
+    grant execute on function public.nearby_contact_following() to authenticated;
+    grant execute on function public.nearby_contact_unfollow(uuid) to authenticated;
   end if;
 end
 $grants$;

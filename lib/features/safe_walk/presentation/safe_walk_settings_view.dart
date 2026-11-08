@@ -68,6 +68,15 @@ class SafeWalkSettingsView extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             SafeWalkNearbyHelperCard(helper: nearbyHelper!),
+            if (nearbyHelper!.contactsSupported) ...[
+              const SizedBox(height: 24),
+              Semantics(
+                header: true,
+                child: Text('緊急聯絡人', style: SwText.bodyStrong),
+              ),
+              const SizedBox(height: 12),
+              SafeWalkTrustedContactsCard(helper: nearbyHelper!),
+            ],
           ],
           if (!hasHome && !hasHelper)
             Text('目前沒有可調整的設定。', style: SwText.secondary),

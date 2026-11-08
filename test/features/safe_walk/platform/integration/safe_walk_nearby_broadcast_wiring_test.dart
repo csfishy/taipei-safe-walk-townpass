@@ -67,7 +67,12 @@ class _Platform implements PlatformService {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
-class _Transport implements NearbyAlertTransport, NearbyHelperAreas {
+class _Transport
+    implements
+        NearbyAlertTransport,
+        NearbyHelperAreas,
+        NearbyTrustedContacts,
+        NearbyIdentityRestore {
   final sent = <({sw.Coordinates location, int radius})>[];
   final optIns = <bool>[];
   List<NearbyAlert> alerts = [];
@@ -75,6 +80,75 @@ class _Transport implements NearbyAlertTransport, NearbyHelperAreas {
   int recipients = 2;
   List<NearbyGuardArea> areas = [];
   final replaced = <List<NearbyGuardArea>>[];
+
+  // Trusted contacts. Off by default so the older tests are unchanged: nothing
+  // is restored and no contact data exists.
+  bool canRestore = false;
+  int restores = 0;
+  int listCalls = 0;
+  List<NearbyContactLink> mine = [];
+  List<NearbyFollowing> follows = [];
+  final created = <String>[];
+  final accepted = <String>[];
+  final removed = <String>[];
+  final unfollowed = <String>[];
+  NearbyInviteResult acceptResult = NearbyInviteResult.paired;
+  NearbyFollowing? followAfterAccept;
+
+  @override
+  Future<bool> restoreExistingIdentity() async {
+    restores++;
+    return canRestore;
+  }
+
+  @override
+  Future<NearbyContactInvite> createContactInvite(String displayName) async {
+    created.add(displayName);
+    return NearbyContactInvite(
+      code: 'ABCDEFGH',
+      expiresAt: DateTime.utc(2026, 11, 9, 12),
+    );
+  }
+
+  @override
+  Future<NearbyInviteResult> acceptContactInvite(String code) async {
+    accepted.add(code);
+    final added = followAfterAccept;
+    if (acceptResult == NearbyInviteResult.paired && added != null) {
+      follows = [...follows, added];
+    }
+    return acceptResult;
+  }
+
+  @override
+  Future<List<NearbyContactLink>> listMyContacts() async {
+    listCalls++;
+    return mine;
+  }
+
+  @override
+  Future<void> removeContact(String linkId) async {
+    removed.add(linkId);
+    mine = [
+      for (final c in mine)
+        if (c.id != linkId) c,
+    ];
+  }
+
+  @override
+  Future<List<NearbyFollowing>> listFollowing() async {
+    listCalls++;
+    return follows;
+  }
+
+  @override
+  Future<void> unfollow(String linkId) async {
+    unfollowed.add(linkId);
+    follows = [
+      for (final f in follows)
+        if (f.id != linkId) f,
+    ];
+  }
 
   @override
   Future<List<NearbyGuardArea>> fetchGuardAreas() async => areas;
@@ -111,6 +185,31 @@ class _Transport implements NearbyAlertTransport, NearbyHelperAreas {
   }
 }
 
+/// A backend with no trusted-contact support (like the older transports).
+class _PlainTransport implements NearbyAlertTransport {
+  int fetches = 0;
+
+  @override
+  Future<int> sendEmergencyAlert({
+    required String senderId,
+    required sw.Coordinates location,
+    required int radiusMeters,
+  }) async => 0;
+
+  @override
+  Future<void> setHelperOptIn({
+    required String helperId,
+    required bool enabled,
+    sw.Coordinates? location,
+  }) async {}
+
+  @override
+  Future<List<NearbyAlert>> fetchPendingAlerts(String helperId) async {
+    fetches++;
+    return const [];
+  }
+}
+
 Future<void> _pump(
   WidgetTester t, {
   required bool live,
@@ -139,6 +238,27 @@ Future<void> _pump(
   if (!openEmergency) return;
   await t.tap(find.text('緊急求助').first);
   await t.pumpAndSettle();
+}
+
+/// The real order when the app is sent away and brought back.
+void _leaveApp(WidgetTester t) {
+  for (final state in const [
+    AppLifecycleState.inactive,
+    AppLifecycleState.hidden,
+    AppLifecycleState.paused,
+  ]) {
+    t.binding.handleAppLifecycleStateChanged(state);
+  }
+}
+
+void _returnToApp(WidgetTester t) {
+  for (final state in const [
+    AppLifecycleState.hidden,
+    AppLifecycleState.inactive,
+    AppLifecycleState.resumed,
+  ]) {
+    t.binding.handleAppLifecycleStateChanged(state);
+  }
 }
 
 Future<void> _show(WidgetTester t, Finder f) async {
@@ -206,7 +326,7 @@ void main() {
     expect(transport.sent.single.radius, 500);
     expect(transport.sent.single.location.lat, _here.lat);
     expect(speaker.emergencyStops, greaterThan(0));
-    await _show(t, find.text('已通知 2 位附近協助者'));
+    await _show(t, find.text('已通知 2 位'));
     expect(find.textContaining('不代表有人會趕到'), findsOneWidget);
     await t.pumpWidget(const SizedBox.shrink());
   });
@@ -311,19 +431,19 @@ void main() {
           nearby: transport,
           openEmergency: false,
         );
-      await _openSettings(t);
+        await _openSettings(t);
         await join(t);
         await t.pump(const Duration(seconds: 11));
         final fetches = transport.fetches;
         expect(fetches, greaterThan(0));
 
-        t.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+        _leaveApp(t);
         await t.pump();
         await t.pump(const Duration(seconds: 60));
         expect(transport.fetches, fetches);
         expect(platform.locations, 1);
 
-        t.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+        _returnToApp(t);
         await t.pump();
         await t.pump(const Duration(seconds: 11));
         expect(platform.locations, 2);
@@ -386,6 +506,292 @@ void main() {
       expect(transport.replaced.last, isEmpty);
       expect(find.text('還沒有守護區。', skipOffstage: false), findsOneWidget);
       await t.pumpWidget(const SizedBox.shrink());
+    });
+  });
+
+  group('trusted contacts in the official wiring', () {
+    NearbyFollowing xiaoMing() => NearbyFollowing(
+      id: '10000000-0000-4000-8000-000000000001',
+      name: '小明',
+      since: DateTime.utc(2026, 11, 8),
+    );
+
+    NearbyAlert contactAlert(String id) => NearbyAlert(
+      alertId: id,
+      location: sw.Coordinates(lat: 25.034, lng: 121.566),
+      radiusMeters: 500,
+      createdAt: DateTime.utc(2026, 11, 8, 1, 2, 3),
+      fromContact: true,
+      senderName: '小明',
+    );
+
+    // A focused text field keeps its cursor blinking, which would stop
+    // pumpAndSettle from ever settling.
+    void steadyCursor() {
+      EditableText.debugDeterministicCursor = true;
+      addTearDown(() => EditableText.debugDeterministicCursor = false);
+    }
+
+    testWidgets('on the settings page the contacts card sits below the helper '
+        'card when the backend can pair contacts', (t) async {
+      await _pump(
+        t,
+        live: true,
+        platform: _Platform(),
+        nearby: _Transport(),
+        openEmergency: false,
+      );
+      // Cards live on the settings page (the gear on the home page).
+      await _openSettings(t);
+      await _show(t, find.text('緊急聯絡人').first);
+      final helperTop = t.getTopLeft(
+        find.text('附近協助者', skipOffstage: false).first,
+      );
+      final contactsTop = t.getTopLeft(find.text('緊急聯絡人').first);
+      expect(contactsTop.dy, greaterThan(helperTop.dy));
+      expect(find.text('邀請緊急聯絡人', skipOffstage: false), findsOneWidget);
+      await t.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets('a backend without contact support shows no contacts card', (
+      t,
+    ) async {
+      await _pump(
+        t,
+        live: true,
+        platform: _Platform(),
+        nearby: _PlainTransport(),
+        openEmergency: false,
+      );
+      await _openSettings(t);
+      await _show(t, find.text('加入附近協助者'));
+      expect(find.text('緊急聯絡人', skipOffstage: false), findsNothing);
+      expect(find.text('邀請緊急聯絡人', skipOffstage: false), findsNothing);
+      await t.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets('start-up restores an existing identity and nothing more', (
+      t,
+    ) async {
+      final platform = _Platform();
+      final transport = _Transport()..canRestore = true;
+      await _pump(
+        t,
+        live: true,
+        platform: platform,
+        nearby: transport,
+        openEmergency: false,
+      );
+      expect(transport.restores, 1);
+      // Only the two list calls followed. No position, no helper opt-in, no
+      // invite, no polling for someone nobody paired with.
+      expect(transport.listCalls, 2);
+      expect(platform.locations, 0);
+      await t.pump(const Duration(seconds: 60));
+      expect(transport.fetches, 0);
+      expect(transport.optIns, isEmpty);
+      expect(transport.created, isEmpty);
+      expect(transport.accepted, isEmpty);
+      expect(transport.sent, isEmpty);
+      await t.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets('someone who follows a person hears their alert as a banner', (
+      t,
+    ) async {
+      final platform = _Platform();
+      final transport = _Transport()
+        ..canRestore = true
+        ..follows = [xiaoMing()]
+        ..alerts = [contactAlert('c1')];
+      await _pump(
+        t,
+        live: true,
+        platform: platform,
+        nearby: transport,
+        openEmergency: false,
+      );
+      expect(transport.restores, 1);
+      expect(platform.locations, 0, reason: 'a contact shares no position');
+
+      await t.pump(const Duration(seconds: 11));
+      await t.pump();
+      expect(transport.fetches, greaterThan(0));
+      expect(find.text('小明 向你求助'), findsOneWidget);
+      expect(find.text('知道了'), findsOneWidget);
+      expect(find.textContaining('緊急聯絡人發出的求助'), findsOneWidget);
+      expect(find.textContaining('未經查證'), findsNothing);
+      expect(find.textContaining('25.03400, 121.56600'), findsOneWidget);
+
+      await t.tap(find.text('知道了'));
+      await t.pump();
+      expect(find.text('小明 向你求助'), findsNothing);
+      // The backend keeps returning it; it must not come back.
+      await t.pump(const Duration(seconds: 25));
+      expect(find.text('小明 向你求助'), findsNothing);
+      expect(platform.locations, 0);
+      expect(transport.optIns, isEmpty);
+      await t.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets('with no identity to restore nothing is loaded or polled', (
+      t,
+    ) async {
+      final platform = _Platform();
+      final transport = _Transport()
+        ..canRestore = false
+        ..follows = [xiaoMing()]
+        ..alerts = [contactAlert('c1')];
+      await _pump(
+        t,
+        live: true,
+        platform: platform,
+        nearby: transport,
+        openEmergency: false,
+      );
+      expect(transport.restores, 1);
+      expect(transport.listCalls, 0);
+      await t.pump(const Duration(seconds: 60));
+      expect(transport.fetches, 0);
+      expect(find.text('小明 向你求助'), findsNothing);
+      expect(platform.locations, 0);
+      await t.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets('inviting a contact: name first, then the code is shown', (
+      t,
+    ) async {
+      steadyCursor();
+      final platform = _Platform();
+      final transport = _Transport();
+      await _pump(
+        t,
+        live: true,
+        platform: platform,
+        nearby: transport,
+        openEmergency: false,
+      );
+      await _openSettings(t);
+      await _tap(t, '邀請緊急聯絡人');
+      // Opening the form creates nothing.
+      expect(transport.created, isEmpty);
+
+      final nameField = find.byType(TextField).first;
+      await _show(t, nameField);
+      await t.enterText(nameField, '  小明  ');
+      await t.pump();
+      await _tap(t, '產生邀請碼');
+
+      expect(transport.created, ['小明']);
+      await _show(t, find.text('ABCD EFGH'));
+      expect(find.textContaining('只會顯示這一次'), findsOneWidget);
+      expect(platform.locations, 0);
+      expect(transport.optIns, isEmpty);
+
+      await _tap(t, '完成');
+      expect(find.text('ABCD EFGH', skipOffstage: false), findsNothing);
+      expect(find.text('邀請緊急聯絡人', skipOffstage: false), findsOneWidget);
+      expect(transport.created, hasLength(1));
+      await t.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets('entering a code pairs, then listening begins', (t) async {
+      steadyCursor();
+      final platform = _Platform();
+      final transport = _Transport()
+        ..followAfterAccept = xiaoMing()
+        ..alerts = [contactAlert('c1')];
+      await _pump(
+        t,
+        live: true,
+        platform: platform,
+        nearby: transport,
+        openEmergency: false,
+      );
+      await _openSettings(t);
+      // Not paired yet: nothing is polled however long we wait.
+      await t.pump(const Duration(seconds: 30));
+      expect(transport.fetches, 0);
+
+      await _show(t, find.text('我是誰的緊急聯絡人'));
+      await _show(t, find.text('加入'));
+      final codeField = find.byType(TextField).last;
+      await t.enterText(codeField, 'abcd-efgh');
+      await t.pump();
+      await _tap(t, '加入');
+
+      expect(transport.accepted, ['abcd-efgh']);
+      expect(
+        find.textContaining('已加入。對方按下 SOS', skipOffstage: false),
+        findsOneWidget,
+      );
+      expect(
+        t.widget<TextField>(find.byType(TextField).last).controller!.text,
+        isEmpty,
+        reason: 'the code is not left in the field',
+      );
+
+      await t.pump(const Duration(seconds: 11));
+      await t.pump();
+      expect(transport.fetches, greaterThan(0));
+      expect(find.text('小明 向你求助'), findsOneWidget);
+      expect(platform.locations, 0);
+      await t.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets('a code that is refused changes nothing and is not polled', (
+      t,
+    ) async {
+      steadyCursor();
+      final transport = _Transport()
+        ..acceptResult = NearbyInviteResult.invalid
+        ..followAfterAccept = xiaoMing();
+      await _pump(
+        t,
+        live: true,
+        platform: _Platform(),
+        nearby: transport,
+        openEmergency: false,
+      );
+      await _openSettings(t);
+      await _show(t, find.text('我是誰的緊急聯絡人'));
+      await _show(t, find.text('加入'));
+      final codeField = find.byType(TextField).last;
+      await t.enterText(codeField, 'ZZZZZZZZ');
+      await t.pump();
+      await _tap(t, '加入');
+
+      expect(transport.accepted, ['ZZZZZZZZ']);
+      expect(
+        find.textContaining('邀請碼不正確、已過期或已被使用', skipOffstage: false),
+        findsOneWidget,
+      );
+      await t.pump(const Duration(seconds: 60));
+      expect(transport.fetches, 0);
+      expect(find.text('目前沒有。', skipOffstage: false), findsOneWidget);
+      await t.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets('leaving the feature stops listening for a contact', (t) async {
+      final transport = _Transport()
+        ..canRestore = true
+        ..follows = [xiaoMing()]
+        ..alerts = [contactAlert('c1')];
+      await _pump(
+        t,
+        live: true,
+        platform: _Platform(),
+        nearby: transport,
+        openEmergency: false,
+      );
+      await t.pump(const Duration(seconds: 11));
+      expect(transport.fetches, greaterThan(0));
+
+      await t.pumpWidget(const SizedBox.shrink());
+      final fetches = transport.fetches;
+      await t.pump(const Duration(seconds: 60));
+      expect(transport.fetches, fetches);
+      // A leftover timer would fail this test on its own ("timer still pending").
     });
   });
 }

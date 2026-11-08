@@ -46,6 +46,8 @@
 | D6 | 中斷等級 | iOS Time Sensitive（需 capability，無需特別核准）vs Critical Alerts（需 Apple 特別核准）；Android 高重要性 channel | **Time Sensitive**＋高重要性 channel | M3 莅紋、隊長 |
 | D7 | 身分來源 | TownPass 登入或 Supabase Auth（與 #70、#71 同一個待決事項） | 先定案才能綁定 token 到使用者。Supabase 匿名身分已隔離實作（見設計提案「身分」一節），**待決定**，且不解決資格與濫用問題 | M1 小魚、隊長 |
 
+> **補充**：緊急聯絡人（邀請碼配對，見設計提案「緊急聯絡人」一節）是推播的**第二個收件群組**：token 綁在他的身分上、不論距離都要通知。他們是被明確配對的，**沒有 D3 的觸及問題**（不需要知道他在哪裡），所以是推播最適合先做的對象。
+
 ### D3 為什麼影響最大
 
 目前 `helper_locations` 只留最新一筆、TTL 10 分鐘，而且只在前景更新。推播的收件人由伺服器端 `ST_DWithin` 在**有效位置**中挑選，所以：

@@ -13,9 +13,17 @@ final class NearbyAlert {
     required this.location,
     required this.radiusMeters,
     required this.createdAt,
+    this.fromContact = false,
+    this.senderName,
   });
 
   final String alertId;
+
+  /// True when this came from someone who paired with this person as a trusted
+  /// contact; [senderName] is then the name that person chose. For a nearby
+  /// helper both stay empty: the sender is never revealed.
+  final bool fromContact;
+  final String? senderName;
 
   /// The authenticated backend never reveals who sent an alert, so this is
   /// null there. Only legacy/fake transports may supply a value.
@@ -64,6 +72,81 @@ abstract interface class UnavailableNearbyAlertBackend {
 /// derived from verified state and is never a client-settable flag.
 abstract interface class NearbyAlertAvailability {
   String? get currentUnavailableReason;
+}
+
+/// How an invite code was received.
+enum NearbyInviteResult {
+  /// Paired: this person is now the other's trusted contact.
+  paired,
+
+  /// Wrong, expired or already used.
+  invalid,
+
+  /// It was this person's own code.
+  self,
+
+  /// The inviter already has the most contacts allowed.
+  ownerFull,
+
+  /// This person already follows the most people allowed.
+  followingFull,
+}
+
+/// A one-time code for pairing a trusted contact. Shown once; the backend keeps
+/// only a hash.
+final class NearbyContactInvite {
+  const NearbyContactInvite({required this.code, required this.expiresAt});
+  final String code;
+  final DateTime expiresAt;
+}
+
+/// One of this person's own trusted contacts. Who they are is not revealed.
+final class NearbyContactLink {
+  const NearbyContactLink({required this.id, required this.since});
+  final String id;
+  final DateTime since;
+}
+
+/// Someone this person is a trusted contact of, by the name they chose.
+final class NearbyFollowing {
+  const NearbyFollowing({
+    required this.id,
+    required this.name,
+    required this.since,
+  });
+  final String id;
+  final String name;
+  final DateTime since;
+}
+
+/// At most this many trusted contacts per person.
+const nearbyContactMax = 5;
+
+/// The longest name a person can show their contacts, in characters.
+const nearbyContactNameMax = 20;
+
+/// Normalizes a typed invite code (case, spaces and dashes are ignored). Null
+/// when it cannot be a code, so nothing is sent to the backend.
+String? normalizeNearbyInviteCode(String raw) {
+  final code = raw.toUpperCase().replaceAll(RegExp(r'[\s-]'), '');
+  return RegExp(r'^[A-HJKMNP-Z2-9]{8}$').hasMatch(code) ? code : null;
+}
+
+/// Optional capability: transports that can pair trusted contacts. When a person
+/// sends an SOS their contacts are notified in the app whatever the distance.
+abstract interface class NearbyTrustedContacts {
+  Future<NearbyContactInvite> createContactInvite(String displayName);
+  Future<NearbyInviteResult> acceptContactInvite(String code);
+  Future<List<NearbyContactLink>> listMyContacts();
+  Future<void> removeContact(String linkId);
+  Future<List<NearbyFollowing>> listFollowing();
+  Future<void> unfollow(String linkId);
+}
+
+/// Optional capability: bring back an identity that already exists on this
+/// phone, without ever creating one. True when one is ready to use.
+abstract interface class NearbyIdentityRestore {
+  Future<bool> restoreExistingIdentity();
 }
 
 /// Optional capability for transports that must do async work (such as

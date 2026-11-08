@@ -119,6 +119,101 @@ NearbyGuardArea _area(double lat, int radius) => NearbyGuardArea(
   radiusMeters: radius,
 );
 
+class _ContactsTransport extends _Transport
+    implements NearbyTrustedContacts, NearbyIdentityRestore {
+  bool canRestore = true;
+  int restores = 0;
+  int listCalls = 0;
+  List<NearbyContactLink> mine = [];
+  List<NearbyFollowing> follows = [];
+  NearbyInviteResult acceptResult = NearbyInviteResult.paired;
+
+  /// Added to [follows] when an invite is accepted as paired.
+  NearbyFollowing? followOnPair;
+  Object? error;
+  Completer<void>? gate;
+  final created = <String>[];
+  final accepted = <String>[];
+  final removed = <String>[];
+  final unfollowed = <String>[];
+  NearbyContactInvite invite = NearbyContactInvite(
+    code: 'ABCD2345',
+    expiresAt: DateTime.utc(2026, 11, 9, 12),
+  );
+
+  Future<void> _wait() async {
+    await gate?.future;
+    if (error != null) throw error!;
+  }
+
+  @override
+  Future<bool> restoreExistingIdentity() async {
+    restores++;
+    return canRestore;
+  }
+
+  @override
+  Future<NearbyContactInvite> createContactInvite(String displayName) async {
+    created.add(displayName);
+    await _wait();
+    return invite;
+  }
+
+  @override
+  Future<NearbyInviteResult> acceptContactInvite(String code) async {
+    accepted.add(code);
+    await _wait();
+    if (acceptResult == NearbyInviteResult.paired && followOnPair != null) {
+      follows = [...follows, followOnPair!];
+    }
+    return acceptResult;
+  }
+
+  @override
+  Future<List<NearbyContactLink>> listMyContacts() async {
+    listCalls++;
+    return List.of(mine);
+  }
+
+  @override
+  Future<void> removeContact(String linkId) async {
+    removed.add(linkId);
+    await _wait();
+    mine = [
+      for (final c in mine)
+        if (c.id != linkId) c,
+    ];
+  }
+
+  @override
+  Future<List<NearbyFollowing>> listFollowing() async => List.of(follows);
+
+  @override
+  Future<void> unfollow(String linkId) async {
+    unfollowed.add(linkId);
+    await _wait();
+    follows = [
+      for (final f in follows)
+        if (f.id != linkId) f,
+    ];
+  }
+}
+
+NearbyContactLink _link(String id) =>
+    NearbyContactLink(id: id, since: DateTime.utc(2026, 11, 8));
+
+NearbyFollowing _following(String id, [String name = '小明']) =>
+    NearbyFollowing(id: id, name: name, since: DateTime.utc(2026, 11, 8));
+
+NearbyAlert _contactAlert(String id) => NearbyAlert(
+  alertId: id,
+  location: sw.Coordinates(lat: 25.034, lng: 121.566),
+  radiusMeters: 500,
+  createdAt: DateTime.utc(2026, 11, 8, 1, 2, 3),
+  fromContact: true,
+  senderName: '小明',
+);
+
 NearbyAlert _alert(String id) => NearbyAlert(
   alertId: id,
   location: sw.Coordinates(lat: 25.034, lng: 121.566),
@@ -539,5 +634,305 @@ void main() {
       await adding;
       expect(areasTransport.replaced, isEmpty);
     });
+  });
+
+  group('trusted contacts', () {
+    late _ContactsTransport ct;
+    late NearbyHelperController h;
+    var arrived = 0;
+
+    setUp(() {
+      ct = _ContactsTransport();
+      arrived = 0;
+      h = NearbyHelperController(
+        service: NearbyEmergencyService(platform: platform, transport: ct),
+        pollInterval: _fast,
+        refreshInterval: const Duration(minutes: 30),
+        onAlertArrived: () => arrived++,
+      );
+    });
+    tearDown(() => h.dispose());
+
+    test(
+      'a backend without contacts: not supported, restore does nothing',
+      () async {
+        expect(helper.contactsSupported, isFalse);
+        await helper.restore();
+        await _quiet();
+        expect(transport.fetches, 0);
+        expect(platform.calls, 0);
+        expect(helper.myContacts, isEmpty);
+        expect(helper.following, isEmpty);
+      },
+    );
+
+    test('an unavailable backend: no restore is even attempted', () async {
+      ct.reason = '測試：尚未登入';
+      expect(h.contactsSupported, isTrue);
+      await h.restore();
+      expect(ct.restores, 0);
+      expect(ct.listCalls, 0);
+    });
+
+    test('nothing to restore: no list calls and no polling', () async {
+      ct.canRestore = false;
+      await h.restore();
+      await _quiet();
+      expect(ct.restores, 1);
+      expect(ct.listCalls, 0);
+      expect(ct.fetches, 0);
+      expect(h.following, isEmpty);
+    });
+
+    test(
+      'an existing identity: contacts load, and a contact alert shows once',
+      () async {
+        ct.mine = [_link('l1'), _link('l2')];
+        ct.follows = [_following('f1')];
+        ct.alerts = [_contactAlert('c1')];
+        await h.restore();
+        expect(h.myContacts.map((c) => c.id), ['l1', 'l2']);
+        expect(h.following.single.name, '小明');
+        await _until(() => h.incoming.isNotEmpty);
+        await _until(() => ct.fetches >= 4, reason: 'kept polling');
+        expect(h.incoming, hasLength(1));
+        expect(h.incoming.single.alertId, 'c1');
+        expect(h.incoming.single.fromContact, isTrue);
+        expect(h.incoming.single.senderName, '小明');
+        expect(arrived, 1);
+        // Being a contact reads no position and joins nothing.
+        expect(platform.calls, 0);
+        expect(ct.optIns, isEmpty);
+        expect(h.isOn, isFalse);
+      },
+    );
+
+    test(
+      'contacts of my own but following nobody: loaded, no polling',
+      () async {
+        ct.mine = [_link('l1')];
+        await h.restore();
+        await _quiet();
+        expect(h.myContacts, hasLength(1));
+        expect(ct.fetches, 0);
+      },
+    );
+
+    test('restore runs once', () async {
+      ct.follows = [_following('f1')];
+      await h.restore();
+      await h.restore();
+      expect(ct.restores, 1);
+      expect(ct.listCalls, 1);
+    });
+
+    test('a contact-only listener pauses in the background and resumes without a position', () async {
+      ct.follows = [_following('f1')];
+      await h.restore();
+      await _until(() => ct.fetches >= 1);
+
+      h.setForeground(false);
+      final fetches = ct.fetches;
+      await _quiet();
+      expect(ct.fetches, fetches);
+
+      h.setForeground(true);
+      await _until(() => ct.fetches > fetches, reason: 'polling resumed');
+      expect(
+        platform.calls,
+        0,
+        reason: 'nothing to refresh: no position shared',
+      );
+      expect(ct.optIns, isEmpty);
+    });
+
+    test('alerts that arrive while paused are not shown', () async {
+      ct.follows = [_following('f1')];
+      await h.restore();
+      h.setForeground(false);
+      ct.alerts = [_contactAlert('late')];
+      await _quiet();
+      expect(h.incoming, isEmpty);
+      expect(arrived, 0);
+    });
+
+    test(
+      'a helper who is also a contact keeps listening after stopping',
+      () async {
+        ct.follows = [_following('f1')];
+        await h.restore();
+        await h.enable();
+        expect(h.isOn, isTrue);
+        expect(platform.calls, 1);
+
+        await h.disable();
+        expect(h.isOn, isFalse);
+        expect(ct.optIns, [true, false]);
+        final fetches = ct.fetches;
+        await _until(() => ct.fetches > fetches, reason: 'still a contact');
+
+        // Leaving the last contact (helper already off) stops listening.
+        await h.unfollow('f1');
+        await _quiet();
+        final after = ct.fetches;
+        await _quiet();
+        expect(ct.fetches, after);
+        expect(h.following, isEmpty);
+      },
+    );
+
+    test(
+      'createInvite stores the name, shows the code and reloads the lists',
+      () async {
+        await h.createInvite('小明');
+        expect(ct.created, ['小明']);
+        expect(h.invite!.code, 'ABCD2345');
+        expect(h.invite!.expiresAt, DateTime.utc(2026, 11, 9, 12));
+        expect(ct.listCalls, greaterThanOrEqualTo(1));
+        expect(h.contactsMessage, contains('邀請碼'));
+        expect(h.contactsMessageIsError, isFalse);
+        expect(h.contactsBusy, isFalse);
+        h.clearInvite();
+        expect(h.invite, isNull);
+      },
+    );
+
+    test('createInvite is ignored at five contacts', () async {
+      ct.mine = [for (var i = 0; i < 5; i++) _link('l$i')];
+      await h.restore();
+      await h.createInvite('小明');
+      expect(ct.created, isEmpty);
+      expect(h.invite, isNull);
+    });
+
+    test('a createInvite failure shows its reason and no code', () async {
+      ct.error = const NearbyAlertException('操作太頻繁');
+      await h.createInvite('小明');
+      expect(h.invite, isNull);
+      expect(h.contactsMessage, '操作太頻繁');
+      expect(h.contactsMessageIsError, isTrue);
+      expect(h.contactsBusy, isFalse);
+    });
+
+    test(
+      'contact work has its own busy flag, separate from the helper card',
+      () async {
+        ct.gate = Completer<void>();
+        final first = h.createInvite('小明');
+        await _until(() => h.contactsBusy);
+        expect(h.isBusy, isFalse);
+        // A second call while busy is ignored.
+        await h.createInvite('另一個');
+        expect(ct.created, ['小明']);
+        ct.gate!.complete();
+        await first;
+        expect(h.contactsBusy, isFalse);
+        expect(h.isBusy, isFalse);
+        expect(ct.created, ['小明']);
+      },
+    );
+
+    test('accepting a code: now a contact, and listening starts', () async {
+      ct.followOnPair = _following('f1');
+      await h.acceptInvite('abcd 2345');
+      expect(ct.accepted, ['abcd 2345']);
+      expect(h.following.single.name, '小明');
+      expect(h.contactsMessage, contains('已加入'));
+      expect(h.contactsMessageIsError, isFalse);
+      await _until(() => ct.fetches >= 2, reason: 'polling started');
+      expect(platform.calls, 0);
+    });
+
+    test('every refusal has its own message and changes nothing', () async {
+      final cases = {
+        NearbyInviteResult.invalid: '邀請碼不正確',
+        NearbyInviteResult.self: '自己的邀請碼',
+        NearbyInviteResult.ownerFull: '對方的緊急聯絡人已滿',
+        NearbyInviteResult.followingFull: '太多人',
+      };
+      for (final entry in cases.entries) {
+        ct.acceptResult = entry.key;
+        await h.acceptInvite('ABCD2345');
+        expect(
+          h.contactsMessage,
+          contains(entry.value),
+          reason: '${entry.key}',
+        );
+        expect(h.contactsMessageIsError, isTrue, reason: '${entry.key}');
+        expect(h.following, isEmpty);
+        expect(h.contactsBusy, isFalse);
+      }
+      expect(ct.accepted, hasLength(cases.length));
+      await _quiet();
+      expect(ct.fetches, 0, reason: 'a refused code never starts listening');
+    });
+
+    test('a failure using a code shows the reason, or a generic one', () async {
+      ct.error = const NearbyAlertException('操作太頻繁');
+      await h.acceptInvite('ABCD2345');
+      expect(h.contactsMessage, '操作太頻繁');
+      expect(h.contactsMessageIsError, isTrue);
+
+      ct.error = StateError('SECRET');
+      await h.acceptInvite('ABCD2345');
+      expect(h.contactsMessage, '無法使用邀請碼，請稍後再試');
+      expect(h.contactsMessage, isNot(contains('SECRET')));
+      expect(h.contactsMessageIsError, isTrue);
+    });
+
+    test('removing a contact stores it, reloads and says so', () async {
+      ct.mine = [_link('l1'), _link('l2')];
+      await h.restore();
+      ct.follows = [_following('f1')];
+      await h.removeContact('l1');
+      expect(ct.removed, ['l1']);
+      expect(h.myContacts.map((c) => c.id), ['l2']);
+      expect(h.contactsMessage, contains('已移除'));
+      expect(h.contactsMessageIsError, isFalse);
+    });
+
+    test('leaving as someone\'s contact reloads and says so', () async {
+      ct.follows = [_following('f1')];
+      await h.restore();
+      await h.unfollow('f1');
+      expect(ct.unfollowed, ['f1']);
+      expect(h.following, isEmpty);
+      expect(h.contactsMessage, contains('已停止接收'));
+      expect(h.contactsMessageIsError, isFalse);
+    });
+
+    test('a second remove or leave while one is running is ignored', () async {
+      ct.mine = [_link('l1'), _link('l2')];
+      ct.follows = [_following('f1'), _following('f2')];
+      await h.restore();
+      ct.gate = Completer<void>();
+      final removing = h.removeContact('l1');
+      await _until(() => h.contactsBusy);
+      await h.removeContact('l2');
+      await h.unfollow('f1');
+      expect(ct.removed, ['l1']);
+      expect(ct.unfollowed, isEmpty);
+      ct.gate!.complete();
+      await removing;
+      expect(ct.removed, ['l1']);
+    });
+
+    test(
+      'disposing mid-operation: no exception, no further requests',
+      () async {
+        ct.gate = Completer<void>();
+        final creating = h.createInvite('小明');
+        await _until(() => h.contactsBusy);
+        h.dispose();
+        final lists = ct.listCalls;
+        ct.gate!.complete();
+        await creating;
+        await _quiet();
+        // Nothing more is requested once the controller is gone.
+        expect(ct.listCalls, lists);
+        expect(ct.fetches, 0);
+        expect(ct.optIns, isEmpty);
+      },
+    );
   });
 }

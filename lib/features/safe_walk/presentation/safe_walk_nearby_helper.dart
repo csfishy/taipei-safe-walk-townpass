@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_ui.dart';
 import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart'
     as sw;
@@ -11,11 +12,45 @@ final class SafeWalkNearbyAlert {
     required this.alertId,
     required this.location,
     required this.createdAt,
+    this.fromContact = false,
+    this.senderName,
   });
 
   final String alertId;
   final sw.Coordinates location;
   final DateTime createdAt;
+
+  /// True when the sender is someone who paired with this person as a trusted
+  /// contact; [senderName] is then the name they chose. For a nearby helper
+  /// both stay empty: the sender is never revealed.
+  final bool fromContact;
+  final String? senderName;
+}
+
+/// One of this person's own trusted contacts. Who they are is not revealed.
+final class SafeWalkContactLink {
+  const SafeWalkContactLink({required this.id, required this.since});
+  final String id;
+  final DateTime since;
+}
+
+/// Someone this person is a trusted contact of, by the name they chose.
+final class SafeWalkFollowing {
+  const SafeWalkFollowing({
+    required this.id,
+    required this.name,
+    required this.since,
+  });
+  final String id;
+  final String name;
+  final DateTime since;
+}
+
+/// A one-time code for pairing a trusted contact. Shown once.
+final class SafeWalkContactInvite {
+  const SafeWalkContactInvite({required this.code, required this.expiresAt});
+  final String code;
+  final DateTime expiresAt;
 }
 
 /// A place where this person asked to be notified about SOS alerts. The centre
@@ -57,6 +92,35 @@ abstract interface class SafeWalkNearbyHelper implements Listenable {
   Future<void> addGuardAreaHere(int radiusMeters);
 
   Future<void> removeGuardArea(int index);
+
+  /// Whether the backend can pair trusted contacts; the contacts card is shown
+  /// only when it can.
+  bool get contactsSupported;
+
+  /// Contact operations have their own progress and message, separate from the
+  /// helper card's.
+  bool get contactsBusy;
+  String? get contactsMessage;
+  bool get contactsMessageIsError;
+
+  /// People who will be notified in the app when this person sends an SOS.
+  List<SafeWalkContactLink> get myContacts;
+
+  /// People this person is a trusted contact of.
+  List<SafeWalkFollowing> get following;
+
+  /// The code just made, until [clearInvite].
+  SafeWalkContactInvite? get invite;
+
+  /// Makes a one-time code. [displayName] is how this person appears to the
+  /// contact (1 to 20 characters).
+  Future<void> createInvite(String displayName);
+  void clearInvite();
+
+  /// Uses a code someone gave this person, becoming their trusted contact.
+  Future<void> acceptInvite(String code);
+  Future<void> removeContact(String linkId);
+  Future<void> unfollow(String linkId);
 
   /// Called only after the person confirmed the consent text.
   Future<void> enable();
@@ -413,9 +477,7 @@ class SafeWalkNearbyAlertBanner extends StatelessWidget {
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            alerts.length == 1
-                                ? '附近有人求助'
-                                : '附近有人求助（共 ${alerts.length} 則）',
+                            _title(alert, alerts.length),
                             style: SwText.heading.copyWith(color: SwColors.sos),
                           ),
                         ),
@@ -429,7 +491,9 @@ class SafeWalkNearbyAlertBanner extends StatelessWidget {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      '這則求助未經查證，位置可能不準確。請先確認自身安全，不要獨自涉險；需要時撥打 110／119。',
+                      alert.fromContact
+                          ? '這是你的緊急聯絡人發出的求助，位置可能不準確。請先試著聯絡對方，並確認自身安全、不要獨自涉險；需要時撥打 110／119。'
+                          : '這則求助未經查證，位置可能不準確。請先確認自身安全，不要獨自涉險；需要時撥打 110／119。',
                       style: SwText.body,
                     ),
                     const SizedBox(height: 12),
@@ -465,6 +529,13 @@ class SafeWalkNearbyAlertBanner extends StatelessWidget {
   );
 }
 
+String _title(SafeWalkNearbyAlert alert, int count) {
+  final base = alert.fromContact
+      ? '${(alert.senderName ?? '').trim().isEmpty ? '你的緊急聯絡人' : alert.senderName!.trim()} 向你求助'
+      : '附近有人求助';
+  return count == 1 ? base : '$base（共 $count 則）';
+}
+
 class _BannerButton extends StatelessWidget {
   const _BannerButton({
     required this.label,
@@ -496,3 +567,319 @@ class _BannerButton extends StatelessWidget {
     ),
   );
 }
+
+/// 首頁的「緊急聯絡人」：用邀請碼配對，按 SOS 時對方在自己的 App 內收到通知。
+/// 不是簡訊。邀請碼只顯示一次、24 小時內有效、只能用一次，由本人用信任的方式交給對方。
+class SafeWalkTrustedContactsCard extends StatefulWidget {
+  const SafeWalkTrustedContactsCard({super.key, required this.helper});
+
+  final SafeWalkNearbyHelper helper;
+
+  @override
+  State<SafeWalkTrustedContactsCard> createState() =>
+      _SafeWalkTrustedContactsCardState();
+}
+
+class _SafeWalkTrustedContactsCardState
+    extends State<SafeWalkTrustedContactsCard> {
+  final _name = TextEditingController();
+  final _code = TextEditingController();
+  bool _inviting = false;
+  bool _copied = false;
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _code.dispose();
+    super.dispose();
+  }
+
+  static String _date(DateTime d) {
+    final t = d.toLocal();
+    return '${t.month}/${t.day}';
+  }
+
+  static String _clock(DateTime d) {
+    final t = d.toLocal();
+    return '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+  }
+
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: widget.helper,
+    builder: (context, _) {
+      final helper = widget.helper;
+      final reason = helper.unavailableReason;
+      if (reason != null &&
+          helper.myContacts.isEmpty &&
+          helper.following.isEmpty) {
+        return SwStateMessage(
+          icon: Icons.group_off_outlined,
+          title: '緊急聯絡人：目前無法使用',
+          message: reason,
+        );
+      }
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: SwColors.surface,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: SwShadow.card,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.group_rounded, color: SwColors.brand),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('緊急聯絡人', style: SwText.bodyStrong),
+                      Text(
+                        '按 SOS 時，你邀請的人會在他們的 App 內收到通知',
+                        style: SwText.secondary,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (helper.contactsBusy)
+              Row(
+                children: [
+                  const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 3,
+                      color: SwColors.brand,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Text('處理中…', style: SwText.bodyStrong),
+                ],
+              )
+            else ...[
+              if (helper.contactsMessage != null) ...[
+                SwStateMessage(
+                  icon: helper.contactsMessageIsError
+                      ? Icons.error_outline_rounded
+                      : Icons.info_outline_rounded,
+                  title: helper.contactsMessageIsError ? '沒有成功' : '目前狀態',
+                  message: helper.contactsMessage!,
+                  error: helper.contactsMessageIsError,
+                ),
+                const SizedBox(height: 12),
+              ],
+              ..._mine(helper),
+              const SizedBox(height: 12),
+              ..._following(helper),
+            ],
+          ],
+        ),
+      );
+    },
+  );
+
+  List<Widget> _mine(SafeWalkNearbyHelper helper) {
+    final contacts = helper.myContacts;
+    return [
+      Text('我的緊急聯絡人（${contacts.length}／5）', style: SwText.bodyStrong),
+      const SizedBox(height: 4),
+      if (contacts.isEmpty) Text('還沒有緊急聯絡人。', style: SwText.body),
+      for (var i = 0; i < contacts.length; i++) ...[
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                '第 ${i + 1} 位・${_date(contacts[i].since)} 加入',
+                style: SwText.body,
+              ),
+            ),
+            _smallButton(
+              '移除',
+              '移除第 ${i + 1} 位緊急聯絡人',
+              () => helper.removeContact(contacts[i].id),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+      ],
+      if (helper.invite != null)
+        ..._inviteCode(helper, helper.invite!)
+      else if (contacts.length >= 5)
+        Text('最多 5 位緊急聯絡人。', style: SwText.secondary)
+      else if (!_inviting)
+        _button(
+          '邀請緊急聯絡人',
+          Icons.person_add_alt_1_rounded,
+          () => setState(() => _inviting = true),
+        )
+      else ...[
+        TextField(
+          controller: _name,
+          maxLength: nearbyNameLimit,
+          decoration: const InputDecoration(
+            labelText: '對方會看到的名字（最多 20 字）',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        Text(
+          '對方輸入邀請碼後，你按 SOS 時，他會在自己的 App 收到通知，看到你的位置和這個名字。邀請碼 24 小時內有效、只能用一次；你可以隨時移除他。',
+          style: SwText.body,
+        ),
+        const SizedBox(height: 8),
+        _button('產生邀請碼', Icons.vpn_key_rounded, () async {
+          final name = _name.text.trim();
+          if (name.isEmpty) return;
+          setState(() => _inviting = false);
+          await helper.createInvite(name);
+        }),
+        const SizedBox(height: 8),
+        _button(
+          '取消',
+          Icons.close_rounded,
+          () => setState(() => _inviting = false),
+          filled: false,
+        ),
+      ],
+    ];
+  }
+
+  List<Widget> _inviteCode(
+    SafeWalkNearbyHelper helper,
+    SafeWalkContactInvite invite,
+  ) {
+    final spaced = '${invite.code.substring(0, 4)} ${invite.code.substring(4)}';
+    return [
+      Text(
+        '邀請碼（${_clock(invite.expiresAt)} 前有效，只能用一次）',
+        style: SwText.bodyStrong,
+      ),
+      const SizedBox(height: 4),
+      Semantics(
+        label: '邀請碼 ${invite.code.split('').join(' ')}',
+        child: SelectableText(
+          spaced,
+          style: SwText.title.copyWith(letterSpacing: 4),
+        ),
+      ),
+      const SizedBox(height: 4),
+      Text(
+        '請用你信任的方式把它傳給對方（不會經過簡訊，也不會經過這個 App）。對方在自己的臺北安心行輸入後，就會成為你的緊急聯絡人。這個碼只會顯示這一次。',
+        style: SwText.body,
+      ),
+      const SizedBox(height: 8),
+      _button(_copied ? '已複製' : '複製邀請碼', Icons.copy_rounded, () async {
+        await Clipboard.setData(ClipboardData(text: invite.code));
+        if (mounted) setState(() => _copied = true);
+      }, filled: false),
+      const SizedBox(height: 8),
+      _button('完成', Icons.check_rounded, () {
+        setState(() => _copied = false);
+        helper.clearInvite();
+      }),
+    ];
+  }
+
+  List<Widget> _following(SafeWalkNearbyHelper helper) {
+    final people = helper.following;
+    return [
+      Text('我是誰的緊急聯絡人', style: SwText.bodyStrong),
+      const SizedBox(height: 4),
+      if (people.isEmpty) Text('目前沒有。', style: SwText.body),
+      for (final person in people) ...[
+        Row(
+          children: [
+            Expanded(child: Text(person.name, style: SwText.body)),
+            _smallButton(
+              '不再接收',
+              '不再接收 ${person.name} 的求助',
+              () => helper.unfollow(person.id),
+              width: 96,
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+      ],
+      TextField(
+        controller: _code,
+        textCapitalization: TextCapitalization.characters,
+        maxLength: 12,
+        decoration: const InputDecoration(
+          labelText: '輸入對方給你的邀請碼',
+          border: OutlineInputBorder(),
+        ),
+      ),
+      Text(
+        '加入後，對方按 SOS 時你會在 App 內收到通知並看到對方的位置。只有 App 開啟時才收得到（目前沒有推播）。這不是正式救援，你沒有義務前往。',
+        style: SwText.body,
+      ),
+      const SizedBox(height: 8),
+      _button('加入', Icons.group_add_rounded, () async {
+        final code = _code.text;
+        _code.clear();
+        await helper.acceptInvite(code);
+      }, filled: false),
+    ];
+  }
+
+  Widget _smallButton(
+    String label,
+    String semantics,
+    VoidCallback onTap, {
+    double width = 72,
+  }) => SwPressable(
+    onTap: onTap,
+    color: SwColors.surface,
+    pressedColor: SwColors.brandSoft,
+    border: const BorderSide(color: SwColors.border),
+    radius: 12,
+    semanticsLabel: semantics,
+    child: SizedBox(
+      width: width,
+      height: swTouch,
+      child: Center(child: Text(label, style: SwText.bodyStrong)),
+    ),
+  );
+
+  Widget _button(
+    String label,
+    IconData icon,
+    VoidCallback onTap, {
+    bool filled = true,
+  }) => SizedBox(
+    width: double.infinity,
+    child: SwPressable(
+      onTap: onTap,
+      color: filled ? SwColors.brand : SwColors.surface,
+      pressedColor: filled ? TPColors.primary400 : SwColors.brandSoft,
+      border: filled ? null : const BorderSide(color: SwColors.border),
+      radius: 12,
+      semanticsLabel: label,
+      child: SizedBox(
+        height: swTouchLarge,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: filled ? SwColors.onBrand : SwColors.text),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: SwText.bodyStrong.copyWith(
+                color: filled ? SwColors.onBrand : SwColors.text,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+/// The longest name a person can show their contacts, in characters.
+const nearbyNameLimit = 20;

@@ -240,4 +240,171 @@ void main() {
       expect(store.value, 'refresh-0');
     },
   );
+
+  group('existingAccessToken (restore without creating)', () {
+    test(
+      'nothing stored and no session: null, and no request at all',
+      () async {
+        final s = session();
+        expect(await s.existingAccessToken(), isNull);
+        expect(backend.calls, isEmpty);
+        expect(backend.callsTo('/auth/v1/signup'), isEmpty);
+        expect(store.value, isNull);
+        expect(s.isSignedIn, isTrue);
+      },
+    );
+
+    test(
+      'a stored token is refreshed once, never signed up, and rotated',
+      () async {
+        store.value = 'stored-refresh';
+        final s = session();
+        expect(await s.existingAccessToken(), 'refreshed.1.token');
+        expect(backend.callsTo('/auth/v1/signup'), isEmpty);
+        expect(backend.callsTo('/auth/v1/token'), hasLength(1));
+        expect(jsonDecode(backend.callsTo('/auth/v1/token').single.body), {
+          'refresh_token': 'stored-refresh',
+        });
+        expect(store.value, 'refresh-1', reason: 'the rotated token is kept');
+        expect(store.clears, 0);
+      },
+    );
+
+    test(
+      'a rejected refresh token is cleared and returns null, with no signup',
+      () async {
+        store.value = 'revoked';
+        refresh = (_) =>
+            (status: 400, body: '{"error_code":"refresh_token_not_found"}');
+        final s = session();
+        expect(await s.existingAccessToken(), isNull);
+        expect(store.clears, 1);
+        expect(store.value, isNull);
+        expect(backend.callsTo('/auth/v1/signup'), isEmpty);
+        expect(s.isSignedIn, isTrue, reason: 'a rejection is not an outage');
+      },
+    );
+
+    test('a transient failure keeps the identity, makes no signup and does not block', () async {
+      store.value = 'stored-refresh';
+      refresh = (_) => (status: 503, body: '');
+      final s = session();
+      expect(await s.existingAccessToken(), isNull);
+      expect(store.value, 'stored-refresh');
+      expect(store.clears, 0);
+      expect(backend.callsTo('/auth/v1/signup'), isEmpty);
+      // A failed background restore (app start) must not penalise the
+      // person's first explicit action.
+      expect(s.isSignedIn, isTrue);
+
+      refresh = (_) =>
+          ok('back.token.ok', 'refresh-5', const Duration(hours: 1));
+      expect(await s.accessToken(), 'back.token.ok');
+      expect(backend.callsTo('/auth/v1/signup'), isEmpty);
+    });
+
+    test('a fresh cached session is returned without any request', () async {
+      final s = session();
+      expect(await s.accessToken(), 'sign.up.token');
+      final requests = backend.calls.length;
+      expect(await s.existingAccessToken(), 'sign.up.token');
+      expect(backend.calls, hasLength(requests));
+    });
+
+    test(
+      'after an explicit attempt failed it makes no request either',
+      () async {
+        store.value = 'stored-refresh';
+        refresh = (_) => (status: 503, body: '');
+        final s = session();
+        // A real action (not a background restore) failed, so it backs off.
+        expect(await s.accessToken(), isNull);
+        final requests = backend.calls.length;
+        expect(s.isSignedIn, isFalse);
+        expect(await s.existingAccessToken(), isNull);
+        expect(backend.calls, hasLength(requests));
+      },
+    );
+
+    test(
+      'while blocked after a signup refusal it makes no request either',
+      () async {
+        signUp = (_) =>
+            (status: 422, body: '{"error_code":"anonymous_provider_disabled"}');
+        final s = session();
+        expect(await s.accessToken(), isNull);
+        final requests = backend.calls.length;
+        expect(await s.existingAccessToken(), isNull);
+        expect(backend.calls, hasLength(requests));
+      },
+    );
+
+    test('restore followed by use shares one request', () async {
+      store.value = 'stored-refresh';
+      final gate = Completer<void>();
+      backend = FakeHttpBackend((call) async {
+        await gate.future;
+        return call.url.path == '/auth/v1/signup'
+            ? signUp(call)
+            : refresh(call);
+      });
+      final s = session();
+      final restored = s.existingAccessToken();
+      final used = s.accessToken();
+      gate.complete();
+      expect(await restored, 'refreshed.1.token');
+      expect(await used, 'refreshed.1.token');
+      expect(backend.calls, hasLength(1));
+      expect(backend.callsTo('/auth/v1/signup'), isEmpty);
+    });
+
+    test('use followed by restore shares one request', () async {
+      store.value = 'stored-refresh';
+      final gate = Completer<void>();
+      backend = FakeHttpBackend((call) async {
+        await gate.future;
+        return call.url.path == '/auth/v1/signup'
+            ? signUp(call)
+            : refresh(call);
+      });
+      final s = session();
+      final used = s.accessToken();
+      final restored = s.existingAccessToken();
+      gate.complete();
+      expect(await used, 'refreshed.1.token');
+      expect(await restored, 'refreshed.1.token');
+      expect(backend.calls, hasLength(1));
+    });
+
+    test(
+      'after an empty restore, a later accessToken still creates the identity',
+      () async {
+        final s = session();
+        expect(await s.existingAccessToken(), isNull);
+        expect(backend.calls, isEmpty);
+
+        expect(await s.accessToken(), 'sign.up.token');
+        expect(backend.callsTo('/auth/v1/signup'), hasLength(1));
+        expect(store.value, 'refresh-0');
+        // And from then on the existing identity can be restored without a signup.
+        final again = session();
+        expect(await again.existingAccessToken(), 'refreshed.1.token');
+        expect(backend.callsTo('/auth/v1/signup'), hasLength(1));
+      },
+    );
+
+    test(
+      'an expiring session is refreshed by restore with the same identity',
+      () async {
+        final s = session();
+        await s.accessToken();
+        now = now.add(const Duration(minutes: 59, seconds: 30));
+        expect(await s.existingAccessToken(), 'refreshed.1.token');
+        expect(backend.callsTo('/auth/v1/signup'), hasLength(1));
+        expect(jsonDecode(backend.callsTo('/auth/v1/token').single.body), {
+          'refresh_token': 'refresh-0',
+        });
+      },
+    );
+  });
 }
