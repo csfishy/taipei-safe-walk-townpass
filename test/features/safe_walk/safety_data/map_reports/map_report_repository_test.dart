@@ -80,6 +80,167 @@ final class _Cancellation implements SafeWalkCancellation {
 }
 
 void main() {
+  group('resolve public map report', () {
+    test('sends only the selected UUID and accepts removed or absent acknowledgement', () async {
+      final calls = <Map<String, Object?>>[];
+      var attempt = 0;
+      final repo = MapReportRepository(
+        transport: (function, arguments, {cancellation}) async {
+          expect(function, mapReportResolveRpcFunction);
+          calls.add(arguments);
+          return MapReportHttpResponse(
+            200,
+            jsonEncode({
+              'interfaceVersion': 1,
+              'reportId': _id,
+              'removed': attempt++ == 0,
+            }),
+          );
+        },
+      );
+      await repo.resolve(mode: _live, reportId: _id);
+      await repo.resolve(mode: _live, reportId: _id);
+      expect(calls, [
+        {'p_report_id': _id},
+        {'p_report_id': _id},
+      ]);
+    });
+
+    test(
+      'invalid UUID, unavailable configuration and mock never resolve remotely',
+      () async {
+        var calls = 0;
+        final repo = MapReportRepository(
+          transport: (_, _, {cancellation}) async {
+            calls++;
+            return const MapReportHttpResponse(200, '{}');
+          },
+        );
+        for (final id in [
+          '',
+          'bad',
+          'x/../y',
+          '00000000-0000-4000-8000-000000000001,00000000-0000-4000-8000-000000000002',
+        ]) {
+          await expectLater(
+            repo.resolve(mode: _live, reportId: id),
+            throwsArgumentError,
+          );
+        }
+        await expectLater(
+          repo.resolve(mode: sw.DataMode.mock, reportId: _id),
+          throwsA(isA<SafeWalkDataUnavailable>()),
+        );
+        await expectLater(
+          const MapReportRepository(transport: null)
+              .resolve(mode: _live, reportId: _id),
+          throwsA(isA<SafeWalkDataUnavailable>()),
+        );
+        expect(calls, 0);
+      },
+    );
+
+    test(
+      'does not accept an unrelated or malformed successful delete reply',
+      () async {
+        for (final body in [
+          <String, Object?>{},
+          {'interfaceVersion': 1, 'reportId': _otherId, 'removed': true},
+          {'interfaceVersion': 1, 'reportId': _id},
+          {'interfaceVersion': 1, 'reportId': _id, 'removed': 'true'},
+          {'interfaceVersion': 1, 'reportId': null, 'removed': true},
+          {'interfaceVersion': 2, 'reportId': _id, 'removed': true},
+        ]) {
+          await expectLater(
+            _repo(body).resolve(mode: _live, reportId: _id),
+            _fails(MapReportFailure.invalidResponse),
+          );
+        }
+      },
+    );
+
+    test('permission, missing API and rate limiting remain failures', () async {
+      for (final (status, code, failure) in [
+        (403, '42501', MapReportFailure.unauthorized),
+        (404, 'PGRST202', MapReportFailure.interfaceMissing),
+        (429, 'PT429', MapReportFailure.rateLimited),
+        (500, 'XX000', MapReportFailure.serverUnavailable),
+      ]) {
+        await expectLater(
+          _repo({
+            'code': code,
+          }, status: status).resolve(mode: _live, reportId: _id),
+          _fails(failure),
+        );
+      }
+    });
+
+    test('network and timeout do not become successful removal', () async {
+      final network = MapReportRepository(
+        transport: (_, _, {cancellation}) async {
+          throw StateError('synthetic transport failure');
+        },
+      );
+      final timeout = MapReportRepository(
+        transport: (_, _, {cancellation}) async {
+          throw TimeoutException('synthetic deadline');
+        },
+      );
+      await expectLater(
+        network.resolve(mode: _live, reportId: _id),
+        _fails(MapReportFailure.network),
+      );
+      await expectLater(
+        timeout.resolve(mode: _live, reportId: _id),
+        _fails(MapReportFailure.timeout),
+      );
+    });
+
+    test('pre-cancelled removal never reaches transport', () async {
+      final token = _Cancellation()..cancel();
+      var calls = 0;
+      final repo = MapReportRepository(
+        transport: (_, _, {cancellation}) async {
+          calls++;
+          return const MapReportHttpResponse(200, '{}');
+        },
+      );
+      await expectLater(
+        repo.resolve(mode: _live, reportId: _id, cancellation: token),
+        throwsA(isA<SafeWalkCancelledException>()),
+      );
+      expect(calls, 0);
+    });
+
+    test(
+      'cancelled removal ignores a late successful acknowledgement',
+      () async {
+        final token = _Cancellation();
+        final reply = Completer<MapReportHttpResponse>();
+        final repo = MapReportRepository(
+          transport: (_, _, {cancellation}) => reply.future,
+        );
+        final pending = repo.resolve(
+          mode: _live,
+          reportId: _id,
+          cancellation: token,
+        );
+        token.cancel();
+        await expectLater(pending, throwsA(isA<SafeWalkCancelledException>()));
+        reply.complete(
+          MapReportHttpResponse(
+            200,
+            jsonEncode({
+              'interfaceVersion': 1,
+              'reportId': _id,
+              'removed': true,
+            }),
+          ),
+        );
+      },
+    );
+  });
+
   test(
     'unconfigured and mock do not pretend to persist or call transport',
     () async {

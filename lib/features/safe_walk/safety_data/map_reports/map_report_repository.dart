@@ -8,6 +8,7 @@ import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart
 
 const mapReportSubmitRpcFunction = 'safe_walk_map_report_submit';
 const mapReportQueryRpcFunction = 'safe_walk_map_report_query';
+const mapReportResolveRpcFunction = 'safe_walk_map_report_resolve';
 const mapReportCategories = {
   'fight',
   'suspicious',
@@ -137,7 +138,8 @@ bool _validDescription(String description) =>
 /// Live persistence only. Submit is idempotent for an unchanged request UUID
 /// and payload, allowing safe retries after a lost commit acknowledgement.
 /// Acknowledgement cancellation does not promise rollback of a sent write.
-/// There is no anonymous update/delete interface and no fake-success fallback.
+/// Community resolution removes only the explicitly selected report UUID.
+/// There is no general update/table interface or fake-success fallback.
 final class MapReportRepository {
   const MapReportRepository({required this.transport});
 
@@ -240,6 +242,29 @@ final class MapReportRepository {
         offset: offset,
       );
     } on FormatException {
+      throw const MapReportException(MapReportFailure.invalidResponse);
+    }
+  }
+
+  /// Physically remove the selected public report. An acknowledged absent row
+  /// is also success, allowing safe retry after a lost delete acknowledgement.
+  /// The server retires removed IDs so an old submit cannot recreate the row.
+  Future<void> resolve({
+    required sw.DataMode mode,
+    required String reportId,
+    SafeWalkCancellation? cancellation,
+  }) async {
+    cancellation?.throwIfCancelled();
+    if (!_uuid.hasMatch(reportId)) {
+      throw ArgumentError('Invalid map report id');
+    }
+    final decoded = await _call(mode, mapReportResolveRpcFunction, {
+      'p_report_id': reportId,
+    }, cancellation);
+    final acknowledgedId = decoded['reportId'];
+    if (acknowledgedId is! String ||
+        acknowledgedId.toLowerCase() != reportId.toLowerCase() ||
+        decoded['removed'] is! bool) {
       throw const MapReportException(MapReportFailure.invalidResponse);
     }
   }

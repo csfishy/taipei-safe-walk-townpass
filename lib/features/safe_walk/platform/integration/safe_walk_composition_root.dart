@@ -257,6 +257,10 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     (cancellation) => _mapReports.load(cancellation: cancellation),
   );
 
+  Future<void> _resolveMapReport(String reportId) => _mapReportOperation(
+    (cancellation) => _mapReports.resolve(reportId, cancellation: cancellation),
+  );
+
   /// Product-defined buffers around reference positions; not incident bounds.
   late final CrimeReferenceRepository _crime =
       widget.crimeRepository ?? _crimeRepository();
@@ -1376,6 +1380,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
         ],
         onSaveReport: widget.liveRoutes ? _saveMapReport : null,
         onLoadReports: widget.liveRoutes ? _loadMapReports : null,
+        onResolveReport: widget.liveRoutes ? _resolveMapReport : null,
         speaker: _speaker,
         onLocate: _locate,
         onEmergency: _emergency,
