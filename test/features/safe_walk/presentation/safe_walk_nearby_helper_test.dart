@@ -106,6 +106,11 @@ Future<void> _open(WidgetTester t, SafeWalkNearbyHelper? helper) async {
   // A busy spinner never stops animating, so pumpAndSettle would time out.
   await t.pump();
   await t.pump(const Duration(milliseconds: 500));
+  // 附近協助者放在「安心行設定」，有依賴時先從首頁齒輪進入設定頁。
+  if (helper != null) {
+    await t.tap(find.byTooltip('安心行設定'));
+    await t.pump(const Duration(milliseconds: 500));
+  }
 }
 
 Finder _t(String s) => find.text(s, skipOffstage: false);
@@ -130,7 +135,7 @@ String _allText(WidgetTester t) => t
     .join('\n');
 
 void main() {
-  group('join card on the home page', () {
+  group('join card in 安心行設定', () {
     testWidgets('without a dependency nothing is shown', (t) async {
       await _open(t, null);
       expect(_t('附近協助者'), findsNothing);
@@ -253,6 +258,8 @@ void main() {
     ) async {
       final helper = _Helper();
       await _open(t, helper);
+      await t.tap(find.byTooltip('返回'));
+      await t.pump(const Duration(milliseconds: 500));
       await t.tap(_t('緊急求助').first);
       await t.pumpAndSettle();
       expect(_t('撥打 110 報警'), findsOneWidget);
@@ -266,8 +273,11 @@ void main() {
       t,
     ) async {
       final handle = t.ensureSemantics();
-      final helper = _Helper()..alerts = [_alert('a1')];
+      final helper = _Helper();
+      // 先進「安心行設定」，再出現警示：警示會蓋住右上角齒輪，不能在那之後點它。
       await _open(t, helper);
+      helper.change(() => helper.alerts = [_alert('a1')]);
+      await t.pump();
       await _show(t, _t('加入附近協助者'));
       await expectLater(t, meetsGuideline(androidTapTargetGuideline));
       await expectLater(t, meetsGuideline(labeledTapTargetGuideline));
