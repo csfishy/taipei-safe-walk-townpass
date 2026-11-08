@@ -11,7 +11,7 @@ import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart
     as sw;
 
 String rawCsv() => File(
-  'lib/features/safe_walk/safety_data/violent_crime/fixtures/violent_crime_raw_sample.csv',
+  'test/features/safe_walk/safety_data/violent_crime/fixtures/violent_crime_raw_sample.csv',
 ).readAsStringSync();
 
 /// Serves the real sample through data.taipei / tsis-shaped responses.

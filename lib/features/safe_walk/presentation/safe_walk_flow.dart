@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:town_pass/features/safe_walk/presentation/mock/safe_walk_demo_data.dart';
+import 'package:town_pass/features/safe_walk/presentation/safe_walk_map_models.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_call_view.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_emergency_view.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_home_setting_view.dart';
@@ -33,7 +33,7 @@ typedef ReportSpot = ({String id, sw.Coordinates center});
 class SafeWalkFlow extends StatefulWidget {
   const SafeWalkFlow({
     super.key,
-    this.mode = sw.DataMode.mock,
+    this.mode = sw.DataMode.live,
     this.allowRealCalls = false,
     this.points,
     this.pointsLoading = false,
@@ -83,7 +83,7 @@ class SafeWalkFlow extends StatefulWidget {
   reportBuilder;
   final VoidCallback? onLeaveReport;
 
-  /// 求助地點（M4 → M1 提供）。未配置時只有 Mock 使用 M3 示範資料。
+  /// 求助地點（M4 → M1 提供）。未配置時顯示不可用，不補人工資料。
   final List<sw.AssistancePoint>? points;
   final bool pointsLoading;
   final String? pointsError;
@@ -97,7 +97,7 @@ class SafeWalkFlow extends StatefulWidget {
   /// route already planned for it.
   final ValueChanged<String>? onSelectPoint;
 
-  /// 前往目前目的地的路線（M2 RouteService → M1 提供）。未配置時只有 Mock 使用示範路線；Live 顯示 unavailable。
+  /// 前往目前目的地的路線（M2 RouteService → M1 提供）。未配置時顯示 unavailable，不補人工路線。
   final sw.RouteResult? route;
   final bool routeLoading;
 
@@ -140,7 +140,7 @@ class SafeWalkFlow extends StatefulWidget {
   final Future<sw.EmergencyActionResult> Function(sw.EmergencyChannel channel)?
   onEmergency;
 
-  /// M1：使用者確認簡訊內容後，交給手機開啟簡訊 App；null 時只模擬傳送畫面。
+  /// M1：使用者確認簡訊內容後，交給手機開啟簡訊 App；null 時顯示未配置。
   final Future<bool> Function(String body)? onSendSms;
 
   /// M1：緊急求助頁的「通知附近的人」；null 時不顯示。
@@ -153,7 +153,7 @@ class SafeWalkFlow extends StatefulWidget {
   final VoidCallback? onOfficialReport;
   final VoidCallback? onExit;
 
-  /// M1：使用者已儲存在裝置上的「家」。null＝尚未設定；只有 Mock 可沿用示範的家。
+  /// M1：使用者已儲存在裝置上的「家」。null＝尚未設定，不預填任何住家。
   final sw.Coordinates? homeLocation;
 
   /// M1：使用者在「設定家」按儲存（帶座標）或移除（null）時呼叫，由 M1 寫入裝置儲存。
@@ -210,9 +210,7 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
 
   /// 進行中的模擬來電；去地圖看路再回來會接續。結束通話、拒絕、緊急求助、回首頁時丟棄。
   SafeWalkCallSession? _call;
-  late final List<SavedPlace> _places = widget.mode == sw.DataMode.mock
-      ? [...demoPlaces()]
-      : [const SavedPlace('home', '家', null)];
+  final List<SavedPlace> _places = [const SavedPlace('home', '家', null)];
   String _placeId = 'home';
 
   @override
@@ -261,12 +259,7 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
       _reportsError = null;
       _confirmedReports.clear();
       _resolvedReportIds.clear();
-      _anomalies = widget.mode == sw.DataMode.mock
-          ? demoAnomalies()
-          : <Anomaly>[];
-      _demoPoints = widget.mode == sw.DataMode.mock
-          ? demoAssistancePoints()
-          : const <sw.AssistancePoint>[];
+      _anomalies = <Anomaly>[];
     }
   }
 
@@ -279,8 +272,6 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
     final h = widget.homeLocation;
     final next = h != null
         ? SavedPlace('home', '家', LatLng(h.lat, h.lng))
-        : widget.mode == sw.DataMode.mock
-        ? demoPlaces().first
         : const SavedPlace('home', '家', null);
     if (i >= 0) {
       _places[i] = next;
@@ -320,12 +311,7 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
   SavedPlace get _place =>
       _places.firstWhere((p) => p.id == _placeId, orElse: () => _places.first);
   // Live mode never shows invented danger points or stand-in assistance points.
-  late List<Anomaly> _anomalies = widget.mode == sw.DataMode.mock
-      ? demoAnomalies()
-      : <Anomaly>[];
-  late List<sw.AssistancePoint> _demoPoints = widget.mode == sw.DataMode.mock
-      ? demoAssistancePoints()
-      : const <sw.AssistancePoint>[];
+  List<Anomaly> _anomalies = <Anomaly>[];
 
   Future<void> _loadReports() async {
     if (widget.mode != sw.DataMode.live) return;
@@ -415,10 +401,8 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
     final pts = _pointsState.points;
     if (pts.isEmpty) return null;
     final position = widget.livePosition ?? _position;
-    if (position == null && widget.mode == sw.DataMode.live) return null;
-    final from = position == null
-        ? DemoGeo.start
-        : LatLng(position.coordinates.lat, position.coordinates.lng);
+    if (position == null) return null;
+    final from = LatLng(position.coordinates.lat, position.coordinates.lng);
     final sorted = [...pts]
       ..sort(
         (a, b) =>
@@ -432,10 +416,7 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
     return sorted.first.name;
   }
 
-  bool get _missingLiveHome =>
-      widget.mode == sw.DataMode.live &&
-      _place.isHome &&
-      widget.homeLocation == null;
+  bool get _missingLiveHome => _place.isHome && widget.homeLocation == null;
 
   RouteState get _routeState {
     if (_missingLiveHome && _targetPointId == null) {
@@ -448,13 +429,11 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
           reason: '請先返回首頁設定「家」的位置，再規劃回家路線。',
           warnings: const ['尚未設定家的位置；未送出路線查詢。'],
         ),
-        allowDemoFallback: false,
       );
     }
     return RouteState(
       result: widget.route,
       loading: widget.routeLoading,
-      allowDemoFallback: widget.mode == sw.DataMode.mock,
       onRetry: widget.onPlanRoute == null ? null : _planRoute,
     );
   }
@@ -500,11 +479,7 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
   }
 
   PointsState get _pointsState => PointsState(
-    points:
-        widget.points ??
-        (widget.pointsLoading || widget.pointsError != null
-            ? const []
-            : _demoPoints),
+    points: widget.points ?? const [],
     loading: widget.pointsLoading,
     error: widget.pointsError,
     onRetry: widget.onRetryPoints,
@@ -719,7 +694,6 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
             ),
         ],
         destination: _place.label,
-        avoided: avoidedCount(_anomalies),
         onBack: widget.onExit,
         onOpenSettings: () => _go(_Screen.settings),
         onEmergency: _openEmergency,

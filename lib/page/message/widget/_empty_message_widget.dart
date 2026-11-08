@@ -17,7 +17,7 @@ class _EmptyMessageWidget extends StatelessWidget {
         const Padding(
           padding: EdgeInsets.symmetric(vertical: 8),
           child: TPText(
-            '目前無訊息',
+            '訊息服務尚未配置',
             style: TPTextStyles.h2SemiBold,
             color: TPColors.primary500,
           ),

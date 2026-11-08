@@ -25,9 +25,9 @@ sw.RouteRequest _request(
 }) => scope.createRouteRequest(
   origin: sw.Position(
     coordinates: sw.Coordinates(lat: 25, lng: 121.5),
-    source: sw.PositionSource.mock,
-    accuracyMeters: null,
-    observedAt: null,
+    source: sw.PositionSource.gps,
+    accuracyMeters: 10,
+    observedAt: DateTime.now().toUtc().toIso8601String(),
   ),
   destination: sw.Coordinates(lat: 25.001, lng: 121.5012),
   preference: preference,
@@ -52,8 +52,8 @@ sw.RouteSuccess _success(sw.RouteRequest request) => sw.RouteSuccess(
       distanceMeters: 170,
       durationSeconds: null,
       viaPointIds: const [],
-      provider: 'mock-wiring-test',
-      walkingNetworkVerified: false,
+      provider: 'test-walking-network',
+      walkingNetworkVerified: true,
       explanations: const ['測試資料'],
       warnings: const ['禁止實地導航'],
     ),
@@ -66,6 +66,7 @@ Future<void> _mount(
   JsonTransport? transport,
   PlatformService? platform,
   VoidCallback? onExit,
+  bool live = true,
 }) async {
   tester.view.physicalSize = const Size(1170, 2532);
   tester.view.devicePixelRatio = 3;
@@ -73,6 +74,10 @@ Future<void> _mount(
   await tester.pumpWidget(
     MaterialApp(
       home: SafeWalkCompositionRoot(
+        liveRoutes: live,
+        consentGranted: live,
+        watchPosition: () => const Stream.empty(),
+        watchHeading: () => const Stream.empty(),
         routeService: routes,
         routeTransport: transport,
         platform: platform,
@@ -147,7 +152,7 @@ final class _Platform implements PlatformService {
     sw.IncidentSummary? summary,
   }) async {
     beforeEmergency?.call();
-    expect(mode, sw.DataMode.mock);
+    expect(mode, sw.DataMode.live);
     expect(userInitiated, isTrue);
     expect(allowRealCalls, isFalse);
     expect(summary, isNull);
@@ -162,13 +167,18 @@ final class _Platform implements PlatformService {
 
 void main() {
   testWidgets(
-    'scope plans with default M2 Mock service without network or GPS',
+    'disabled composition provides unavailable without invented routes, network, or GPS',
     (tester) async {
       final platform = _Platform();
       final transport = _NoNetwork();
-      await _mount(tester, platform: platform, transport: transport);
+      await _mount(
+        tester,
+        platform: platform,
+        transport: transport,
+        live: false,
+      );
       final scope = _scope(tester);
-      expect(scope.mode, sw.DataMode.mock);
+      expect(scope.mode, sw.DataMode.live);
       expect(scope.liveNavigationAvailable, isFalse);
       expect(scope.hasRoutingConsent, isFalse);
       expect(scope.routeResult, isNull);
@@ -176,7 +186,7 @@ void main() {
 
       final request = _request(scope);
       expect(request.requestId, startsWith('m1-route-'));
-      expect(request.mode, sw.DataMode.mock);
+      expect(request.mode, sw.DataMode.live);
       expect(DateTime.tryParse(request.departAt), isNotNull);
       await scope.onPlanRoute(request);
       expect(_scope(tester).routeResult, isNull);
@@ -184,57 +194,34 @@ void main() {
       await scope.onPlanRoute(request);
       await tester.pump();
 
-      final result = _scope(tester).routeResult as sw.RouteSuccess;
+      final result = _scope(tester).routeResult as sw.RouteFailure;
       expect(result.requestId, request.requestId);
-      expect(result.routes.single.provider, 'mock-straight-line');
-      expect(result.routes.single.walkingNetworkVerified, isFalse);
-      expect(result.warnings.join(), contains('示範'));
+      expect(result.status, sw.RouteFailureStatus.providerUnavailable);
+      expect(result.routes, isEmpty);
       expect(_scope(tester).routeLoading, isFalse);
-      expect(_scope(tester).routeError, isNull);
+      expect(_scope(tester).routeError, isNotNull);
       expect(platform.locations, 0);
       expect(platform.emergencies, 0);
       expect(transport.gets + transport.posts, 0);
     },
   );
 
-  testWidgets('scope resolves via IDs using the validated M4 point snapshot', (
+  testWidgets('disabled composition has no bundled assistance snapshot', (
     tester,
   ) async {
     final transport = _NoNetwork();
-    await _mount(tester, transport: transport);
-    final scope = _scope(tester);
-    scope.onNavigationOpened();
-    final via = _request(
-      scope,
-      preference: sw.RouteKind.viaAssistance,
-      ids: const ['demo-point-1'],
-    );
-    await scope.onPlanRoute(via);
-    await tester.pump();
-    final result = _scope(tester).routeResult as sw.RouteSuccess;
-    expect(result.routes.single.kind, sw.RouteKind.viaAssistance);
-    expect(result.routes.single.viaPointIds, ['demo-point-1']);
-
-    final missing = _request(
-      scope,
-      preference: sw.RouteKind.viaAssistance,
-      ids: const ['missing-point'],
-    );
-    expect(missing.requestId, isNot(via.requestId));
-    await scope.onPlanRoute(missing);
-    await tester.pump();
-    final failure = _scope(tester).routeResult as sw.RouteFailure;
-    expect(failure.status, sw.RouteFailureStatus.invalidInput);
-    expect(failure.routes, isEmpty);
-    expect(_scope(tester).routeError, isNotNull);
+    await _mount(tester, transport: transport, live: false);
+    final flow = tester.widget<SafeWalkFlow>(find.byType(SafeWalkFlow));
+    expect(flow.points, isEmpty);
+    expect(flow.pointsError, isNotNull);
     expect(transport.gets + transport.posts, 0);
   });
 
-  testWidgets('scope consent cannot enable Live in the Mock composition', (
+  testWidgets('scope consent cannot enable an unconfigured live capability', (
     tester,
   ) async {
     final routes = _Routes();
-    await _mount(tester, routes: routes);
+    await _mount(tester, routes: routes, live: false);
     final scope = _scope(tester);
     scope.onNavigationOpened();
     scope.onRoutingConsentChanged(true);
@@ -247,7 +234,7 @@ void main() {
     expect(routes.requests, isEmpty);
     expect(
       (_scope(tester).routeResult as sw.RouteFailure).status,
-      sw.RouteFailureStatus.invalidInput,
+      sw.RouteFailureStatus.providerUnavailable,
     );
   });
 

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart' as ll;
-import 'package:town_pass/features/safe_walk/presentation/demo_map.dart';
-import 'package:town_pass/features/safe_walk/presentation/mock/safe_walk_demo_data.dart';
+import 'package:town_pass/features/safe_walk/presentation/safe_walk_map.dart';
+import 'package:town_pass/features/safe_walk/presentation/safe_walk_map_models.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -116,7 +116,7 @@ class _SafeWalkHomeSettingViewState extends State<SafeWalkHomeSettingView> {
                             'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                         userAgentPackageName: 'town_pass',
                         maxNativeZoom: 19,
-                        tileProvider: DemoMap.createTileProvider(),
+                        tileProvider: SafeWalkMap.createTileProvider(),
                       ),
                       if (pin != null)
                         MarkerLayer(

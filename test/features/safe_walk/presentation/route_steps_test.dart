@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:town_pass/features/safe_walk/presentation/mock/safe_walk_demo_data.dart';
+import '../../../support/safe_walk_fixtures.dart';
 
 // 文字路線用相對轉彎（左轉／右轉），不是東西南北。
 void main() {

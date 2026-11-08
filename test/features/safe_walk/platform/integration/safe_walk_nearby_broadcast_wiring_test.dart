@@ -279,11 +279,11 @@ Future<void> _openSettings(WidgetTester t) async {
 }
 
 void main() {
-  testWidgets('demo mode never offers to notify anyone', (t) async {
+  testWidgets('disabled live capability never offers to notify anyone', (t) async {
     final platform = _Platform();
     await _pump(t, live: false, platform: platform);
     await _show(t, find.text('通知附近的人：目前無法使用'));
-    expect(find.textContaining('示範模式不會通知任何人'), findsOneWidget);
+    expect(find.textContaining('附近通知服務尚未配置'), findsOneWidget);
     expect(find.text('通知附近協助者'), findsNothing);
     expect(platform.locations, 0);
     await t.pumpWidget(const SizedBox.shrink());
@@ -358,7 +358,7 @@ void main() {
       await _tap(t, '同意並加入');
     }
 
-    testWidgets('demo mode has no helper card', (t) async {
+    testWidgets('disabled live capability has no helper card', (t) async {
       await _pump(t, live: false, platform: _Platform(), openEmergency: false);
       expect(find.text('附近協助者', skipOffstage: false), findsNothing);
       expect(find.text('加入附近協助者', skipOffstage: false), findsNothing);

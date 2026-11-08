@@ -12,7 +12,7 @@ import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_comp
 import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_route_speaker.dart';
 import 'package:town_pass/features/safe_walk/platform/platform_service.dart';
 import 'package:town_pass/features/safe_walk/platform/supabase/supabase_rpc_client.dart';
-import 'package:town_pass/features/safe_walk/presentation/demo_map.dart';
+import 'package:town_pass/features/safe_walk/presentation/safe_walk_map.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_flow.dart';
 import 'package:town_pass/features/safe_walk/safety_data/crime_reference/crime_reference_models.dart';
 import 'package:town_pass/features/safe_walk/shared/contracts/cancellation.dart';
@@ -234,7 +234,7 @@ void main() {
         reason: 'one discovery read and one live bbox read',
       );
       expect(platform.gpsCalls, 0);
-      final map = tester.widget<DemoMap>(find.byType(DemoMap));
+      final map = tester.widget<SafeWalkMap>(find.byType(SafeWalkMap));
       expect(map.crimeSpots.isNotEmpty, isTrue);
       expect(map.showTiles, isFalse);
       final spotId =

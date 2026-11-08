@@ -2,8 +2,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:town_pass/features/safe_walk/presentation/mock/companion_dialogues.dart';
-import 'package:town_pass/features/safe_walk/presentation/mock/companion_scenarios.dart';
+import 'package:town_pass/features/safe_walk/presentation/companion_dialogues.dart';
+import 'package:town_pass/features/safe_walk/presentation/companion_scenarios.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_flow.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_speaker.dart';
 

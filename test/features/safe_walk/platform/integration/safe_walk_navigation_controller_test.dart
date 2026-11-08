@@ -107,7 +107,7 @@ SafeWalkNavigationController _controller(
 
 void main() {
   test(
-    'M2 default mock service returns the shared route with warnings',
+    'M2 default service returns unavailable without an injected provider',
     () async {
       final controller = _controller(DefaultRouteService(clock: () => _now));
       addTearDown(controller.dispose);
@@ -118,15 +118,12 @@ void main() {
 
       await controller.planRoute(_request());
 
-      final result = controller.routeResult as sw.RouteSuccess;
+      final result = controller.routeResult as sw.RouteFailure;
       expect(result.requestId, 'request-1');
-      expect(result.mode, sw.DataMode.mock);
-      expect(result.routes.single.provider, 'mock-straight-line');
-      expect(result.routes.single.durationSeconds, isNull);
-      expect(result.routes.single.walkingNetworkVerified, isFalse);
-      expect(result.warnings.join(), contains('示範'));
+      expect(result.status, sw.RouteFailureStatus.providerUnavailable);
+      expect(result.routes, isEmpty);
       expect(controller.routeLoading, isFalse);
-      expect(controller.routeError, isNull);
+      expect(controller.routeError, isNotNull);
     },
   );
 

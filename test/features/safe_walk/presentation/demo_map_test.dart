@@ -3,8 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart' as ll;
-import 'package:town_pass/features/safe_walk/presentation/demo_map.dart';
-import 'package:town_pass/features/safe_walk/presentation/mock/safe_walk_demo_data.dart';
+import 'package:town_pass/features/safe_walk/presentation/safe_walk_map.dart';
+import '../../../support/safe_walk_fixtures.dart';
 
 import '../../../support/fake_map_tile_provider.dart';
 
@@ -20,7 +20,7 @@ Future<void> showMap(
         body: Center(
           child: SizedBox.fromSize(
             size: size,
-            child: DemoMap(
+            child: SafeWalkMap(
               start: DemoGeo.start,
               points: const [],
               anomalies: const [],
@@ -42,15 +42,15 @@ Future<void> showMap(
 void main() {
   const launcher = MethodChannel('plugins.flutter.io/url_launcher');
   test('production tiles retain the built-in HTTP cache', () async {
-    final previous = DemoMap.tileProviderFactoryForTesting;
-    DemoMap.tileProviderFactoryForTesting = null;
-    final provider = DemoMap.createTileProvider();
+    final previous = SafeWalkMap.tileProviderFactoryForTesting;
+    SafeWalkMap.tileProviderFactoryForTesting = null;
+    final provider = SafeWalkMap.createTileProvider();
     try {
       expect(provider, isA<NetworkTileProvider>());
       expect((provider as NetworkTileProvider).cachingProvider, isNull);
     } finally {
       provider.dispose();
-      DemoMap.tileProviderFactoryForTesting = previous;
+      SafeWalkMap.tileProviderFactoryForTesting = previous;
     }
   });
 

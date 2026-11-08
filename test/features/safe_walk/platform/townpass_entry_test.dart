@@ -228,7 +228,7 @@ Future<void> _homeApp(
   addTearDown(tester.view.reset);
   Get.put<NewsBannerWidgetController>(_NewsWithoutTimer());
   Get.put<ActivityBannerWidgetController>(_ActivityWithoutTimer());
-  Get.put(SubscriptionService()..addSubscription(title: '測試訂閱'));
+  Get.put(SubscriptionService());
   await tester.pumpWidget(
     GetMaterialApp(
       builder: (context, child) => MediaQuery(

@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:town_pass/features/safe_walk/platform/supabase/safe_walk_supabase_config.dart';
 import 'package:town_pass/features/safe_walk/platform/supabase/supabase_rpc_client.dart';
 import 'package:town_pass/features/safe_walk/platform/supabase/web_rpc_post.dart';
-import 'package:town_pass/features/safe_walk/presentation/mock/safe_walk_demo_data.dart';
+import 'package:town_pass/features/safe_walk/presentation/safe_walk_map_models.dart';
 import 'package:town_pass/features/safe_walk/safety_data/map_reports/map_report_repository.dart';
 import 'package:town_pass/features/safe_walk/shared/contracts/cancellation.dart';
 import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart'

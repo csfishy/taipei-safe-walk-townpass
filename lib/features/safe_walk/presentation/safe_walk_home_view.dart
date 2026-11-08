@@ -15,12 +15,11 @@ class SafeWalkHomeView extends StatelessWidget {
     super.key,
     required this.onOpen,
     required this.onEmergency,
-    required this.avoided,
     this.destination = '家',
     this.onOpenSettings,
     this.onBack,
     this.now,
-    this.isLive = false,
+    this.isLive = true,
     this.settings = const [],
   });
   final bool isLive;
@@ -35,7 +34,6 @@ class SafeWalkHomeView extends StatelessWidget {
 
   /// 開啟「安心行設定」（家的位置、附近協助者）；null 時不顯示右上齒輪。
   final VoidCallback? onOpenSettings;
-  final int avoided;
   final String destination;
 
   /// 測試可固定時間；正式由裝置時間決定。
@@ -49,7 +47,6 @@ class SafeWalkHomeView extends StatelessWidget {
     final bigText = MediaQuery.textScalerOf(context).scale(16) > 20;
     final card = _GoHomeCard(
       destination: destination,
-      avoided: avoided,
       isLive: isLive,
       onTap: () => onOpen(SafeWalkEntry.map),
     );
@@ -185,13 +182,11 @@ class _ContextCard extends StatelessWidget {
 class _GoHomeCard extends StatefulWidget {
   const _GoHomeCard({
     required this.destination,
-    required this.avoided,
     required this.onTap,
     required this.isLive,
   });
   final bool isLive;
   final String destination;
-  final int avoided;
   final VoidCallback onTap;
 
   @override
@@ -206,9 +201,7 @@ class _GoHomeCardState extends State<_GoHomeCard> {
   @override
   Widget build(BuildContext context) => Semantics(
     button: true,
-    label: widget.isLive
-        ? '安心行，選擇目的地並規劃步行路線，點擊開始'
-        : '安心行，前往${widget.destination}，已繞開 ${widget.avoided} 個異常回報，點擊開始',
+    label: '安心行，選擇目的地並規劃步行路線，點擊開始',
     child: DecoratedBox(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),

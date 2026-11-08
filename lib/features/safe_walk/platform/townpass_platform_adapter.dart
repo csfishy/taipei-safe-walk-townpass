@@ -22,7 +22,6 @@ class TownPassPlatformAdapter implements PlatformService {
   TownPassPlatformAdapter({
     TownPassPositionReader? readPosition,
     TownPassUriLauncher? launchUri,
-    this.mockPosition,
     this.locationTimeout = const Duration(seconds: 8),
   }) : _readPosition = readPosition ?? _readFromTownPass,
        _launchUri = launchUri ?? _launchExternally;
@@ -34,7 +33,6 @@ class TownPassPlatformAdapter implements PlatformService {
   /// to press call. Nothing is dialled or sent by the app.
   static Future<bool> _launchExternally(Uri uri) =>
       launchUrl(uri, mode: LaunchMode.externalApplication);
-  final sw.Position? mockPosition;
   final Duration locationTimeout;
 
   static Future<geo.Position> _readFromTownPass() =>
@@ -54,14 +52,7 @@ class TownPassPlatformAdapter implements PlatformService {
       return _failure('denied', '尚未收到明確的使用者定位操作；未取得位置。');
     }
     if (mode == sw.DataMode.mock) {
-      final mock = mockPosition;
-      if (mock == null || mock.toJson()['source'] != 'mock') {
-        return _failure('unavailable', '尚未注入示範位置；不以真實 GPS 補足 mock。');
-      }
-      return sw.LocationResult.fromJson({
-        'status': 'ok',
-        'position': mock.toJson(),
-      });
+      return _failure('unavailable', '測試模式不提供裝置定位或人工位置。');
     }
     try {
       final native = _readPosition().timeout(locationTimeout);

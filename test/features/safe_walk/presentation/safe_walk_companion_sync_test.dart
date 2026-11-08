@@ -3,8 +3,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:town_pass/features/safe_walk/presentation/mock/companion_dialogues.dart';
-import 'package:town_pass/features/safe_walk/presentation/mock/companion_scenarios.dart';
+import 'package:town_pass/features/safe_walk/presentation/companion_dialogues.dart';
+import 'package:town_pass/features/safe_walk/presentation/companion_scenarios.dart';
 import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart' as sw;
 
 void main() {

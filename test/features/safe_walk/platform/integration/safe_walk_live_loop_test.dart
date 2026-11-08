@@ -6,7 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_home_view.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:town_pass/features/safe_walk/platform/home_location/home_location_service.dart';
-import 'package:town_pass/features/safe_walk/presentation/mock/safe_walk_demo_data.dart'
+import 'package:town_pass/features/safe_walk/presentation/safe_walk_map_models.dart'
     show LatLng;
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_flow.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_map_view.dart';
@@ -1199,7 +1199,7 @@ void main() {
         );
         expect(db.calls, hasLength(1));
         expect(map(t).routeState.best?.id, 'osrm-direct');
-        expect(map(t).routeState.allowDemoFallback, isFalse);
+        expect(map(t).routeState.result?.mode, sw.DataMode.live);
         expect(map(t).crimeSpots, hasLength(1));
         // The buffer note opens on tapping a purple dot; the dot itself is labelled.
         expect(

@@ -70,7 +70,7 @@ Production 僅使用真實、已完成適用驗收的資料來源與能力；Moc
 
 | 功能／建議主責 | 相關檔案（前綴 lib/features/safe_walk/） | 完成定義／輸入輸出 | 測試標準／接收者 |
 |---|---|---|---|
-| 完整真實導航：Steven | platform/integration/safe_walk_composition_root.dart、safe_walk_navigation_controller.dart；navigation 的 service／follower；presentation/safe_walk_flow.dart、safe_walk_map_view.dart、demo_map.dart；對應測試 | 從選／換目的地到主動 GPS、獨立第三方同意、OSRM RouteResult、真地圖、刷新／取消；錯誤不補 Demo | Adapter／Provider／Flow／取消整合與真實 Provider、iPhone 驗收；A 普通接線由具權限隊員接收；shared/deps 大型 UI 依 B 找小魚／莅紋，正式啟用依 C；先核對 #29 避免重做 |
+| 完整真實導航：Steven | platform/integration/safe_walk_composition_root.dart、safe_walk_navigation_controller.dart；navigation 的 service／follower；presentation/safe_walk_flow.dart、safe_walk_map_view.dart、safe_walk_map.dart；對應測試 | 從選／換目的地到主動 GPS、獨立第三方同意、OSRM RouteResult、真地圖、刷新／取消；錯誤不補 Demo | Adapter／Provider／Flow／取消整合與真實 Provider、iPhone 驗收；A 普通接線由具權限隊員接收；shared/deps 大型 UI 依 B 找小魚／莅紋，正式啟用依 C；先核對 #29 避免重做 |
 | 目的地與 Live 錯誤操作：莅紋 | presentation 的 home／flow／map；platform/integration 導航 controller／callbacks；必要 navigation 純邏輯及測試 | 使用者可選／換目的地、重試／取消、拒絕／撤同意；geometry／距離／未知時間與狀態一致 | Widget＋controller／入口整合、無障礙與 iPhone；具權限隊員接收 A，shared 契約改動依 B；與導航主責協調 flow/map 同檔案範圍 |
 | 真實據點完整查詢：信義 | safety_data 的來源／Parser／Repository；platform/integration points lookup；navigation 途經點；presentation 據點列表及測試 | 合法來源 → AssistancePoint → 查詢／途經／來源日期限制，區分失敗、無資料、未配置；不冒稱認證救援 | 解析／語意、lookup／途經／UI 整合、真來源與 iPhone；具權限隊員接收 A，模型／shared 依 B，敏感外送依 C；root 同檔案安排獨立時段 |
 | 陪伴播放到 SOS 中斷：奶爸 | companion/companion_tts.dart；platform/integration 的 speaker／composition；presentation/safe_walk_call_view.dart 與 lifecycle 測試 | 劇本／本機 voice → 播放或文字預覽；停止／離開／背景／SOS 無遲到聲音，不要求麥克風 | engine／speaker／頁面競態整合與 iPhone 離線／無 voice／OS 中斷；具權限隊員接收 A，shared speaker 契約依 B；#26 已合併，從其實作續做，不重做既有修正 |

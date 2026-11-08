@@ -17,8 +17,8 @@
 | `violent_crime_normalizer.dart` | 純轉換：CSV 解析、民國年月 → 西元期間、剔除規則、`CityMonthlyCrimeStatistics`、`cityCrimeProblems()`；`source` 用共用 `sw.SourceMetadata` 建立並驗證 |
 | `taipei_violent_crime_repository.dart` | `TaipeiViolentCrimeRepository.getMonthlyStatistics(mode:, from:, to:, cancellation:)`；live-only、6 小時記憶體快取、共用進行中的讀取、取消、`lastReport` |
 | `get_connect_text_fetcher.dart` | 預設傳輸（沿用官方 App 既有 GetX），把被當成 Latin-1 解碼的 UTF-8 還原 |
-| `fixtures/violent_crime_raw_sample.csv` | 來源 CSV 真實節錄 6 列（含 113 年 2 月閏月），2026-11-07 取得 |
-| `fixtures/violent_crime_expected.json` | 舊 React repo Node 版對同一樣本的輸出；Dart 測試要求逐欄相同 |
+| `../../../../../../test/features/safe_walk/safety_data/violent_crime/fixtures/violent_crime_raw_sample.csv` | 來源 CSV 真實節錄 6 列（含 113 年 2 月閏月），2026-11-07 取得 |
+| `../../../../../../test/features/safe_walk/safety_data/violent_crime/fixtures/violent_crime_expected.json` | 舊 React repo Node 版對同一樣本的輸出；Dart 測試要求逐欄相同 |
 
 ## 行為
 

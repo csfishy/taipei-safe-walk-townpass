@@ -26,12 +26,8 @@ defaults:
     shell: bash
 
 jobs:
-  database-ci:
-    uses: ./.github/workflows/demo_database_ci.yml
-
   checks:
     name: Safe Walk contracts and tests
-    needs: database-ci
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -43,6 +39,7 @@ jobs:
         run: |
           python3 tool/check_crime_database_isolation.py
           python3 -m unittest discover -s tool -p 'test_*crime*.py' -v
+          python3 -m unittest discover -s tool -p 'test_build_workflows.py' -v
       - run: python3 tool/release_metadata.py
       - name: Install the SDK pinned in .fvmrc
         uses: subosito/flutter-action@v2
