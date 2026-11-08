@@ -200,7 +200,7 @@ void main() {
       flow.onStartChanged!(origin);
       expect(http.created, 1, reason: 'opening the feature must not query');
       await tester.runAsync(() async {
-        await tester.tap(find.text('安心行'));
+        await tester.tap(find.text('點擊開始'));
         await tester.pumpAndSettle();
         await tester.tap(find.text('同意'));
         await tester.pumpAndSettle();

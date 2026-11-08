@@ -1098,7 +1098,7 @@ void main() {
     }
 
     Future<void> openMap(WidgetTester t) async {
-      await t.tap(find.text('安心行'));
+      await t.tap(find.text('點擊開始'));
       await t.pumpAndSettle();
       expect(find.byType(SafeWalkMapView), findsOneWidget);
       expect(find.byType(SafeWalkLiveRoutePage), findsNothing);

@@ -57,13 +57,13 @@ void main() {
     expect(find.text('未實際串接警方'), findsOneWidget);
     await t.tap(find.text('我現在安全，關閉'));
     await t.pumpAndSettle();
-    expect(find.text('安心行'), findsOneWidget);
+    expect(find.text('點擊開始'), findsOneWidget);
     expect(calls, isEmpty);
   });
 
   testWidgets('地圖預設回家路線並顯示已繞開的異常回報；文字路線暫時隱藏', (t) async {
     await _pump(t, const SafeWalkFlow());
-    await t.tap(find.text('安心行'));
+    await t.tap(find.text('點擊開始'));
     await t.pumpAndSettle();
     expect(find.textContaining('已繞開'), findsOneWidget);
     expect(find.text('路線僅供參考・請留意實際路況'), findsNothing, reason: '上方提示已拿掉，資訊框內已有說明');
@@ -73,7 +73,7 @@ void main() {
 
   testWidgets('最近求助地點是中性目的地，可切換下一個；資訊框可收合', (t) async {
     await _pump(t, const SafeWalkFlow());
-    await t.tap(find.text('安心行'));
+    await t.tap(find.text('點擊開始'));
     await t.pumpAndSettle();
     expect(find.textContaining('7-ELEVEN'), findsNothing);
     await t.tap(find.text('最近求助地點'));
@@ -235,7 +235,7 @@ void main() {
 
   testWidgets('資訊框三段：往上滑變滿版、往下滑縮回、點把手收合', (t) async {
     await _pump(t, const SafeWalkFlow());
-    await t.tap(find.text('安心行'));
+    await t.tap(find.text('點擊開始'));
     await t.pumpAndSettle();
     await t.fling(find.bySemanticsLabel('收合資訊框'), const Offset(0, -200), 1000);
     await t.pumpAndSettle();
@@ -249,7 +249,7 @@ void main() {
 
   testWidgets('右上「回報」工具進入選位置模式', (t) async {
     await _pump(t, const SafeWalkFlow());
-    await t.tap(find.text('安心行'));
+    await t.tap(find.text('點擊開始'));
     await t.pumpAndSettle();
     await t.tap(find.bySemanticsLabel('回報狀況，在地圖上標出異常'));
     await t.pumpAndSettle();
@@ -258,7 +258,7 @@ void main() {
 
   testWidgets('目的地：可切換到公司、新增地點（在地圖上點位置）', (t) async {
     await _pump(t, const SafeWalkFlow());
-    await t.tap(find.text('安心行'));
+    await t.tap(find.text('點擊開始'));
     await t.pumpAndSettle();
     await t.tap(find.textContaining('→ 家'));
     await t.pumpAndSettle();
@@ -285,7 +285,7 @@ void main() {
 
   testWidgets('圖例與回報一次只開一個', (t) async {
     await _pump(t, const SafeWalkFlow());
-    await t.tap(find.text('安心行'));
+    await t.tap(find.text('點擊開始'));
     await t.pumpAndSettle();
     await t.tap(find.bySemanticsLabel('顯示圖例'));
     await t.pumpAndSettle();
@@ -324,7 +324,7 @@ void main() {
       final asked = <sw.Coordinates>[];
       await _pump(t, SafeWalkFlow(onPlanRoute: asked.add));
       expect(asked, isEmpty, reason: '還在首頁，使用者沒操作前不規劃');
-      await t.tap(find.text('安心行'));
+      await t.tap(find.text('點擊開始'));
       await t.pumpAndSettle();
       expect(asked, hasLength(1), reason: '點主卡打開地圖才規劃');
       await t.tap(find.textContaining('→ 家'));
@@ -337,7 +337,7 @@ void main() {
 
     testWidgets('計算中：不畫示範路線，資訊框寫「路線計算中」', (t) async {
       await _pump(t, const SafeWalkFlow(routeLoading: true));
-      await t.tap(find.text('安心行'));
+      await t.tap(find.text('點擊開始'));
       await t.pump(const Duration(milliseconds: 600));
       expect(find.text('正在計算步行路線…'), findsOneWidget);
       expect(find.textContaining('已繞開'), findsNothing);
@@ -345,7 +345,7 @@ void main() {
 
     testWidgets('Live 模式不出現示範異常回報、示範求助地點或「已繞開」數字', (t) async {
       await _pump(t, SafeWalkFlow(mode: sw.DataMode.live, homeLocation: sw.Coordinates(lat: 0.5, lng: 0.75)));
-      await t.tap(find.text('安心行'));
+      await t.tap(find.text('點擊開始'));
       await t.pumpAndSettle();
       expect(find.bySemanticsLabel(RegExp('照明不足|道路施工|打架衝突|可疑人士')), findsNothing);
       expect(find.textContaining('示範求助據點'), findsNothing);
@@ -356,7 +356,7 @@ void main() {
 
     testWidgets('同一個 flow 切換 Live 時清除已初始化的示範資料', (t) async {
       await _pump(t, const SafeWalkFlow());
-      await t.tap(find.text('安心行'));
+      await t.tap(find.text('點擊開始'));
       await t.pumpAndSettle();
       expect(t.widget<SafeWalkMapView>(find.byType(SafeWalkMapView)).anomalies, isNotEmpty);
       await t.pumpWidget(const MaterialApp(home: SafeWalkFlow(mode: sw.DataMode.live)));
@@ -383,7 +383,7 @@ void main() {
           ),
         ),
       );
-      await t.tap(find.text('安心行'));
+      await t.tap(find.text('點擊開始'));
       await t.pumpAndSettle();
       expect(find.text('找不到回家路線'), findsWidgets);
       expect(find.text('附近道路資料不足。'), findsOneWidget);
@@ -397,7 +397,7 @@ void main() {
 
     testWidgets('成功：用 M2 的距離與時間，標示「僅供參考」而非示範', (t) async {
       await _pump(t, SafeWalkFlow(route: ok()));
-      await t.tap(find.text('安心行'));
+      await t.tap(find.text('點擊開始'));
       await t.pumpAndSettle();
       expect(find.textContaining('示範'), findsNothing);
       expect(find.textContaining('約 420 公尺'), findsOneWidget);

@@ -38,6 +38,8 @@ class SafeWalkSettingsView extends StatelessWidget {
         leading: IconButton(
           tooltip: '返回',
           color: TPColors.white,
+          // App 主題把頂部列圖示設成 56，不指定會被切掉、也不好點；跟首頁 ✕ 一樣用 24。
+          iconSize: 24,
           icon: const Icon(Icons.arrow_back_ios_new_rounded),
           onPressed: onBack,
         ),

@@ -26,7 +26,7 @@ Future<void> _pump(WidgetTester t, SafeWalkFlow flow) async {
   addTearDown(t.view.reset);
   await t.pumpWidget(MaterialApp(home: flow));
   await t.pumpAndSettle();
-  await t.tap(find.text('安心行'));
+  await t.tap(find.text('點擊開始'));
   await t.pumpAndSettle();
 }
 
@@ -100,7 +100,7 @@ void main() {
       expect(find.text('已排除'), findsNothing);
       await t.tap(find.bySemanticsLabel('返回'));
       await t.pumpAndSettle();
-      await t.tap(find.text('安心行'));
+      await t.tap(find.text('點擊開始'));
       await t.pumpAndSettle();
       expect(_reports(t).map((a) => a.id), ['other']);
     },
@@ -230,7 +230,7 @@ void main() {
       await t.pump();
       await t.tap(find.bySemanticsLabel('返回'));
       await t.pumpAndSettle();
-      await t.tap(find.text('安心行'));
+      await t.tap(find.text('點擊開始'));
       await t.pumpAndSettle();
       await _detail(t, draft!.id);
       await t.tap(find.text('已排除'));
