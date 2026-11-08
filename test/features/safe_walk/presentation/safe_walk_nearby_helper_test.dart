@@ -311,13 +311,15 @@ void main() {
       await _show(t, _t('確認設定'));
       expect(_tc('四捨五入到約 100 公尺'), findsOneWidget);
       expect(_tc('住家或公司'), findsOneWidget);
-      expect(_t('2 公里'), findsOneWidget);
+      expect(_t('1 公里'), findsOneWidget);
+      // 2 km is no longer offered.
+      expect(_t('2 公里'), findsNothing);
       expect(helper.addedRadii, isEmpty);
 
-      await _tap(t, '2 公里');
+      await _tap(t, '1 公里');
       await _tap(t, '確認設定');
-      expect(helper.addedRadii, [2000]);
-      await _show(t, _tc('25.033, 121.566・半徑 2 公里'));
+      expect(helper.addedRadii, [1000]);
+      await _show(t, _tc('25.033, 121.566・半徑 1 公里'));
       expect(_t('把目前位置設為守護區'), findsOneWidget);
     });
 

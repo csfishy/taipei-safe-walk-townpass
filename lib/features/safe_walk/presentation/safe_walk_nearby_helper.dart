@@ -53,7 +53,7 @@ abstract interface class SafeWalkNearbyHelper implements Listenable {
   List<SafeWalkGuardArea> get guardAreas;
 
   /// Reads the current position, after the person confirmed, and adds a guard
-  /// area there with [radiusMeters] (500, 1000 or 2000).
+  /// area there with [radiusMeters] (500 or 1000).
   Future<void> addGuardAreaHere(int radiusMeters);
 
   Future<void> removeGuardArea(int index);
@@ -272,7 +272,7 @@ class _SafeWalkNearbyHelperCardState extends State<SafeWalkNearbyHelperCard> {
           spacing: 8,
           runSpacing: 8,
           children: [
-            for (final r in const [500, 1000, 2000])
+            for (final r in const [500, 1000])
               SwPressable(
                 onTap: () => setState(() => _radius = r),
                 selected: _radius == r,
@@ -295,7 +295,10 @@ class _SafeWalkNearbyHelperCardState extends State<SafeWalkNearbyHelperCard> {
           ],
         ),
         const SizedBox(height: 8),
-        Text('會取得你目前的位置，四捨五入到約 100 公尺後存到伺服器，直到你移除它、停止協助或刪除帳號。', style: SwText.body),
+        Text(
+          '會取得你目前的位置，四捨五入到約 100 公尺後存到伺服器，直到你移除它、停止協助或刪除帳號。',
+          style: SwText.body,
+        ),
         const SizedBox(height: 4),
         Text('若這是你的住家或公司，等於讓伺服器知道你大概的所在。', style: SwText.body),
         const SizedBox(height: 8),

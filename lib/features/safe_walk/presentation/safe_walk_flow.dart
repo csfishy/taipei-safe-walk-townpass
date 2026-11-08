@@ -54,6 +54,7 @@ class SafeWalkFlow extends StatefulWidget {
     this.onEmergency,
     this.onSendSms,
     this.nearbyBroadcast,
+    this.onOfficialReport,
     this.nearbyHelper,
     this.homeLocation,
     this.onHomeChanged,
@@ -135,6 +136,9 @@ class SafeWalkFlow extends StatefulWidget {
 
   /// M1：附近協助者（加入／退出、收到求助的橫幅）；null 時不顯示。
   final SafeWalkNearbyHelper? nearbyHelper;
+
+  /// M1：開啟官方線上報案；null 時求助頁不顯示該按鈕。
+  final VoidCallback? onOfficialReport;
   final VoidCallback? onExit;
 
   /// M1：使用者已儲存在裝置上的「家」。null＝尚未設定；只有 Mock 可沿用示範的家。
@@ -721,6 +725,7 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
         locating: _locating,
         onSendSms: widget.onSendSms,
         nearbyBroadcast: widget.nearbyBroadcast,
+        onOfficialReport: widget.onOfficialReport,
         nearbyPointName: _nearestPointName,
         onChannel: _channel,
         onLocate: _locate,

@@ -18,6 +18,7 @@ class SafeWalkEmergencyView extends StatelessWidget {
     required this.onClose,
     this.onSendSms,
     this.nearbyBroadcast,
+    this.onOfficialReport,
     this.nearbyPointName,
     this.statusMessage,
     this.statusIsError = false,
@@ -35,6 +36,10 @@ class SafeWalkEmergencyView extends StatelessWidget {
 
   /// M1：「通知附近的人」。null 時不顯示這張卡；有值但 unavailableReason 非 null 時只顯示原因。
   final SafeWalkNearbyBroadcast? nearbyBroadcast;
+
+  /// M1：開啟臺北通既有的官方線上報案服務；null 時不顯示這個按鈕。
+  /// 開啟只是進入該服務，不代表已報案或已受理。
+  final VoidCallback? onOfficialReport;
   final String? nearbyPointName;
   final String? statusMessage;
   final bool statusIsError, locating;
@@ -98,6 +103,15 @@ class SafeWalkEmergencyView extends StatelessWidget {
                   when: '受傷、身體不舒服、火災',
                   onTap: () => onChannel(sw.EmergencyChannel.fire),
                 ),
+                if (onOfficialReport != null) ...[
+                  const SizedBox(height: 12),
+                  _CallButton(
+                    icon: Icons.assignment_rounded,
+                    title: '線上報案（臺北通）',
+                    when: '開啟臺北通的線上、語音報案服務；開啟不代表已受理',
+                    onTap: onOfficialReport!,
+                  ),
+                ],
                 if (nearbyBroadcast != null) ...[
                   const SizedBox(height: 12),
                   SafeWalkNearbyBroadcastCard(broadcast: nearbyBroadcast!),

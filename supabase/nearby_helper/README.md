@@ -100,7 +100,7 @@ team lead authorizes it (Level C).
 RPCs: `nearby_helper_opt_in`, `nearby_helper_opt_out`, `nearby_helper_report_location`,
 `nearby_sos_send`, `nearby_helper_fetch_alerts`, `nearby_helper_set_areas`,
 `nearby_helper_get_areas`. **Guard areas** (`helper_areas`): a helper may set up to 3 circles
-(500, 1000 or 2000 m, centre rounded to ~100 m by the server); an SOS also notifies a
+(500 or 1000 m, centre rounded to ~100 m by the server); an SOS also notifies a
 helper whose guard area covers it, once per helper. The server cannot verify that a centre
 is where the helper really is; see the design doc's known-risk note. `safe_walk_nearby.purge_expired()` is
 hygiene only (every read already filters on expiry) and is not exposed to API roles.

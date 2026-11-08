@@ -430,14 +430,14 @@ void main() {
     );
 
     test('replace sends only the areas, under the session', () async {
-      await transport.replaceGuardAreas([area(25.033, 500), area(25.05, 2000)]);
+      await transport.replaceGuardAreas([area(25.033, 500), area(25.05, 1000)]);
       final call = net.sent.single;
       expect(call.url.path, '/rest/v1/rpc/nearby_helper_set_areas');
       expect(call.headers['authorization'], 'Bearer $_token');
       expect(call.json, {
         'p_areas': [
           {'lat': 25.033, 'lng': 121.5654, 'radius_m': 500},
-          {'lat': 25.05, 'lng': 121.5654, 'radius_m': 2000},
+          {'lat': 25.05, 'lng': 121.5654, 'radius_m': 1000},
         ],
       });
     });
@@ -458,6 +458,11 @@ void main() {
         );
         await expectLater(
           transport.replaceGuardAreas([area(25, 700)]),
+          throwsA(isA<NearbyAlertException>()),
+        );
+        // 2 km was allowed once; the cap is now 1 km.
+        await expectLater(
+          transport.replaceGuardAreas([area(25, 2000)]),
           throwsA(isA<NearbyAlertException>()),
         );
         expect(net.sent, isEmpty);

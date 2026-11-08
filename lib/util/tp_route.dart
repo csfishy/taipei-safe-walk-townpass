@@ -81,7 +81,15 @@ abstract class TPRoute {
     ),
     GetPage(
       name: safeWalk,
-      page: () => const SafeWalkCompositionRoot(liveRoutes: true, consentGranted: true),
+      page: () => SafeWalkCompositionRoot(
+        liveRoutes: true,
+        consentGranted: true,
+        // The person's own tap opens the phone's dialer for 110/119; they still
+        // press call. Nothing is dialled, reported or dispatched by the app.
+        allowEmergencyDialer: true,
+        // TownPass's own online and voice reporting service.
+        onOpenOfficialReport: () => openUri(uri: 'local://online_police'),
+      ),
     ),
     GetPage(
       name: basicInfo,
