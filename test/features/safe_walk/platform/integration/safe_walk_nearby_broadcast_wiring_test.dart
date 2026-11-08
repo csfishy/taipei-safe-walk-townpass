@@ -48,8 +48,10 @@ class _Platform implements PlatformService {
     required bool userInitiated,
     SafeWalkCancellation? cancellation,
   }) async {
-    expect(mode, sw.DataMode.live);
-    expect(userInitiated, isTrue);
+    // Called from production callbacks, possibly while a pump is running, so it
+    // must not use the guarded expect().
+    expectSync(mode, sw.DataMode.live);
+    expectSync(userInitiated, isTrue);
     locations++;
     return sw.LocationSuccess(
       position: sw.Position(

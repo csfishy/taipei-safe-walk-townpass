@@ -126,6 +126,14 @@ The test file runs in one transaction and rolls back.
 
 ### Deploying the RPC backend (manual, after authorization)
 
+0. **Anonymous sign-ins must be enabled** in the project's Auth settings (they are off by
+   default). The official entry creates an anonymous user (no name, phone or email) the
+   first time a person joins as a helper or sends an SOS; without this setting every
+   action shows "unavailable". This adds rows to `auth.users`, so confirm that the target
+   project is the right one. See the design doc's "身分" section: an anonymous identity
+   gives each record a server-verified owner, but it is **not** eligibility, and limits per
+   account can be bypassed by creating new ones.
+
 1. Use an **isolated** Supabase project (or a schema the team lead has authorized).
    Not the `crime_reference` data, not `safe_walk_demo`, never from CI, builds, app
    startup or Demo reset.

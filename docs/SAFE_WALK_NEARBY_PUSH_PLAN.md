@@ -44,7 +44,7 @@
 | D4 | 推播內容 | 通用文字，不含座標與身分，點開後經已驗證 session 取詳情 | **通用文字**（見第 5 節） | 隊長 |
 | D5 | 發送端 | A. Supabase Edge Function＋outbox；B. 自管伺服器 | **A**：服務帳號金鑰只放在 Function secrets | M1 小魚 |
 | D6 | 中斷等級 | iOS Time Sensitive（需 capability，無需特別核准）vs Critical Alerts（需 Apple 特別核准）；Android 高重要性 channel | **Time Sensitive**＋高重要性 channel | M3 莅紋、隊長 |
-| D7 | 身分來源 | TownPass 登入或 Supabase Auth（與 #70、#71 同一個待決事項） | 先定案才能綁定 token 到使用者 | M1 小魚、隊長 |
+| D7 | 身分來源 | TownPass 登入或 Supabase Auth（與 #70、#71 同一個待決事項） | 先定案才能綁定 token 到使用者。Supabase 匿名身分已隔離實作（見設計提案「身分」一節），**待決定**，且不解決資格與濫用問題 | M1 小魚、隊長 |
 
 ### D3 為什麼影響最大
 

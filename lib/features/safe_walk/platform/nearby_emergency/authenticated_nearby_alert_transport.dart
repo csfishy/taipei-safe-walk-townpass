@@ -12,15 +12,17 @@ import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart
 /// backend stores it next to the consent time.
 const nearbyHelperConsentVersion = '2026-11-08.v1';
 
-/// The verified sign-in of the person using the app. Where this comes from
-/// (TownPass login or Supabase Auth) is decided outside this file; nothing here
-/// creates accounts, stores credentials or accepts a caller-chosen identity.
+/// The verified identity of the person using the app. Where it comes from is
+/// decided outside this file (`SupabaseAnonymousNearbySession` gives every phone a
+/// server-issued anonymous one); nothing here creates accounts, stores
+/// credentials or accepts a caller-chosen identity.
 abstract interface class NearbySession {
-  /// True only while a verified session exists.
+  /// True while the session can supply a token: a verified session exists, or
+  /// one can be created on demand and the backend is not currently refusing.
   bool get isSignedIn;
 
-  /// A current access token (JWT) for that session, or null when signed out.
-  /// Implementations refresh it as needed and must never log it.
+  /// A current access token (JWT) for that session, or null when none can be
+  /// had. Implementations create or refresh it as needed and must never log it.
   Future<String?> accessToken();
 }
 
@@ -38,6 +40,7 @@ final class AuthenticatedNearbyAlertTransport
     implements
         NearbyAlertTransport,
         NearbyAlertAvailability,
+        NearbyAlertPreparation,
         NearbyHelperAreas {
   AuthenticatedNearbyAlertTransport({
     required this._rpc,
@@ -63,6 +66,16 @@ final class AuthenticatedNearbyAlertTransport
   @override
   String? get currentUnavailableReason =>
       _session.isSignedIn ? null : signedOutReason;
+
+  @override
+  Future<String?> prepare() async {
+    final reason = currentUnavailableReason;
+    if (reason != null) return reason;
+    final token = await _session.accessToken();
+    return token != null && _jwtShape.hasMatch(token.trim())
+        ? null
+        : signedOutReason;
+  }
 
   @override
   Future<void> setHelperOptIn({

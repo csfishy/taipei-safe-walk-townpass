@@ -157,6 +157,8 @@ void main() {
       expect(_tc('App 關閉時不會收到通知'), findsOneWidget);
       expect(_tc('你沒有義務前往'), findsOneWidget);
       expect(_tc('對方看不到你是誰'), findsOneWidget);
+      expect(_tc('匿名帳號代表這支手機'), findsOneWidget);
+      expect(_tc('不含姓名、電話或任何個人資料'), findsOneWidget);
       expect(helper.enables, 0);
 
       await _tap(t, '取消');

@@ -70,6 +70,9 @@ void main() {
     expect(root.liveRoutes, isTrue);
     expect(root.allowEmergencyDialer, isTrue);
     expect(root.onOpenOfficialReport, isNotNull);
+    // Tests carry no Supabase configuration, so nearby notification is absent
+    // (shown as unavailable) rather than half-configured.
+    expect(root.nearbyAlerts, isNull);
   });
 
   testWidgets('the visible default service opens the native route', (

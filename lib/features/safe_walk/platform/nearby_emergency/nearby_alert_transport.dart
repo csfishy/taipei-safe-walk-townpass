@@ -66,6 +66,15 @@ abstract interface class NearbyAlertAvailability {
   String? get currentUnavailableReason;
 }
 
+/// Optional capability for transports that must do async work (such as
+/// creating an anonymous identity) before they can be used. The service awaits
+/// it before reading the person's location, so a backend that turns out to be
+/// unusable never costs a location read.
+abstract interface class NearbyAlertPreparation {
+  /// Null when ready, otherwise why the backend cannot be used.
+  Future<String?> prepare();
+}
+
 /// A place where a helper asks to be notified about an SOS even when their live
 /// position is unknown. The backend rounds [center] to about 100 m.
 final class NearbyGuardArea {

@@ -26,8 +26,8 @@ class _Platform implements PlatformService {
     required bool userInitiated,
     SafeWalkCancellation? cancellation,
   }) {
-    expect(mode, sw.DataMode.live);
-    expect(userInitiated, isTrue);
+    expectSync(mode, sw.DataMode.live);
+    expectSync(userInitiated, isTrue);
     calls++;
     if (pending != null) return pending!.future;
     return Future.value(

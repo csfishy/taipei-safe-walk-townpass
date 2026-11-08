@@ -37,6 +37,25 @@ class _Session implements NearbySession {
   }
 }
 
+class _SlowSession implements NearbySession {
+  final completer = Completer<String?>();
+  @override
+  bool get isSignedIn => true;
+  @override
+  Future<String?> accessToken() => completer.future;
+}
+
+class _Cancel implements SafeWalkCancellation {
+  final _done = Completer<void>();
+  @override
+  bool get isCancelled => _done.isCompleted;
+  @override
+  Future<void> get whenCancelled => _done.future;
+  void cancel() {
+    if (!_done.isCompleted) _done.complete();
+  }
+}
+
 class _Sent {
   _Sent(this.url);
   final Uri url;
@@ -512,6 +531,109 @@ void main() {
         transport: transport,
       );
       expect(service.supportsGuardAreas, isTrue);
+    });
+  });
+
+  group('identity is made ready before any location is read', () {
+    test('no token available: refuses, reads no GPS, sends nothing', () async {
+      session.token = null; // signed in as far as it knows, but no token comes
+      final platform = _Platform();
+      final service = NearbyEmergencyService(
+        platform: platform,
+        transport: transport,
+      );
+      final result = await service.triggerEmergency(
+        mode: sw.DataMode.live,
+        senderId: _callerIdentity,
+        userInitiated: true,
+      );
+      expect(
+        (result as NearbyEmergencyNotSent).reason,
+        NearbyEmergencyBlock.backendUnavailable,
+      );
+      await expectLater(
+        service.setHelperOptIn(
+          mode: sw.DataMode.live,
+          helperId: _callerIdentity,
+          enabled: true,
+          userInitiated: true,
+        ),
+        throwsA(isA<NearbyAlertException>()),
+      );
+      expect(platform.calls, 0);
+      expect(net.sent, isEmpty);
+    });
+
+    test('GPS is read only after the identity is ready', () async {
+      final slow = _SlowSession();
+      final platform = _Platform();
+      final service = NearbyEmergencyService(
+        platform: platform,
+        transport: AuthenticatedNearbyAlertTransport(
+          rpc: net.client(),
+          session: slow,
+          newRequestId: () => _requestId,
+        ),
+      );
+      net.body = '1';
+      final pending = service.triggerEmergency(
+        mode: sw.DataMode.live,
+        senderId: _callerIdentity,
+        userInitiated: true,
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(platform.calls, 0, reason: 'still setting up the identity');
+      slow.completer.complete(_token);
+      final result = await pending;
+      expect((result as NearbyEmergencySent).recipientCount, 1);
+      expect(platform.calls, 1);
+    });
+
+    test(
+      'cancelling while the identity is being set up reads nothing',
+      () async {
+        final slow = _SlowSession();
+        final platform = _Platform();
+        final service = NearbyEmergencyService(
+          platform: platform,
+          transport: AuthenticatedNearbyAlertTransport(
+            rpc: net.client(),
+            session: slow,
+          ),
+        );
+        final cancel = _Cancel();
+        final pending = service.triggerEmergency(
+          mode: sw.DataMode.live,
+          senderId: _callerIdentity,
+          userInitiated: true,
+          cancellation: cancel,
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        cancel.cancel();
+        final result = await pending;
+        expect(
+          (result as NearbyEmergencyNotSent).reason,
+          NearbyEmergencyBlock.cancelled,
+        );
+        slow.completer.complete(_token);
+        await Future<void>.delayed(Duration.zero);
+        expect(platform.calls, 0);
+        expect(net.sent, isEmpty);
+      },
+    );
+
+    test('prepare reports ready, or the reason', () async {
+      expect(await transport.prepare(), isNull);
+      session.token = 'not-a-jwt';
+      expect(
+        await transport.prepare(),
+        AuthenticatedNearbyAlertTransport.signedOutReason,
+      );
+      session.signedIn = false;
+      expect(
+        await transport.prepare(),
+        AuthenticatedNearbyAlertTransport.signedOutReason,
+      );
     });
   });
 }
