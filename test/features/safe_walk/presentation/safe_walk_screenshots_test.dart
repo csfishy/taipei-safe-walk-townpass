@@ -229,7 +229,7 @@ void main() {
     for (var i = 0; i < 5; i++) {
       await t.pump(const Duration(milliseconds: 200));
     }
-    await t.tap(find.text('我快到了，但我後面好像有人一直跟著我。'));
+    await t.tap(find.text('我快到了啦，還在路上，再幾分鐘。'));
     for (var i = 0; i < 8; i++) {
       await t.pump(const Duration(milliseconds: 200));
     }
