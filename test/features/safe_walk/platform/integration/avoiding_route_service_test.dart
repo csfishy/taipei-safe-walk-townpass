@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:town_pass/features/safe_walk/navigation/avoid_area.dart';
 import 'package:town_pass/features/safe_walk/navigation/cancellable.dart';
+import 'package:town_pass/features/safe_walk/navigation/route_preference.dart';
 import 'package:town_pass/features/safe_walk/navigation/route_service.dart';
 import 'package:town_pass/features/safe_walk/navigation/walking_route_provider.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/avoiding_route_service.dart';
@@ -10,6 +11,8 @@ import 'package:town_pass/features/safe_walk/presentation/mock/safe_walk_demo_da
 import 'package:town_pass/features/safe_walk/shared/contracts/cancellation.dart';
 import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart'
     as sw;
+
+const _pref = RoutePreference(kind: RoutePreferenceKind.shade, applied: false);
 
 sw.RouteCandidate _route(String id) => sw.RouteCandidate(
   id: id,
@@ -29,26 +32,29 @@ sw.RouteCandidate _route(String id) => sw.RouteCandidate(
   warnings: const ['不保證安全'],
 );
 
-sw.RouteRequest _request(sw.DataMode mode, {sw.PositionSource? source}) =>
-    sw.RouteRequest(
-      requestId: 'r1',
-      mode: mode,
-      origin: sw.Position(
-        coordinates: sw.Coordinates(lat: 25.0, lng: 121.5),
-        source:
-            source ??
-            (mode == sw.DataMode.live
-                ? sw.PositionSource.gps
-                : sw.PositionSource.mock),
-        accuracyMeters: 10,
-        observedAt: DateTime.now().toUtc().toIso8601String(),
-      ),
-      destination: sw.Coordinates(lat: 25.0, lng: 121.51),
-      departAt: DateTime.now().toUtc().toIso8601String(),
-      preference: sw.RouteKind.direct,
-      maxExtraDistanceMeters: 500,
-      assistancePointIds: const [],
-    );
+sw.RouteRequest _request(
+  sw.DataMode mode, {
+  sw.PositionSource? source,
+  DateTime? at,
+}) => sw.RouteRequest(
+  requestId: 'r1',
+  mode: mode,
+  origin: sw.Position(
+    coordinates: sw.Coordinates(lat: 25.0, lng: 121.5),
+    source:
+        source ??
+        (mode == sw.DataMode.live
+            ? sw.PositionSource.gps
+            : sw.PositionSource.mock),
+    accuracyMeters: 10,
+    observedAt: (at ?? DateTime.now()).toUtc().toIso8601String(),
+  ),
+  destination: sw.Coordinates(lat: 25.0, lng: 121.51),
+  departAt: DateTime.now().toUtc().toIso8601String(),
+  preference: sw.RouteKind.direct,
+  maxExtraDistanceMeters: 500,
+  assistancePointIds: const [],
+);
 
 void main() {
   test('report radius matches between map and planner', () {
@@ -74,6 +80,7 @@ void main() {
           ],
           originInsideAreaIds: const ['b'],
           destinationInsideAreaIds: const [],
+          preference: _pref,
         ),
       );
       final areas = [
@@ -98,6 +105,71 @@ void main() {
     },
   );
 
+  // Taipei 2026-12-21: sunrise 22:34Z (06:34), sunset 09:09Z (17:09).
+  final noon = DateTime.utc(2026, 12, 21, 4); // 12:00 local
+  final night = DateTime.utc(2026, 12, 21, 14); // 22:00 local
+
+  test(
+    'clock decides lit at night and shade by day; disclosure is shown',
+    () async {
+      for (final (at, kind) in [
+        (night, RoutePreferenceKind.lit),
+        (noon, RoutePreferenceKind.shade),
+      ]) {
+        final planner = _Planner(
+          AvoidRoutePlan(
+            options: [
+              AvoidRouteOption(
+                level: AvoidLevel.none,
+                route: _route('none'),
+                passedAreaIds: const [],
+              ),
+            ],
+            originInsideAreaIds: const [],
+            destinationInsideAreaIds: const [],
+            preference: RoutePreference(
+              kind: kind,
+              applied: kind == RoutePreferenceKind.lit,
+            ),
+          ),
+        );
+        final result = await AvoidingRouteService(
+          planner: planner,
+          fallback: _Fallback(),
+          areas: () => const [],
+          clock: () => at,
+        ).planRoute(_request(sw.DataMode.live, at: at)) as sw.RouteSuccess;
+        expect(planner.preference, kind);
+        expect(
+          result.warnings,
+          contains(
+            kind == RoutePreferenceKind.lit
+                ? '夜間已優先選擇有路燈的路段（依 OpenStreetMap 路燈標記，標記不完整，不保證照明）'
+                : '白天偏好樹蔭路線：尚無可驗證的樹蔭資料，這條路線沒有套用樹蔭偏好',
+          ),
+        );
+      }
+    },
+  );
+
+  test('OSRM fallback cannot honour the preference and says so', () async {
+    for (final (at, text) in [
+      (night, '夜間偏好路燈路線：這條路線沒有套用路燈偏好，不保證沿途有照明'),
+      (noon, '白天偏好樹蔭路線：尚無可驗證的樹蔭資料，這條路線沒有套用樹蔭偏好'),
+    ]) {
+      final result = await AvoidingRouteService(
+        planner: _Planner(null),
+        fallback: _Fallback(),
+        areas: () => const [],
+        clock: () => at,
+      ).planRoute(_request(sw.DataMode.live, at: at)) as sw.RouteSuccess;
+      expect(result.warnings.take(2), [
+        AvoidingRouteService.fallbackWarning,
+        text,
+      ]);
+    }
+  });
+
   test('planner unreachable: falls back to OSRM with a warning', () async {
     final fallback = _Fallback();
     final service = AvoidingRouteService(
@@ -118,6 +190,7 @@ void main() {
           options: [],
           originInsideAreaIds: [],
           destinationInsideAreaIds: [],
+          preference: _pref,
         ),
       ),
       fallback: _Fallback(),
@@ -222,6 +295,7 @@ void main() {
         ],
         originInsideAreaIds: const [],
         destinationInsideAreaIds: const [],
+        preference: _pref,
       ),
     );
     expect(
@@ -259,6 +333,7 @@ final class _DelayedPlanner implements AvoidingRoutePlanner {
     required sw.Coordinates origin,
     required sw.Coordinates destination,
     required List<AvoidArea> areas,
+    required RoutePreferenceKind preference,
     SafeWalkCancellation? cancellation,
   }) => pending.future;
 }
@@ -282,16 +357,19 @@ final class _Planner implements AvoidingRoutePlanner {
   final AvoidRoutePlan? plan_;
   int calls = 0;
   List<AvoidArea> areas = const [];
+  RoutePreferenceKind? preference;
 
   @override
   Future<AvoidRoutePlan> plan({
     required sw.Coordinates origin,
     required sw.Coordinates destination,
     required List<AvoidArea> areas,
+    required RoutePreferenceKind preference,
     SafeWalkCancellation? cancellation,
   }) async {
     calls++;
     this.areas = areas;
+    this.preference = preference;
     if (plan_ == null) throw const WalkingRouteProviderUnavailable();
     return plan_!;
   }

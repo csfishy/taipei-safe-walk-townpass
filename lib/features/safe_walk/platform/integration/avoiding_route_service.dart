@@ -1,6 +1,7 @@
 import 'package:town_pass/features/safe_walk/navigation/avoid_area.dart';
 import 'package:town_pass/features/safe_walk/navigation/cancellable.dart';
 import 'package:town_pass/features/safe_walk/navigation/coordinate_math.dart';
+import 'package:town_pass/features/safe_walk/navigation/route_preference.dart';
 import 'package:town_pass/features/safe_walk/navigation/route_service.dart';
 import 'package:town_pass/features/safe_walk/navigation/walking_route_provider.dart';
 import 'package:town_pass/features/safe_walk/shared/contracts/cancellation.dart';
@@ -11,6 +12,10 @@ import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart
 /// Live requests get up to three options from [planner], most-avoiding first
 /// (never inside → not through centres → shortest). Mock requests, and live
 /// requests while the planner is unreachable, go to [fallback] (OSRM).
+///
+/// The shade (day) / lit (night) preference is decided locally from the start
+/// position and [clock]. Routes from [fallback] cannot honour it; they carry
+/// the matching "not applied" disclosure.
 final class AvoidingRouteService implements RouteService {
   AvoidingRouteService({
     required this.planner,
@@ -39,6 +44,7 @@ final class AvoidingRouteService implements RouteService {
     sw.RouteFailure cancelled() =>
         _failure(request, sw.RouteFailureStatus.cancelled, '路線計算已取消');
     if (interrupted()) return cancelled();
+    final preference = routePreferenceAt(request.origin.coordinates, _clock());
     Future<sw.RouteResult> fallbackResult({required bool warning}) async {
       if (interrupted()) return cancelled();
       final result = await raceCancellation(
@@ -52,7 +58,11 @@ final class AvoidingRouteService implements RouteService {
               mode: result.mode,
               generatedAt: result.generatedAt,
               routes: result.routes,
-              warnings: [fallbackWarning, ...result.warnings],
+              warnings: [
+                fallbackWarning,
+                RoutePreference(kind: preference, applied: false).disclosure,
+                ...result.warnings,
+              ],
             )
           : result;
     }
@@ -84,6 +94,7 @@ final class AvoidingRouteService implements RouteService {
             origin: request.origin.coordinates,
             destination: request.destination,
             areas: List.unmodifiable(areas()),
+            preference: preference,
             cancellation: cancellation,
           ),
           cancellation,
@@ -106,6 +117,7 @@ final class AvoidingRouteService implements RouteService {
         routes: [for (final o in plan.options.reversed) o.route],
         warnings: [
           if (inside) insideWarning,
+          plan.preference.disclosure,
           '50 公尺為產品設定的避讓緩衝，不代表官方犯罪範圍或定位精度',
           '依 OpenStreetMap 步行路網計算，不保證沿途安全或目前可通行',
         ],

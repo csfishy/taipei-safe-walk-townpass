@@ -5,11 +5,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:town_pass/features/safe_walk/navigation/avoid_area.dart';
 import 'package:town_pass/features/safe_walk/navigation/cancellable.dart';
 import 'package:town_pass/features/safe_walk/navigation/json_transport.dart';
+import 'package:town_pass/features/safe_walk/navigation/route_preference.dart';
 import 'package:town_pass/features/safe_walk/navigation/valhalla_avoiding_route_planner.dart';
 import 'package:town_pass/features/safe_walk/navigation/walking_route_provider.dart';
 import 'package:town_pass/features/safe_walk/shared/contracts/cancellation.dart';
 import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart'
     as sw;
+
+const _day = RoutePreferenceKind.shade;
 
 // Straight east-west street at lat 25.0; the detour goes 300 m north.
 final _origin = sw.Coordinates(lat: 25.0, lng: 121.500);
@@ -34,6 +37,65 @@ AvoidArea _area(String id, double lat, double lng) => AvoidArea(
 );
 
 void main() {
+  test(
+    'night: every request carries use_lit, day sends no costing_options',
+    () async {
+      for (final (kind, lit) in [
+        (RoutePreferenceKind.lit, true),
+        (RoutePreferenceKind.shade, false),
+      ]) {
+        final t = _Fake(
+          (body) => body.containsKey('exclude_polygons') ? _detour : _direct,
+        );
+        final plan = await _planner(t).plan(
+          origin: _origin,
+          destination: _dest,
+          preference: kind,
+          areas: [_area('a', 25.0, 121.505)],
+        );
+        // shortest + 50 m + 15 m requests, all with the same preference.
+        expect(t.bodies, hasLength(3));
+        for (final body in t.bodies) {
+          expect(body['costing'], 'pedestrian');
+          if (lit) {
+            expect(body['costing_options'], {
+              'pedestrian': {'use_lit': 1.0},
+            });
+          } else {
+            expect(body.containsKey('costing_options'), isFalse);
+            expect(jsonEncode(body), isNot(contains('lit')));
+          }
+        }
+        expect(plan.preference.kind, kind);
+        expect(plan.preference.applied, lit);
+      }
+    },
+  );
+
+  test('preference disclosure texts', () {
+    expect(
+      const RoutePreference(
+        kind: RoutePreferenceKind.lit,
+        applied: true,
+      ).disclosure,
+      '夜間已優先選擇有路燈的路段（依 OpenStreetMap 路燈標記，標記不完整，不保證照明）',
+    );
+    expect(
+      const RoutePreference(
+        kind: RoutePreferenceKind.shade,
+        applied: false,
+      ).disclosure,
+      '白天偏好樹蔭路線：尚無可驗證的樹蔭資料，這條路線沒有套用樹蔭偏好',
+    );
+    expect(
+      const RoutePreference(
+        kind: RoutePreferenceKind.lit,
+        applied: false,
+      ).disclosure,
+      contains('沒有套用路燈偏好'),
+    );
+  });
+
   test('decodes Valhalla polyline6', () {
     expect(
       decodePolyline6(_encode(_detour)),
@@ -43,8 +105,12 @@ void main() {
 
   test('no areas: one request, only the best route', () async {
     final t = _Fake((_) => _direct);
-    final plan = await _planner(t)
-        .plan(origin: _origin, destination: _dest, areas: const []);
+    final plan = await _planner(t).plan(
+      origin: _origin,
+      destination: _dest,
+      preference: _day,
+      areas: const [],
+    );
     expect(t.bodies, hasLength(1));
     expect(t.bodies.single.containsKey('exclude_polygons'), isFalse);
     expect(t.bodies.single['costing'], 'pedestrian');
@@ -59,6 +125,7 @@ void main() {
     final plan = await _planner(t).plan(
       origin: _origin,
       destination: _dest,
+      preference: _day,
       areas: [_area('a', 25.0, 121.505)],
     );
     expect(t.bodies, hasLength(3));
@@ -78,6 +145,7 @@ void main() {
     final plan = await _planner(t).plan(
       origin: _origin,
       destination: _dest,
+      preference: _day,
       areas: [_area('home', 25.0, 121.5001)],
     );
     expect(plan.originInsideAreaIds, ['home']);
@@ -98,6 +166,7 @@ void main() {
     final plan = await _planner(t).plan(
       origin: _origin,
       destination: _dest,
+      preference: _day,
       areas: [_area('a', 25.0, 121.505)],
     );
     expect(plan.options.map((o) => o.level), [AvoidLevel.none]);
@@ -117,6 +186,7 @@ void main() {
     final plan = await _planner(t).plan(
       origin: _origin,
       destination: _dest,
+      preference: _day,
       areas: [_area('a', 25.0, 121.505)],
     );
     expect(plan.options.map((o) => o.level), [AvoidLevel.none]);
@@ -138,6 +208,7 @@ void main() {
       final plan = await _planner(t).plan(
         origin: _origin,
         destination: _dest,
+        preference: _day,
         areas: [
           _area('on-direct', 25, 121.505),
           _area('on-detour', 25.006, 121.505),
@@ -158,8 +229,12 @@ void main() {
         for (var i = 0; i < 30; i++) _area('near-$i', 25, 121.505),
         _area('budget-omitted', 25.003, 121.505),
       ];
-      final plan = await _planner(t)
-          .plan(origin: _origin, destination: _dest, areas: areas);
+      final plan = await _planner(t).plan(
+        origin: _origin,
+        destination: _dest,
+        preference: _day,
+        areas: areas,
+      );
       expect(
         (t.bodies.last['exclude_polygons'] as List).length,
         lessThan(areas.length),
@@ -189,6 +264,7 @@ void main() {
       final pending = planner.plan(
         origin: _origin,
         destination: _dest,
+        preference: _day,
         areas: [_area('a', 25, 121.505)],
         cancellation: cancellation,
       );
@@ -223,6 +299,7 @@ void main() {
       final first = planner.plan(
         origin: _origin,
         destination: _dest,
+        preference: _day,
         areas: const [],
       );
       await arrived.future;
@@ -230,6 +307,7 @@ void main() {
       final second = planner.plan(
         origin: _origin,
         destination: _dest,
+        preference: _day,
         areas: const [],
         cancellation: cancellation,
       );
@@ -263,6 +341,7 @@ void main() {
       final plan = await _planner(t).plan(
         origin: _origin,
         destination: _dest,
+        preference: _day,
         areas: [_area('a', 25.0, 121.505)],
       );
       expect(plan.options.map((o) => o.level), [
@@ -281,7 +360,12 @@ void main() {
         (_) => throw const JsonTransportException(TransportFailure.httpStatus),
       );
       await expectLater(
-        _planner(t).plan(origin: _origin, destination: _dest, areas: const []),
+        _planner(t).plan(
+          origin: _origin,
+          destination: _dest,
+          preference: _day,
+          areas: const [],
+        ),
         throwsA(isA<WalkingRouteProviderUnavailable>()),
       );
     },
@@ -299,7 +383,12 @@ void main() {
       wait: (_) async {},
     );
     await expectLater(
-      planner.plan(origin: _origin, destination: _dest, areas: const []),
+      planner.plan(
+        origin: _origin,
+        destination: _dest,
+        preference: _day,
+        areas: const [],
+      ),
       throwsA(isA<WalkingRouteProviderUnavailable>()),
     );
     expect(t.bodies, hasLength(1));
@@ -313,7 +402,12 @@ void main() {
       ],
     );
     await expectLater(
-      _planner(t).plan(origin: _origin, destination: _dest, areas: const []),
+      _planner(t).plan(
+        origin: _origin,
+        destination: _dest,
+        preference: _day,
+        areas: const [],
+      ),
       throwsA(isA<WalkingRouteProviderUnavailable>()),
     );
   });
@@ -326,7 +420,12 @@ void main() {
       wait: (_) async {},
     );
     await expectLater(
-      planner.plan(origin: _origin, destination: _dest, areas: const []),
+      planner.plan(
+        origin: _origin,
+        destination: _dest,
+        preference: _day,
+        areas: const [],
+      ),
       throwsA(isA<WalkingRouteProviderUnavailable>()),
     );
     expect(t.bodies, isEmpty);
@@ -337,7 +436,12 @@ void main() {
       (_) => throw const JsonTransportException(TransportFailure.network),
     );
     await expectLater(
-      _planner(t).plan(origin: _origin, destination: _dest, areas: const []),
+      _planner(t).plan(
+        origin: _origin,
+        destination: _dest,
+        preference: _day,
+        areas: const [],
+      ),
       throwsA(isA<WalkingRouteProviderUnavailable>()),
     );
   });
@@ -355,6 +459,7 @@ void main() {
     await planner.plan(
       origin: _origin,
       destination: _dest,
+      preference: _day,
       areas: [_area('a', 25.0, 121.505)],
     );
     expect(waits, hasLength(2));

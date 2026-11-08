@@ -7,6 +7,7 @@ import 'package:town_pass/features/safe_walk/navigation/cancellable.dart';
 import 'package:town_pass/features/safe_walk/navigation/coordinate_math.dart';
 import 'package:town_pass/features/safe_walk/navigation/default_route_service.dart';
 import 'package:town_pass/features/safe_walk/navigation/json_post.dart';
+import 'package:town_pass/features/safe_walk/navigation/route_preference.dart';
 import 'package:town_pass/features/safe_walk/navigation/walking_route_provider.dart';
 import 'package:town_pass/features/safe_walk/shared/contracts/cancellation.dart';
 import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart'
@@ -20,6 +21,12 @@ import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart
 /// contributors (ODbL). The server allows at most one request per second and
 /// guarantees no availability, so requests are sent one at a time and a
 /// self-hosted [endpoint] is needed for production.
+///
+/// Preference: at night (`RoutePreferenceKind.lit`) every request carries
+/// pedestrian `use_lit` (0..1; 1 = avoid unlit streets, based on OSM `lit`
+/// tags; documented as no guarantee). By day nothing is sent: Valhalla's
+/// pedestrian costing has no shade/tree option, so the shade preference is
+/// reported as not applied instead of being approximated.
 final class ValhallaAvoidingRoutePlanner implements AvoidingRoutePlanner {
   ValhallaAvoidingRoutePlanner({
     required this.hasConsent,
@@ -40,6 +47,9 @@ final class ValhallaAvoidingRoutePlanner implements AvoidingRoutePlanner {
   static const defaultEndpoint = 'https://valhalla1.openstreetmap.de/route';
   static const providerId = 'valhalla-pedestrian';
 
+  /// Strongest lit-street preference (Valhalla range 0..1).
+  static const litPreference = 1.0;
+
   /// POSTs the JSON request: a long GET URL with many polygons is rejected
   /// with HTTP 414, which silently removed both avoiding routes.
   final JsonPoster _post;
@@ -57,9 +67,14 @@ final class ValhallaAvoidingRoutePlanner implements AvoidingRoutePlanner {
     required sw.Coordinates origin,
     required sw.Coordinates destination,
     required List<AvoidArea> areas,
+    required RoutePreferenceKind preference,
     SafeWalkCancellation? cancellation,
   }) async {
     cancellation?.throwIfCancelled();
+    final outcome = RoutePreference(
+      kind: preference,
+      applied: preference == RoutePreferenceKind.lit,
+    );
     if (!hasConsent()) throw const WalkingRouteProviderUnavailable();
     if (!isValidLatLng(origin.lat, origin.lng) ||
         !isValidLatLng(destination.lat, destination.lng) ||
@@ -97,12 +112,19 @@ final class ValhallaAvoidingRoutePlanner implements AvoidingRoutePlanner {
     );
 
     final options = <AvoidRouteOption>[];
-    final shortest = await _route(origin, destination, const [], cancellation);
+    final shortest = await _route(
+      origin,
+      destination,
+      const [],
+      preference,
+      cancellation,
+    );
     if (shortest == null) {
       return AvoidRoutePlan(
         options: const [],
         originInsideAreaIds: originInside,
         destinationInsideAreaIds: destinationInside,
+        preference: outcome,
       );
     }
     options.add(option(AvoidLevel.none, shortest));
@@ -141,7 +163,13 @@ final class ValhallaAvoidingRoutePlanner implements AvoidingRoutePlanner {
           if (avoidable(a, radius(a))) _circle(a.center, radius(a)),
       ];
       if (excluded.isEmpty) continue;
-      final line = await _route(origin, destination, excluded, cancellation);
+      final line = await _route(
+        origin,
+        destination,
+        excluded,
+        preference,
+        cancellation,
+      );
       if (line == null) continue;
       // Some providers may ignore exclusions or snap onto an excluded road.
       // The request budget is not the product's safety boundary. A response
@@ -164,6 +192,7 @@ final class ValhallaAvoidingRoutePlanner implements AvoidingRoutePlanner {
       options: options,
       originInsideAreaIds: originInside,
       destinationInsideAreaIds: destinationInside,
+      preference: outcome,
     );
   }
 
@@ -172,6 +201,7 @@ final class ValhallaAvoidingRoutePlanner implements AvoidingRoutePlanner {
     sw.Coordinates origin,
     sw.Coordinates destination,
     List<List<List<double>>> excluded,
+    RoutePreferenceKind preference,
     SafeWalkCancellation? cancellation,
   ) {
     final run = _queue.then((_) async {
@@ -191,6 +221,10 @@ final class ValhallaAvoidingRoutePlanner implements AvoidingRoutePlanner {
           {'lat': destination.lat, 'lon': destination.lng},
         ],
         'costing': 'pedestrian',
+        if (preference == RoutePreferenceKind.lit)
+          'costing_options': {
+            'pedestrian': {'use_lit': litPreference},
+          },
         'directions_type': 'none',
         if (excluded.isNotEmpty) 'exclude_polygons': excluded,
       };
