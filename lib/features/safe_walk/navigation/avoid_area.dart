@@ -1,3 +1,4 @@
+import 'package:town_pass/features/safe_walk/navigation/route_preference.dart';
 import 'package:town_pass/features/safe_walk/shared/contracts/cancellation.dart';
 import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart'
     as sw;
@@ -63,6 +64,7 @@ final class AvoidRoutePlan {
     required this.options,
     required this.originInsideAreaIds,
     required this.destinationInsideAreaIds,
+    required this.preference,
   });
 
   /// Up to three options in [AvoidLevel] order; an option identical to the
@@ -74,17 +76,24 @@ final class AvoidRoutePlan {
   final List<String> originInsideAreaIds;
   final List<String> destinationInsideAreaIds;
 
+  /// The shade/lit preference that was requested and whether it was applied
+  /// to every option in this plan.
+  final RoutePreference preference;
+
   AvoidRouteOption? operator [](AvoidLevel level) =>
       options.where((o) => o.level == level).firstOrNull;
 }
 
 /// Plans the three route options. Implementations must honour [cancellation],
 /// must not read GPS and must only send data after the caller's consent check.
+/// [preference] applies to all three options; a planner that cannot honour it
+/// reports `applied: false` in [AvoidRoutePlan.preference].
 abstract interface class AvoidingRoutePlanner {
   Future<AvoidRoutePlan> plan({
     required sw.Coordinates origin,
     required sw.Coordinates destination,
     required List<AvoidArea> areas,
+    required RoutePreferenceKind preference,
     SafeWalkCancellation? cancellation,
   });
 }
