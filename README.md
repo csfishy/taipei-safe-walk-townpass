@@ -16,6 +16,7 @@
 - [架構與模組分工](#架構與模組分工)
 - [技術框架](#技術框架)
 - [近期應用技術](#近期應用技術)
+  - [守護區的區域警報](#守護區的區域警報)
 - [資料、隱私與安全原則](#資料隱私與安全原則)
 - [測試與驗證](#測試與驗證)
 - [CI、預覽版與網站](#ci預覽版與網站)
@@ -40,6 +41,7 @@
 | 本機核准音訊 | 播放經授權的本地音檔 | 未實作 |
 | 110／119 系統撥號與官方通報入口 | 使用者主動點選後開啟手機撥號畫面（自己按撥號），並可開啟臺北通既有的線上報案服務；app 不會代撥、代報或派遣 | 已接線於正式入口，待實機驗收；簡訊報案號碼尚未核對，仍未配置 |
 | 附近協助者位置通知 | 通知附近已加入的協助者 | 受阻（BLOCKED）：缺可信身分、權限與防濫用機制 |
+| 守護區區域警報 | 協助者主動設定最多 3 個區域，SOS 落在範圍內時納入通知對象；透過 App 內橫幅接收 | 已隔離實作；後端部署、資格／防濫用與雙裝置驗收待完成，維持 BLOCKED |
 | 警消案件自動派遣 | 自動送出警消案件 | 受阻（BLOCKED）：無官方授權；`officialReceipt` 恆為 `null` |
 
 進入點：安心行會從 TownPass **首頁新聞上方的「臺北安心行」功能卡片**，或「城市服務」的釘選項目開啟，兩處進入同一個原生功能頁，返回後回到原本的 TownPass 畫面。
@@ -185,7 +187,7 @@ Android、iOS 執行前需先安裝對應 SDK、模擬器或準備實機。執�
 | 應用框架 | Flutter 3.47.6、Dart 3.13.5（以 [.fvmrc](.fvmrc) 固定） | 單一程式碼支援 Android、iOS 與 Web |
 | 基底 App | TownPass Flutter（臺北市政府，GPLv3） | 官方殼、登入、路由、主題與既有服務 |
 | 狀態與路由 | GetX（`get`） | 官方 App 的路由與頁面狀態 |
-| 地圖與路線 | `flutter_map`、`latlong2`、OpenStreetMap 圖磚、OSRM 步行路網 | App 內地圖與步行路線；不使用 Google Maps 導航 |
+| 地圖與路線 | `flutter_map`、`latlong2`、OpenStreetMap 圖磚、Valhalla `pedestrian`／`exclude_polygons`／`use_lit`、OSRM 備援、`RouteFollower` | App 內步行路線、產品緩衝避讓、夜間照明偏好及前景偏離重規劃；[日夜與自動規劃](#日夜照明與自動路線規劃)依下表說明 |
 | 定位與感測 | `geolocator`、`sensors_plus` | 使用者主動觸發的定位與裝置感測 |
 | 據點與犯罪參考資料 | OSM Overpass API（便利商店，ODbL）；臺北市統計資料庫月別暴力犯罪 CSV；Supabase 唯讀查詢（RPC，僅使用公開金鑰） | 附近據點與歷史統計參考；不是即時路段風險 |
 | 語音與音訊 | `flutter_tts`（裝置 TTS）、`audioplayers`（模擬陪伴鈴聲，屬 Level B 依賴） | 模擬陪伴語音與提示音 |
@@ -197,7 +199,7 @@ Android、iOS 執行前需先安裝對應 SDK、模擬器或準備實機。執�
 
 ## 近期應用技術
 
-以下依 2026-11-08 GitHub `main` 最近五筆 PR 合併整理，核對版本為 [`1e89dfe`](https://github.com/csfishy/taipei-safe-walk-townpass/commit/1e89dfef47bb723f23743ddda571c2b6f9360c4c)。本節記錄合併程式的技術應用；遠端部署、已安裝 App 與實機驗收須分別核對對應版本。
+以下依 2026-11-08 GitHub `main` 近期已合併功能整理，核對版本為 [`1e89dfe`](https://github.com/csfishy/taipei-safe-walk-townpass/commit/1e89dfef47bb723f23743ddda571c2b6f9360c4c)。本節記錄合併程式的技術應用；遠端部署、已安裝 App 與實機驗收須分別核對對應版本。
 
 | 功能／PR | 應用技術 | 實際用途 |
 |---|---|---|
@@ -205,11 +207,42 @@ Android、iOS 執行前需先安裝對應 SDK、模擬器或準備實機。執�
 | 地圖回報「已排除」（[#89](https://github.com/csfishy/taipei-safe-walk-townpass/pull/89)） | Supabase RPC、PostgreSQL 交易與 advisory lock、UUID、JSON 回應驗證 | `safe_walk_map_report_resolve` 只處理選定的回報 UUID；App 核對 `reportId`／`removed` 回應後才移除標示並更新避讓。伺服器保存已排除 UUID／時間以阻止舊提交重建，支援冪等重試；失敗保留標示與重試入口 |
 | 日夜判斷與夜間路燈偏好（[#88](https://github.com/csfishy/taipei-safe-walk-townpass/pull/88)） | Dart `dart:math`、NOAA／Meeus 太陽位置演算、開源 Valhalla `pedestrian` costing、OpenStreetMap `lit` 標記 | 依起點經緯度與請求當下時間在本機計算太陽高度，以 −0.833° 為日夜門檻；夜間的最短、15 公尺與 50 公尺避讓請求均帶 `costing_options.pedestrian.use_lit = 1.0`，並在路線警示揭露偏好是否套用 |
 | 犯罪資料來源與授權（[#90](https://github.com/csfishy/taipei-safe-walk-townpass/pull/90)） | Flutter `SwDataSource` 資料來源模型、來源／授權 URL、中繼資料揭露 | 在 App 的來源卡片明列犯罪快照 10 個資源採用[政府資料開放授權條款－第 1 版](https://data.gov.tw/license)；移除當時卡片中缺少完整來源資訊的參考圖資項目。離線定位使用的圖資與開源套件另見[犯罪資料定位流程](#犯罪資料定位流程與開源技術) |
+| 守護區區域警報（[#79](https://github.com/csfishy/taipei-safe-walk-townpass/pull/79)） | PostGIS `geography(Point,4326)`／GiST／`ST_DWithin`、Supabase Auth、PostgreSQL 受限 RPC／RLS、Flutter 前景輪詢 | 儲存本人守護區，依 SOS 事件位置選出符合區域或即時距離的協助者，伺服器與 App 分別去重；設定、接收及限制見[守護區說明](#守護區的區域警報) |
 | 緊急聯絡人配對與通知（[#91](https://github.com/csfishy/taipei-safe-walk-townpass/pull/91)） | Supabase Auth 匿名 session、`auth.uid()`、私有資料表與 RLS、PostgreSQL／`pgcrypto`、受限 RPC、`shared_preferences`、前景輪詢與生命週期控制 | 以隨機 8 碼、24 小時有效的一次性邀請碼建立聯絡人關係，資料庫只存 SHA-256 雜湊；RPC 處理配對、撤銷與嘗試次數限制。SOS 將聯絡人納入不受距離限制的收件人，前景每 10 秒輪詢並顯示 App 內橫幅；啟動時只還原既有身分，聯絡人不必上傳位置 |
+
+### 日夜、照明與自動路線規劃
+
+以下依 [main `13ccee1`](https://github.com/csfishy/taipei-safe-walk-townpass/commit/13ccee1063ac5781a0ce3b50247fb163aaae43a9) 的路線程式盤點，記錄日夜判斷、夜間照明與前景自動規劃的技術及實作狀態。
+
+| 情境／能力 | 狀態 | 技術與目前行為 |
+|---|---|---|
+| 自動規劃與偏離後改道 | 已接線，待實機驗收 | 開啟地圖、變更起點／目的地或回報點變動時觸發路線規劃。Valhalla `pedestrian` 配合 `exclude_polygons` 產生一般與避讓候選，並核對回傳路線與緩衝距離；前景 GPS 與 `RouteFollower` 偵測所有候選皆偏離時重新規劃，偏離觸發的自動重規劃間隔至少 15 秒 |
+| 黑夜判斷 | 已實作 | Dart 在本機依起點經緯度、請求當下時間與 NOAA／Meeus 太陽位置演算判斷日夜；太陽高度低於 −0.833° 視為夜間，每次規劃重新判斷 |
+| 夜間照明偏好 | 已接線，待實機驗收 | 夜間 Valhalla 請求帶 `costing_options.pedestrian.use_lit = 1.0`，優先考量 OSM `lit` 路段標記；目前未使用官方路燈點位或實測照度排序，不保證沿途實際有燈 |
+
+首頁的時間情境卡依本機 18:00–06:00 顯示夜間提醒；路線規劃另用上述太陽高度判斷，兩者目前不同。自動規劃只在上述操作與前景導航條件下觸發，沒有背景持續追蹤；OSRM 備援會揭露未套用避讓與照明偏好。
+
+程式依據：[路線情境偏好](https://github.com/csfishy/taipei-safe-walk-townpass/blob/13ccee1063ac5781a0ce3b50247fb163aaae43a9/lib/features/safe_walk/navigation/route_preference.dart)、[自動規劃與導航生命週期](https://github.com/csfishy/taipei-safe-walk-townpass/blob/13ccee1063ac5781a0ce3b50247fb163aaae43a9/lib/features/safe_walk/platform/integration/safe_walk_composition_root.dart)、[地圖操作與重新規劃](https://github.com/csfishy/taipei-safe-walk-townpass/blob/13ccee1063ac5781a0ce3b50247fb163aaae43a9/lib/features/safe_walk/presentation/safe_walk_flow.dart)。
+
+### 守護區的區域警報
+
+守護區讓協助者指定願意接收 SOS 的地點；後端依事件位置決定收件對象。這是 SOS 的區域通知條件，使用者進出該區域本身不會觸發警報。以下依 [main `13ccee1`](https://github.com/csfishy/taipei-safe-walk-townpass/commit/13ccee1063ac5781a0ce3b50247fb163aaae43a9) 的實作整理。
+
+| 項目 | 功能與規則 | 應用技術 |
+|---|---|---|
+| 設定與管理 | 主動加入協助者後，從「安心行設定 → 附近協助者」管理最多 3 個圓形守護區；App 可選半徑 500 或 1,000 公尺，確認後才取得目前位置建立。伺服器將中心經緯度四捨五入至小數第 3 位（約 100 公尺量級） | Flutter 設定卡片、`NearbyHelperAreas` 能力介面、`nearby_helper_set_areas`／`nearby_helper_get_areas` RPC；設定 RPC 含 10 秒限流檢查 |
+| 區域命中與收件人 | SOS 發生時，合併「500 公尺內且即時位置未過期」與「守護區涵蓋事件位置」的協助者，排除發送者、依協助者 ID 去重並按距離取最多 50 位；配對聯絡人另計，重複對象只投遞一次 | PostGIS `geography(Point,4326)`、GiST 空間索引、`ST_DWithin` 距離判斷，搭配 PostgreSQL 條件合併／分組、唯一鍵與 `ON CONFLICT` |
+| 通知接收 | App 在前景每 10 秒查詢寄給本人的 SOS，以 `alertId` 去重並顯示橫幅。SOS 有效 30 分鐘；在有效期內恢復前景可讀取仍有效的通知 | `nearby_sos_send`／`nearby_helper_fetch_alerts` RPC、`NearbyHelperController`、App 生命週期與輪詢控制 |
+| 身分與存取 | 以 Supabase Auth session 的 `auth.uid()` 決定本人，不接受客戶端自報身分；守護區只由本人管理，client 不可直接讀取資料表 | 匿名 Auth／JWT、私有 schema、RLS、撤銷直接表權限及僅授 `authenticated` 的受限 RPC |
+| 保留與退出 | 即時位置只保留最新一筆，有效期 10 分鐘，前景約每 4 分鐘更新；守護區不隨該位置時效消失，可單獨移除，退出協助或刪除帳號時一併清除 | 伺服器有效期檢查、本人區域更新 RPC、退出清除與外鍵級聯刪除 |
+
+目前採 **App 內通知**，尚無 FCM／APNs 背景推播；在背景或關閉 App 時不主動提醒。匿名身分不等於協助者資格審核，伺服器也無法證明守護區中心就是協助者所在位置。截至上述版本，後端仍待 PostGIS 執行驗證、受審查的前向 migration、資格／防濫用與雙裝置驗收，整體維持 **BLOCKED**；程式已合併不代表已部署或完成實機驗收。
+
+實作依據：[守護區設計與限制](https://github.com/csfishy/taipei-safe-walk-townpass/blob/13ccee1063ac5781a0ce3b50247fb163aaae43a9/docs/SAFE_WALK_NEARBY_HELPER_DESIGN.md#L128)、[PostGIS 與 RPC](https://github.com/csfishy/taipei-safe-walk-townpass/blob/13ccee1063ac5781a0ce3b50247fb163aaae43a9/supabase/nearby_helper/001_nearby_helper.sql)、[前景接收控制器](https://github.com/csfishy/taipei-safe-walk-townpass/blob/13ccee1063ac5781a0ce3b50247fb163aaae43a9/lib/features/safe_walk/platform/integration/nearby_helper_controller.dart)。
 
 上述應用的限制：
 
-- **路燈是路線偏好**：`use_lit` 依 OSM 標記計算，不保證實際照明；白天尚無可驗證的樹蔭資料，顯示未套用。OSRM 備援與據點路線亦揭露未套用。演算法與參數說明見 [NOAA 太陽計算依據](https://gml.noaa.gov/grad/solcalc/calcdetails.html)、[Valhalla 步行參數](https://valhalla.github.io/valhalla/api/route/api-reference/#pedestrian-costing-options)。
+- **路燈是路線偏好**：`use_lit` 依 OSM 標記計算，不保證實際照明。OSRM 備援與據點路線亦揭露未套用。演算法與參數說明見 [NOAA 太陽計算依據](https://gml.noaa.gov/grad/solcalc/calcdetails.html)、[Valhalla 步行參數](https://valhalla.github.io/valhalla/api/route/api-reference/#pedestrian-costing-options)。
 - **通知採 App 內輪詢**：尚未實作 FCM／APNs 背景推播；App 在背景或關閉時不主動通知。匿名 session 與邀請碼配對不等於協助者資格審核；refresh token 目前存在 App 偏好設定，尚非加密安全儲存。截至上述合併版本，聯絡人後端仍待 PostGIS 執行驗證、受審查的前向 migration 與雙裝置驗收，附近通知維持該版本的 BLOCKED 狀態。技術依據見 [#91 安全與驗收紀錄](https://github.com/csfishy/taipei-safe-walk-townpass/pull/91)。
 - **回報排除是社群操作**：以後端確認為準，不表示官方認定事件已解除；失敗、取消與遲到回應不以畫面假成功代替資料確認。回報功能與持久犯罪參考資料分開。
 
