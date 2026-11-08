@@ -185,7 +185,7 @@ Android、iOS 執行前需先安裝對應 SDK、模擬器或準備實機。執�
 | 應用框架 | Flutter 3.47.6、Dart 3.13.5（以 [.fvmrc](.fvmrc) 固定） | 單一程式碼支援 Android、iOS 與 Web |
 | 基底 App | TownPass Flutter（臺北市政府，GPLv3） | 官方殼、登入、路由、主題與既有服務 |
 | 狀態與路由 | GetX（`get`） | 官方 App 的路由與頁面狀態 |
-| 地圖與路線 | `flutter_map`、`latlong2`、OpenStreetMap 圖磚、Valhalla `pedestrian`／`exclude_polygons`／`use_lit`、OSRM 備援、`RouteFollower` | App 內步行路線、產品緩衝避讓、夜間照明偏好及前景偏離重規劃；[天候與遮蔽能力](#天候日夜與自動路線規劃)依下表揭露 |
+| 地圖與路線 | `flutter_map`、`latlong2`、OpenStreetMap 圖磚、Valhalla `pedestrian`／`exclude_polygons`／`use_lit`、OSRM 備援、`RouteFollower` | App 內步行路線、產品緩衝避讓、夜間照明偏好及前景偏離重規劃；[日夜與自動規劃](#日夜照明與自動路線規劃)依下表說明 |
 | 定位與感測 | `geolocator`、`sensors_plus` | 使用者主動觸發的定位與裝置感測 |
 | 據點與犯罪參考資料 | OSM Overpass API（便利商店，ODbL）；臺北市統計資料庫月別暴力犯罪 CSV；Supabase 唯讀查詢（RPC，僅使用公開金鑰） | 附近據點與歷史統計參考；不是即時路段風險 |
 | 語音與音訊 | `flutter_tts`（裝置 TTS）、`audioplayers`（模擬陪伴鈴聲，屬 Level B 依賴） | 模擬陪伴語音與提示音 |
@@ -207,26 +207,23 @@ Android、iOS 執行前需先安裝對應 SDK、模擬器或準備實機。執�
 | 犯罪資料來源與授權（[#90](https://github.com/csfishy/taipei-safe-walk-townpass/pull/90)） | Flutter `SwDataSource` 資料來源模型、來源／授權 URL、中繼資料揭露 | 在 App 的來源卡片明列犯罪快照 10 個資源採用[政府資料開放授權條款－第 1 版](https://data.gov.tw/license)；移除當時卡片中缺少完整來源資訊的參考圖資項目。離線定位使用的圖資與開源套件另見[犯罪資料定位流程](#犯罪資料定位流程與開源技術) |
 | 緊急聯絡人配對與通知（[#91](https://github.com/csfishy/taipei-safe-walk-townpass/pull/91)） | Supabase Auth 匿名 session、`auth.uid()`、私有資料表與 RLS、PostgreSQL／`pgcrypto`、受限 RPC、`shared_preferences`、前景輪詢與生命週期控制 | 以隨機 8 碼、24 小時有效的一次性邀請碼建立聯絡人關係，資料庫只存 SHA-256 雜湊；RPC 處理配對、撤銷與嘗試次數限制。SOS 將聯絡人納入不受距離限制的收件人，前景每 10 秒輪詢並顯示 App 內橫幅；啟動時只還原既有身分，聯絡人不必上傳位置 |
 
-### 天候、日夜與自動路線規劃
+### 日夜、照明與自動路線規劃
 
-以下依 [main `13ccee1`](https://github.com/csfishy/taipei-safe-walk-townpass/commit/13ccee1063ac5781a0ce3b50247fb163aaae43a9) 的路線程式盤點，區分目前已接線的行為與尚未接入的情境。
+以下依 [main `13ccee1`](https://github.com/csfishy/taipei-safe-walk-townpass/commit/13ccee1063ac5781a0ce3b50247fb163aaae43a9) 的路線程式盤點，記錄日夜判斷、夜間照明與前景自動規劃的技術及實作狀態。
 
 | 情境／能力 | 狀態 | 技術與目前行為 |
 |---|---|---|
 | 自動規劃與偏離後改道 | 已接線，待實機驗收 | 開啟地圖、變更起點／目的地或回報點變動時觸發路線規劃。Valhalla `pedestrian` 配合 `exclude_polygons` 產生一般與避讓候選，並核對回傳路線與緩衝距離；前景 GPS 與 `RouteFollower` 偵測所有候選皆偏離時重新規劃，偏離觸發的自動重規劃間隔至少 15 秒 |
 | 黑夜判斷 | 已實作 | Dart 在本機依起點經緯度、請求當下時間與 NOAA／Meeus 太陽位置演算判斷日夜；太陽高度低於 −0.833° 視為夜間，每次規劃重新判斷 |
 | 夜間照明偏好 | 已接線，待實機驗收 | 夜間 Valhalla 請求帶 `costing_options.pedestrian.use_lit = 1.0`，優先考量 OSM `lit` 路段標記；目前未使用官方路燈點位或實測照度排序，不保證沿途實際有燈 |
-| 雨天判斷與避雨規劃 | 尚未接入 | 路線規劃目前沒有接入氣象 API、降雨資料或雨勢觸發條件，因此尚無下雨時自動切換避雨路線的行為 |
-| 尋找遮蔽騎樓／有頂步道 | 尚未接入 | 尚未實作騎樓或遮蔽路段的查找、連續性檢查與路線加權；不能將一般步行路線描述為已避雨或沿騎樓行走 |
-| 白天樹蔭偏好 | 未套用 | 已有 `shade` 偏好類型，但缺少可驗證的樹蔭資料與對應路線成本，回應明示未套用 |
 
-首頁的時間情境卡依本機 18:00–06:00 顯示夜間提醒；路線規劃另用上述太陽高度判斷，兩者目前不同，首頁卡片也不提供即時雨勢。自動規劃只在上述操作與前景導航條件下觸發，沒有背景持續追蹤或因天氣變化自行重算；OSRM 備援會揭露未套用避讓與照明偏好。
+首頁的時間情境卡依本機 18:00–06:00 顯示夜間提醒；路線規劃另用上述太陽高度判斷，兩者目前不同。自動規劃只在上述操作與前景導航條件下觸發，沒有背景持續追蹤；OSRM 備援會揭露未套用避讓與照明偏好。
 
 程式依據：[路線情境偏好](https://github.com/csfishy/taipei-safe-walk-townpass/blob/13ccee1063ac5781a0ce3b50247fb163aaae43a9/lib/features/safe_walk/navigation/route_preference.dart)、[自動規劃與導航生命週期](https://github.com/csfishy/taipei-safe-walk-townpass/blob/13ccee1063ac5781a0ce3b50247fb163aaae43a9/lib/features/safe_walk/platform/integration/safe_walk_composition_root.dart)、[地圖操作與重新規劃](https://github.com/csfishy/taipei-safe-walk-townpass/blob/13ccee1063ac5781a0ce3b50247fb163aaae43a9/lib/features/safe_walk/presentation/safe_walk_flow.dart)。
 
 上述應用的限制：
 
-- **路燈是路線偏好**：`use_lit` 依 OSM 標記計算，不保證實際照明；白天尚無可驗證的樹蔭資料，顯示未套用。OSRM 備援與據點路線亦揭露未套用。演算法與參數說明見 [NOAA 太陽計算依據](https://gml.noaa.gov/grad/solcalc/calcdetails.html)、[Valhalla 步行參數](https://valhalla.github.io/valhalla/api/route/api-reference/#pedestrian-costing-options)。
+- **路燈是路線偏好**：`use_lit` 依 OSM 標記計算，不保證實際照明。OSRM 備援與據點路線亦揭露未套用。演算法與參數說明見 [NOAA 太陽計算依據](https://gml.noaa.gov/grad/solcalc/calcdetails.html)、[Valhalla 步行參數](https://valhalla.github.io/valhalla/api/route/api-reference/#pedestrian-costing-options)。
 - **通知採 App 內輪詢**：尚未實作 FCM／APNs 背景推播；App 在背景或關閉時不主動通知。匿名 session 與邀請碼配對不等於協助者資格審核；refresh token 目前存在 App 偏好設定，尚非加密安全儲存。截至上述合併版本，聯絡人後端仍待 PostGIS 執行驗證、受審查的前向 migration 與雙裝置驗收，附近通知維持該版本的 BLOCKED 狀態。技術依據見 [#91 安全與驗收紀錄](https://github.com/csfishy/taipei-safe-walk-townpass/pull/91)。
 - **回報排除是社群操作**：以後端確認為準，不表示官方認定事件已解除；失敗、取消與遲到回應不以畫面假成功代替資料確認。回報功能與持久犯罪參考資料分開。
 
