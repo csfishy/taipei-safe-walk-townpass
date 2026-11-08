@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:town_pass/features/safe_walk/presentation/mock/safe_walk_demo_data.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_call_view.dart';
+import 'package:town_pass/features/safe_walk/presentation/safe_walk_alarm.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_emergency_view.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_home_setting_view.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_home_view.dart';
@@ -61,6 +62,7 @@ class SafeWalkFlow extends StatefulWidget {
     this.onStartNavigation,
     this.onEndNavigation,
     this.speaker = const UnavailableSpeaker(),
+    this.alarm = const UnavailableSafeWalkAlarm(),
     this.onLocate,
     this.onEmergency,
     this.onSendSms,
@@ -132,6 +134,7 @@ class SafeWalkFlow extends StatefulWidget {
   final VoidCallback? onLeaveMap;
   final VoidCallback? onStartNavigation, onEndNavigation;
   final SafeWalkSpeaker speaker;
+  final SafeWalkAlarm alarm;
 
   /// M1：使用者按「取得目前位置」時呼叫 PlatformService.getCurrentPosition(userInitiated: true)。
   final Future<sw.LocationResult> Function()? onLocate;
@@ -513,6 +516,7 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
 
   void _go(_Screen s) {
     if (_screen == _Screen.emergency && s != _Screen.emergency) {
+      unawaited(widget.alarm.stop());
       widget.onLeaveMap?.call();
       _position = null;
     }
@@ -766,6 +770,7 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
         onEmergency: _openEmergency,
       ),
       _Screen.emergency => SafeWalkEmergencyView(
+        alarm: widget.alarm,
         // The official entry with real routes is Live: no simulated SMS success.
         mode: widget.onPlanRoute != null ? sw.DataMode.live : widget.mode,
         allowRealCalls: widget.allowRealCalls,

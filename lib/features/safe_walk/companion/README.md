@@ -58,3 +58,5 @@ P1 由指定功能主責負責裝置引擎、組合、通話狀態與 SOS 優先
 ## 模擬來電鈴聲（P1-3）
 
 `companion_ringtone.dart` 以程式合成原創兩音鈴聲（無第三方素材），經注入式 `CompanionToneAdapter`（實作為 `audioplayers` 記憶體 WAV 播放，不讀檔、不需權限）循環播放，最長 18 秒。`TtsSafeWalkSpeaker` 實作 `SafeWalkRinger`：背景、`stopForEmergency`、`dispose` 與接聽／拒絕都會停止，遲到的 play 結果以 generation 失效，不會重新響鈴。畫面仍保留「模擬通話，未聯絡任何人」。以上只經 fake adapter 測試，尚未在實機聽過；iPhone 靜音鍵、音量與音訊焦點行為待實機驗收。新增 `audioplayers` 依賴屬 Level B，合併前請主要負責人確認。
+
+緊急求助頁另提供使用者主動開啟的安全警報音。`DeviceSafeWalkAlarm` 在記憶體中合成雙音 WAV，以 `audioplayers` 循環播放，播放器振幅設為 `1.0`；這只代表 App 輸出最大，不會也不能擅自改變手機系統音量。離開求助頁、App 進入背景或 route dispose 會停止警報。此能力不代表已聯絡警方，且仍需 iPhone／Android 實機確認靜音鍵、音量、音訊焦點及可聽距離。

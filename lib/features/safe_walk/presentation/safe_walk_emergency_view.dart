@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:town_pass/features/safe_walk/presentation/mock/safe_walk_demo_data.dart';
+import 'package:town_pass/features/safe_walk/presentation/safe_walk_alarm.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_nearby_broadcast.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_ui.dart';
 import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart'
@@ -13,6 +16,7 @@ class SafeWalkEmergencyView extends StatelessWidget {
     required this.mode,
     required this.allowRealCalls,
     required this.position,
+    required this.alarm,
     required this.onChannel,
     required this.onLocate,
     required this.onClose,
@@ -27,6 +31,7 @@ class SafeWalkEmergencyView extends StatelessWidget {
   final sw.DataMode mode;
   final bool allowRealCalls;
   final sw.Position? position;
+  final SafeWalkAlarm alarm;
   final ValueChanged<sw.EmergencyChannel> onChannel;
   final VoidCallback onLocate, onClose;
 
@@ -90,6 +95,8 @@ class SafeWalkEmergencyView extends StatelessWidget {
             child: ListView(
               padding: const EdgeInsets.all(16),
               children: [
+                _AlarmButton(alarm: alarm),
+                const SizedBox(height: 12),
                 _CallButton(
                   icon: Icons.local_police_rounded,
                   title: '撥打 110 報警',
@@ -238,6 +245,111 @@ class SafeWalkEmergencyView extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _AlarmButton extends StatefulWidget {
+  const _AlarmButton({required this.alarm});
+
+  final SafeWalkAlarm alarm;
+
+  @override
+  State<_AlarmButton> createState() => _AlarmButtonState();
+}
+
+class _AlarmButtonState extends State<_AlarmButton> with WidgetsBindingObserver {
+  bool _playing = false;
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed || !_playing) return;
+    unawaited(widget.alarm.stop());
+    if (mounted) setState(() => _playing = false);
+  }
+
+  Future<void> _toggle() async {
+    if (_busy || !widget.alarm.available) return;
+    setState(() => _busy = true);
+    try {
+      if (_playing) {
+        await widget.alarm.stop();
+      } else {
+        await widget.alarm.start();
+      }
+      if (mounted) setState(() => _playing = !_playing);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('警報音無法播放，請改用撥打 110 或其他求助方式。')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    unawaited(widget.alarm.stop());
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = widget.alarm.available && !_busy;
+    return DecoratedBox(
+      decoration: BoxDecoration(borderRadius: BorderRadius.circular(16), boxShadow: SwShadow.float),
+      child: SwPressable(
+        onTap: enabled ? _toggle : null,
+        color: _playing ? TPColors.grayscale700 : SwColors.sos,
+        pressedColor: _playing ? TPColors.grayscale800 : SwColors.sosPressed,
+        radius: 16,
+        semanticsLabel: _playing ? '停止安全警報音' : '播放安全警報音',
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
+          children: [
+            Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: _playing ? TPColors.grayscale800 : TPColors.red700,
+              ),
+              child: Icon(
+                _playing ? Icons.stop_rounded : Icons.campaign_rounded,
+                color: SwColors.onDeep,
+                size: 32,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _busy ? '正在準備警報音…' : (_playing ? '停止警報音' : '播放安全警報音'),
+                    style: SwText.title.copyWith(color: SwColors.onDeep),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    widget.alarm.available ? '循環播放；App 內音量已設為最大' : '此裝置暫不支援警報音',
+                    style: SwText.secondary.copyWith(color: SwColors.onDeep),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
