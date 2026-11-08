@@ -272,6 +272,12 @@ Future<void> _tap(WidgetTester t, String text) async {
   await t.pumpAndSettle();
 }
 
+/// 附近協助者在「安心行設定」裡：從首頁齒輪進入。
+Future<void> _openSettings(WidgetTester t) async {
+  await t.tap(find.byTooltip('安心行設定'));
+  await t.pump(const Duration(milliseconds: 500));
+}
+
 void main() {
   testWidgets('demo mode never offers to notify anyone', (t) async {
     final platform = _Platform();
@@ -364,6 +370,7 @@ void main() {
     ) async {
       final platform = _Platform();
       await _pump(t, live: true, platform: platform, openEmergency: false);
+      await _openSettings(t);
       await _show(t, find.text('附近協助者：目前無法使用'));
       expect(find.text('加入附近協助者', skipOffstage: false), findsNothing);
       await t.pump(const Duration(seconds: 30));
@@ -383,6 +390,7 @@ void main() {
         nearby: transport,
         openEmergency: false,
       );
+      await _openSettings(t);
       await join(t);
       // Joining read the position once, after the consent step.
       expect(platform.locations, 1);
@@ -423,6 +431,7 @@ void main() {
           nearby: transport,
           openEmergency: false,
         );
+        await _openSettings(t);
         await join(t);
         await t.pump(const Duration(seconds: 11));
         final fetches = transport.fetches;
@@ -453,6 +462,7 @@ void main() {
         nearby: transport,
         openEmergency: false,
       );
+      await _openSettings(t);
       await join(t);
       await _tap(t, '停止協助並刪除我的位置');
       expect(transport.optIns, [true, false]);
@@ -473,6 +483,7 @@ void main() {
         nearby: transport,
         openEmergency: false,
       );
+      await _openSettings(t);
       await _tap(t, '加入附近協助者');
       await _tap(t, '同意並加入');
       await _show(t, find.text('守護區'));
@@ -521,8 +532,8 @@ void main() {
       addTearDown(() => EditableText.debugDeterministicCursor = false);
     }
 
-    testWidgets('the contacts card sits below the helper card when the '
-        'backend can pair contacts', (t) async {
+    testWidgets('on the settings page the contacts card sits below the helper '
+        'card when the backend can pair contacts', (t) async {
       await _pump(
         t,
         live: true,
@@ -530,11 +541,13 @@ void main() {
         nearby: _Transport(),
         openEmergency: false,
       );
-      await _show(t, find.text('緊急聯絡人'));
+      // Cards live on the settings page (the gear on the home page).
+      await _openSettings(t);
+      await _show(t, find.text('緊急聯絡人').first);
       final helperTop = t.getTopLeft(
         find.text('附近協助者', skipOffstage: false).first,
       );
-      final contactsTop = t.getTopLeft(find.text('緊急聯絡人'));
+      final contactsTop = t.getTopLeft(find.text('緊急聯絡人').first);
       expect(contactsTop.dy, greaterThan(helperTop.dy));
       expect(find.text('邀請緊急聯絡人', skipOffstage: false), findsOneWidget);
       await t.pumpWidget(const SizedBox.shrink());
@@ -550,6 +563,7 @@ void main() {
         nearby: _PlainTransport(),
         openEmergency: false,
       );
+      await _openSettings(t);
       await _show(t, find.text('加入附近協助者'));
       expect(find.text('緊急聯絡人', skipOffstage: false), findsNothing);
       expect(find.text('邀請緊急聯絡人', skipOffstage: false), findsNothing);
@@ -657,6 +671,7 @@ void main() {
         nearby: transport,
         openEmergency: false,
       );
+      await _openSettings(t);
       await _tap(t, '邀請緊急聯絡人');
       // Opening the form creates nothing.
       expect(transport.created, isEmpty);
@@ -693,6 +708,7 @@ void main() {
         nearby: transport,
         openEmergency: false,
       );
+      await _openSettings(t);
       // Not paired yet: nothing is polled however long we wait.
       await t.pump(const Duration(seconds: 30));
       expect(transport.fetches, 0);
@@ -737,6 +753,7 @@ void main() {
         nearby: transport,
         openEmergency: false,
       );
+      await _openSettings(t);
       await _show(t, find.text('我是誰的緊急聯絡人'));
       await _show(t, find.text('加入'));
       final codeField = find.byType(TextField).last;
