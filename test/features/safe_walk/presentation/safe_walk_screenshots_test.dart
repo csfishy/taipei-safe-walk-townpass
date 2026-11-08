@@ -100,7 +100,7 @@ void main() {
       warnings: const ['依 OpenStreetMap 步行路網計算，不保證沿途安全或目前可通行'],
     );
     await _app(t, route: route);
-    await _tap(t, '安心行');
+    await _tap(t, '點擊開始');
     await _shot(t, '12-avoid-routes');
   }, skip: _skip);
 
@@ -131,7 +131,7 @@ void main() {
 
   testWidgets('02 地圖：回家路線', (t) async {
     await _app(t);
-    await _tap(t, '安心行');
+    await _tap(t, '點擊開始');
     await _shot(t, '02-map-home');
     await _tap(t, '文字路線');
     await t.drag(find.byType(SingleChildScrollView).last, const Offset(0, -400));
@@ -141,7 +141,7 @@ void main() {
 
   testWidgets('04 最近求助地點與收合資訊框', (t) async {
     await _app(t);
-    await _tap(t, '安心行');
+    await _tap(t, '點擊開始');
     await _tap(t, '最近求助地點');
     await _shot(t, '04-nearest-point');
     await t.tap(find.bySemanticsLabel('收合資訊框'));
@@ -173,7 +173,7 @@ void main() {
 
   testWidgets('11 目的地選單', (t) async {
     await _app(t);
-    await _tap(t, '安心行');
+    await _tap(t, '點擊開始');
     await t.tap(find.textContaining('→ 家'));
     await t.pumpAndSettle();
     await _shot(t, '11-places');
@@ -189,7 +189,7 @@ void main() {
   testWidgets('06 回報狀況', (t) async {
     await _app(t);
     // 首頁不再有「回報狀況」；從地圖頂部的「回報」進入。
-    await _tap(t, '安心行');
+    await _tap(t, '點擊開始');
     await _tap(t, '回報');
     await _tap(t, '用我目前的位置');
     await _shot(t, '06-report-form');
@@ -197,7 +197,7 @@ void main() {
 
   testWidgets('07 異常詳情', (t) async {
     await _app(t);
-    await _tap(t, '安心行');
+    await _tap(t, '點擊開始');
     await t.tap(find.bySemanticsLabel(RegExp('打架衝突')).first);
     await t.pumpAndSettle();
     await _shot(t, '07-anomaly-detail');

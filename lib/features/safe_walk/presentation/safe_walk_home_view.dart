@@ -80,6 +80,8 @@ class SafeWalkHomeView extends StatelessWidget {
       backgroundColor: SwColors.bg,
       // 與臺北通網頁服務（TPWebView）同一套：主色長條＋右上 CloseButton，hover／按壓效果由官方元件處理。
       appBar: TPAppBar(
+        // 跟臺北通其他服務一樣，標題置中。
+        title: '安心行',
         backgroundColor: TPColors.primary500,
         foregroundColor: TPColors.white,
         leading: const SizedBox.shrink(),
@@ -88,6 +90,8 @@ class SafeWalkHomeView extends StatelessWidget {
             IconButton(
               tooltip: '安心行設定',
               color: TPColors.white,
+              // App 主題把頂部列圖示設成 56，不指定會被頂部列切掉；跟右邊 ✕ 一樣用 24。
+              iconSize: 24,
               icon: const Icon(Icons.settings_rounded),
               onPressed: onOpenSettings,
             ),

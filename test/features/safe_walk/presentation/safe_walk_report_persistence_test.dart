@@ -26,7 +26,7 @@ Future<void> _pump(WidgetTester t, SafeWalkFlow flow) async {
   addTearDown(t.view.reset);
   await t.pumpWidget(MaterialApp(home: flow));
   await t.pumpAndSettle();
-  await t.tap(find.text('安心行'));
+  await t.tap(find.text('點擊開始'));
   await t.pumpAndSettle();
 }
 
@@ -277,7 +277,7 @@ void main() {
       expect(events, ['reports:1', 'route']);
       await t.tap(find.bySemanticsLabel('返回'));
       await t.pumpAndSettle();
-      await t.tap(find.text('安心行'));
+      await t.tap(find.text('點擊開始'));
       await t.pumpAndSettle();
       expect(_reports(t).single.id, 'persisted');
     },
@@ -328,7 +328,7 @@ void main() {
       await t.pump();
       await t.tap(find.bySemanticsLabel('返回'));
       await t.pumpAndSettle();
-      await t.tap(find.text('安心行'));
+      await t.tap(find.text('點擊開始'));
       await t.pumpAndSettle();
       save.complete(_saved('confirmed'));
       await t.pumpAndSettle();
@@ -364,7 +364,7 @@ void main() {
     await t.pump();
     await t.tap(find.bySemanticsLabel('返回'));
     await t.pumpAndSettle();
-    await t.tap(find.text('安心行'));
+    await t.tap(find.text('點擊開始'));
     await t.pumpAndSettle();
     expect(published.last, isEmpty);
     save.complete(_saved('late-confirmed'));

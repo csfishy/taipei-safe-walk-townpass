@@ -1273,7 +1273,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView>
           SwStateMessage(
             icon: Icons.alt_route_rounded,
             title: '設定起點與目的地',
-            message: '點上方「起點 → 目的地」選好出發地與要去的地方，就會顯示步行路線、時間與文字路線。',
+            message: '點上方「起點 → 目的地」選好出發地與要去的地方，就會顯示步行路線與時間。',
             actionLabel: '選擇起點與目的地',
             onAction: () => _openPlaces(context),
           )

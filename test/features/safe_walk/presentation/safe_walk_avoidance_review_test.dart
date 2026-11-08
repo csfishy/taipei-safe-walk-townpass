@@ -61,7 +61,7 @@ void main() {
       tester,
       SafeWalkFlow(mode: sw.DataMode.live, onPlanRoute: destinations.add),
     );
-    await tester.tap(find.text('安心行'));
+    await tester.tap(find.text('點擊開始'));
     await tester.pumpAndSettle();
     final map = tester.widget<SafeWalkMapView>(find.byType(SafeWalkMapView));
     final renderer = tester.widget<DemoMap>(find.byType(DemoMap));
@@ -84,7 +84,7 @@ void main() {
         onManageRoutingConsent: () => routing++,
       ),
     );
-    await tester.tap(find.text('安心行'));
+    await tester.tap(find.text('點擊開始'));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('crime-query-status')), findsOneWidget);
     // 查詢設定在首頁的「資料來源與授權」。
@@ -125,7 +125,7 @@ void main() {
         ],
       ),
     );
-    await tester.tap(find.text('安心行'));
+    await tester.tap(find.text('點擊開始'));
     await tester.pumpAndSettle();
     final circles = tester
         .widget<CircleLayer>(find.byType(CircleLayer))
@@ -189,7 +189,7 @@ void main() {
         ),
       ),
     );
-    await tester.tap(find.text('安心行'));
+    await tester.tap(find.text('點擊開始'));
     await tester.pumpAndSettle();
     await tester.tap(find.bySemanticsLabel(RegExp('^50 公尺避讓緩衝區：人工舊詳情')));
     await tester.pumpAndSettle();
@@ -217,7 +217,7 @@ void main() {
         onPlanRoute: destinations.add,
       ),
     );
-    await tester.tap(find.text('安心行'));
+    await tester.tap(find.text('點擊開始'));
     await tester.pumpAndSettle();
     destinations.clear();
     final map = tester.widget<SafeWalkMapView>(find.byType(SafeWalkMapView));
@@ -247,7 +247,7 @@ void main() {
         ),
       ),
     );
-    await tester.tap(find.text('安心行'));
+    await tester.tap(find.text('點擊開始'));
     await tester.pumpAndSettle();
     expect(find.text('路線來源：test-only'), findsNothing);
     expect(find.text('暫時無法避讓緩衝區，這是一般步行路線'), findsOneWidget);
@@ -266,7 +266,7 @@ void main() {
           onPlanRoute: destinations.add,
         ),
       );
-      await tester.tap(find.text('安心行'));
+      await tester.tap(find.text('點擊開始'));
       await tester.pumpAndSettle();
       destinations.clear();
       final map = tester.widget<SafeWalkMapView>(find.byType(SafeWalkMapView));

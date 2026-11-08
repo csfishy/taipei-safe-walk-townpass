@@ -72,7 +72,7 @@ void main() {
     await _open(t, speaker);
     await t.tap(find.text('拒絕'));
     await t.pumpAndSettle();
-    expect(find.text('安心行'), findsOneWidget);
+    expect(find.text('點擊開始'), findsOneWidget);
     final after = _buzzes;
     await t.pump(const Duration(seconds: 5));
     expect(_buzzes, after);
@@ -119,7 +119,7 @@ void main() {
     await _open(t, speaker);
     await t.binding.handlePopRoute();
     await t.pumpAndSettle();
-    expect(find.text('安心行'), findsOneWidget);
+    expect(find.text('點擊開始'), findsOneWidget);
     final after = _buzzes;
     await t.pump(const Duration(seconds: 5));
     expect(_buzzes, after);

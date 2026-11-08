@@ -274,7 +274,7 @@ void main() {
     await tester.tap(find.text('知道了'));
     await tester.pumpAndSettle();
     expect(find.byType(AlertDialog), findsNothing);
-    await tester.tap(find.text('安心行'));
+    await tester.tap(find.text('點擊開始'));
     await tester.pumpAndSettle();
     await _skipSetHome(tester);
     expect(find.byKey(const Key('crime-query-status')), findsOneWidget);
@@ -304,7 +304,7 @@ void main() {
     expect(queries, 0);
     expect(platform.locations, isEmpty);
     expect(routes.requests, isEmpty);
-    await tester.tap(find.text('安心行'));
+    await tester.tap(find.text('點擊開始'));
     await tester.pumpAndSettle();
     await _skipSetHome(tester);
     expect(
@@ -333,7 +333,7 @@ void main() {
     await _flow(tester)
         .onHomeChanged!(sw.Coordinates(lat: 25.001, lng: 121.501));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('安心行'));
+    await tester.tap(find.text('點擊開始'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('同意'));
     await tester.pumpAndSettle();

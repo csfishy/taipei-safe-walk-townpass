@@ -31,7 +31,7 @@ void main() {
       t,
       SafeWalkFlow(mode: sw.DataMode.live, onPlanRoute: asked.add),
     );
-    await t.tap(find.text('安心行'));
+    await t.tap(find.text('點擊開始'));
     await t.pumpAndSettle();
     expect(asked, isEmpty);
     expect(find.text('請先返回首頁設定「家」的位置，再規劃回家路線。'), findsWidgets);
@@ -63,7 +63,7 @@ void main() {
     // 移除後回到「安心行設定」，再回首頁。
     await t.tap(find.byTooltip('返回'));
     await t.pumpAndSettle();
-    await t.tap(find.text('安心行'));
+    await t.tap(find.text('點擊開始'));
     await t.pumpAndSettle();
     expect(asked, isEmpty);
     // 可以儲存家時，一進地圖就直接請使用者在地圖上點選家。
@@ -84,7 +84,7 @@ void main() {
         onPlanRoute: asked.add,
       ),
     );
-    await t.tap(find.text('安心行'));
+    await t.tap(find.text('點擊開始'));
     await t.pumpAndSettle();
     expect(asked, hasLength(1));
     expect(asked.single.lat, 0.5);

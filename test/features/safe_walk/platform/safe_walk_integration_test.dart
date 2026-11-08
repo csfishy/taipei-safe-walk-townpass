@@ -184,7 +184,7 @@ void main() {
       expect(flow.onPlanRoute, isNotNull);
       expect(flow.homeLocation, isNull);
       expect(flow.route, isNull);
-      await t.tap(find.text('安心行'));
+      await t.tap(find.text('點擊開始'));
       await t.pumpAndSettle();
       expect(find.text('地圖載入設定'), findsNothing);
       expect(find.byType(TileLayer), findsOneWidget);
@@ -215,7 +215,7 @@ void main() {
       await enter(t);
       expect(platform.locations, 0);
       expect(platform.emergencies, 0);
-      await t.tap(find.text('安心行'));
+      await t.tap(find.text('點擊開始'));
       await t.pumpAndSettle();
       expect(find.text('路線僅供參考・請留意實際路況'), findsNothing);
       // 文字路線暫時隱藏（程式保留）。
@@ -254,7 +254,7 @@ void main() {
       await t.pumpAndSettle();
       await t.tap(find.text('我現在安全，關閉'));
       await t.pumpAndSettle();
-      expect(find.text('安心行'), findsOneWidget);
+      expect(find.text('點擊開始'), findsOneWidget);
       await back(t);
       expect(find.byType(CityServiceView), findsOneWidget);
       expect(companion.disposals, 1);

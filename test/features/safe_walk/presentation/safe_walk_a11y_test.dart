@@ -22,14 +22,23 @@ Future<void> _open(WidgetTester t, String? entry) async {
 }
 
 void main() {
-  for (final entry in [null, '安心行', '附近求助地點', '模擬來電', '緊急求助']) {
+  // 「點擊開始」打開地圖（頂部列標題也叫「安心行」，不能拿來點）。
+  for (final entry in [null, '點擊開始', '附近求助地點', '模擬來電', '緊急求助']) {
     final name = entry ?? '首頁';
     testWidgets('$name：點擊區域 ≥ 48、可點元件都有讀屏名稱、文字對比足夠', (t) async {
       final handle = t.ensureSemantics();
       await _open(t, entry);
       await expectLater(t, meetsGuideline(androidTapTargetGuideline));
       await expectLater(t, meetsGuideline(labeledTapTargetGuideline));
-      await expectLater(t, meetsGuideline(textContrastGuideline));
+      // 頂部列標題「安心行」是主色底白字（同臺北通，11/7 團隊決定，已知 2.39:1）；
+      // 只對這一個節點例外，其他文字仍須達 4.5:1。
+      final contrast = await textContrastGuideline.evaluate(t);
+      final failures = (contrast.reason ?? '').split('SemanticsNode#').skip(1).toList();
+      expect(
+        contrast.passed || failures.every((f) => f.contains('label: "安心行"') && f.contains('isHeader')),
+        isTrue,
+        reason: contrast.reason,
+      );
       handle.dispose();
     });
   }

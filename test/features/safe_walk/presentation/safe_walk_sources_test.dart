@@ -102,7 +102,7 @@ void main() {
     expect(find.text('地圖與步行路網'), findsOneWidget);
     await t.tap(find.byTooltip('關閉'));
     await t.pumpAndSettle();
-    await t.tap(find.text('安心行'));
+    await t.tap(find.text('點擊開始'));
     await t.pumpAndSettle();
     expect(find.text('資料來源與授權'), findsNothing);
   });
