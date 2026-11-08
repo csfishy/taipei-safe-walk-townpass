@@ -82,7 +82,8 @@ const swOpenData = <SwDataSource>[
     sourceUrl: 'https://data.taipei/dataset?p=1&limit=10&sort=_score_desc&qs=%E7%8A%AF%E7%BD%AA&type=dataset&type=openapi&bool_type=dataset&bool_type=openapi&bool_type=OR&is_included_sub_org=0',
     period: '臺北至 2026-09-29、新北至 2026-06-30、基隆至 2026-09-30；不是全年或全部案類',
     update: '整理後存於雲端資料庫，規劃路線時線上查詢',
-    license: '臺北市資料大平臺標示「公開」；各資料集的名稱、網址與授權，連線時在「回報資料說明」逐筆列出',
+    license: '政府資料開放授權條款－第 1 版（10 個資源皆同）；各資料集的名稱與網址，連線時在「回報資料說明」逐筆列出',
+    licenseUrl: 'https://data.gov.tw/license',
     limit: '$swCrimeDataLimit基隆的紀錄沒有參考位置，不會出現在地圖上，也不會納入避讓。',
   ),
 ];
