@@ -646,12 +646,12 @@ void main() {
       session.token = 'not-a-jwt';
       expect(
         await transport.prepare(),
-        AuthenticatedNearbyAlertTransport.signedOutReason,
+        AuthenticatedNearbyAlertTransport.identityUnavailableReason,
       );
       session.signedIn = false;
       expect(
         await transport.prepare(),
-        AuthenticatedNearbyAlertTransport.signedOutReason,
+        AuthenticatedNearbyAlertTransport.identityUnavailableReason,
       );
     });
   });
@@ -1064,5 +1064,43 @@ void main() {
         expect(normalizeNearbyInviteCode(bad), isNull, reason: bad);
       }
     });
+  });
+
+  test('no message a person can see tells them to log in or says they were logged out', () async {
+    // This app has no login: the identity is made automatically.
+    const wording = ['登入', '登出'];
+    for (final w in wording) {
+      expect(
+        AuthenticatedNearbyAlertTransport.identityUnavailableReason,
+        isNot(contains(w)),
+      );
+    }
+    session.signedIn = false;
+    expect(transport.currentUnavailableReason, isNotNull);
+    session.signedIn = true;
+    for (final status in [400, 401, 403, 404, 409, 422, 429, 500, 503]) {
+      net.status = status;
+      net.body = '{}';
+      final attempts = <Future<Object?> Function()>[
+        () => transport.sendEmergencyAlert(
+          senderId: 'x',
+          location: _here,
+          radiusMeters: 500,
+        ),
+        () => transport.fetchPendingAlerts('x'),
+        () => transport.listMyContacts(),
+        () => transport.acceptContactInvite('ABCDEFGH'),
+      ];
+      for (final attempt in attempts) {
+        try {
+          await attempt();
+          fail('HTTP $status must fail');
+        } on NearbyAlertException catch (error) {
+          for (final w in wording) {
+            expect(error.message, isNot(contains(w)), reason: 'HTTP $status');
+          }
+        }
+      }
+    }
   });
 }

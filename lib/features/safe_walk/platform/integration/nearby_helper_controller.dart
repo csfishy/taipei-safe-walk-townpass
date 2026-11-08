@@ -309,7 +309,7 @@ final class NearbyHelperController extends ChangeNotifier
       // The session ended: stop locally rather than keep a half-working state.
       _on = false;
       _stop();
-      _say('已登出，附近協助已停止。', error: true);
+      _say('附近通知的連線已中斷，已停止協助；稍後可以再加入。', error: true);
       return;
     }
     final operation = _operation = _Operation();
