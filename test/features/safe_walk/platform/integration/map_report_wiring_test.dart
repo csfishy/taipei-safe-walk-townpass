@@ -61,6 +61,105 @@ class _Speaker extends UnavailableSpeaker implements SafeWalkRouteSpeaker {
 
 void main() {
   test(
+    'native resolve sends only the selected UUID and waits for acknowledgement',
+    () async {
+      final http = FakeRpcHttpClient();
+      http.request.response = Future.value(
+        FakeRpcResponse.text(
+          jsonEncode({'interfaceVersion': 1, 'reportId': _id, 'removed': true}),
+        ),
+      );
+      final wiring = MapReportWiring.fromEnvironment(
+        environment: {
+          'SUPABASE_URL': 'https://example.test',
+          'SUPABASE_PUBLISHABLE_KEY': 'sb_publishable_artificial-client-key',
+        },
+        createClient: (config) =>
+            SupabaseRpcClient(config: config, createHttpClient: () => http),
+      );
+      await wiring.resolve(_id);
+      expect(jsonDecode(utf8.decode(http.request.written)), {
+        'p_report_id': _id,
+      });
+      expect(http.calls, 1);
+      expect(http.closes, 1);
+    },
+  );
+
+  test(
+    'resolve and fresh load remove only the selected persisted report',
+    () async {
+      const otherId = '00000000-0000-4000-8000-000000000002';
+      final stored = {_id: _record(), otherId: _record(otherId)};
+      final repository = MapReportRepository(
+        transport: (function, args, {cancellation}) async {
+          if (function == mapReportResolveRpcFunction) {
+            expect(args, {'p_report_id': _id});
+            final removed = stored.remove(_id) != null;
+            return _response({'reportId': _id, 'removed': removed});
+          }
+          expect(function, mapReportQueryRpcFunction);
+          return _response({
+            'records': stored.values.toList(),
+            'totalMatching': stored.length,
+            'limit': 200,
+            'offset': 0,
+          });
+        },
+      );
+      expect(await MapReportWiring(repository).load(), hasLength(2));
+      await MapReportWiring(repository).resolve(_id);
+      await MapReportWiring(repository).resolve(_id);
+      expect((await MapReportWiring(repository).load()).single.id, otherId);
+    },
+  );
+
+  testWidgets(
+    'composition injects resolve and cancels its pending request on exit',
+    (tester) async {
+      final started = Completer<void>();
+      final pending = Completer<MapReportHttpResponse>();
+      SafeWalkCancellation? signal;
+      final repository = MapReportRepository(
+        transport: (function, args, {cancellation}) {
+          expect(function, mapReportResolveRpcFunction);
+          expect(args, {'p_report_id': _id});
+          signal = cancellation;
+          started.complete();
+          return pending.future;
+        },
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: SafeWalkCompositionRoot(
+            liveRoutes: true,
+            showLiveMap: false,
+            mapReportRepository: repository,
+            homeLocationStore: _Home(),
+            speaker: _Speaker(),
+          ),
+        ),
+      );
+      await tester.pump();
+      final flow = tester.widget<SafeWalkFlow>(find.byType(SafeWalkFlow));
+      expect(flow.onResolveReport, isNotNull);
+      final resolving = flow.onResolveReport!(_id);
+      final expectation = expectLater(
+        resolving,
+        throwsA(isA<SafeWalkCancelledException>()),
+      );
+      await started.future;
+      flow.onLeaveMap!();
+      expect(signal!.isCancelled, isTrue);
+      await expectation;
+      pending.complete(_response({'reportId': _id, 'removed': true}));
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  test(
     'missing public configuration is unavailable without fallback',
     () async {
       final wiring = MapReportWiring.fromEnvironment(environment: {});

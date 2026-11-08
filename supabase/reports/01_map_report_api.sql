@@ -1,7 +1,8 @@
 -- MANUAL ONLY / Level C. Public map annotations intentionally submitted by
 -- users. Independent of crime_reference, nearby emergency and safe_walk_demo.
 -- No GPS history, device/user identity, phone, auth token or official receipt.
--- No update/delete RPC: knowing a public report UUID does not grant ownership.
+-- Community resolution is explicitly requested: any public client may remove
+-- one displayed report UUID. This is not ownership or verified moderation.
 BEGIN;
 SET LOCAL lock_timeout = '5s';
 SET LOCAL statement_timeout = '60s';
@@ -41,12 +42,26 @@ ALTER TABLE safe_walk_reports.reports FORCE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE safe_walk_reports.reports
   FROM PUBLIC, anon, authenticated, service_role;
 
--- These two tightly scoped definer functions deliberately publish only map
+-- No report coordinates, category, description or caller identity are kept
+-- after deletion. Retain only retired request UUIDs to prevent delayed submit
+-- retries from recreating reports that the community already removed.
+CREATE TABLE IF NOT EXISTS safe_walk_reports.resolved_ids (
+  id uuid PRIMARY KEY,
+  resolved_at timestamptz NOT NULL DEFAULT clock_timestamp()
+);
+CREATE INDEX IF NOT EXISTS map_reports_resolved_at_idx
+  ON safe_walk_reports.resolved_ids (resolved_at DESC);
+ALTER TABLE safe_walk_reports.resolved_ids ENABLE ROW LEVEL SECURITY;
+ALTER TABLE safe_walk_reports.resolved_ids FORCE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE safe_walk_reports.resolved_ids
+  FROM PUBLIC, anon, authenticated, service_role;
+
+-- These tightly scoped definer functions deliberately publish only map
 -- report data. Direct table/schema privileges remain revoked. Inputs are
 -- validated, SQL is static and fully qualified, search_path is empty, and
 -- PUBLIC EXECUTE is revoked in the same transaction as function creation.
 -- Unlike nearby notifications this publishes no caller identity/location
--- history and cannot edit another report. Anonymous publishing is intentional.
+-- history. Anonymous publishing and single-report removal are intentional.
 CREATE OR REPLACE FUNCTION public.safe_walk_map_report_submit(
   p_request_id uuid,
   p_category text,
@@ -78,6 +93,10 @@ BEGIN
   -- Serialize the short insert/check section: concurrent repeated taps and
   -- retries cannot create duplicate rows or race through the global cap.
   PERFORM pg_catalog.pg_advisory_xact_lock(20261108, 1972);
+  IF EXISTS (SELECT 1 FROM safe_walk_reports.resolved_ids r
+             WHERE r.id = p_request_id) THEN
+    RAISE EXCEPTION 'map_report_already_resolved' USING ERRCODE = '23505';
+  END IF;
   SELECT r.* INTO v_report FROM safe_walk_reports.reports r
     WHERE r.id = p_request_id;
   IF FOUND THEN
@@ -168,17 +187,62 @@ BEGIN
 END;
 $body$;
 
+CREATE OR REPLACE FUNCTION public.safe_walk_map_report_resolve(
+  p_report_id uuid
+) RETURNS jsonb
+LANGUAGE plpgsql
+VOLATILE
+SECURITY DEFINER
+SET search_path = ''
+SET extra_float_digits = 3
+SET lock_timeout = '5s'
+AS $body$
+DECLARE
+  v_removed integer := 0;
+BEGIN
+  IF p_report_id IS NULL THEN
+    RAISE EXCEPTION 'map_report_invalid_argument' USING ERRCODE = '22023';
+  END IF;
+
+  -- The same lock as submit prevents a retry from racing with retirement.
+  PERFORM pg_catalog.pg_advisory_xact_lock(20261108, 1972);
+  IF EXISTS (SELECT 1 FROM safe_walk_reports.reports r
+             WHERE r.id = p_report_id) THEN
+    -- Capacity/burst protection, not a per-person authorization claim. Missing
+    -- and already-removed UUID retries never consume this mutation budget.
+    IF (SELECT count(*) FROM safe_walk_reports.resolved_ids r
+        WHERE r.resolved_at > clock_timestamp() - interval '1 minute') >= 60
+       OR (SELECT count(*) FROM safe_walk_reports.resolved_ids) >= 1000000 THEN
+      RAISE EXCEPTION 'map_report_rate_limited' USING ERRCODE = 'PT429';
+    END IF;
+    DELETE FROM safe_walk_reports.reports WHERE id = p_report_id;
+    GET DIAGNOSTICS v_removed = ROW_COUNT;
+    IF v_removed = 1 THEN
+      INSERT INTO safe_walk_reports.resolved_ids (id) VALUES (p_report_id)
+        ON CONFLICT (id) DO NOTHING;
+    END IF;
+  END IF;
+  RETURN jsonb_build_object(
+    'interfaceVersion', 1, 'reportId', p_report_id, 'removed', v_removed = 1);
+END;
+$body$;
+
 ALTER FUNCTION public.safe_walk_map_report_submit(uuid,text,double precision,double precision,text)
   OWNER TO postgres;
 ALTER FUNCTION public.safe_walk_map_report_query(double precision,double precision,double precision,double precision,integer,integer)
   OWNER TO postgres;
+ALTER FUNCTION public.safe_walk_map_report_resolve(uuid) OWNER TO postgres;
 REVOKE ALL ON FUNCTION public.safe_walk_map_report_submit(uuid,text,double precision,double precision,text)
   FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION public.safe_walk_map_report_query(double precision,double precision,double precision,double precision,integer,integer)
   FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.safe_walk_map_report_resolve(uuid)
+  FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.safe_walk_map_report_submit(uuid,text,double precision,double precision,text)
   TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.safe_walk_map_report_query(double precision,double precision,double precision,double precision,integer,integer)
+  TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.safe_walk_map_report_resolve(uuid)
   TO anon, authenticated;
 COMMENT ON TABLE safe_walk_reports.reports IS
   'Public user-selected map annotations. Unverified; not police reports, official receipts, crime_reference records or a location history.';

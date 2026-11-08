@@ -66,6 +66,14 @@ final class MapReportWiring {
 
   final MapReportRepository repository;
 
+  /// Remove one public report only after the database acknowledges the UUID.
+  Future<void> resolve(String reportId, {SafeWalkCancellation? cancellation}) =>
+      repository.resolve(
+        mode: sw.DataMode.live,
+        reportId: reportId,
+        cancellation: cancellation,
+      );
+
   Future<Anomaly> save(
     Anomaly draft, {
     SafeWalkCancellation? cancellation,

@@ -175,6 +175,7 @@ class SafeWalkMapView extends StatefulWidget {
     this.onEndNavigation,
     this.isLive = false,
     this.onSaveReport,
+    this.onResolveReport,
     this.reportsLoading = false,
     this.reportsError,
     this.onRetryReports,
@@ -229,6 +230,7 @@ class SafeWalkMapView extends StatefulWidget {
   final MapStartView startView;
   final bool isLive;
   final Future<Anomaly> Function(Anomaly draft)? onSaveReport;
+  final Future<void> Function(String reportId)? onResolveReport;
   final bool reportsLoading;
   final String? reportsError;
   final VoidCallback? onRetryReports;
@@ -265,6 +267,9 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView>
     if (old.isLive != widget.isLive) {
       ++_reportGeneration;
       _savingReport = false;
+      _resolvingReportId = null;
+      _resolveErrorId = null;
+      _resolveError = null;
       _reportDraft = null;
       _reportError = null;
     }
@@ -340,6 +345,8 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView>
   AnomalyCategory _category = AnomalyCategory.suspicious;
   final _note = TextEditingController();
   bool _savingReport = false;
+  String? _resolvingReportId, _resolveErrorId, _resolveError;
+  bool get _reportBusy => _savingReport || _resolvingReportId != null;
   String? _reportError;
   Anomaly? _reportDraft;
   int _reportGeneration = 0;
@@ -356,7 +363,16 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView>
         state == AppLifecycleState.hidden ||
         state == AppLifecycleState.detached) {
       ++_reportGeneration;
-      if (_savingReport) setState(() => _savingReport = false);
+      if (_reportBusy) {
+        setState(() {
+          _savingReport = false;
+          if (_resolvingReportId != null) {
+            _resolveErrorId = _resolvingReportId;
+            _resolveError = '排除結果尚未確認，請再試一次。';
+            _resolvingReportId = null;
+          }
+        });
+      }
     }
   }
 
@@ -629,7 +645,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView>
   }
 
   Future<void> _submit() async {
-    if (_savingReport || _pin == null) return;
+    if (_reportBusy || _pin == null) return;
     final description = _note.text.trim();
     final previous = _reportDraft;
     // Keep the same request ID when retrying an uncertain network result.
@@ -687,6 +703,44 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView>
       _detailId = a.id;
       if (_size == _SheetSize.collapsed) _size = _SheetSize.normal;
       _toast = widget.isLive ? '已儲存並標示在地圖上' : '已標示在地圖上';
+    });
+  }
+
+  Future<void> _resolve(Anomaly report) async {
+    if (_reportBusy) return;
+    final generation = ++_reportGeneration;
+    setState(() {
+      _resolvingReportId = report.id;
+      _resolveErrorId = null;
+      _resolveError = null;
+    });
+    try {
+      if (widget.isLive) {
+        final resolve = widget.onResolveReport;
+        if (resolve == null) throw StateError('Report removal unavailable');
+        await resolve(report.id);
+      }
+    } catch (_) {
+      if (!mounted || generation != _reportGeneration) return;
+      setState(() {
+        _resolvingReportId = null;
+        _resolveErrorId = report.id;
+        _resolveError = widget.isLive && widget.onResolveReport == null
+            ? '回報排除功能尚未配置，標示已保留；請稍後再試。'
+            : '尚未確認回報已排除，標示已保留；請再試一次。';
+      });
+      return;
+    }
+    if (!mounted || generation != _reportGeneration) return;
+    widget.anomalies.removeWhere((item) => item.id == report.id);
+    widget.onAnomaliesChanged();
+    HapticFeedback.lightImpact();
+    setState(() {
+      _resolvingReportId = null;
+      _resolveErrorId = null;
+      _resolveError = null;
+      _detailId = null;
+      _toast = widget.isLive ? '已排除這則回報' : '已移除示範回報';
     });
   }
 
@@ -856,7 +910,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView>
                           widget.manualStart != null ||
                           widget.position != null ||
                           path.isNotEmpty,
-                      onCrime: _savingReport
+                      onCrime: _reportBusy
                           ? null
                           : (i) => setState(() {
                               _crimeDetail = widget.crimeSpots[i];
@@ -891,7 +945,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView>
                       selectedPointId: _pointsView ? picked?.id : point?.id,
                       selectedAnomalyId: detail?.id,
                       pin: _pin,
-                      onAnomaly: _savingReport
+                      onAnomaly: _reportBusy
                           ? null
                           : (id) => setState(() {
                               _crimeDetail = null;
@@ -906,7 +960,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView>
                       onPoint: _pointsView
                           ? (id) => setState(() => _pickedPointId = id)
                           : null,
-                      onPick: _savingReport
+                      onPick: _reportBusy
                           ? null
                           : _pickingStart
                           ? (at) {
@@ -1050,7 +1104,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView>
                                   semantics: _legend ? '關閉圖例' : '顯示圖例',
                                   selected: _legend,
                                   onTap: () {
-                                    if (_savingReport) return;
+                                    if (_reportBusy) return;
                                     setState(() {
                                       // 圖例與回報一次只開一個，避免疊在一起。
                                       _legend = !_legend;
@@ -1069,7 +1123,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView>
                                   selected: _picking,
                                   warn: true,
                                   onTap: () {
-                                    if (_savingReport) return;
+                                    if (_reportBusy) return;
                                     setState(() {
                                       _picking = !_picking;
                                       // Reporting is also available before home
@@ -1891,9 +1945,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView>
                 boxShadow: _category == c ? SwShadow.card : null,
               ),
               child: SwPressable(
-                onTap: _savingReport
-                    ? null
-                    : () => setState(() => _category = c),
+                onTap: _reportBusy ? null : () => setState(() => _category = c),
                 selected: _category == c,
                 color: _category == c ? SwColors.warnBg : SwColors.surface,
                 border: BorderSide(
@@ -1933,7 +1985,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView>
       const SizedBox(height: 12),
       TextField(
         controller: _note,
-        enabled: !_savingReport,
+        enabled: !_reportBusy,
         maxLength: 60,
         style: SwText.body,
         decoration: InputDecoration(
@@ -1965,11 +2017,11 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView>
         first: SwPrimaryButton(
           label: _savingReport ? '儲存中…' : '標示到地圖',
           icon: Icons.add_location_alt_outlined,
-          onTap: _savingReport ? null : _submit,
+          onTap: _reportBusy ? null : _submit,
         ),
         second: SwOutlineButton(
           label: '重新選位置',
-          onTap: _savingReport
+          onTap: _reportBusy
               ? null
               : () => setState(() {
                   _pin = null;
@@ -1997,10 +2049,19 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView>
                 style: SwText.heading,
               ),
             ),
-            SwRoundButton(
-              icon: Icons.close_rounded,
-              label: '關閉回報詳情',
-              onTap: () => setState(() => _detailId = null),
+            const SizedBox(width: 8),
+            SwChip(
+              label: _resolvingReportId == a.id ? '排除中…' : '已排除',
+              onTap: _reportBusy ? null : () => _resolve(a),
+            ),
+            const SizedBox(width: 4),
+            AbsorbPointer(
+              absorbing: _reportBusy,
+              child: SwRoundButton(
+                icon: Icons.close_rounded,
+                label: '關閉回報詳情',
+                onTap: () => setState(() => _detailId = null),
+              ),
             ),
           ],
         ),
@@ -2030,7 +2091,14 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView>
         ],
         if (widget.isLive) ...[
           const SizedBox(height: 8),
-          Text('回報更新與解除功能尚未開放。', style: SwText.small),
+          Text('按「已排除」會刪除這則回報，並移除地圖標示。', style: SwText.small),
+        ],
+        if (_resolveErrorId == a.id && _resolveError != null) ...[
+          const SizedBox(height: 8),
+          Semantics(
+            liveRegion: true,
+            child: Text(_resolveError!, style: SwText.bodyStrong),
+          ),
         ],
         if (!widget.isLive && a.status != AnomalyStatus.cleared) ...[
           const SizedBox(height: 12),
