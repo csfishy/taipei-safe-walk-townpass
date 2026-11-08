@@ -127,6 +127,53 @@ void main() {
   });
 
   test(
+    'native HTTP acknowledgement retains full map point precision',
+    () async {
+      const latitude = 0.012345678901234567;
+      const longitude = 0.0567890123456789123;
+      final http = FakeRpcHttpClient();
+      http.request.response = Future.value(
+        FakeRpcResponse.text(
+          jsonEncode({
+            'interfaceVersion': 1,
+            'report': {
+              ..._record(),
+              'latitude': latitude,
+              'longitude': longitude,
+            },
+          }),
+        ),
+      );
+      final wiring = MapReportWiring.fromEnvironment(
+        environment: {
+          'SUPABASE_URL': 'https://example.test',
+          'SUPABASE_PUBLISHABLE_KEY': 'sb_publishable_artificial-client-key',
+        },
+        createClient: (config) =>
+            SupabaseRpcClient(config: config, createHttpClient: () => http),
+      );
+      final saved = await wiring.save(
+        Anomaly(
+          id: _id,
+          category: AnomalyCategory.lighting,
+          at: const LatLng(latitude, longitude),
+          firstReportedAt: DateTime.utc(2026),
+          reportCount: 1,
+          status: AnomalyStatus.pending,
+          updates: ['人工測試'],
+          mode: sw.DataMode.live,
+        ),
+      );
+      final arguments = jsonDecode(utf8.decode(http.request.written));
+      expect(arguments['p_latitude'], latitude);
+      expect(arguments['p_longitude'], longitude);
+      expect(saved.at.lat, latitude);
+      expect(saved.at.lng, longitude);
+      expect(saved.mode, sw.DataMode.live);
+    },
+  );
+
+  test(
     'loads subsequent pages so avoidance does not silently omit reports',
     () async {
       final offsets = <int>[];
