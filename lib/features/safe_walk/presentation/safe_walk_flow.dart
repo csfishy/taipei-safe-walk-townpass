@@ -9,12 +9,22 @@ import 'package:town_pass/features/safe_walk/presentation/safe_walk_home_view.da
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_map_view.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_nearby_broadcast.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_nearby_helper.dart';
+import 'package:town_pass/features/safe_walk/presentation/safe_walk_settings_view.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_speaker.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_ui.dart';
 import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart'
     as sw;
 
-enum _Screen { home, map, points, report, call, emergency, homeSetting }
+enum _Screen {
+  home,
+  settings,
+  map,
+  points,
+  report,
+  call,
+  emergency,
+  homeSetting,
+}
 
 /// 安心行入口（M3）。所有對外動作經由 callback 交給 M1 接線；M3 不取 GPS、不撥號、不 import 其他模組。
 /// 一個要避開的回報點（中心）；半徑由路線規劃決定（系統內回報為 [reportAvoidRadiusMeters]）。
@@ -644,7 +654,6 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
     final child = switch (_screen) {
       _Screen.home => SafeWalkHomeView(
         isLive: widget.mode == sw.DataMode.live,
-        nearbyHelper: widget.nearbyHelper,
         settings: [
           if (widget.onManageRoutingConsent != null)
             (
@@ -675,12 +684,9 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
             ),
         ],
         destination: _place.label,
-        homeSet: widget.homeLocation != null,
-        onEditHome: widget.onHomeChanged == null
-            ? null
-            : () => _go(_Screen.homeSetting),
         avoided: avoidedCount(_anomalies),
         onBack: widget.onExit,
+        onOpenSettings: () => _go(_Screen.settings),
         onEmergency: _openEmergency,
         onOpen: (e) => _go(switch (e) {
           SafeWalkEntry.map => _Screen.map,
@@ -689,6 +695,15 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
           SafeWalkEntry.report => _Screen.report,
         }),
       ),
+      _Screen.settings => SafeWalkSettingsView(
+        onBack: () => _go(_Screen.home),
+        homeSet: widget.homeLocation != null,
+        onEditHome: widget.onHomeChanged == null
+            ? null
+            : () => _go(_Screen.homeSetting),
+        nearbyHelper: widget.nearbyHelper,
+      ),
+      // 儲存或移除家之後回到「安心行設定」，不直接跳回首頁。
       _Screen.homeSetting => SafeWalkHomeSettingView(
         initial: widget.homeLocation == null
             ? null
@@ -698,7 +713,7 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
         onClear: widget.homeLocation == null
             ? null
             : () => widget.onHomeChanged!(null),
-        onBack: () => _go(_Screen.home),
+        onBack: () => _go(_Screen.settings),
       ),
       _Screen.map => map(),
       _Screen.points => map(start: MapStartView.points),
@@ -739,6 +754,8 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
           _go(
             _screen == _Screen.emergency || _screen == _Screen.call
                 ? _back
+                : _screen == _Screen.homeSetting
+                ? _Screen.settings
                 : _Screen.home,
           );
         }

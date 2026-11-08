@@ -152,6 +152,12 @@ Future<void> _tap(WidgetTester t, String text) async {
   await t.pumpAndSettle();
 }
 
+/// 附近協助者在「安心行設定」裡：從首頁齒輪進入。
+Future<void> _openSettings(WidgetTester t) async {
+  await t.tap(find.byTooltip('安心行設定'));
+  await t.pump(const Duration(milliseconds: 500));
+}
+
 void main() {
   testWidgets('demo mode never offers to notify anyone', (t) async {
     final platform = _Platform();
@@ -244,6 +250,7 @@ void main() {
     ) async {
       final platform = _Platform();
       await _pump(t, live: true, platform: platform, openEmergency: false);
+      await _openSettings(t);
       await _show(t, find.text('附近協助者：目前無法使用'));
       expect(find.text('加入附近協助者', skipOffstage: false), findsNothing);
       await t.pump(const Duration(seconds: 30));
@@ -263,6 +270,7 @@ void main() {
         nearby: transport,
         openEmergency: false,
       );
+      await _openSettings(t);
       await join(t);
       // Joining read the position once, after the consent step.
       expect(platform.locations, 1);
@@ -303,6 +311,7 @@ void main() {
           nearby: transport,
           openEmergency: false,
         );
+      await _openSettings(t);
         await join(t);
         await t.pump(const Duration(seconds: 11));
         final fetches = transport.fetches;
@@ -333,6 +342,7 @@ void main() {
         nearby: transport,
         openEmergency: false,
       );
+      await _openSettings(t);
       await join(t);
       await _tap(t, '停止協助並刪除我的位置');
       expect(transport.optIns, [true, false]);
@@ -353,6 +363,7 @@ void main() {
         nearby: transport,
         openEmergency: false,
       );
+      await _openSettings(t);
       await _tap(t, '加入附近協助者');
       await _tap(t, '同意並加入');
       await _show(t, find.text('守護區'));

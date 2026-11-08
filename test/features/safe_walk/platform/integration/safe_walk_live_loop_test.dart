@@ -1469,6 +1469,8 @@ void main() {
       final routes = _Routes();
       final db = _Db();
       await pumpRoot(t, platform: platform, routes: routes, db: db);
+      await t.tap(find.byTooltip('安心行設定'));
+      await t.pumpAndSettle();
       await t.tap(find.text('設定「家」'));
       await t.pumpAndSettle();
       expect(find.text('載入地圖'), findsNothing);

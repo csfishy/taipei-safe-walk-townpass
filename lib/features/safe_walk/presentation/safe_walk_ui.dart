@@ -442,3 +442,54 @@ class SwActionBar extends StatelessWidget {
     ),
   );
 }
+
+/// 功能列：一項一行的卡片（圖示｜名稱＋說明｜箭頭），點擊範圍整行。
+class SwFeatureRow extends StatelessWidget {
+  const SwFeatureRow({
+    super.key,
+    required this.icon,
+    required this.name,
+    required this.desc,
+    required this.onTap,
+  });
+  final IconData icon;
+  final String name, desc;
+  final VoidCallback onTap;
+  @override
+  Widget build(BuildContext context) => DecoratedBox(
+    decoration: BoxDecoration(
+      borderRadius: BorderRadius.circular(12),
+      boxShadow: SwShadow.card,
+    ),
+    child: SwPressable(
+      onTap: onTap,
+      color: SwColors.surface,
+      pressedColor: SwColors.brandSoft,
+      border: const BorderSide(color: TPColors.grayscale100),
+      radius: 12,
+      semanticsLabel: '$name，$desc',
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: ExcludeSemantics(
+        child: Row(
+          children: [
+            Icon(icon, size: 30, color: SwColors.brand),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(name, style: SwText.bodyStrong),
+                  Text(desc, style: SwText.secondary),
+                ],
+              ),
+            ),
+            const Icon(
+              Icons.chevron_right_rounded,
+              color: SwColors.textSecondary,
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
