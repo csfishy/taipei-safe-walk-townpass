@@ -12,7 +12,7 @@ void main() {
       addTearDown(t.view.reset);
       await t.pumpWidget(
         MaterialApp(
-          home: SafeWalkHomeView(onOpen: (_) {}, onEmergency: () {}, avoided: 2),
+          home: SafeWalkHomeView(onOpen: (_) {}, onEmergency: () {}),
         ),
       );
       await t.pumpAndSettle();

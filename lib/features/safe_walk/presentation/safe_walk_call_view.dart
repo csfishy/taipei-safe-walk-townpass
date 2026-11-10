@@ -2,8 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:town_pass/features/safe_walk/presentation/mock/companion_dialogues.dart';
-import 'package:town_pass/features/safe_walk/presentation/mock/companion_scenarios.dart';
+import 'package:town_pass/features/safe_walk/presentation/companion_dialogues.dart';
+import 'package:town_pass/features/safe_walk/presentation/companion_scenarios.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_speaker.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_ui.dart';
 import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart' as sw;
@@ -60,8 +60,8 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> with WidgetsBindingO
   /// 先響鈴：按「接聽」才開始對話與計時；「拒絕」直接離開。已接聽過的通話（從地圖回來）不再響鈴。
   late bool _ringing = !_s.answered;
 
-  /// 臺北通尚未配置語音時，用無聲示範（依字數計時）呈現播放樣式；不呼叫 M1／M5 的喇叭。
-  final SafeWalkSpeaker _preview = PreviewSpeaker();
+  /// 臺北通尚未配置語音時，只顯示文字，不啟動假播放計時；不呼叫 M1／M5 的喇叭。
+  final SafeWalkSpeaker _preview = const UnavailableSpeaker();
   late SafeWalkSpeaker _voice;
   bool _foreground = true;
 
@@ -255,6 +255,10 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> with WidgetsBindingO
     if (!_active) return;
     _refreshVoice();
     final gen = ++_gen;
+    if (!_voice.available) {
+      onDone?.call();
+      return;
+    }
     setState(() => _speaking = e.key);
     _voice.speak(
       e.text,

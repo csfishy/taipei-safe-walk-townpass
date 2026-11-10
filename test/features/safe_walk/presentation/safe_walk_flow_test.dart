@@ -1,3 +1,5 @@
+import '../../../support/safe_walk_fixtures.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_call_view.dart';
@@ -6,7 +8,8 @@ import 'package:town_pass/features/safe_walk/presentation/safe_walk_flow.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_home_view.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_map_view.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_speaker.dart';
-import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart' as sw;
+import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart'
+    as sw;
 
 class _SpySpeaker implements SafeWalkSpeaker {
   final spoken = <String>[];
@@ -61,18 +64,26 @@ void main() {
     expect(calls, isEmpty);
   });
 
-  testWidgets('地圖預設回家路線並顯示已繞開的異常回報；文字路線暫時隱藏', (t) async {
+  testWidgets('預設地圖沒有人工路線、目的地、異常回報或避讓件數', (t) async {
     await _pump(t, const SafeWalkFlow());
     await t.tap(find.text('點擊開始'));
     await t.pumpAndSettle();
-    expect(find.textContaining('已繞開'), findsOneWidget);
-    expect(find.text('路線僅供參考・請留意實際路況'), findsNothing, reason: '上方提示已拿掉，資訊框內已有說明');
+    expect(find.textContaining('已繞開'), findsNothing);
+    final map = t.widget<SafeWalkMapView>(find.byType(SafeWalkMapView));
+    expect(map.routeState.path, isNull);
+    expect(map.anomalies, isEmpty);
+    expect(map.places.single.at, isNull);
+    expect(
+      find.text('路線僅供參考・請留意實際路況'),
+      findsNothing,
+      reason: '上方提示已拿掉，資訊框內已有說明',
+    );
     // 文字路線暫時隱藏（程式保留）。
     expect(find.text('文字路線'), findsNothing);
   });
 
   testWidgets('最近求助地點是中性目的地，可切換下一個；資訊框可收合', (t) async {
-    await _pump(t, const SafeWalkFlow());
+    await _pump(t, SafeWalkFlow(points: demoAssistancePoints()));
     await t.tap(find.text('點擊開始'));
     await t.pumpAndSettle();
     expect(find.textContaining('7-ELEVEN'), findsNothing);
@@ -92,7 +103,10 @@ void main() {
     expect(find.bySemanticsLabel('載入中'), findsOneWidget);
 
     var retried = 0;
-    await _pump(t, SafeWalkFlow(pointsError: '網路連線中斷', onRetryPoints: () => retried++));
+    await _pump(
+      t,
+      SafeWalkFlow(pointsError: '網路連線中斷', onRetryPoints: () => retried++),
+    );
     await _openNearby(t);
     await t.pumpAndSettle();
     expect(find.text('求助地點暫時載入失敗'), findsOneWidget);
@@ -133,24 +147,13 @@ void main() {
     expect(find.text('撥打 119'), findsOneWidget);
   });
 
-  testWidgets('簡訊報警：選情況、預覽含 GPS 欄位、示範傳送顯示成功且不呼叫真實傳送', (t) async {
+  testWidgets('未配置簡訊服務時不顯示送出或假成功', (t) async {
     await _pump(t, const SafeWalkFlow());
     await t.tap(find.text('緊急求助').first);
     await t.pumpAndSettle();
-    await t.scrollUntilVisible(find.text('傳送簡訊'), 200, scrollable: find.byType(Scrollable).first);
-    await t.tap(find.text('有人打架'));
-    await t.pumpAndSettle();
-    await t.tap(find.text('查看簡訊內容'));
-    await t.pumpAndSettle();
-    expect(find.textContaining('情況：有人打架'), findsOneWidget);
-    expect(find.textContaining('GPS 座標'), findsOneWidget);
-    expect(find.textContaining('IP'), findsNothing);
-    await t.tap(find.text('傳送簡訊'));
-    await t.pump(const Duration(milliseconds: 100));
-    expect(find.text('傳送中…'), findsOneWidget);
-    await t.pump(const Duration(seconds: 1));
-    await t.pumpAndSettle();
-    expect(find.text('簡訊內容已準備好'), findsOneWidget);
+    expect(find.text('簡訊求助尚未配置'), findsOneWidget);
+    expect(find.text('傳送簡訊'), findsNothing);
+    expect(find.text('簡訊內容已準備好'), findsNothing);
   });
 
   testWidgets('[P2] Mock 模式即使注入 sender 也不呼叫外部簡訊', (t) async {
@@ -158,6 +161,7 @@ void main() {
     await _pump(
       t,
       SafeWalkFlow(
+        mode: sw.DataMode.mock,
         onSendSms: (body) async {
           sent++;
           return true;
@@ -166,15 +170,9 @@ void main() {
     );
     await t.tap(find.text('緊急求助').first);
     await t.pumpAndSettle();
-    await t.scrollUntilVisible(find.text('傳送簡訊'), 200, scrollable: find.byType(Scrollable).first);
-    await t.drag(find.byType(Scrollable).first, const Offset(0, -200));
-    await t.pumpAndSettle();
-    await t.tap(find.text('傳送簡訊'));
-    await t.pump(const Duration(milliseconds: 100));
-    await t.pump(const Duration(seconds: 1));
-    await t.pumpAndSettle();
+    expect(find.text('簡訊求助尚未配置'), findsOneWidget);
+    expect(find.text('傳送簡訊'), findsNothing);
     expect(sent, 0);
-    expect(find.text('簡訊內容已準備好'), findsOneWidget);
   });
 
   testWidgets('[P2] 回覆倒數中按 SOS，不會在求助畫面重新朗讀', (t) async {
@@ -193,7 +191,11 @@ void main() {
     expect(find.text('撥打 110 報警'), findsOneWidget);
   });
 
-  for (final (label, width, scale) in [('320px', 320.0, 1.0), ('390px＋200% 文字', 390.0, 2.0), ('320px＋200% 文字', 320.0, 2.0)]) {
+  for (final (label, width, scale) in [
+    ('320px', 320.0, 1.0),
+    ('390px＋200% 文字', 390.0, 2.0),
+    ('320px＋200% 文字', 320.0, 2.0),
+  ]) {
     testWidgets('[P2] $label：首頁、地圖、來電、緊急求助都不溢出', (t) async {
       t.view.physicalSize = Size(width * 3, 844 * 3);
       t.view.devicePixelRatio = 3;
@@ -202,7 +204,8 @@ void main() {
         await t.pumpWidget(
           MaterialApp(
             builder: (c, child) => MediaQuery(
-              data: MediaQuery.of(c).copyWith(textScaler: TextScaler.linear(scale)),
+              data: MediaQuery.of(c)
+                  .copyWith(textScaler: TextScaler.linear(scale)),
               child: child!,
             ),
             home: SafeWalkFlow(key: UniqueKey()),
@@ -210,7 +213,13 @@ void main() {
         );
         await t.pumpAndSettle();
         if (entry.isNotEmpty) {
-          if (find.text(entry).evaluate().isEmpty) await t.scrollUntilVisible(find.text(entry), 200, scrollable: find.byType(Scrollable).first);
+          if (find.text(entry).evaluate().isEmpty) {
+            await t.scrollUntilVisible(
+              find.text(entry),
+              200,
+              scrollable: find.byType(Scrollable).first,
+            );
+          }
           await t.ensureVisible(find.text(entry).first);
           await t.pumpAndSettle();
           await t.tap(find.text(entry).first);
@@ -223,7 +232,11 @@ void main() {
           '緊急求助' => SafeWalkEmergencyView,
           _ => throw ArgumentError.value(entry, 'entry'),
         };
-        expect(find.byType(pageType), findsOneWidget, reason: '$label $entry opened the expected page');
+        expect(
+          find.byType(pageType),
+          findsOneWidget,
+          reason: '$label $entry opened the expected page',
+        );
         expect(t.takeException(), isNull, reason: '$label $entry');
       }
 
@@ -242,7 +255,11 @@ void main() {
     await t.fling(find.bySemanticsLabel('收合資訊框'), const Offset(0, -200), 1000);
     await t.pumpAndSettle();
     expect(find.bySemanticsLabel('資訊框縮回一般大小'), findsOneWidget);
-    await t.fling(find.bySemanticsLabel('資訊框縮回一般大小'), const Offset(0, 200), 1000);
+    await t.fling(
+      find.bySemanticsLabel('資訊框縮回一般大小'),
+      const Offset(0, 200),
+      1000,
+    );
     await t.pumpAndSettle();
     await t.tap(find.bySemanticsLabel('收合資訊框'));
     await t.pumpAndSettle();
@@ -258,20 +275,14 @@ void main() {
     expect(find.text('要回報哪裡？'), findsOneWidget);
   });
 
-  testWidgets('目的地：可切換到公司、新增地點（在地圖上點位置）', (t) async {
+  testWidgets('目的地：不預填公司，可新增地點（在地圖上點位置）', (t) async {
     await _pump(t, const SafeWalkFlow());
     await t.tap(find.text('點擊開始'));
     await t.pumpAndSettle();
     await t.tap(find.textContaining('→ 家'));
     await t.pumpAndSettle();
     expect(find.text('要去哪裡？'), findsOneWidget);
-    await t.tap(find.text('公司'));
-    await t.pumpAndSettle();
-    expect(find.textContaining('→ 公司'), findsOneWidget);
-    expect(find.text('目的地'), findsOneWidget);
-
-    await t.tap(find.textContaining('→ 公司'));
-    await t.pumpAndSettle();
+    expect(find.text('公司'), findsNothing);
     await t.tap(find.text('新增地點'));
     await t.pumpAndSettle();
     await t.enterText(find.byType(TextField), '學校');
@@ -301,44 +312,63 @@ void main() {
   });
 
   group('路線接口（M2 → M1 → M3）', () {
-    sw.RouteSuccess ok({sw.DataMode mode = sw.DataMode.live}) => sw.RouteSuccess(
-      requestId: 'r1',
-      mode: mode,
-      generatedAt: '2026-11-07T18:00:00+08:00',
-      warnings: const ['測試資料'],
-      routes: [
-        sw.RouteCandidate(
-          id: 'c1',
-          kind: sw.RouteKind.direct,
-          geometry: sw.LineString(coordinates: const [(longitude: 121.5, latitude: 25.0), (longitude: 121.502, latitude: 25.0), (longitude: 121.502, latitude: 25.002)]),
-          distanceMeters: 420,
-          durationSeconds: 360,
-          viaPointIds: const [],
-          provider: 'test',
-          walkingNetworkVerified: true,
-          explanations: const ['沿大路走，避開 2 個回報點'],
+    sw.RouteSuccess ok({sw.DataMode mode = sw.DataMode.live}) =>
+        sw.RouteSuccess(
+          requestId: 'r1',
+          mode: mode,
+          generatedAt: '2026-11-07T18:00:00+08:00',
           warnings: const ['測試資料'],
-        ),
-      ],
-    );
+          routes: [
+            sw.RouteCandidate(
+              id: 'c1',
+              kind: sw.RouteKind.direct,
+              geometry: sw.LineString(
+                coordinates: const [
+                  (longitude: 121.5, latitude: 25.0),
+                  (longitude: 121.502, latitude: 25.0),
+                  (longitude: 121.502, latitude: 25.002),
+                ],
+              ),
+              distanceMeters: 420,
+              durationSeconds: 360,
+              viaPointIds: const [],
+              provider: 'test',
+              walkingNetworkVerified: true,
+              explanations: const ['沿大路走，避開 2 個回報點'],
+              warnings: const ['測試資料'],
+            ),
+          ],
+        );
 
     testWidgets('打開地圖與換目的地時才請 M1 規劃；一進安心行不自動送出', (t) async {
       final asked = <sw.Coordinates>[];
-      await _pump(t, SafeWalkFlow(onPlanRoute: asked.add));
+      await _pump(
+        t,
+        SafeWalkFlow(
+          homeLocation: sw.Coordinates(lat: 25.001, lng: 121.5012),
+          onPlanRoute: asked.add,
+        ),
+      );
       expect(asked, isEmpty, reason: '還在首頁，使用者沒操作前不規劃');
       await t.tap(find.text('點擊開始'));
       await t.pumpAndSettle();
       expect(asked, hasLength(1), reason: '點主卡打開地圖才規劃');
-      await t.tap(find.textContaining('→ 家'));
-      await t.pumpAndSettle();
-      await t.tap(find.text('公司'));
+      t
+          .widget<SafeWalkMapView>(find.byType(SafeWalkMapView))
+          .onAddPlace('學校', const LatLng(25.002, 121.502));
       await t.pumpAndSettle();
       expect(asked, hasLength(2));
-      expect(asked.last.lat, closeTo(25.114604, 1e-6), reason: '公司＝北市大天母校區');
+      expect(asked.last.lat, closeTo(25.002, 1e-6));
     });
 
     testWidgets('計算中：不畫示範路線，資訊框寫「路線計算中」', (t) async {
-      await _pump(t, const SafeWalkFlow(routeLoading: true));
+      await _pump(
+        t,
+        SafeWalkFlow(
+          homeLocation: sw.Coordinates(lat: 25.001, lng: 121.5012),
+          routeLoading: true,
+        ),
+      );
       await t.tap(find.text('點擊開始'));
       await t.pump(const Duration(milliseconds: 600));
       expect(find.text('正在計算步行路線…'), findsOneWidget);
@@ -346,22 +376,39 @@ void main() {
     });
 
     testWidgets('Live 模式不出現示範異常回報、示範求助地點或「已繞開」數字', (t) async {
-      await _pump(t, SafeWalkFlow(mode: sw.DataMode.live, homeLocation: sw.Coordinates(lat: 0.5, lng: 0.75)));
+      await _pump(
+        t,
+        SafeWalkFlow(
+          mode: sw.DataMode.live,
+          homeLocation: sw.Coordinates(lat: 0.5, lng: 0.75),
+        ),
+      );
       await t.tap(find.text('點擊開始'));
       await t.pumpAndSettle();
-      expect(find.bySemanticsLabel(RegExp('照明不足|道路施工|打架衝突|可疑人士')), findsNothing);
+      expect(
+        find.bySemanticsLabel(RegExp('照明不足|道路施工|打架衝突|可疑人士')),
+        findsNothing,
+      );
       expect(find.textContaining('示範求助據點'), findsNothing);
       expect(find.textContaining('已繞開'), findsNothing);
       expect(find.text('路線服務尚未配置'), findsWidgets);
-      expect(t.widget<SafeWalkMapView>(find.byType(SafeWalkMapView)).routeState.path, isNull);
+      expect(
+        t.widget<SafeWalkMapView>(find.byType(SafeWalkMapView)).routeState.path,
+        isNull,
+      );
     });
 
-    testWidgets('同一個 flow 切換 Live 時清除已初始化的示範資料', (t) async {
+    testWidgets('同一個 flow 切換模式仍不產生人工資料', (t) async {
       await _pump(t, const SafeWalkFlow());
       await t.tap(find.text('點擊開始'));
       await t.pumpAndSettle();
-      expect(t.widget<SafeWalkMapView>(find.byType(SafeWalkMapView)).anomalies, isNotEmpty);
-      await t.pumpWidget(const MaterialApp(home: SafeWalkFlow(mode: sw.DataMode.live)));
+      expect(
+        t.widget<SafeWalkMapView>(find.byType(SafeWalkMapView)).anomalies,
+        isEmpty,
+      );
+      await t.pumpWidget(
+        const MaterialApp(home: SafeWalkFlow(mode: sw.DataMode.mock)),
+      );
       await t.pumpAndSettle();
       final map = t.widget<SafeWalkMapView>(find.byType(SafeWalkMapView));
       expect(map.anomalies, isEmpty);
@@ -374,6 +421,7 @@ void main() {
       await _pump(
         t,
         SafeWalkFlow(
+          homeLocation: sw.Coordinates(lat: 25.001, lng: 121.5012),
           onPlanRoute: asked.add,
           route: sw.RouteFailure(
             requestId: 'r1',
@@ -398,7 +446,13 @@ void main() {
     });
 
     testWidgets('成功：用 M2 的距離與時間，標示「僅供參考」而非示範', (t) async {
-      await _pump(t, SafeWalkFlow(route: ok()));
+      await _pump(
+        t,
+        SafeWalkFlow(
+          homeLocation: sw.Coordinates(lat: 25.001, lng: 121.5012),
+          route: ok(),
+        ),
+      );
       await t.tap(find.text('點擊開始'));
       await t.pumpAndSettle();
       expect(find.textContaining('示範'), findsNothing);
@@ -414,6 +468,8 @@ void main() {
 Future<void> _openNearby(WidgetTester t) async {
   // 同一個 flow 重新 pump 時可能已經停在清單畫面。
   if (find.byType(SafeWalkHomeView).evaluate().isEmpty) return;
-  t.widget<SafeWalkHomeView>(find.byType(SafeWalkHomeView)).onOpen(SafeWalkEntry.points);
+  t
+      .widget<SafeWalkHomeView>(find.byType(SafeWalkHomeView))
+      .onOpen(SafeWalkEntry.points);
   await t.pump();
 }

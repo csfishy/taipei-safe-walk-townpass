@@ -62,7 +62,7 @@
 
 依 [Live Readiness](docs/SAFE_WALK_LIVE_READINESS.md) 的 2026-11-08 基線（main `7b99fea`），截至該基線：
 
-- **正式入口仍固定使用 Mock 資料**，導航、據點與求助流程尚未切換為真實 Provider，這是待修正的缺口。
+- **正式入口使用 Live 接線**；已移除內建示範資料、人工路線與假成功。未配置服務顯示不可用；真實 Provider 與實機仍需分別驗收。
 - 目前**沒有任何能力被標為 LIVE_VERIFIED**。
 - 真實 GPS、OSRM 路線、TTS 等能力的個別實作或接線已存在，但仍需正式入口接線與實機驗收。
 - 附近協助者通知與警消派遣維持 BLOCKED。
@@ -145,8 +145,7 @@ Android、iOS 執行前需先安裝對應 SDK、模擬器或準備實機。執�
 ├── schemas/safe_walk/v1/          # JSON Schema：payload 的唯一來源
 ├── test/                          # 官方與安心行測試、fixtures
 ├── tool/                          # 產生器、一致性檢查、發佈與 metadata 工具
-├── scripts/                       # 示範資料庫重設與 Python 測試
-├── supabase/                      # SQL：犯罪參考資料、示範資料、附近通知
+├── supabase/                      # SQL：犯罪參考資料、回報、附近通知
 ├── docs/                          # 規格、架構、狀態、建置與協作文件
 ├── assets/、fonts/                 # 官方資產與字型
 ├── android/、ios/、web/            # 平台工程
@@ -193,7 +192,7 @@ Android、iOS 執行前需先安裝對應 SDK、模擬器或準備實機。執�
 | 語音與音訊 | `flutter_tts`（裝置 TTS）、`audioplayers`（模擬陪伴鈴聲，屬 Level B 依賴） | 模擬陪伴語音與提示音 |
 | 本機儲存 | `shared_preferences` | 使用者設定的「家」，只存在裝置上 |
 | 資料契約 | JSON Schema（`schemas/`）、`json_serializable`、`build_runner` | 單一來源的 payload 契約與生成的 Dart Model |
-| 測試與 CI | `flutter_test`、`flutter analyze`、GitHub Actions（`safe_walk.yml`、`build.yml`、`demo_database_ci.yml`）、Codemagic（iOS） | 單元與 Widget 測試、契約一致性檢查與建置 |
+| 測試與 CI | `flutter_test`、`flutter analyze`、GitHub Actions（`safe_walk.yml`、`build.yml`）、Codemagic（iOS） | 單元與 Widget 測試、契約一致性檢查與建置 |
 
 官方 TownPass 原有的 WebView、通知、掃碼、圖片選取等能力沿用其既有套件，本專案不另外改寫。
 
@@ -257,7 +256,7 @@ Android、iOS 執行前需先安裝對應 SDK、模擬器或準備實機。執�
 - **附近通知暫停**：在可信身分、權限、防濫用、資料保留與刪除機制完成並驗證前，附近協助者通知維持 BLOCKED；匿名 UUID 不能作為身分或授權。
 - **陪伴不是真人**：模擬陪伴不要求麥克風、不錄音，也不冒充真人、警察或已派遣的人員。
 - **敏感資料不進版控**：不提交 secrets、憑證、Token、真實位置紀錄、住家或聯絡人資料；App 不持有 `service_role`、管理金鑰或資料庫密碼。
-- **犯罪參考資料隔離**：北北基犯罪參考資料位於持久 Supabase 資料，與 CI 及 Demo 重設隔離，build 與測試不得 import、seed、更新或刪除它。本機離線備份須放在所有 Git checkout 之外。
+- **犯罪參考資料隔離**：北北基犯罪參考資料位於持久 Supabase 資料，與 CI 及測試隔離，build 與測試不得 import、seed、更新或刪除它。本機離線備份須放在所有 Git checkout 之外。
 
 ### 犯罪資料定位流程與開源技術
 
@@ -295,8 +294,6 @@ dart run tool/generate_safe_walk_contracts.dart --check
 python3 -m unittest discover -s tool -p 'test_*crime*.py' -v
 python3 -m unittest discover -s tool -p 'test_*release*.py' -v
 
-# 示範資料庫腳本測試（需先安裝 scripts/requirements-db-test.txt）
-python3 -m unittest discover -s scripts/tests -v
 ```
 
 補充說明：
@@ -312,11 +309,10 @@ python3 -m unittest discover -s scripts/tests -v
 |---|---|---|
 | [Safe Walk CI](.github/workflows/safe_walk.yml) | PR、`main`／`migration/**` push、手動執行 | Schema 一致性、模組與工具分析、完整測試、原始診斷報告；可手動選擇 Android debug build |
 | [check-and-build](.github/workflows/build.yml) | PR、`main` push、`v*-pre.*` tag、手動執行 | 檢查後建置 Android APK、unsigned iOS IPA、Web 預覽產物 |
-| [demo_database_ci.yml](.github/workflows/demo_database_ci.yml) | 可重用工作流，由上面兩份工作流呼叫 | 在 runner 上以本機 PostGIS 初始化並測試隔離的示範資料庫，PR 永不連遠端 Demo |
 
 ### 預覽版
 
-- 每次 **push 到 `main`**，且檢查與三平台建置通過、示範資料庫條件符合（見下文）後，會自動發布 GitHub prerelease，版本格式例如 `v0.0.12-pre.r0000000042.g31cb0ac12345`。
+- 每次 **push 到 `main`**，且檢查與三平台建置通過後，會自動發布 GitHub prerelease，版本格式例如 `v0.0.12-pre.r0000000042.g31cb0ac12345`。
 - 符合 `pubspec.yaml` 版本的手動預發佈 tag（`v*-pre.*`）也會發布。**不要覆寫已發布的 tag。**
 - PR 與手動執行只保留可下載的 artifacts，不建立 Release。
 - 預覽版使用獨立身分 `Town Pass Preview`／`io.github.csfishy.taipeisafewalktownpass.preview`，**不是正式市政服務發行版**。Android APK 使用測試金鑰簽署；unsigned IPA 沒有簽章，不能直接安裝或當作 TestFlight 版本。
@@ -325,10 +321,6 @@ python3 -m unittest discover -s scripts/tests -v
 ### GitHub Pages
 
 Web 版預設部署至 `https://csfishy.github.io/taipei-safe-walk-townpass/`。這只是**部署目標**：只有 Pages 來源已設為 **GitHub Actions**、環境規則允許，且部署成功後，網站才算上線。Release 下載檔不是網站部署證明。
-
-### Demo 資料庫重設
-
-遠端示範資料庫的重設由 Repository Actions Variable `DEMO_DATABASE_RESET_ENABLED` 控制：未設定或值為 `false` 時，遠端 job 會跳過並在 Summary 明示；只有精確值 `true` 才會啟用。設定與審查要求見 [資料庫重設](docs/SAFE_WALK_DATABASE_RESET.md)。
 
 ## 建置
 
@@ -379,7 +371,6 @@ flutter build web --release --no-pub --base-href /taipei-safe-walk-townpass/ --n
 | [預發佈說明](docs/PRERELEASE-NOTES.md) | 預覽版的下載、安裝與限制 |
 | [犯罪參考資料庫](docs/SAFE_WALK_CRIME_DATABASE.md) | 持久資料、地點語意與隔離規則 |
 | [Supabase 設定](docs/SAFE_WALK_SUPABASE.md) | 連線設定與目前限制 |
-| [資料庫重設](docs/SAFE_WALK_DATABASE_RESET.md) | 示範資料庫重設的啟用條件與審查 |
 | [附近通知安全狀態](docs/SAFE_WALK_NEARBY_SECURITY.md) | 附近通知的 BLOCKED 原因與重新啟用條件 |
 | [整合歷史](docs/SAFE_WALK_INTEGRATION.md) | 既有接線與 Live 交接的歷史紀錄 |
 | [初始化驗證紀錄](docs/SAFE_WALK_INITIALIZATION.md) | 初始化當時的驗證證據（歷史） |

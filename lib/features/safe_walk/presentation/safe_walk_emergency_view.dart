@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:town_pass/features/safe_walk/presentation/mock/safe_walk_demo_data.dart';
+import 'package:town_pass/features/safe_walk/presentation/safe_walk_map_models.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_nearby_broadcast.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_ui.dart';
 import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart'
@@ -31,7 +31,7 @@ class SafeWalkEmergencyView extends StatelessWidget {
   final VoidCallback onLocate, onClose;
 
   /// M1：使用者確認後交給手機開啟簡訊（OS handoff）；回傳 true 表示已開啟簡訊 App，不代表已送達或受理。
-  /// null 時為示範：只模擬「已準備好並送出」的畫面，不會真的傳送。
+  /// null 時顯示未配置，不呈現送出成功。
   final Future<bool> Function(String body)? onSendSms;
 
   /// M1：「通知附近的人」。null 時不顯示這張卡；有值但 unavailableReason 非 null 時只顯示原因。
@@ -244,7 +244,7 @@ class SafeWalkEmergencyView extends StatelessWidget {
 }
 
 /// 簡訊報警：給不方便說話的人。選情況 → 預覽內容 → 同意附上位置 → 傳送。
-/// 示範模式只模擬傳送成功的畫面，不會真的發出簡訊；收件號碼由 M1 決定。
+/// 只有已配置的系統交接能顯示已開啟簡訊；收件號碼由 M1 決定。
 class _SmsReportCard extends StatefulWidget {
   const _SmsReportCard({
     required this.mode,
@@ -285,14 +285,12 @@ class _SmsReportCardState extends State<_SmsReportCard> {
       widget.mode == sw.DataMode.live && widget.onSend != null;
 
   Future<void> _send() async {
-    if (widget.mode == sw.DataMode.live && widget.onSend == null) return;
+    if (!_usesSender) return;
     setState(() => _step = _SmsStep.sending);
-    // Mock 一律只在本地模擬，即使 M1 已注入 sender 也不呼叫，避免帶位置的內容外傳。
+    // Only a configured live handoff may open the SMS app.
     bool ok;
     try {
-      ok = _usesSender
-          ? await widget.onSend!(_body)
-          : await Future.delayed(const Duration(milliseconds: 900), () => true);
+      ok = await widget.onSend!(_body);
     } catch (_) {
       ok = false;
     }
@@ -301,14 +299,13 @@ class _SmsReportCardState extends State<_SmsReportCard> {
 
   @override
   Widget build(BuildContext context) {
-    if (widget.mode == sw.DataMode.live && widget.onSend == null) {
+    if (!_usesSender) {
       return const SwStateMessage(
         icon: Icons.sms_failed_outlined,
         title: '簡訊求助尚未配置',
         message: '未設定接收號碼或手機簡訊交接，無法送出。請使用手機電話功能聯絡 110／119。',
       );
     }
-    final mock = !_usesSender;
     return AnimatedContainer(
       duration: SwMotion.of(context, 220),
       padding: const EdgeInsets.all(16),
@@ -326,7 +323,7 @@ class _SmsReportCardState extends State<_SmsReportCard> {
         curve: SwMotion.curve,
         alignment: Alignment.topCenter,
         child: _step == _SmsStep.sent
-            ? _sent(mock)
+            ? _sent()
             : Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -532,17 +529,13 @@ class _SmsReportCardState extends State<_SmsReportCard> {
                       ),
                     ),
                   ),
-                  if (mock) ...[
-                    const SizedBox(height: 6),
-                    Text('目前沒有設定報案簡訊號碼。', style: SwText.small),
-                  ],
                 ],
               ),
       ),
     );
   }
 
-  Widget _sent(bool mock) => Semantics(
+  Widget _sent() => Semantics(
     liveRegion: true,
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -571,7 +564,7 @@ class _SmsReportCardState extends State<_SmsReportCard> {
             const SizedBox(width: 12),
             Expanded(
               child: Text(
-                mock ? '簡訊內容已準備好' : '已開啟簡訊 App',
+                '已開啟簡訊 App',
                 style: SwText.bodyStrong,
               ),
             ),
@@ -579,9 +572,7 @@ class _SmsReportCardState extends State<_SmsReportCard> {
         ),
         const SizedBox(height: 8),
         Text(
-          mock
-              ? '這是模擬畫面，沒有真的傳送給任何人。正式版會由手機的簡訊 App 送出。'
-              : '請在簡訊 App 按下傳送。開啟簡訊不代表警方已收到或受理。',
+          '請在簡訊 App 按下傳送。開啟簡訊不代表警方已收到或受理。',
           style: SwText.body,
         ),
         const SizedBox(height: 8),

@@ -14,7 +14,7 @@ extension on ToggleTab {
   }
 
   Widget get contentWidget {
-    return Center(child: TPText(label));
+    return Center(child: TPText('$label服務尚未配置'));
   }
 }
 

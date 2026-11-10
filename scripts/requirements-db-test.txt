@@ -1,2 +1,0 @@
--r requirements-db.txt
-PyYAML==6.0.2

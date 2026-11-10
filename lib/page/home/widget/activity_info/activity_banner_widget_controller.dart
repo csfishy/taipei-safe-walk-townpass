@@ -1,9 +1,5 @@
-import 'dart:async';
-import 'dart:convert';
 
 import 'package:town_pass/bean/activity.dart';
-import 'package:town_pass/gen/assets.gen.dart';
-import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 
 class ActivityBannerWidgetController extends GetxController {
@@ -24,14 +20,7 @@ class ActivityBannerWidgetController extends GetxController {
 
     _isLoading = true;
 
-    Timer.periodic(
-      const Duration(seconds: 2),
-      (timer) async {
-        timer.cancel();
-        final String activityData = await rootBundle.loadString(Assets.mockData.activity);
-        list = ActivityList.fromJson(jsonDecode(activityData));
-        isLoading = false;
-      },
-    );
+    list = const ActivityList(data: []);
+    isLoading = false;
   }
 }

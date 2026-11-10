@@ -20,18 +20,13 @@ env:
   COMMIT_PRERELEASE: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
 
 jobs:
-  database-ci:
-    uses: ./.github/workflows/demo_database_ci.yml
-
   check:
-    needs: database-ci
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     outputs:
       version: ${{ steps.metadata.outputs.version }}
       build_name: ${{ steps.metadata.outputs.build_name }}
       release_tag: ${{ steps.metadata.outputs.release_tag }}
-      demo_reset_enabled: ${{ steps.demo-policy.outputs.enabled }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -40,13 +35,7 @@ jobs:
         run: |
           python3 tool/check_crime_database_isolation.py
           python3 -m unittest discover -s tool -p 'test_*crime*.py' -v
-      - name: Resolve reviewed Demo database reset activation
-        id: demo-policy
-        env:
-          # Repository variable, set to true only after Level C acceptance.
-          # Snapshot once: later jobs must not re-read a changing variable.
-          DEMO_DATABASE_RESET_ENABLED: ${{ vars.DEMO_DATABASE_RESET_ENABLED }}
-        run: python3 scripts/demo_database_policy.py
+          python3 -m unittest discover -s tool -p 'test_build_workflows.py' -v
       - name: Validate source and release version
         id: metadata
         run: python3 tool/release_metadata.py
@@ -213,52 +202,13 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-  demo-database-reset:
-    name: Reset the dedicated Demo database once after successful builds
-    if: >-
-      ${{ (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
-          github.ref == 'refs/heads/main' && needs.check.outputs.demo_reset_enabled == 'true' }}
-    needs: [check, web, android, ios]
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    # Configure this protected environment only after Level C review. No remote
-    # database credentials are available to PR or platform build jobs.
-    environment: safe-walk-demo
-    concurrency:
-      # Repository-wide across workflows; never interrupt an in-flight reset.
-      group: safe-walk-demo-database
-      cancel-in-progress: false
-    permissions:
-      contents: read
-    env:
-      RESET_DATABASE_ENVIRONMENT: demo
-      RESET_DATABASE_PROJECT_ID: ${{ secrets.DEMO_SUPABASE_PROJECT_ID }}
-      RESET_DATABASE_URL: ${{ secrets.DEMO_DATABASE_URL }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.sha }}
-          persist-credentials: false
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - name: Install database reset dependencies
-        run: python3 -m pip install --requirement scripts/requirements-db.txt
-      - name: Validate the allowlisted target, migrate, reset, seed and verify
-        run: python3 scripts/reset_demo_database.py --environment demo
-
   publish:
-    # Disabled Demo resets and release tags intentionally skip the remote job.
-    # Once enabled, a failed, cancelled or unexpectedly skipped reset blocks main.
     if: >-
       ${{ always() && !cancelled() && github.event_name == 'push' &&
           needs.check.result == 'success' && needs.web.result == 'success' &&
           needs.android.result == 'success' && needs.ios.result == 'success' &&
-          ((github.ref == 'refs/heads/main' &&
-            ((needs.check.outputs.demo_reset_enabled == 'false' && needs.demo-database-reset.result == 'skipped') ||
-             (needs.check.outputs.demo_reset_enabled == 'true' && needs.demo-database-reset.result == 'success'))) ||
-           (startsWith(github.ref, 'refs/tags/v') && needs.demo-database-reset.result == 'skipped')) }}
-    needs: [check, web, android, ios, demo-database-reset]
+          (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) }}
+    needs: [check, web, android, ios]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -304,10 +254,8 @@ jobs:
           (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
           github.ref == 'refs/heads/main' &&
           needs.check.result == 'success' && needs.web.result == 'success' &&
-          needs.android.result == 'success' && needs.ios.result == 'success' &&
-          ((needs.check.outputs.demo_reset_enabled == 'false' && needs.demo-database-reset.result == 'skipped') ||
-           (needs.check.outputs.demo_reset_enabled == 'true' && needs.demo-database-reset.result == 'success')) }}
-    needs: [check, web, android, ios, demo-database-reset]
+          needs.android.result == 'success' && needs.ios.result == 'success' }}
+    needs: [check, web, android, ios]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:

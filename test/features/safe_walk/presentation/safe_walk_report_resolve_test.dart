@@ -2,8 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:town_pass/features/safe_walk/presentation/demo_map.dart';
-import 'package:town_pass/features/safe_walk/presentation/mock/safe_walk_demo_data.dart';
+import 'package:town_pass/features/safe_walk/presentation/safe_walk_map.dart';
+
+import '../../../support/safe_walk_fixtures.dart';
+
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_flow.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_map_view.dart';
 import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart'
@@ -34,7 +36,7 @@ List<Anomaly> _reports(WidgetTester t) =>
     t.widget<SafeWalkMapView>(find.byType(SafeWalkMapView)).anomalies;
 
 Future<void> _detail(WidgetTester t, String id) async {
-  t.widget<DemoMap>(find.byType(DemoMap)).onAnomaly!(id);
+  t.widget<SafeWalkMap>(find.byType(SafeWalkMap)).onAnomaly!(id);
   await t.pumpAndSettle();
   await t.ensureVisible(find.text('已排除'));
   await t.pumpAndSettle();
@@ -43,7 +45,9 @@ Future<void> _detail(WidgetTester t, String id) async {
 Future<void> _form(WidgetTester t) async {
   await t.tap(find.bySemanticsLabel('回報狀況，在地圖上標出異常'));
   await t.pumpAndSettle();
-  t.widget<DemoMap>(find.byType(DemoMap)).onPick!(const LatLng(0.5, 0.75));
+  t.widget<SafeWalkMap>(find.byType(SafeWalkMap)).onPick!(
+    const LatLng(0.5, 0.75),
+  );
   await t.pumpAndSettle();
   await t.ensureVisible(find.text('標示到地圖'));
 }
@@ -86,8 +90,8 @@ void main() {
       expect(_reports(t), hasLength(2));
       expect(find.text('排除中…'), findsOneWidget);
       expect(find.text('已排除這則回報'), findsNothing);
-      expect(t.widget<DemoMap>(find.byType(DemoMap)).onAnomaly, isNull);
-      expect(t.widget<DemoMap>(find.byType(DemoMap)).onPick, isNull);
+      expect(t.widget<SafeWalkMap>(find.byType(SafeWalkMap)).onAnomaly, isNull);
+      expect(t.widget<SafeWalkMap>(find.byType(SafeWalkMap)).onPick, isNull);
       await t.tap(find.text('排除中…'));
       await t.pump();
       expect(removals, ['selected']);
@@ -277,25 +281,14 @@ void main() {
     },
   );
 
-  testWidgets(
-    'Mock removal stays local and never invokes an injected Live callback',
-    (t) async {
-      var calls = 0;
-      await _pump(
-        t,
-        SafeWalkFlow(
-          showMapTiles: false,
-          onResolveReport: (_) async => calls++,
-        ),
-      );
-      final before = _reports(t).length;
-      final id = _reports(t).first.id;
-      await _detail(t, id);
-      await t.tap(find.text('已排除'));
-      await t.pumpAndSettle();
-      expect(_reports(t), hasLength(before - 1));
-      expect(calls, 0);
-      expect(find.text('已移除示範回報'), findsOneWidget);
-    },
-  );
+  testWidgets('default flow has no demo reports to remove', (t) async {
+    var calls = 0;
+    await _pump(
+      t,
+      SafeWalkFlow(showMapTiles: false, onResolveReport: (_) async => calls++),
+    );
+    expect(_reports(t), isEmpty);
+    expect(calls, 0);
+    expect(find.text('已移除示範回報'), findsNothing);
+  });
 }

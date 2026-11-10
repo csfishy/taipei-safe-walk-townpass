@@ -5,7 +5,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:town_pass/features/safe_walk/navigation/coordinate_math.dart';
 import 'package:town_pass/features/safe_walk/navigation/default_route_service.dart';
-import 'package:town_pass/features/safe_walk/navigation/mock_walking_route_provider.dart';
+import '../../../support/mock_walking_route_provider.dart';
 import 'package:town_pass/features/safe_walk/navigation/walking_route_provider.dart';
 import 'package:town_pass/features/safe_walk/shared/contracts/cancellation.dart';
 import 'package:town_pass/features/safe_walk/shared/contracts/semantics.dart';
@@ -649,14 +649,16 @@ void main() {
     );
 
     test(
-      'mock requests can be answered offline, with no injected provider',
+      'unconfigured mock requests return unavailable, never a built-in route',
       () async {
         final result = await DefaultRouteService(
           clock: () => now,
           pointLookup: lookupDemoPoint,
         ).planRoute(request());
 
-        expect(result, isA<sw.RouteSuccess>());
+        expect(result, isA<sw.RouteFailure>());
+        expect((result as sw.RouteFailure).status, sw.RouteFailureStatus.providerUnavailable);
+        expect(result.routes, isEmpty);
       },
     );
   });

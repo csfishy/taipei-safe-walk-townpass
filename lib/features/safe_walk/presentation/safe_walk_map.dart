@@ -4,7 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart' as ll;
-import 'package:town_pass/features/safe_walk/presentation/mock/safe_walk_demo_data.dart';
+import 'package:town_pass/features/safe_walk/presentation/safe_walk_map_models.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_ui.dart';
 import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart'
     as sw;
@@ -24,7 +24,7 @@ ll.LatLng _ll(LatLng p) => ll.LatLng(p.lat, p.lng);
 /// 犯罪紀錄區用的紫色（臺北通色票沒有紫，取官方輔助色）。
 const crimeMarkColor = Color(0xFF7B4BB7);
 
-class DemoMap extends StatelessWidget {
+class SafeWalkMap extends StatelessWidget {
   /// Tests supply a fresh, non-network provider without changing app defaults.
   @visibleForTesting
   static TileProvider Function()? tileProviderFactoryForTesting;
@@ -32,7 +32,7 @@ class DemoMap extends StatelessWidget {
   static TileProvider createTileProvider() =>
       tileProviderFactoryForTesting?.call() ?? NetworkTileProvider();
 
-  const DemoMap({
+  const SafeWalkMap({
     super.key,
     required this.start,
     required this.points,
@@ -49,7 +49,6 @@ class DemoMap extends StatelessWidget {
     this.crimeSpots = const [],
     this.onCrime,
     this.avoidRadiusMeters = 0,
-    this.showShortcut = false,
     this.homeActive = true,
     this.selectedPointId,
     this.selectedAnomalyId,
@@ -73,7 +72,7 @@ class DemoMap extends StatelessWidget {
   /// Other route options, drawn grey under [path].
   final List<List<LatLng>> altPaths;
 
-  /// 目的地標記位置（預設為示範的家）。
+  /// 使用者選擇的目的地；未設定時不顯示標記。
   final LatLng? destination;
   final bool showDestination, showStart;
 
@@ -89,7 +88,7 @@ class DemoMap extends StatelessWidget {
 
   /// When > 0, each unresolved report gets a circle of this real-world radius.
   final double avoidRadiusMeters;
-  final bool showShortcut, homeActive, compact;
+  final bool homeActive, compact;
   final String? selectedPointId, selectedAnomalyId;
   final LatLng? pin;
   final ValueChanged<String>? onAnomaly, onPoint;
@@ -103,13 +102,13 @@ class DemoMap extends StatelessWidget {
   Widget _buildMap(BuildContext context, Size viewport) {
     final interactive = !compact;
     // 初始視野：涵蓋起點、回家、所有求助地點與異常回報（避開上方標題與下方資訊框）。
-    // 有真實路線時只框路線，避免把遠處的示範資料一起框進來。
+    // 有路線時先框路線，避免遠處的其他資料影響視野。
     final live = avoidRadiusMeters > 0 && path.length > 1;
     final fit = LatLngBounds.fromPoints([
       _ll(start),
       for (final at in path) _ll(at),
       if (!live) ...[
-        if (showDestination) _ll(destination ?? DemoGeo.home),
+        if (showDestination && destination != null) _ll(destination!),
         for (final p in points) ll.LatLng(p.coordinates.lat, p.coordinates.lng),
         for (final a in anomalies) _ll(a.at),
       ],
@@ -183,8 +182,8 @@ class DemoMap extends StatelessWidget {
           label: '${p.name}，查看詳細資訊',
           onTap: onPoint == null ? null : () => onPoint!(p.id),
         ),
-      if (showDestination)
-        marker(destination ?? DemoGeo.home, 32, _HomeMark(active: homeActive)),
+      if (showDestination && destination != null)
+        marker(destination!, 32, _HomeMark(active: homeActive)),
       if (showStart) marker(start, 44, _StartMark(heading: heading)),
       if (pin != null)
         marker(
@@ -195,13 +194,6 @@ class DemoMap extends StatelessWidget {
     ];
 
     final lines = <Polyline>[
-      if (showShortcut)
-        Polyline(
-          points: DemoGeo.shortcutRoute.map(_ll).toList(),
-          strokeWidth: 3,
-          color: TPColors.grayscale500,
-          pattern: StrokePattern.dashed(segments: [2.0, 7.0]),
-        ),
       for (final alt in altPaths)
         if (alt.length > 1)
           Polyline(

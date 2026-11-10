@@ -1,21 +1,21 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:town_pass/features/safe_walk/presentation/demo_map.dart';
+import 'package:town_pass/features/safe_walk/presentation/safe_walk_map.dart';
 
 import 'support/fake_map_tile_provider.dart';
 
 Future<void> testExecutable(FutureOr<void> Function() testMain) async {
-  final previous = DemoMap.tileProviderFactoryForTesting;
+  final previous = SafeWalkMap.tileProviderFactoryForTesting;
   setUp(() {
-    DemoMap.tileProviderFactoryForTesting = FakeMapTileProvider.new;
+    SafeWalkMap.tileProviderFactoryForTesting = FakeMapTileProvider.new;
   });
   tearDown(() {
-    DemoMap.tileProviderFactoryForTesting = previous;
+    SafeWalkMap.tileProviderFactoryForTesting = previous;
   });
   try {
     await testMain();
   } finally {
-    DemoMap.tileProviderFactoryForTesting = previous;
+    SafeWalkMap.tileProviderFactoryForTesting = previous;
   }
 }

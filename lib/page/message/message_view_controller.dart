@@ -1,8 +1,4 @@
-import 'dart:convert';
-
 import 'package:town_pass/bean/message.dart';
-import 'package:town_pass/gen/assets.gen.dart';
-import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 
 class MessageViewController extends GetxController {
@@ -41,8 +37,7 @@ class MessageViewController extends GetxController {
     _isLoading = true;
     update();
 
-    final String messageList = await rootBundle.loadString(Assets.mockData.message);
-    list.value = MessageList.fromJson(jsonDecode(messageList));
+    list.value = const MessageList(data: []);
 
     _isLoading = false;
     update();

@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:town_pass/features/safe_walk/navigation/cancellable.dart';
 import 'package:town_pass/features/safe_walk/navigation/consent.dart';
 import 'package:town_pass/features/safe_walk/navigation/coordinate_math.dart';
-import 'package:town_pass/features/safe_walk/navigation/mock_walking_route_provider.dart';
 import 'package:town_pass/features/safe_walk/navigation/route_service.dart';
 import 'package:town_pass/features/safe_walk/navigation/walking_route_provider.dart';
 import 'package:town_pass/features/safe_walk/shared/contracts/cancellation.dart';
@@ -17,7 +16,7 @@ const double maxEndpointSnapMeters = 500;
 
 /// Builds [sw.RouteResult]s from an injected provider.
 ///
-/// * `mock` requests use [mockProvider] (a labelled demo polyline).
+/// * Tests may explicitly inject [mockProvider] for isolated contract checks.
 /// * `live` requests use [liveProvider]; without one the result is
 ///   `provider_unavailable`, never a mock or straight-line route.
 /// * Only the newest `planRoute` call may produce a route; an older call that
@@ -28,13 +27,13 @@ const double maxEndpointSnapMeters = 500;
 /// messages (which may contain coordinates) are never copied into results.
 final class DefaultRouteService implements RouteService {
   DefaultRouteService({
-    this.mockProvider = const MockWalkingRouteProvider(),
+    this.mockProvider,
     this.liveProvider,
     this.pointLookup,
     DateTime Function()? clock,
   }) : _clock = clock ?? DateTime.now;
 
-  final WalkingRouteProvider mockProvider;
+  final WalkingRouteProvider? mockProvider;
   final WalkingRouteProvider? liveProvider;
   final AssistancePointLookup? pointLookup;
   final DateTime Function() _clock;

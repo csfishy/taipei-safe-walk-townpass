@@ -41,6 +41,13 @@ class NewsBannerWidget extends StatelessWidget {
           );
         }
 
+        if (controller.list?.data.isEmpty ?? true) {
+          return const Padding(
+            padding: EdgeInsets.all(16),
+            child: Text('最新消息服務尚未配置'),
+          );
+        }
+
         return Column(
           children: [
             CarouselSlider(
