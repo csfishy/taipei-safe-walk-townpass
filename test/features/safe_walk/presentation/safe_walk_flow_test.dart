@@ -127,15 +127,17 @@ void main() {
     await t.tap(find.text('接聽'));
     await t.pump(const Duration(milliseconds: 300));
     expect(speaker.spoken.single, startsWith('Damn it, babe'));
-    await t.tap(find.text('我快到了，但我後面好像有人一直跟著我。'));
+    await t.tap(find.text('我快到了啦，還在路上，再幾分鐘。'));
     await t.pump(const Duration(milliseconds: 100));
     expect(speaker.spoken.length, 1, reason: '自己的回應不朗讀');
     await t.pump(const Duration(seconds: 1));
     expect(speaker.spoken.length, 2);
-    expect(speaker.spoken.last, startsWith("What? Don't turn around"));
-    await t.tap(find.text('好，我看到你了，我現在直接走過去。電話先不要掛。'));
-    await t.pump(const Duration(seconds: 1));
-    expect(speaker.spoken.length, 3);
+    expect(speaker.spoken.last, startsWith("Don't stop anywhere"));
+    for (final line in ['好，我走大路，不要催啦。', '我在便利商店旁邊，前面就是路口。', '好，我看到你了，我現在直接走過去。電話先不要掛。']) {
+      await t.tap(find.text(line));
+      await t.pump(const Duration(seconds: 1));
+    }
+    expect(speaker.spoken.length, 5);
     expect(speaker.spoken.last, startsWith('I see you.'));
     expect(find.textContaining('對方說完了'), findsOneWidget);
     expect(find.textContaining('已播放完畢'), findsNothing);
@@ -180,7 +182,7 @@ void main() {
     await t.pump(const Duration(milliseconds: 300));
     await t.tap(find.text('接聽'));
     await t.pump(const Duration(milliseconds: 300));
-    await t.tap(find.text('我快到了，但我後面好像有人一直跟著我。'));
+    await t.tap(find.text('我快到了啦，還在路上，再幾分鐘。'));
     await t.pump(const Duration(milliseconds: 800));
     await t.tap(find.text('緊急求助').first);
     await t.pump(const Duration(milliseconds: 100));

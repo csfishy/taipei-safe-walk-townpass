@@ -7,11 +7,9 @@ const callerName = '男友';
 /// 最後一句男性台詞播放後直接結束劇本，因此只需要 steps.length - 1 組。
 const Map<String, List<List<String>>> companionReplies = {
   'stalker-deterrence': [
-    ['我快到了，但我後面好像有人一直跟著我。'],
+    ['我快到了啦，還在路上，再幾分鐘。'],
+    ['好，我走大路，不要催啦。'],
+    ['我在便利商店旁邊，前面就是路口。'],
     ['好，我看到你了，我現在直接走過去。電話先不要掛。'],
   ],
 };
-
-/// 單一嚇阻劇本不開放自由延伸，避免英文聲線朗讀任意繁中內容。
-const List<String> callTemplates = [];
-const Map<String, String> callTemplateAcks = {};

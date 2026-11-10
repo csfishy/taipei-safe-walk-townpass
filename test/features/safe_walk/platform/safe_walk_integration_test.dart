@@ -440,7 +440,7 @@ void main() {
     await t.pump(const Duration(milliseconds: 300));
     await t.tap(find.text('接聽'));
     await t.pump(const Duration(milliseconds: 300));
-    await t.tap(find.text('我快到了，但我後面好像有人一直跟著我。'));
+    await t.tap(find.text('我快到了啦，還在路上，再幾分鐘。'));
     await t.pump(const Duration(milliseconds: 800));
     final before = speaker.spoken.length;
     await t.tap(find.text('緊急求助').first);

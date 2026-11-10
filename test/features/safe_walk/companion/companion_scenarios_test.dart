@@ -84,10 +84,10 @@ void main() {
     );
   }
 
-  test('the submission contains one three-line deterrence scenario', () {
+  test('the submission contains one five-line deterrence scenario', () {
     expect(scenarios, hasLength(1));
     final scenario = scenarios.single! as Map;
     expect(scenario['id'], 'stalker-deterrence');
-    expect((scenario['steps'] as List), hasLength(3));
+    expect((scenario['steps'] as List), hasLength(5));
   });
 }
