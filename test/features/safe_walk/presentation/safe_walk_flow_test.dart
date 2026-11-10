@@ -3,6 +3,7 @@ import '../../../support/safe_walk_fixtures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_call_view.dart';
+import 'package:town_pass/features/safe_walk/presentation/safe_walk_alarm.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_emergency_view.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_flow.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_home_view.dart';
@@ -20,6 +21,23 @@ class _SpySpeaker implements SafeWalkSpeaker {
   void speak(String text, {void Function()? onDone}) => spoken.add(text);
   @override
   void stop() => stops++;
+}
+
+class _SpyAlarm implements SafeWalkAlarm {
+  int starts = 0;
+  int stops = 0;
+
+  @override
+  bool get available => true;
+
+  @override
+  Future<void> start() async => starts++;
+
+  @override
+  Future<void> stop() async => stops++;
+
+  @override
+  Future<void> dispose() async {}
 }
 
 Future<void> _pump(WidgetTester t, Widget w) async {
@@ -62,6 +80,41 @@ void main() {
     await t.pumpAndSettle();
     expect(find.text('點擊開始'), findsOneWidget);
     expect(calls, isEmpty);
+  });
+
+  testWidgets('安全警報音可開始、停止，離開緊急求助頁會停止', (t) async {
+    final semantics = t.ensureSemantics();
+
+    final alarm = _SpyAlarm();
+    await _pump(t, SafeWalkFlow(alarm: alarm));
+    await t.tap(find.text('緊急求助').first);
+    await t.pumpAndSettle();
+
+    await t.tap(find.bySemanticsLabel(RegExp(r'^播放安全警報音')));
+    await t.pumpAndSettle();
+    expect(alarm.starts, 1);
+    expect(find.bySemanticsLabel(RegExp(r'^停止安全警報音')), findsOneWidget);
+
+    t.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await t.pumpAndSettle();
+    expect(alarm.stops, 1);
+    t.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await t.pumpAndSettle();
+    expect(find.bySemanticsLabel(RegExp(r'^播放安全警報音')), findsOneWidget);
+
+    await t.tap(find.bySemanticsLabel(RegExp(r'^播放安全警報音')));
+    await t.pumpAndSettle();
+    expect(alarm.starts, 2);
+    await t.tap(find.bySemanticsLabel(RegExp(r'^停止安全警報音')));
+    await t.pumpAndSettle();
+    expect(alarm.stops, 2);
+
+    await t.tap(find.bySemanticsLabel(RegExp(r'^播放安全警報音')));
+    await t.pumpAndSettle();
+    await t.tap(find.text('我現在安全，關閉'));
+    await t.pumpAndSettle();
+    expect(alarm.stops, greaterThanOrEqualTo(3));
+    semantics.dispose();
   });
 
   testWidgets('預設地圖沒有人工路線、目的地、異常回報或避讓件數', (t) async {

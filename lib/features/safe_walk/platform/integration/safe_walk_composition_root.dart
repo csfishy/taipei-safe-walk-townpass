@@ -25,6 +25,7 @@ import 'package:town_pass/features/safe_walk/navigation/route_service.dart';
 import 'package:town_pass/features/safe_walk/navigation/route_reference_area_check.dart';
 import 'package:town_pass/features/safe_walk/navigation/valhalla_avoiding_route_planner.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/avoiding_route_service.dart';
+import 'package:town_pass/features/safe_walk/platform/integration/device_safe_walk_alarm.dart';
 import 'package:town_pass/features/safe_walk/platform/home_location/home_location_service.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_route_speaker.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/tts_safe_walk_speaker.dart';
@@ -38,6 +39,7 @@ import 'package:town_pass/features/safe_walk/platform/platform_service.dart';
 import 'package:town_pass/features/safe_walk/platform/device_heading.dart';
 import 'package:town_pass/features/safe_walk/platform/position_watch.dart';
 import 'package:town_pass/features/safe_walk/platform/townpass_platform_adapter.dart';
+import 'package:town_pass/features/safe_walk/presentation/safe_walk_alarm.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_map_models.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_flow.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_nearby_broadcast.dart';
@@ -163,6 +165,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
   NearbyHelperController? _helper;
   SafetyDataRepository? _safetyData;
   late final SafeWalkRouteSpeaker _speaker;
+  late final SafeWalkAlarm _alarm;
   late final SafeWalkNavigationController _navigation;
   SafeWalkReportStatusController? _report;
   int _routeSequence = 0;
@@ -481,6 +484,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     unawaited(_helper?.restore());
     _safetyData = widget.safetyData;
     _speaker = widget.speaker ?? _deviceSpeaker();
+    _alarm = DeviceSafeWalkAlarm();
     final transport = widget.routeTransport ?? createDefaultJsonTransport();
     bool hasConsent() =>
         _navigation.hasRoutingConsent &&
@@ -1082,6 +1086,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
         state == AppLifecycleState.detached) {
       _foreground = false;
       _closeNavigation();
+      unawaited(_alarm.stop());
     } else if (state == AppLifecycleState.resumed) {
       _foreground = true;
     }
@@ -1374,6 +1379,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
         onLoadReports: widget.liveRoutes ? _loadMapReports : null,
         onResolveReport: widget.liveRoutes ? _resolveMapReport : null,
         speaker: _speaker,
+        alarm: _alarm,
         onLocate: _locate,
         onEmergency: _emergency,
         onOfficialReport:
@@ -1404,6 +1410,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     _helper?.dispose();
     _report?.dispose();
     unawaited(_speaker.dispose());
+    unawaited(_alarm.dispose());
     super.dispose();
   }
 }
