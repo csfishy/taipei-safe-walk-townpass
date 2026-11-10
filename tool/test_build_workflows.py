@@ -164,5 +164,17 @@ class BuildWorkflowTests(unittest.TestCase):
                 self.assertIn('check_crime_database_isolation.py', source)
 
 
+
+class SafeWalkConcurrencyTests(unittest.TestCase):
+    def test_pushes_keep_independent_runs_and_pr_updates_can_cancel(self):
+        source = (ROOT / '.github/workflows/safe_walk.yml').read_text(encoding='utf-8')
+        block = source.split('\nconcurrency:', 1)[1].split('\ndefaults:', 1)[0]
+        group = re.search(r'^  group: (.+)$', block, re.M).group(1)
+        cancel = re.search(r'^  cancel-in-progress: (.+)$', block, re.M).group(1)
+        self.assertIn("github.event_name == 'pull_request' && github.ref || github.run_id", group)
+        for event, expected in [('push', False), ('workflow_dispatch', False), ('pull_request', True)]:
+            with self.subTest(event=event):
+                self.assertEqual(ActionsCondition(cancel, {'github.event_name': event}).evaluate(), expected)
+
 if __name__ == '__main__':
     unittest.main()
