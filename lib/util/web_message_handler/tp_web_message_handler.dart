@@ -250,10 +250,7 @@ class NotifyMessageHandler extends TPWebMessageHandler {
           content: json['content'],
         );
         final String content = json['content'];
-        if (RegExp(r'已訂閱(.+)').hasMatch(content)) {
-          final String target = RegExp(r'已訂閱(.+)').firstMatch(content)!.group(1)!;
-          Get.find<SubscriptionService>().addSubscription(title: target);
-        } else if (RegExp(r'已取消訂閱(.+)').hasMatch(content)) {
+        if (RegExp(r'已取消訂閱(.+)').hasMatch(content)) {
           final String target = RegExp(r'已取消訂閱(.+)').firstMatch(content)!.group(1)!;
           Get.find<SubscriptionService>().removeSubscription(title: target);
         }

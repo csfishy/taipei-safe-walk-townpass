@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:town_pass/features/safe_walk/presentation/demo_map.dart';
-import 'package:town_pass/features/safe_walk/presentation/mock/safe_walk_demo_data.dart';
+import 'package:town_pass/features/safe_walk/presentation/safe_walk_map.dart';
+import '../../../support/safe_walk_fixtures.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_map_view.dart';
 import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart'
     as sw;
@@ -55,7 +55,7 @@ Widget _map(
   targetPointId: targetPointId,
   onTarget: onTarget,
   startView: start,
-  routeState: RouteState(result: result, allowDemoFallback: false),
+  routeState: RouteState(result: result,),
   anomalies: [],
   onAnomaliesChanged: () {},
   onBack: () {},
@@ -145,14 +145,14 @@ void main() {
     await t.ensureVisible(find.text('替代路線'));
     await t.tap(find.text('替代路線'));
     await t.pumpAndSettle();
-    expect(t.widget<DemoMap>(find.byType(DemoMap)).path, hasLength(3));
+    expect(t.widget<SafeWalkMap>(find.byType(SafeWalkMap)).path, hasLength(3));
     for (final p in places.skip(1)) {
       rebuild(() {
         points = [...points, p];
         pointRoutes = {...pointRoutes, p.id: route};
       });
       await t.pumpAndSettle();
-      expect(t.widget<DemoMap>(find.byType(DemoMap)).path, hasLength(3));
+      expect(t.widget<SafeWalkMap>(find.byType(SafeWalkMap)).path, hasLength(3));
     }
   });
 }

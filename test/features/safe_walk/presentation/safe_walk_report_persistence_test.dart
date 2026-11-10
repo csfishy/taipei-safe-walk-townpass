@@ -2,8 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:town_pass/features/safe_walk/presentation/demo_map.dart';
-import 'package:town_pass/features/safe_walk/presentation/mock/safe_walk_demo_data.dart';
+import 'package:town_pass/features/safe_walk/presentation/safe_walk_map.dart';
+import '../../../support/safe_walk_fixtures.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_flow.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_map_view.dart';
 import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart'
@@ -33,7 +33,7 @@ Future<void> _pump(WidgetTester t, SafeWalkFlow flow) async {
 Future<void> _form(WidgetTester t) async {
   await t.tap(find.bySemanticsLabel('回報狀況，在地圖上標出異常'));
   await t.pumpAndSettle();
-  t.widget<DemoMap>(find.byType(DemoMap)).onPick!(const LatLng(0.5, 0.75));
+  t.widget<SafeWalkMap>(find.byType(SafeWalkMap)).onPick!(const LatLng(0.5, 0.75));
   await t.pumpAndSettle();
   await t.ensureVisible(find.text('標示到地圖'));
   await t.pumpAndSettle();
@@ -117,6 +117,7 @@ void main() {
     await _pump(
       t,
       SafeWalkFlow(
+        mode: sw.DataMode.mock,
         showMapTiles: false,
         onLoadReports: () async {
           calls++;
@@ -132,7 +133,8 @@ void main() {
     await t.tap(find.text('標示到地圖'));
     await t.pumpAndSettle();
     expect(calls, 0);
-    expect(find.text('已標示在地圖上'), findsOneWidget);
+    expect(find.text('已標示在地圖上'), findsNothing);
+    expect(find.textContaining('尚未配置'), findsWidgets);
   });
 
   testWidgets(

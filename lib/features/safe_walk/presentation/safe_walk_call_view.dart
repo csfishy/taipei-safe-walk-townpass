@@ -2,8 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:town_pass/features/safe_walk/presentation/mock/companion_dialogues.dart';
-import 'package:town_pass/features/safe_walk/presentation/mock/companion_scenarios.dart';
+import 'package:town_pass/features/safe_walk/presentation/companion_dialogues.dart';
+import 'package:town_pass/features/safe_walk/presentation/companion_scenarios.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_speaker.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_ui.dart';
 import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart' as sw;
@@ -16,7 +16,7 @@ class _Entry {
   final String text;
 }
 
-enum _Mode { quick, template, input }
+enum _Mode { quick, input }
 
 /// 一通模擬來電的進度，由 Flow 保管。結束通話、緊急求助或回首頁時丟棄。
 class SafeWalkCallSession {
@@ -31,7 +31,7 @@ class SafeWalkCallSession {
   final List<_Entry> _log = [];
 }
 
-/// 模擬來電：三段英文男性角色台詞由 TTS 朗讀，兩段繁中台詞顯示供使用者照讀。
+/// 模擬來電：五段英文男性角色台詞由 TTS 朗讀，四段繁中台詞顯示供使用者照讀。
 class SafeWalkCallView extends StatefulWidget {
   const SafeWalkCallView({super.key, required this.speaker, required this.onEnd, required this.onEmergency, this.session});
 
@@ -51,7 +51,7 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> with WidgetsBindingO
   bool _waiting = false;
   _Mode _mode = _Mode.quick;
 
-  /// 回覆區（快速回覆／完整句子／自己輸入）可收合，讓對話多露出一點。
+  /// 回覆區（照讀台詞／自己輸入）可收合，讓對話多露出一點。
   bool _panelOpen = true;
   final _draft = TextEditingController();
   final _scroll = ScrollController();
@@ -60,8 +60,8 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> with WidgetsBindingO
   /// 先響鈴：按「接聽」才開始對話與計時；「拒絕」直接離開。已接聽過的通話（從地圖回來）不再響鈴。
   late bool _ringing = !_s.answered;
 
-  /// 臺北通尚未配置語音時，用無聲示範（依字數計時）呈現播放樣式；不呼叫 M1／M5 的喇叭。
-  final SafeWalkSpeaker _preview = PreviewSpeaker();
+  /// 臺北通尚未配置語音時，只顯示文字，不啟動假播放計時；不呼叫 M1／M5 的喇叭。
+  final SafeWalkSpeaker _preview = const UnavailableSpeaker();
   late SafeWalkSpeaker _voice;
   bool _foreground = true;
 
@@ -255,6 +255,10 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> with WidgetsBindingO
     if (!_active) return;
     _refreshVoice();
     final gen = ++_gen;
+    if (!_voice.available) {
+      onDone?.call();
+      return;
+    }
     setState(() => _speaking = e.key);
     _voice.speak(
       e.text,
@@ -281,7 +285,7 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> with WidgetsBindingO
     _scrollDown();
   }
 
-  void _respond(String text, {bool sentence = false}) {
+  void _respond(String text) {
     if (_waiting || !_active) return;
     _stopTurn();
     setState(() {
@@ -289,26 +293,7 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> with WidgetsBindingO
       _log.add(_Entry('u${_s.seq++}', false, text));
     });
     _scrollDown();
-    final ack = sentence ? callTemplateAcks[text] ?? '嗯嗯，好。' : null;
-    if (ack == null) {
-      _scheduleReply();
-      return;
-    }
-    // 完整句子不是針對這一句台詞寫的：對方先回應你說的話，再接劇本下一句。
-    setState(() => _waiting = true);
-    _reply = Timer(const Duration(milliseconds: 900), () {
-      if (!mounted || !_active) return;
-      _say(
-        ack,
-        onDone: () {
-          if (_s.finished) {
-            setState(() => _waiting = false);
-          } else {
-            _scheduleReply(delay: Duration.zero);
-          }
-        },
-      );
-    });
+    _scheduleReply();
   }
 
   /// 你回完之後，對方隔一下接下一句；劇本說完就不再接話。
@@ -431,7 +416,7 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> with WidgetsBindingO
                         decoration: BoxDecoration(color: SwColors.bg, borderRadius: BorderRadius.circular(24)),
                         child: Row(
                           children: [
-                            for (final (m, label) in [(_Mode.quick, '快速回覆'), (_Mode.template, '完整句子'), (_Mode.input, '自己輸入')])
+                            for (final (m, label) in [(_Mode.quick, '照讀台詞'), (_Mode.input, '自己輸入')])
                               Expanded(
                                 child: Semantics(
                                   selected: _panelOpen && _mode == m,
@@ -495,7 +480,7 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> with WidgetsBindingO
 
   Widget _replyPanel() {
     Widget option(String text) => SwPressable(
-      onTap: _waiting ? null : () => _respond(text, sentence: _mode == _Mode.template),
+      onTap: _waiting ? null : () => _respond(text),
       color: _waiting ? SwColors.bg : SwColors.brandSoft,
       pressedColor: TPColors.primary100,
       border: BorderSide(color: _waiting ? SwColors.border : SwColors.brand.withValues(alpha: .5)),
@@ -506,7 +491,7 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> with WidgetsBindingO
     final note = _waiting || _scriptDone
         ? Padding(
             padding: const EdgeInsets.only(bottom: 8),
-            child: Text(_waiting ? '對方回應中…' : '對方說完了，可以結束通話，或用「完整句子」繼續聊', style: SwText.small),
+            child: Text(_waiting ? '對方回應中…' : '對方說完了，可以結束通話，或用「自己輸入」讓對方繼續說', style: SwText.small),
           )
         : const SizedBox.shrink();
     switch (_mode) {
@@ -526,22 +511,6 @@ class SafeWalkCallViewState extends State<SafeWalkCallView> with WidgetsBindingO
                 child: Wrap(spacing: 8, runSpacing: 8, children: [for (final r in _replies) option(r)]),
               ),
           ],
-        );
-      case _Mode.template:
-        if (callTemplates.isEmpty) return Column(children: [note]);
-        return ConstrainedBox(
-          constraints: const BoxConstraints(maxHeight: 220),
-          child: ListView(
-            shrinkWrap: true,
-            children: [
-              note,
-              for (final t in callTemplates)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Align(alignment: Alignment.centerLeft, child: option(t)),
-                ),
-            ],
-          ),
         );
       case _Mode.input:
         return Column(

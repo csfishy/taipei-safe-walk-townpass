@@ -14,6 +14,12 @@ class BasicInfoView extends GetView<BasicInfoViewController> {
 
   @override
   Widget build(BuildContext context) {
+    if (!controller.hasAccount) {
+      return const Scaffold(
+        appBar: TPAppBar(title: '基本資料'),
+        body: Center(child: Text('帳戶服務尚未配置，無法查看或編輯個人資料。')),
+      );
+    }
     return Scaffold(
       appBar: const TPAppBar(title: '基本資料'),
       body: Column(

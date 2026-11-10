@@ -16,6 +16,12 @@ class ActivityBannerWidget extends StatelessWidget {
     return GetBuilder(
       init: Get.put<ActivityBannerWidgetController>(ActivityBannerWidgetController()),
       builder: (controller) {
+        if (!controller.isLoading && (controller.list?.data.isEmpty ?? true)) {
+          return const Padding(
+            padding: EdgeInsets.all(16),
+            child: Text('活動資訊服務尚未配置'),
+          );
+        }
         return SizedBox(
           height: 180, //
           child: switch (controller.isLoading) {

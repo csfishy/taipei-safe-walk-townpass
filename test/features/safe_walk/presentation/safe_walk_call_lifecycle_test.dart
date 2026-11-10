@@ -2,8 +2,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:town_pass/features/safe_walk/presentation/mock/companion_dialogues.dart';
-import 'package:town_pass/features/safe_walk/presentation/mock/companion_scenarios.dart';
+import 'package:town_pass/features/safe_walk/presentation/companion_dialogues.dart';
+import 'package:town_pass/features/safe_walk/presentation/companion_scenarios.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_flow.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_speaker.dart';
 
@@ -97,7 +97,7 @@ void main() {
     await t.tap(find.text('接聽'));
     await t.pump(const Duration(milliseconds: 300));
     expect(speaker.spoken, hasLength(1));
-    await t.tap(find.text('我快到了，但我後面好像有人一直跟著我。'));
+    await t.tap(find.text('我快到了啦，還在路上，再幾分鐘。'));
     await t.pump(const Duration(milliseconds: 100));
     await t.tap(find.bySemanticsLabel('返回'));
     await t.pumpAndSettle();
@@ -146,7 +146,7 @@ void main() {
       await t.tap(find.text(companionReplies[ride.id]![i].first).last);
       await t.pump(const Duration(seconds: 1));
     }
-    expect(speaker.spoken, ride.steps.map((s) => s.text).toList(), reason: '兩段繁中照讀稿之間依序播放三段英文台詞');
+    expect(speaker.spoken, ride.steps.map((s) => s.text).toList(), reason: '四段繁中照讀稿之間依序播放五段英文台詞');
     // The fake has not completed its final utterance: do not claim playback
     // finished just because the final line was queued.
     expect(find.textContaining('對方說完了'), findsOneWidget);
@@ -165,7 +165,7 @@ void main() {
     await t.tap(find.byTooltip('收合回覆區'));
     await t.pumpAndSettle();
     expect(find.text(reply), findsNothing);
-    await t.tap(find.text('快速回覆'));
+    await t.tap(find.text('照讀台詞'));
     await t.pumpAndSettle();
     expect(find.text(reply), findsOneWidget);
     await t.tap(find.text('結束通話'));
@@ -227,5 +227,4 @@ void main() {
     expect(afterResume, inBackground);
     expect(afterReplay, [...inBackground, m5CompanionScenarios.first.steps.first.text]);
   });
-
 }

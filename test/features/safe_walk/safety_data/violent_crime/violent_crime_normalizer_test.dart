@@ -7,7 +7,7 @@ import 'package:town_pass/features/safe_walk/safety_data/violent_crime/violent_c
 import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart'
     as sw;
 
-const _fixtures = 'lib/features/safe_walk/safety_data/violent_crime/fixtures';
+const _fixtures = 'test/features/safe_walk/safety_data/violent_crime/fixtures';
 
 String rawCsv() =>
     File('$_fixtures/violent_crime_raw_sample.csv').readAsStringSync();

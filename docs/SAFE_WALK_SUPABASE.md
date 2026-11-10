@@ -32,7 +32,7 @@ dart tool/check_crime_reference.dart secrets/supabase.local.json --city 臺北�
 
 ## 歷史基線與隔離政策
 
-CI／專用 Demo 的初始化另見 [隔離資料庫重設](SAFE_WALK_DATABASE_RESET.md)。兩份工作流必跑 runner-local PostGIS 測試；遠端另需 Repository Actions Variable `DEMO_DATABASE_RESET_ENABLED` 精確為 `true` 才啟用。未設定或 `false` 時不連遠端，Summary 明示未重設，既有不依賴 `safe_walk_demo` 的建置／發布可繼續；啟用後缺白名單／Secrets／marker／角色或重設失敗仍須停止。其他旗標值是配置錯誤，不代表未啟用。遠端白名單目前為空，既有 `gxofnhzkqcmzrftxqddi` 保護不變，不會自動當成可清除的 Demo，也不執行舊匿名通知 RPC。旗標必須最後經 Level C 審查後才設定，不能用公開 client key 代替受限 SQL role 憑證。
+示範資料庫 migrations／seed、重設腳本與相關 CI 工作已移除。建置及發布不連線或重設遠端資料庫；既有持久犯罪參考資料及隔離保護不變。
 
 現行規格依 [LIVE-FIRST／NO PRODUCTION MOCK](SAFE_WALK_LIVE_FIRST.md)、[Live MVP](SAFE_WALK_LIVE_MVP.md) 與 [上線條件](SAFE_WALK_LIVE_READINESS.md)。2026-11-08 的 main `7b99fea` 仍是 Mock 正式入口，#35 的 P0 接線已由 #49 restore 移除；#39 僅合入 feature branch，#44 仍開放，不能列為主線已完成。正式持久資料以 Supabase 主資料庫為整合方向，必須接到完整使用者查詢／更新流程，不能只交連線 probe 或 Parser。
 

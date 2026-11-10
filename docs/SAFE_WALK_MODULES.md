@@ -28,7 +28,7 @@ RouteFollower 已有程序內 FollowUpdate／FollowStatus，消費 M1 Position�
 
 既有 SafeWalkFlow、首頁、地圖、通話及求助頁由莅紋維護，沿用 TownPass Theme／TPColors。輸入為 M1 注入的 LocationResult、RouteResult、據點／統計、陪伴狀態、能力模式及 loading/error；輸出為定位、同意、目的地、規劃、取消、更新位置、求助與離開等使用者意圖。
 
-現在 Flow 已有路線參數／callbacks，但組合根尚未完整傳入，DemoMap／ETA／DemoGeo 不可當成 Live 完成。M3 為真實底圖／投影、可空時間、實際距離、取消／錯誤與能力顯示的主要聯絡人；功能主責可跨 UI／平台實作。正式功能完成後可由正常流程操作，不能永久只留展示入口。一般 callback／參數接線屬 A，變更 shared 契約屬 B；大型 UI 改版合併前找莅紋確認，不任意改 Schema 或設計方向。
+現在 Flow 已有路線參數／callbacks，但組合根尚未完整傳入，SafeWalkMap／ETA／DemoGeo 不可當成 Live 完成。M3 為真實底圖／投影、可空時間、實際距離、取消／錯誤與能力顯示的主要聯絡人；功能主責可跨 UI／平台實作。正式功能完成後可由正常流程操作，不能永久只留展示入口。一般 callback／參數接線屬 A，變更 shared 契約屬 B；大型 UI 改版合併前找莅紋確認，不任意改 Schema 或設計方向。
 
 ## M4｜來源、Parser 與 Repository
 

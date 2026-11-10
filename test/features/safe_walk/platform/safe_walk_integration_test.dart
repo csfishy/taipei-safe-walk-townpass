@@ -8,7 +8,9 @@ import 'package:town_pass/features/safe_walk/companion/companion_service.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/companion_speaker_adapter.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_composition_root.dart';
 import 'package:town_pass/features/safe_walk/platform/platform_service.dart';
-import 'package:town_pass/features/safe_walk/presentation/mock/safe_walk_demo_data.dart';
+
+import '../../../support/safe_walk_fixtures.dart';
+
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_flow.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_home_view.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_speaker.dart';
@@ -68,7 +70,7 @@ class _Platform implements PlatformService {
     required bool userInitiated,
     SafeWalkCancellation? cancellation,
   }) async {
-    expect(mode, sw.DataMode.mock);
+    expect(mode, sw.DataMode.live);
     expect(userInitiated, isTrue);
     locationCancellation = cancellation;
     locations++;
@@ -87,7 +89,7 @@ class _Platform implements PlatformService {
     required bool allowRealCalls,
     sw.IncidentSummary? summary,
   }) async {
-    expect(mode, sw.DataMode.mock);
+    expect(mode, sw.DataMode.live);
     expect(userInitiated, isTrue);
     expect(allowRealCalls, isFalse);
     expect(summary, isNull);
@@ -103,6 +105,16 @@ class _Platform implements PlatformService {
   }
 }
 
+List<sw.AssistancePoint> liveTestPoints() =>
+    demoAssistancePoints().map((point) {
+      final json = point.toJson();
+      final source = (json['source'] as Map).cast<String, Object?>();
+      source['dataMode'] = 'live';
+      source['sourceUrl'] = 'https://example.invalid/test-source';
+      json['source'] = source;
+      return sw.AssistancePoint.fromJson(json);
+    }).toList();
+
 class _Data implements SafetyDataRepository {
   Future<List<sw.AssistancePoint>> Function(int)? load;
   final cancellations = <SafeWalkCancellation?>[];
@@ -113,10 +125,10 @@ class _Data implements SafetyDataRepository {
     required sw.DataMode mode,
     SafeWalkCancellation? cancellation,
   }) {
-    expect(mode, sw.DataMode.mock);
+    expect(mode, sw.DataMode.live);
     cancellations.add(cancellation);
     final call = calls++;
-    return load?.call(call) ?? Future.value(demoAssistancePoints());
+    return load?.call(call) ?? Future.value(liveTestPoints());
   }
 
   @override
@@ -198,7 +210,7 @@ void main() {
   );
 
   testWidgets(
-    'A-G demo connects route, points, text companion, SOS and return',
+    'injected points, unavailable routes, text companion, SOS and return',
     (t) async {
       final trace = <String>[];
       final platform = _Platform(trace);
@@ -267,7 +279,7 @@ void main() {
     (t) async {
       final retried = Completer<List<sw.AssistancePoint>>();
       final data = _Data()
-        ..load = (n) => n == 0
+        ..load = (n) => n < 2
             ? Future.error(StateError('synthetic source failure'))
             : retried.future;
       await cityApp(t, () => SafeWalkCompositionRoot(safetyData: data));
@@ -338,25 +350,24 @@ void main() {
     },
   );
 
-  testWidgets(
-    'a live-data repository cannot silently populate the mock route',
-    (t) async {
-      final json = demoAssistancePoints().first.toJson();
-      final source = (json['source']! as Map).cast<String, Object?>();
-      source['dataMode'] = 'live';
-      source['sourceUrl'] = 'https://example.invalid/source';
-      json['source'] = source;
-      final data = _Data()
-        ..load = (_) async => [sw.AssistancePoint.fromJson(json)];
-      await cityApp(t, () => SafeWalkCompositionRoot(safetyData: data));
-      await enter(t);
-      final flow = t.widget<SafeWalkFlow>(find.byType(SafeWalkFlow));
-      expect(flow.points, isEmpty);
-      expect(flow.pointsError, isNotNull);
-      await back(t);
-      expect(t.takeException(), isNull);
-    },
-  );
+  testWidgets('a mock-data repository cannot silently populate the live flow', (
+    t,
+  ) async {
+    final json = demoAssistancePoints().first.toJson();
+    final source = (json['source']! as Map).cast<String, Object?>();
+    source['dataMode'] = 'mock';
+    source['sourceUrl'] = 'https://example.invalid/source';
+    json['source'] = source;
+    final data = _Data()
+      ..load = (_) async => [sw.AssistancePoint.fromJson(json)];
+    await cityApp(t, () => SafeWalkCompositionRoot(safetyData: data));
+    await enter(t);
+    final flow = t.widget<SafeWalkFlow>(find.byType(SafeWalkFlow));
+    expect(flow.points, isEmpty);
+    expect(flow.pointsError, isNotNull);
+    await back(t);
+    expect(t.takeException(), isNull);
+  });
 
   testWidgets('H repeated entry creates and releases one companion per route', (
     t,
@@ -401,6 +412,7 @@ void main() {
     await t.pumpWidget(
       MaterialApp(
         home: SafeWalkFlow(
+          mode: sw.DataMode.mock,
           onSendSms: (_) async {
             sent++;
             return true;
@@ -411,17 +423,10 @@ void main() {
     await t.pumpAndSettle();
     await t.tap(find.text('緊急求助').first);
     await t.pumpAndSettle();
-    await t.scrollUntilVisible(
-      find.text('傳送簡訊'),
-      200,
-      scrollable: find.byType(Scrollable).first,
-    );
-    await t.pumpAndSettle();
-    await t.tap(find.text('傳送簡訊'));
-    await t.pump(const Duration(seconds: 1));
-    await t.pumpAndSettle();
+    expect(find.text('簡訊求助尚未配置'), findsOneWidget);
+    expect(find.text('傳送簡訊'), findsNothing);
+    expect(find.text('簡訊內容已準備好'), findsNothing);
     expect(sent, 0);
-    expect(find.text('簡訊內容已準備好'), findsOneWidget);
   });
 
   testWidgets('SOS cancels a reply before the outgoing call animation ends', (
@@ -435,7 +440,7 @@ void main() {
     await t.pump(const Duration(milliseconds: 300));
     await t.tap(find.text('接聽'));
     await t.pump(const Duration(milliseconds: 300));
-    await t.tap(find.text('我快到了，但我後面好像有人一直跟著我。'));
+    await t.tap(find.text('我快到了啦，還在路上，再幾分鐘。'));
     await t.pump(const Duration(milliseconds: 800));
     final before = speaker.spoken.length;
     await t.tap(find.text('緊急求助').first);

@@ -1,10 +1,6 @@
-import 'dart:async';
-import 'dart:convert';
 
 import 'package:carousel_slider/carousel_controller.dart';
 import 'package:town_pass/bean/home_banner.dart';
-import 'package:town_pass/gen/assets.gen.dart';
-import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 
 class NewsBannerWidgetController extends GetxController {
@@ -34,14 +30,7 @@ class NewsBannerWidgetController extends GetxController {
   void onInit() {
     super.onInit();
 
-    Timer.periodic(
-      const Duration(seconds: 3),
-      (timer) async {
-        timer.cancel();
-        final String banners = await rootBundle.loadString(Assets.mockData.homeBanner);
-        list = HomeBannerList.fromJson(jsonDecode(banners));
-        isLoading = false;
-      },
-    );
+    list = const HomeBannerList(data: []);
+    isLoading = false;
   }
 }

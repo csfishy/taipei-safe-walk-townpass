@@ -1,6 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:geolocator/geolocator.dart' as geo;
@@ -41,11 +39,6 @@ geo.Position _native({
 );
 
 void main() {
-  sw.Position mockPosition() => sw.Position.fromJson(
-    jsonDecode(
-      File('test/fixtures/safe_walk/valid/01-Position.json').readAsStringSync(),
-    ),
-  );
   test('no user action means no native location call in either mode', () async {
     var nativeCalls = 0;
     final adapter = TownPassPlatformAdapter(
@@ -92,10 +85,9 @@ void main() {
       }
     },
   );
-  test('mock mode only uses injected mock data and never reads GPS', () async {
+  test('mock mode is unavailable and never reads GPS', () async {
     var nativeCalls = 0;
     final adapter = TownPassPlatformAdapter(
-      mockPosition: mockPosition(),
       readPosition: () async {
         nativeCalls++;
         return _native();
@@ -105,8 +97,7 @@ void main() {
       mode: sw.DataMode.mock,
       userInitiated: true,
     );
-    expect(result, isA<sw.LocationSuccess>());
-    expect((result.toJson()['position'] as Map)['source'], 'mock');
+    expect(result, isA<sw.LocationFailure>());
     expect(nativeCalls, 0);
   });
   test('missing mock position never falls back to GPS', () async {

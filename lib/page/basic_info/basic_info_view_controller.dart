@@ -5,7 +5,7 @@ import 'package:get/get.dart';
 class BasicInfoViewController extends GetxController {
   final AccountService _accountService = Get.find<AccountService>();
 
-  // final Account? _account = Get.find<AccountService>().account;
+  bool get hasAccount => _accountService.account != null;
 
   String get account => _accountService.account?.account ?? '';
 
@@ -42,23 +42,25 @@ class BasicInfoViewController extends GetxController {
     String? phoneNumber,
     String? address,
   }) {
-    Get.find<AccountService>().updateAccount(
+    final current = _accountService.account;
+    if (current == null) return;
+    _accountService.updateAccount(
       Account(
-        id: _accountService.account?.id ?? '',
-        account: _accountService.account?.account ?? '',
-        username: _accountService.account?.username ?? '',
-        realName: _accountService.account?.realName ?? '',
-        idNumber: idNumber ?? _accountService.account?.idNumber ?? '',
-        email: email ?? _accountService.account?.email ?? '',
-        phoneNumber: phoneNumber ?? _accountService.account?.phoneNumber ?? '',
-        birthday: birthday ?? _accountService.account?.birthday ?? '',
-        memberType: _accountService.account?.memberType ?? '',
-        verifyLevel: _accountService.account?.verifyLevel ?? '',
-        addressList: _accountService.account?.addressList ?? [],
-        residentAddress: address ?? _accountService.account?.residentAddress ?? '',
-        citizen: _accountService.account?.citizen ?? true,
-        nativePeople: _accountService.account?.nativePeople ?? true,
-        cityInternetUid: _accountService.account?.cityInternetUid ?? '',
+        id: current.id,
+        account: current.account,
+        username: current.username,
+        realName: current.realName,
+        idNumber: idNumber ?? current.idNumber,
+        email: email ?? current.email,
+        phoneNumber: phoneNumber ?? current.phoneNumber,
+        birthday: birthday ?? current.birthday,
+        memberType: current.memberType,
+        verifyLevel: current.verifyLevel,
+        addressList: current.addressList,
+        residentAddress: address ?? current.residentAddress,
+        citizen: current.citizen,
+        nativePeople: current.nativePeople,
+        cityInternetUid: current.cityInternetUid,
       ),
     );
     syncAccount();

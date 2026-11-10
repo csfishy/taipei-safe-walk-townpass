@@ -39,8 +39,8 @@ import 'package:town_pass/features/safe_walk/platform/platform_service.dart';
 import 'package:town_pass/features/safe_walk/platform/device_heading.dart';
 import 'package:town_pass/features/safe_walk/platform/position_watch.dart';
 import 'package:town_pass/features/safe_walk/platform/townpass_platform_adapter.dart';
-import 'package:town_pass/features/safe_walk/presentation/mock/safe_walk_demo_data.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_alarm.dart';
+import 'package:town_pass/features/safe_walk/presentation/safe_walk_map_models.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_flow.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_nearby_broadcast.dart';
 import 'package:town_pass/features/safe_walk/safety_data/contract_safety_data.dart';
@@ -467,27 +467,12 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     if (!_crime.isConfigured) {
       _crimeQueryStatus = '犯罪參考資料尚未配置；路線未套用犯罪參考避讓。';
     }
-    _platform =
-        widget.platform ??
-        TownPassPlatformAdapter(
-          mockPosition: widget.liveRoutes
-              ? null
-              : sw.Position.fromJson({
-                  'schemaVersion': '1.0.0',
-                  'coordinates': {
-                    'lat': DemoGeo.start.lat,
-                    'lng': DemoGeo.start.lng,
-                  },
-                  'source': 'mock',
-                  'accuracyMeters': null,
-                  'observedAt': null,
-                }),
-        );
+    _platform = widget.platform ?? TownPassPlatformAdapter();
     _nearbyService = NearbyEmergencyService(
       platform: _platform,
       transport: widget.nearbyAlerts ?? const UnavailableNearbyAlertTransport(),
     );
-    // Demo never joins or polls; Live shows the real backend state.
+    // Only the enabled live flow restores a real nearby-helper session.
     _helper = widget.liveRoutes
         ? NearbyHelperController(
             service: _nearbyService,
@@ -497,13 +482,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     // Brings back an identity this phone already has (never creates one), so a
     // person who is someone's trusted contact hears their alerts again.
     unawaited(_helper?.restore());
-    _safetyData = widget.liveRoutes
-        ? null
-        : widget.safetyData ??
-              MockSafetyDataRepository(
-                assistancePoints: demoAssistancePoints(),
-                areaStatistics: const [],
-              );
+    _safetyData = widget.safetyData;
     _speaker = widget.speaker ?? _deviceSpeaker();
     _alarm = DeviceSafeWalkAlarm();
     final transport = widget.routeTransport ?? createDefaultJsonTransport();
@@ -532,7 +511,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     _storeRoutes = widget.routeService ?? avoiding();
     _navigation = SafeWalkNavigationController(
       routeService: widget.routeService ?? avoiding(),
-      mode: widget.liveRoutes ? sw.DataMode.live : sw.DataMode.mock,
+      mode: sw.DataMode.live,
       livePresentationReady: widget.liveRoutes,
       liveProviderReady: widget.liveRoutes,
     );
@@ -1157,6 +1136,13 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
 
   Future<void> _loadPoints() async {
     if (widget.liveRoutes) return;
+    if (_safetyData == null) {
+      setState(() {
+        _pointsLoading = false;
+        _pointsError = '求助地點服務尚未配置。';
+      });
+      return;
+    }
     _pointsRequest?.cancel();
     final request = _pointsRequest = _RouteCancellation();
     setState(() {
@@ -1166,16 +1152,16 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     });
     try {
       final points = await _safetyData!.getAssistancePoints(
-        mode: sw.DataMode.mock,
+        mode: sw.DataMode.live,
         cancellation: request,
       );
       request.throwIfCancelled();
       const parser = ContractSafetyDataParser();
       final checked = points
           .map((point) {
-            if (point.source.dataMode != sw.DataMode.mock) {
+            if (point.source.dataMode != sw.DataMode.live) {
               throw const FormatException(
-                'Live points cannot enter the mock demo',
+                'Only live assistance points may be displayed',
               );
             }
             return parser.parseAssistancePoint(point.toJson());
@@ -1203,18 +1189,13 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
         throw const SafeWalkCancelledException();
       }
       final result = await _platform.getCurrentPosition(
-        mode: widget.liveRoutes ? sw.DataMode.live : sw.DataMode.mock,
+        mode: sw.DataMode.live,
         userInitiated: true,
         cancellation: request,
       );
       _lifetime.throwIfCancelled();
       request.throwIfCancelled();
       if (!_foreground || !mounted) throw const SafeWalkCancelledException();
-      if (!widget.liveRoutes &&
-          result is sw.LocationSuccess &&
-          result.position.source != sw.PositionSource.mock) {
-        return _locationFailure('示範模式未取得示範位置，請重試。');
-      }
       if (widget.liveRoutes &&
           result is sw.LocationSuccess &&
           !_usableLiveFix(result.position)) {
@@ -1258,10 +1239,10 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
   }
 
   SafeWalkNearbyBroadcast get _nearbyBroadcast => SafeWalkNearbyBroadcast(
-    // Demo never notifies anyone; Live shows the real backend state.
+    // An unconfigured flow cannot broadcast nearby alerts.
     unavailableReason: widget.liveRoutes
         ? _nearbyService.unavailableReason
-        : '示範模式不會通知任何人',
+        : '附近通知服務尚未配置',
     onBroadcast: _broadcastNearby,
   );
 
@@ -1299,7 +1280,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     try {
       if (_lifetime.isCancelled) throw const SafeWalkCancelledException();
       return await _platform.requestEmergency(
-        mode: widget.liveRoutes ? sw.DataMode.live : sw.DataMode.mock,
+        mode: sw.DataMode.live,
         channel: channel,
         userInitiated: true,
         allowRealCalls: _dialerEnabled,
@@ -1312,7 +1293,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
         'officialReceipt': null,
         'message': widget.liveRoutes
             ? '求助交接尚未完成；未確認撥號或通報，請使用手機電話功能。'
-            : '示範求助暫時無法完成；未撥號、未傳送，也未通知任何人。',
+            : '求助服務尚未配置；未撥號、未傳送，也未通知任何人。',
       });
     }
   }
@@ -1337,7 +1318,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
       onEmergencyOpened: _closeNavigation,
       // Built here so route results, loading and live position reach the map.
       child: SafeWalkFlow(
-        mode: widget.liveRoutes ? sw.DataMode.live : sw.DataMode.mock,
+        mode: sw.DataMode.live,
         allowRealCalls: _dialerEnabled,
         // Live: real open stores, only after the walker asks for them.
         points: widget.liveRoutes

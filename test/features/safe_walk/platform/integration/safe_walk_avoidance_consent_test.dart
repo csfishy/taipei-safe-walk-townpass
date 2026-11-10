@@ -14,7 +14,7 @@ import 'package:town_pass/features/safe_walk/platform/platform_service.dart';
 import 'package:town_pass/features/safe_walk/platform/supabase/safe_walk_supabase_config.dart';
 import 'package:town_pass/features/safe_walk/platform/supabase/supabase_rpc_client.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_flow.dart';
-import 'package:town_pass/features/safe_walk/presentation/demo_map.dart';
+import 'package:town_pass/features/safe_walk/presentation/safe_walk_map.dart';
 import 'package:town_pass/features/safe_walk/safety_data/crime_reference/crime_reference_repository.dart';
 import 'package:town_pass/features/safe_walk/shared/contracts/cancellation.dart';
 import 'package:town_pass/features/safe_walk/shared/contracts/safe_walk_navigation_scope.dart';
@@ -343,7 +343,7 @@ void main() {
     platform.locations.single.complete(_position());
     await tester.pumpAndSettle();
     expect(queries, 1);
-    final map = tester.widget<DemoMap>(find.byType(DemoMap));
+    final map = tester.widget<SafeWalkMap>(find.byType(SafeWalkMap));
     expect(map.crimeSpots, hasLength(1));
     expect(map.crimeSpots.single.label, contains('人工測試來源'));
     expect(map.crimeSpots.single.label, contains('門牌參考位置'));

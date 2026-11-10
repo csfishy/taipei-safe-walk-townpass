@@ -1,5 +1,3 @@
-import 'dart:async';
-
 /// 朗讀介面：M3 只定義畫面需要的行為，實際語音（TTS 套件或 M5 音訊 Adapter）由 M1／M5 注入。
 abstract class SafeWalkSpeaker {
   /// 是否真的會發出聲音；false 時畫面要寫明「只顯示文字」。
@@ -19,24 +17,6 @@ class UnavailableSpeaker implements SafeWalkSpeaker {
   void speak(String text, {void Function()? onDone}) => onDone?.call();
   @override
   void stop() {}
-}
-
-/// 設計預覽用：依字數模擬朗讀時間，讓「朗讀中」狀態看得到；不會發出聲音，畫面需註明。
-class PreviewSpeaker implements SafeWalkSpeaker {
-  Timer? _timer;
-  @override
-  bool get available => false;
-  @override
-  void speak(String text, {void Function()? onDone}) {
-    stop();
-    _timer = Timer(Duration(milliseconds: 250 * text.length), () => onDone?.call());
-  }
-
-  @override
-  void stop() {
-    _timer?.cancel();
-    _timer = null;
-  }
 }
 
 /// 選配：能發出模擬來電鈴聲的 speaker。畫面只在 speaker 實作它時才響鈴，因此不影響既有 fake。

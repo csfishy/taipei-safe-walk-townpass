@@ -147,12 +147,12 @@ void main() {
     await t.pumpWidget(const SizedBox.shrink());
   });
 
-  testWidgets('demo mode ignores the dialer switch', (t) async {
+  testWidgets('disabled live capability ignores the dialer switch', (t) async {
     final platform = _Platform();
     await _pump(t, live: false, platform: platform, dialer: true);
     await t.tap(_t('撥打 110 報警'));
     await t.pumpAndSettle();
-    expect(platform.requests.single.mode, sw.DataMode.mock);
+    expect(platform.requests.single.mode, sw.DataMode.live);
     expect(platform.requests.single.allowRealCalls, isFalse);
     await t.pumpWidget(const SizedBox.shrink());
   });
@@ -164,7 +164,7 @@ void main() {
       await t.pumpWidget(const SizedBox.shrink());
     });
 
-    testWidgets('hidden in demo mode even with an opener', (t) async {
+    testWidgets('hidden when live capability is disabled even with an opener', (t) async {
       await _pump(t, live: false, platform: _Platform(), officialReport: () {});
       expect(_t('線上報案（臺北通）'), findsNothing);
       await t.pumpWidget(const SizedBox.shrink());

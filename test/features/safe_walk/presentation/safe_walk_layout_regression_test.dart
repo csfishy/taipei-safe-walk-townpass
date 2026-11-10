@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:town_pass/features/safe_walk/presentation/mock/safe_walk_demo_data.dart';
+import '../../../support/safe_walk_fixtures.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_map_view.dart';
 
 void main() {

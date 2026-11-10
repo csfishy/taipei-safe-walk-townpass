@@ -3,8 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:town_pass/features/safe_walk/presentation/demo_map.dart';
-import 'package:town_pass/features/safe_walk/presentation/mock/safe_walk_demo_data.dart';
+import 'package:town_pass/features/safe_walk/presentation/safe_walk_map.dart';
+import '../../../support/safe_walk_fixtures.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_flow.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_home_view.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_map_view.dart';
@@ -64,7 +64,7 @@ void main() {
     await tester.tap(find.text('點擊開始'));
     await tester.pumpAndSettle();
     final map = tester.widget<SafeWalkMapView>(find.byType(SafeWalkMapView));
-    final renderer = tester.widget<DemoMap>(find.byType(DemoMap));
+    final renderer = tester.widget<SafeWalkMap>(find.byType(SafeWalkMap));
     expect(destinations, isEmpty);
     expect(map.places.where((p) => p.id == 'work'), isEmpty);
     expect(renderer.showDestination, isFalse);
@@ -310,13 +310,12 @@ void main() {
   test('選路後保留 Live 無示範政策，未知時間保持未知', () {
     final state = RouteState(
       result: _routes(seconds: null),
-      allowDemoFallback: false,
     ).select(1);
-    expect(state.allowDemoFallback, isFalse);
+    expect(state.path, isNotEmpty);
     expect(state.best!.id, 'detour');
     expect(state.minutes, isNull);
     expect(
-      const RouteState(allowDemoFallback: false).select(1).configured,
+      const RouteState().select(1).failed,
       isTrue,
     );
   });

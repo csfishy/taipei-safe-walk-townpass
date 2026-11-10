@@ -329,9 +329,9 @@ class SwSosButton extends StatelessWidget {
   );
 }
 
-/// 示範模式標示：所有安心行畫面都要看得到。
-class SwMockBadge extends StatelessWidget {
-  const SwMockBadge({super.key, this.text = '示範模式・未通知任何人'});
+/// 顯示 Provider 的路線限制或提醒。
+class SwNoticeBadge extends StatelessWidget {
+  const SwNoticeBadge({super.key, required this.text});
   final String text;
 
   @override

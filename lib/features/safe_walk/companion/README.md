@@ -8,7 +8,7 @@
 
 ## 目前基線與 Live 目標
 
-盤點 main `7b99fea`（#49 恢復 `3c433001` 快照）：Controller、裝置 TTS 與 M3 通話畫面存在。M1 預設建立 `TtsSafeWalkSpeaker.device()`，但仍須移除缺聲音時以 PreviewSpeaker 計時器替代播放的正式路徑。裝置 TTS 為 **WIRED_NOT_VERIFIED**，缺 iPhone 播放、中斷與隱私驗收；#37 的音質增量已被 restore 撤回，#46 為開放 PR，不能當成本基線已有。核准錄音的播放器、資產與鈴聲仍未完成。
+盤點 main `7b99fea`（#49 恢復 `3c433001` 快照）：Controller、裝置 TTS 與 M3 通話畫面存在。M1 預設建立 `TtsSafeWalkSpeaker.device()`，缺聲音時僅顯示文字，已移除 PreviewSpeaker 的模擬播放計時路徑。裝置 TTS 為 **WIRED_NOT_VERIFIED**，缺 iPhone 播放、中斷與隱私驗收；#37 的音質增量已被 restore 撤回，#46 為開放 PR，不能當成本基線已有。核准錄音的播放器、資產與鈴聲仍未完成。
 
 模擬的是陪伴情境；裝置朗讀與導航分別驗收。Live-only 不禁止誠實標示的陪伴劇本；它禁止以測試 speaker／假回呼冒稱真聲音。不因其他 BLOCKED 能力限制已驗收 TTS，無引擎時不啟動假播放時間。
 
