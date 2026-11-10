@@ -18,12 +18,26 @@ final List<sw.CompanionScenario> m5CompanionScenarios = [
       sw.CompanionStep(
         id: 'line-2',
         text:
-            "What? Don't turn around. I can see your location. Keep walking toward the lights. I'm coming to get you right now.",
+            "Don't stop anywhere. Keep walking toward the lights. I'm coming down to get you right now.",
         audioSrc: null,
         pauseAfterMs: 1200,
       ),
       sw.CompanionStep(
         id: 'line-3',
+        text:
+            "Okay. I'm out the door now. Stay on the phone with me and tell me where you are.",
+        audioSrc: null,
+        pauseAfterMs: 1200,
+      ),
+      sw.CompanionStep(
+        id: 'line-4',
+        text:
+            "Good, I know that corner. I'm two minutes away. Stay where people can see you and keep talking to me.",
+        audioSrc: null,
+        pauseAfterMs: 1200,
+      ),
+      sw.CompanionStep(
+        id: 'line-5',
         text:
             "I see you. Keep walking straight toward me. I'm right here, and I'm watching everything around you.",
         audioSrc: null,
