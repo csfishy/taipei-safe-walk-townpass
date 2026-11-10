@@ -80,33 +80,38 @@ void main() {
   });
 
   testWidgets('安全警報音可開始、停止，離開緊急求助頁會停止', (t) async {
+    final semantics = t.ensureSemantics();
+
     final alarm = _SpyAlarm();
     await _pump(t, SafeWalkFlow(alarm: alarm));
     await t.tap(find.text('緊急求助').first);
     await t.pumpAndSettle();
 
-    await t.tap(find.bySemanticsLabel('播放安全警報音'));
+    await t.tap(find.bySemanticsLabel(RegExp(r'^播放安全警報音')));
     await t.pumpAndSettle();
     expect(alarm.starts, 1);
-    expect(find.bySemanticsLabel('停止安全警報音'), findsOneWidget);
+    expect(find.bySemanticsLabel(RegExp(r'^停止安全警報音')), findsOneWidget);
 
     t.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
     await t.pumpAndSettle();
     expect(alarm.stops, 1);
-    expect(find.bySemanticsLabel('播放安全警報音'), findsOneWidget);
+    t.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await t.pumpAndSettle();
+    expect(find.bySemanticsLabel(RegExp(r'^播放安全警報音')), findsOneWidget);
 
-    await t.tap(find.bySemanticsLabel('播放安全警報音'));
+    await t.tap(find.bySemanticsLabel(RegExp(r'^播放安全警報音')));
     await t.pumpAndSettle();
     expect(alarm.starts, 2);
-    await t.tap(find.bySemanticsLabel('停止安全警報音'));
+    await t.tap(find.bySemanticsLabel(RegExp(r'^停止安全警報音')));
     await t.pumpAndSettle();
     expect(alarm.stops, 2);
 
-    await t.tap(find.bySemanticsLabel('播放安全警報音'));
+    await t.tap(find.bySemanticsLabel(RegExp(r'^播放安全警報音')));
     await t.pumpAndSettle();
     await t.tap(find.text('我現在安全，關閉'));
     await t.pumpAndSettle();
     expect(alarm.stops, greaterThanOrEqualTo(3));
+    semantics.dispose();
   });
 
   testWidgets('地圖預設回家路線並顯示已繞開的異常回報；文字路線暫時隱藏', (t) async {

@@ -5,17 +5,17 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/device_safe_walk_alarm.dart';
 
 class _Player extends Fake implements AudioPlayer {
-  ReleaseMode? releaseMode;
-  double? volume;
-  Source? source;
+  ReleaseMode? recordedReleaseMode;
+  double? recordedVolume;
+  Source? recordedSource;
   int stops = 0;
   int disposals = 0;
 
   @override
-  Future<void> setReleaseMode(ReleaseMode mode) async => releaseMode = mode;
+  Future<void> setReleaseMode(ReleaseMode mode) async => recordedReleaseMode = mode;
 
   @override
-  Future<void> setVolume(double value) async => volume = value;
+  Future<void> setVolume(double value) async => recordedVolume = value;
 
   @override
   Future<void> play(
@@ -25,7 +25,7 @@ class _Player extends Fake implements AudioPlayer {
     AudioContext? ctx,
     Duration? position,
     PlayerMode? mode,
-  }) async => source = value;
+  }) async => recordedSource = value;
 
   @override
   Future<void> stop() async => stops++;
@@ -58,9 +58,9 @@ void main() {
     final alarm = DeviceSafeWalkAlarm(player: player);
 
     await alarm.start();
-    expect(player.releaseMode, ReleaseMode.loop);
-    expect(player.volume, 1);
-    expect(player.source, isA<BytesSource>());
+    expect(player.recordedReleaseMode, ReleaseMode.loop);
+    expect(player.recordedVolume, 1);
+    expect(player.recordedSource, isA<BytesSource>());
 
     await alarm.dispose();
     expect(player.stops, 1);
