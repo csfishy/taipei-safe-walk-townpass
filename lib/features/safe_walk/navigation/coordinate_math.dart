@@ -35,6 +35,47 @@ double polylineLengthMeters(List<sw.GeoJsonCoordinate> points) {
   return total;
 }
 
+/// Local equirectangular projection onto a walking-scale segment, followed
+/// by great-circle distance. Shared by offline snapping and circular avoidance.
+({sw.Coordinates point, double fraction, double distance}) projectToSegment(
+  sw.Coordinates p,
+  sw.Coordinates a,
+  sw.Coordinates b,
+) {
+  final result = projectToGeoJsonSegment(
+    toGeoJson(p),
+    toGeoJson(a),
+    toGeoJson(b),
+  );
+  return (
+    point: fromGeoJson(result.point),
+    fraction: result.fraction,
+    distance: result.distance,
+  );
+}
+
+/// Geometry-only variant for hot graph loops. Avoids re-validating the JSON
+/// Schema for millions of temporary Coordinates while using identical math.
+({sw.GeoJsonCoordinate point, double fraction, double distance})
+projectToGeoJsonSegment(
+  sw.GeoJsonCoordinate p,
+  sw.GeoJsonCoordinate a,
+  sw.GeoJsonCoordinate b,
+) {
+  final k = math.cos(p.latitude * math.pi / 180);
+  final ax = (a.longitude - p.longitude) * k, ay = a.latitude - p.latitude;
+  final dx = (b.longitude - a.longitude) * k, dy = b.latitude - a.latitude;
+  final squared = dx * dx + dy * dy;
+  final t = squared == 0
+      ? 0.0
+      : (-(ax * dx + ay * dy) / squared).clamp(0.0, 1.0);
+  final point = (
+    latitude: a.latitude + t * (b.latitude - a.latitude),
+    longitude: a.longitude + t * (b.longitude - a.longitude),
+  );
+  return (point: point, fraction: t, distance: geoJsonDistanceMeters(p, point));
+}
+
 double _haversine(double lat1, double lng1, double lat2, double lng2) {
   double rad(double degrees) => degrees * math.pi / 180;
   final dLat = rad(lat2 - lat1);

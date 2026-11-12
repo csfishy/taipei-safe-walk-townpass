@@ -1,0 +1,24 @@
+{
+  "format": "SWWALK01",
+  "sourceUrl": "https://download.geofabrik.de/asia/taiwan-261111.osm.pbf",
+  "sourceDate": "2026-11-11",
+  "sourceFile": "taiwan-261111.osm.pbf",
+  "sourceSha256": "6d9b7a214e7617df8473e311466e0a2517209d937c579f6a2134a64421cc838d",
+  "bbox": [
+    24.95,
+    121.44,
+    25.22,
+    121.68
+  ],
+  "nodes": 473961,
+  "edges": 1068246,
+  "bytes": 23223303,
+  "sha256": "736de50987c6c9c4333218909737eb4877f9d1b15188419b95cb3a597827543b",
+  "rulesVersion": "taipei-foot-v1",
+  "rulesSha256": "5df9323e6479facf89af5ec39f82a44437331cc611204afa47ceca1911b35980",
+  "license": "ODbL-1.0",
+  "attribution": "© OpenStreetMap contributors",
+  "generator": "tool/offline_route/build_graph.py v1 (Python stdlib)",
+  "helpPointsSha256": "bc4cffa1bb479862be48a005609995b65c1079749deb74a69237803a595dd01d",
+  "helpPointsCount": 3699
+}

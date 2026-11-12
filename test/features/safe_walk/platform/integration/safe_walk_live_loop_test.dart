@@ -1227,7 +1227,7 @@ void main() {
     );
 
     testWidgets(
-      'local nearby needs GPS but no third party consent; declining keeps points',
+      'local nearby needs GPS and can route locally without third party consent',
       (t) async {
         final platform = _livePlatform();
         final routes = _Routes();
@@ -1250,16 +1250,14 @@ void main() {
         expect(find.byType(SafeWalkMapView), findsOneWidget);
         expect(find.text('規劃路線需要你的位置'), findsNothing);
         expect(map(t).pointsState.points, hasLength(1));
-        expect(map(t).pointsState.routes, isEmpty);
-        expect(find.text('直線距離，非步行路線'), findsOneWidget);
-        expect(routes.requests, isEmpty);
+        expect(map(t).pointsState.routes.keys, ['a']);
+        expect(find.text('直線距離，非步行路線'), findsNothing);
+        expect(routes.requests, hasLength(1));
         expect(db.calls, isEmpty);
-        map(t).pointsState.onRetry!();
-        await t.pumpAndSettle();
-        expect(find.text('規劃路線需要你的位置'), findsOneWidget);
-        await t.tap(find.text('不要'));
-        await t.pumpAndSettle();
-        expect(find.textContaining('本機據點查詢不需第三方同意'), findsOneWidget);
+        expect(
+          t.widget<SafeWalkFlow>(find.byType(SafeWalkFlow)).routingConsent,
+          isFalse,
+        );
         expect(map(t).pointsState.points, hasLength(1));
         t.widget<SafeWalkMapView>(find.byType(SafeWalkMapView)).onBack();
         await t.pumpAndSettle();
@@ -1268,8 +1266,8 @@ void main() {
         expect(find.text('簡訊求助尚未配置'), findsOneWidget);
         expect(find.text('傳送簡訊'), findsNothing);
         expect(find.textContaining('示範完成'), findsNothing);
-        expect(platform.calls, 2);
-        expect(routes.requests, isEmpty);
+        expect(platform.calls, 1);
+        expect(routes.requests, hasLength(1));
         expect(db.calls, isEmpty);
         await t.pumpWidget(const SizedBox.shrink());
       },
@@ -1350,7 +1348,7 @@ void main() {
         await pumpRoot(
           t,
           platform: _livePlatform(),
-          routes: _Routes(),
+          routes: _Routes((r) async => _routeFail(r, sw.RouteFailureStatus.providerUnavailable)),
           db: _Db(),
           stores: [_store('near', 25.001), _store('far', 25.004)],
         );
@@ -1570,14 +1568,8 @@ void main() {
         );
         await _openNearby(t);
         await t.pumpAndSettle();
-        await t.tap(find.text('同意'));
-        await t.pumpAndSettle();
-        // The crime query consent follows; decline it.
-        if (find.text('不要查詢').evaluate().isNotEmpty) {
-          await t.tap(find.text('不要查詢'));
-          await t.pumpAndSettle();
-        }
-        expect(queries, hasLength(2));
+        expect(find.text('規劃路線需要你的位置'), findsNothing);
+        expect(queries, hasLength(1));
         final map = t.widget<SafeWalkMapView>(find.byType(SafeWalkMapView));
         expect(map.pointsState.points.map((p) => p.id), ['a', 'b', 'c']);
         expect(

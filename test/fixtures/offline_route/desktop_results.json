@@ -1,0 +1,148 @@
+{
+  "coldIsolateParseAndRoute3kmMs": 560.543,
+  "platform": "windows 3.13.5 (stable) (Tue Sep 29 01:00:52 2026 -0700) on \"windows_x64\"",
+  "measurement": "desktop CLI; not a phone acceptance",
+  "assetBytes": 23223303,
+  "loadReadValidateMs": 427.463,
+  "results": [
+    {
+      "id": "main-cks",
+      "milliseconds": 288.298,
+      "distanceMeters": 2102.8380463833455,
+      "valhallaMeters": 2212.0,
+      "differencePercent": -4.934988861512412,
+      "levels": [
+        "full"
+      ],
+      "fullMinimumBufferDistanceMeters": 124.41453758186016,
+      "fullPassedAreaIds": []
+    },
+    {
+      "id": "cityhall-sys",
+      "milliseconds": 149.433,
+      "distanceMeters": 687.8678355112474,
+      "valhallaMeters": 730.0,
+      "differencePercent": -5.771529382020901,
+      "levels": [
+        "full"
+      ],
+      "fullMinimumBufferDistanceMeters": 76.97007097604208,
+      "fullPassedAreaIds": []
+    },
+    {
+      "id": "ximen-longshan",
+      "milliseconds": 169.352,
+      "distanceMeters": 1418.2736858761114,
+      "valhallaMeters": 1426.0,
+      "differencePercent": -0.5418172597397408,
+      "levels": [
+        "full"
+      ],
+      "fullMinimumBufferDistanceMeters": 315.54347376343907,
+      "fullPassedAreaIds": []
+    },
+    {
+      "id": "daan-technology",
+      "milliseconds": 152.9,
+      "distanceMeters": 1458.8540000984965,
+      "valhallaMeters": 1552.0,
+      "differencePercent": -6.00167525138553,
+      "levels": [
+        "full"
+      ],
+      "fullMinimumBufferDistanceMeters": 58.088319981228736,
+      "fullPassedAreaIds": []
+    },
+    {
+      "id": "yuanshan-confucius",
+      "milliseconds": 145.863,
+      "distanceMeters": 659.8151071263735,
+      "valhallaMeters": 667.0,
+      "differencePercent": -1.07719533337729,
+      "levels": [
+        "center",
+        "full"
+      ],
+      "fullMinimumBufferDistanceMeters": 129.49771655205748,
+      "fullPassedAreaIds": []
+    },
+    {
+      "id": "shilin-zhishan",
+      "milliseconds": 148.836,
+      "distanceMeters": 1214.7071604504679,
+      "valhallaMeters": 1255.0,
+      "differencePercent": -3.210584824663909,
+      "levels": [
+        "none",
+        "center",
+        "full"
+      ],
+      "fullMinimumBufferDistanceMeters": 51.3410688448237,
+      "fullPassedAreaIds": []
+    },
+    {
+      "id": "ntu-gongguan",
+      "milliseconds": 144.776,
+      "distanceMeters": 409.43056859021107,
+      "valhallaMeters": 419.0,
+      "differencePercent": -2.2838738448183626,
+      "levels": [
+        "center",
+        "full"
+      ],
+      "fullMinimumBufferDistanceMeters": 51.97158027075153,
+      "fullPassedAreaIds": []
+    },
+    {
+      "id": "zhongshan-songjiang",
+      "milliseconds": 146.965,
+      "distanceMeters": 1287.2022752557614,
+      "valhallaMeters": 1337.0,
+      "differencePercent": -3.7245867422766366,
+      "levels": [
+        "center",
+        "full"
+      ],
+      "fullMinimumBufferDistanceMeters": 75.90687593274437,
+      "fullPassedAreaIds": []
+    },
+    {
+      "id": "nangang-kunyang",
+      "milliseconds": 145.607,
+      "distanceMeters": 1353.723240146176,
+      "valhallaMeters": 1365.0,
+      "differencePercent": -0.8261362530273986,
+      "levels": [
+        "none",
+        "center",
+        "full"
+      ],
+      "fullMinimumBufferDistanceMeters": 91.35724885420477,
+      "fullPassedAreaIds": []
+    },
+    {
+      "id": "beitou-xinbeitou",
+      "milliseconds": 148.828,
+      "distanceMeters": 1049.590368987882,
+      "valhallaMeters": 1072.0,
+      "differencePercent": -2.0904506541154944,
+      "levels": [
+        "full"
+      ],
+      "fullMinimumBufferDistanceMeters": 145.96147804138567,
+      "fullPassedAreaIds": []
+    },
+    {
+      "id": "three-km-main-daan",
+      "milliseconds": 162.805,
+      "distanceMeters": 3043.850538873211,
+      "valhallaMeters": null,
+      "differencePercent": null,
+      "levels": [
+        "full"
+      ],
+      "fullMinimumBufferDistanceMeters": 437.57193007657924,
+      "fullPassedAreaIds": []
+    }
+  ]
+}

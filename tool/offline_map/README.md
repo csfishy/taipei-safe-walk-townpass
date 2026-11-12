@@ -7,8 +7,8 @@ CI 只執行 `python tool/offline_map/metadata.py`，不下載 PBF、不啟動 J
 
 - Geofabrik `taiwan-261111.osm.pbf`：2026-11-11 快照，SHA-256
   `6d9b7a214e7617df8473e311466e0a2517209d937c579f6a2134a64421cc838d`。
-  與 Live-C PR #102 的路網、求助點使用同一來源；本 PR 不覆寫其求助點資產。
-  整合時採用 #102 同日求助點，後續圖磚／路網／求助點應一起更新。
+  與已合入目標分支的 Live-C PR #102 路網、求助點使用同一來源；沿用其既有資產，不重產覆寫。
+  三項 sourceDate／sourceSha256 一致，後續圖磚／路網／求助點應一起更新。
 - [Protomaps basemaps](https://github.com/protomaps/basemaps/tree/42ffaaa4a85a41bfcb23e43cc0f5b492a5eca123)
   commit `42ffaaa4a85a41bfcb23e43cc0f5b492a5eca123`，profile 4.15.2，Planetiler 0.10.2，Java 21。
   程式 BSD-3-Clause，設計 CC0，OSM 衍生資料庫 ODbL-1.0。保留來源及授權於 assets。

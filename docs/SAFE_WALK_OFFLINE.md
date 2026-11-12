@@ -100,7 +100,9 @@
 
 工作分支 `feat/offline-live-b` 保留既有歷史，以 fast-forward 更新至最新
 `origin/feat/offline-map` **`04337aa0eb2db24a728216eed36716d57d075da3`**；PR 目標仍為
-`feat/offline-map`，不 merge。正式 `TPRoute.safeWalk` 已設 `liveRoutes: true`，
+`feat/offline-map`，不 merge PR。目標分支納入 Live-C #102 後，以 merge 保留歷史更新工作分支至
+**`191f606b6466d22bf8ae0abdbf36c046da02ba88`**，保留其同意、取消及路網修正。
+正式 `TPRoute.safeWalk` 已設 `liveRoutes: true`，
 本次直接接 `SafeWalkMap` 與住家選點，不另建 preview 入口。
 
 | 順序 | 結果／依據 |
@@ -115,7 +117,7 @@
 - 完整產製工具與授權：[tool/offline_map/README.md](../tool/offline_map/README.md)。
   使用 Java 21、Planetiler 0.10.2、固定 Protomaps profile commit，臺灣 PBF 與 Live-C #102
   同為 **2026-11-11**，SHA `6d9b7a214e7617df8473e311466e0a2517209d937c579f6a2134a64421cc838d`。
-  D4 同日求助點已在 #102 產製，本 PR 不覆寫父分支既有快照；整合時一併採用。
+  D4 求助點與路網沿用已合入父分支的 #102 成果，三項 sourceDate／sourceSha256 一致；不重產覆寫其工作。
 - `taipei.mbtiles` **26,607,616 bytes**，完整 bbox **24.95,121.44–25.22,121.68**；
   z12–z15，z16–z19 overzoom；SHA 與圖磚數見同目錄 meta。字型獨立檔 **16,435,884 bytes**，
   各單檔低於 50,000,000 bytes。不是從 OSM 圖磚伺服器批次下載。
@@ -173,6 +175,44 @@ analyze／完整 tests／Web build 的當次結果記錄在 PR，不能以工具
 - 對照測試：選 10 組臺北實際起訖點，以 Valhalla 結果為參考，比較距離差（目標 ±25% 內）與避讓結果；離線結果不得穿過 `full` 等級應避開的圓。資料與結果存 `test/fixtures/offline_route/`（不含真實住家或個人位置）。
 - 效能：3 km 路線計算 ≤ 500 ms（中階手機，目標值）；記錄於 PR。
 - iPhone 飛航模式實走或模擬位置驗收（說明證據限制）。
+
+### C6 Live-C 實作與實測（2026-11-12）
+
+`feat/offline-live-c` stacked 於 Live-A／PR #101 的 `9340b4c4262aab3a13434c561a9721a79cac91a4`，PR 目標 `feat/offline-map`（開工整合分支 SHA `3542156195cff7d032fecf704a5b683e24fa4a79`）。未合併，不代表 main 成果。Readiness：**WIRED_NOT_VERIFIED**，不宣稱 iPhone 或中階手機已驗收。
+
+已下載 Geofabrik 真實 `taiwan-261111.osm.pbf`（來源快照 2026-11-11），SHA-256 `6d9b7a214e7617df8473e311466e0a2517209d937c579f6a2134a64421cc838d`。資料與產生器見 [tool/offline_route](../tool/offline_route/README.md)，規則為 `taipei-foot-v1`。路網及 3,699 筆 node／way 求助點以同一 PBF 於本次產生；Live-B 圖磚未在此項產生，應沿用相同來源 SHA／快照日，不能把更新需求當成已有圖磚。
+
+| 量測項目 | 實測與限制 |
+|---|---|
+| bbox | 24.95,121.44–25.22,121.68 |
+| 路網節點／有向邊 | 473,961／1,068,246；保留完整 way 形狀節點 |
+| bin 大小 | 23,223,303 bytes（23.22 MB，22.15 MiB）；低於 50 MB 硬上限，**未達原 15 MB 目標** |
+| bin SHA-256 | `736de50987c6c9c4333218909737eb4877f9d1b15188419b95cb3a597827543b` |
+| 桌機檔案讀取＋SHA／完整結構驗證 | 427.463 ms |
+| 約 3 km 三級路線計算（已載入圖） | 3,043.85 m／162.805 ms，含兩端線段吸附、三次 A*、避讓檢查與轉彎提示 |
+| 冷 isolate 建立＋解析驗證＋3 km 規劃 | 560.543 ms；每次請求目前會建立 request isolate 並解析，取消會終止該 isolate |
+| 十組真實公開地標對照 | 與 Valhalla 距離差 −6.002%～−0.542%，10/10 在 ±25%；10/10 full 結果所有線段均未觸及人工測試 50 m 圓（最小 51.341 m） |
+| 裝置效能 | **未執行**中階手機 ≤1.5 s 載入／≤500 ms 規劃、記憶體與 iPhone 驗收，桌機數據不能替代 |
+
+數據檔：[公開起訖點](../test/fixtures/offline_route/taipei_pairs.json)、[真實 Valhalla 回應](../test/fixtures/offline_route/valhalla_reference.json)、[Windows Dart 3.13.5 效能與距離結果](../test/fixtures/offline_route/desktop_results.json)。來源對照是 opt-in 線上驗證；一般測試只讀已存結果，不在 CI 查公共服務或下載 PBF。
+
+正式 `TPRoute.safeWalk` 仍走 Live，已移除入口自動授第三方同意。使用者拒絕路線外傳同意仍可選本機路網；定位／前景導航狀態另檢查，背景、離開、取消、SOS 仍終止工作。預設原生組合順序為 Valhalla → offline-osm-graph → OSRM，目的地和 `_storeRoutes` 共用同樣組合，各次呼叫讀 `[..._areas, ..._crimeAreas]` 的當下記憶體值。未曾載入區域時正式 warnings／UI 顯示「目前未取得通報與犯罪參考位置，此路線未套用避讓」，只有部分資料時揭露未套用完整避讓；來源警語含 2026-11-11 快照日期。未把任何通報／犯罪位置寫入儲存，也未改 canonical Schema。
+
+Level B：資產／pubspec／直接宣告既有 crypto 3.0.7／官方入口／release 檢查需 **M1 小魚確認**；D3 請 **M2 Steven Review**，D4 請 M4 信義核對。一般導航／UI 接線為 Level A。沒有部署、merge、通知／警消送出或新的 Level C 敏感儲存。
+
+驗證命令與實際結果以 PR 為準；需完整執行 scoped analyze、完整 Flutter tests、Python 路網及 native release 測試、Schema／module guard、Web build。Windows 未產生本次 SHA 的 APK／IPA，`verify_native_release.py` 的真實封包驗證仍待原生 CI，不把工具單元測試或 `--help` 當封包通過。全專案 analyzer 若包含既有 lint，須與 scoped 結果分開報告。
+
+本次在最新 Live-A `9340b4c` 上實跑：完整 `flutter test --no-pub` **1,276 通過、20 跳過、0 失敗**；scoped analyze（safe_walk／tool／tests／正式 route）零問題；Python 路網 5、native release verifier 19、metadata 7、workflow 4 項通過；codegen、固定 lock、Schema `--check`、正常 history/module guard、犯罪資料隔離、Markdown 本地連結與 diff check 通過；Web build 通過（flutter_tts 既有 Wasm dry-run 提示不等於 Wasm 編譯通過）。全目錄 `flutter analyze --no-pub` **失敗**：工作區既有 ignored `artifacts/` 歷史檔案缺生成程式，以及官方舊 lint，共 1,032 項（750 errors／26 warnings／256 infos），未修改那些檔案，不能列為 PASS。20 個跳過是既有 opt-in／裝置類案例，非本次真實路網測試跳過。iPhone、中階手機、當次 APK／IPA、飛航實走與原生 release 封包驗證未執行。
+
+#### Live-C 的 §4 iPhone 驗收補充（尚未執行）
+
+1. 記錄 build SHA、iPhone／iOS，從 TownPass 正式入口進入；使用公開地標人工或模擬位置，註明不是實走 GPS 證據。首次選擇拒絕第三方傳送同意，允許定位，確認仍能規劃 offline-osm-graph，沒有路線第三方外送。
+2. 先在線上取得通報／犯罪參考避讓，再開飛航模式，規劃三種選項，核對 full 除端點圓例外外不觸及 50 m、center 不進 15 m；圓內起訖必須揭露無法完整避開。
+3. 全新工作階段開飛航模式，確認「未套用避讓」與離線快照日；附近求助顯示「據點＋離線路線」，不顯示假 ETA 或用直線冒充步行路徑。
+4. 開始、偏離重算、換目的地、取消、背景、返回、SOS：定位與 isolate 工作停止，遲到結果不得恢復。移到 bbox 外超過 500 m，確認 provider_unavailable 的範圍／步行路段提示；找不到連通路則顯示 no_route。
+5. 範圍內底圖 z12–z18 驗收依 Live-B；本項只有路網，無底圖仍保留點位、路徑、避讓與既有載入提示。不得將未交付底圖列成通過。
+6. 關閉飛航模式、明確同意第三方查詢並重新規劃，確認回 Valhalla；撤回同意後重新規劃應只用本機。回到線上不是暗中授權傳送位置。
+7. 記錄冷／暖啟動、3 km 時間、記憶體、APK／IPA 大小增量、VoiceOver／文字放大與截圖；完成前維持 WIRED_NOT_VERIFIED。
 
 ---
 

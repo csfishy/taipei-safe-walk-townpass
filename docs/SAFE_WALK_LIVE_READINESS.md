@@ -1,5 +1,27 @@
 # 臺北安心行 Live 上線條件表
 
+## 2026-11-13 PR #102 審查修正
+
+以 PR head `c6dad39` 審查真實 OSM CSR／三級避讓、第三方同意拆分、取消／背景／SOS 與遲到結果。兩項 P2 已用原版失敗測試重現並修正：
+
+- 新請求原本只讓舊結果失效，沒有主動取消舊 provider／isolate；服務現在持有各次請求的取消 token，新請求立即取消舊工作，並連接呼叫端取消及完成清理。
+- 避讓載入狀態原本在路線完成時讀取；若通報在計算途中才載入，未套用該資料的路線可能漏掉警語。現在各 provider 嘗試分別記錄實際傳入的 areas 與載入狀態，warnings 依該次快照產生；下一次規劃才使用新資料。
+
+此次不改圖資、Schema、三級半徑、同意 UI、備援順序或敏感資料儲存。Readiness 維持 **WIRED_NOT_VERIFIED**；審查與單元／整合測試不替代 iPhone 飛航實走、中階手機效能與裝置驗收。本次完整 Flutter 測試 **1,278 通過／20 既有跳過／0 失敗**，相關 178 項全過；scoped analyze 零問題，Web build、路網 Python 5 項、native verifier 19 項、Schema／module guard 與 diff check 通過。最終 SHA 詳列 PR 審查更新。
+
+## 2026-11-12 Live-C 接線增量（feat/offline-live-c）
+
+**WIRED_NOT_VERIFIED**。Stacked 於 Live-A #101／`9340b4c4262aab3a13434c561a9721a79cac91a4`，PR 目標 `feat/offline-map`，未合併、不代表 main。以下 Live-A 區段保留父分支驗證紀錄，本段描述目前增量。
+
+| 能力 | Readiness | 已接線與未驗事項 |
+|---|---|---|
+| Live-C 真實裝置步行路網（R2／R7 增量） | WIRED_NOT_VERIFIED | 指定臺北 bbox 的真實 Geofabrik OSM CSR，473,961 節點／1,068,246 邊／23,223,303 bytes；來源 2026-11-11。原生 Valhalla → 離線避讓 → OSRM；目的地與附近據點均接線，A*、線段吸附、取消／逾時、三級避讓、轉彎提示、來源日期、未套用避讓文案已實作。十組公開地標與 Valhalla 差異均在 ±25%，full 逐段檢查不觸及測試圓。尚缺 iPhone／中階手機、原生包驗證與實走。 |
+| 定位與第三方同意拆分（R1／R3 增量） | WIRED_NOT_VERIFIED | 正式入口移除 `consentGranted: true`；本機規劃檢查導航作用中，線上 provider 才檢查第三方同意。未新增 GPS watcher 或敏感資料儲存。來源、程序與 §4 驗收見 [離線需求 C6](SAFE_WALK_OFFLINE.md#c6-live-c-實作與實測2026-11-12)。 |
+
+路網載入／驗證桌機 427.463 ms；3.04 km 已載入圖規劃 162.805 ms；冷 isolate 解析＋規劃 560.543 ms。這些不代表中階手機達標。路網超過原 15 MB 目標但低於 50 MB 硬限制；尚無 Live-B 底圖產出。路網、求助點同 PBF 重產，3,699 筆 node／way 求助點；關係物件與開放時段／無障礙限制見工具 README。Level B 由 M1 小魚確認，D3 請 M2 Steven Review；不改 Schema、不 merge、不部署。
+
+最新 parent 上完整 Flutter tests 1,276 通過／20 既有跳過；scoped analyze 零問題、Web build、路網 Python 5 項、release verifier 單元 19 項與契約／guard 通過。全目錄 analyze 被本機 ignored artifacts 的缺生成檔與舊 lint 共 1,032 項阻擋，非 PASS；沒有當次 APK／IPA／iPhone 驗收，詳見 C6。
+
 ## 2026-11-12 Live-A 接線增量（feat/offline-live-a）
 
 基底為 `origin/feat/offline-map` 的 `3542156195cff7d032fecf704a5b683e24fa4a79`，並非宣稱本項已合入 main。已核對 `lib/util/tp_route.dart` 的正式 `TPRoute.safeWalk`：使用 `SafeWalkCompositionRoot(liveRoutes: true, consentGranted: true)`，組合根的導航模式為 Live，據點讀取已 commit 的 `assets/safe_walk/osm_help_points_taipei.json`，路線為 Valhalla／OSRM；無需改正式入口開關。下方 2026-11-08 與歷史表的固定 Mock 描述只適用各自記錄的 SHA，不代表本分支現況。

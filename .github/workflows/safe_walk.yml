@@ -41,6 +41,8 @@ jobs:
           python3 tool/check_crime_database_isolation.py
           python3 -m unittest discover -s tool -p 'test_*crime*.py' -v
           python3 -m unittest discover -s tool -p 'test_build_workflows.py' -v
+      - name: Validate bundled offline OSM routing data and rules
+        run: python3 -m unittest discover -s tool/offline_route -p 'test_*.py' -v
       - run: python3 tool/release_metadata.py
       - name: Verify bundled offline basemap metadata and SHA-256 (no downloads)
         run: python3 tool/offline_map/metadata.py

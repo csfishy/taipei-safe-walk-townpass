@@ -32,6 +32,7 @@ dependencies:
   carousel_slider: ^5.1.2
   characters: ^1.4.1
   collection: ^1.19.1
+  crypto: ^3.0.7
   device_info_plus: ^13.3.0
   dotted_border: ^3.1.0
   email_validator: ^3.0.0
@@ -106,6 +107,7 @@ flutter:
     - assets/build-info.json
     - assets/safe_walk/
     - assets/safe_walk/map/
+    - assets/safe_walk/route/
     - assets/image/
     - assets/svg/
 
