@@ -196,6 +196,87 @@ void main() {
     },
   );
 
+  test(
+    'superseding a request promptly cancels provider work without caller token',
+    () async {
+      final planner = _TokenPlanner();
+      final service = AvoidingRouteService(
+        planner: planner,
+        fallback: _Fallback(),
+        areas: () => [],
+      );
+      final first = service.planRoute(_request(sw.DataMode.live));
+      final firstToken = planner.tokens.single;
+      final second = service.planRoute(_request(sw.DataMode.live));
+      expect(firstToken?.isCancelled, isTrue);
+      expect(
+        (await first.timeout(
+          const Duration(seconds: 1),
+        ) as sw.RouteFailure).status,
+        sw.RouteFailureStatus.cancelled,
+      );
+      planner.pending.last.complete(
+        AvoidRoutePlan(
+          options: [
+            AvoidRouteOption(
+              level: AvoidLevel.full,
+              route: _route('latest'),
+              passedAreaIds: [],
+            ),
+          ],
+          originInsideAreaIds: [],
+          destinationInsideAreaIds: [],
+          preference: _pref,
+        ),
+      );
+      expect(await second, isA<sw.RouteSuccess>());
+      planner.pending.first.completeError(
+        const WalkingRouteProviderUnavailable(),
+      );
+    },
+  );
+
+  test('late area load cannot erase disclosure about the snapshot actually planned', () async {
+    final planner = _DelayedPlanner();
+    var loaded = false;
+    var areas = <AvoidArea>[];
+    final service = AvoidingRouteService(
+      planner: planner,
+      fallback: _Fallback(),
+      areas: () => areas,
+      areasLoaded: () => loaded,
+    );
+    final future = service.planRoute(_request(sw.DataMode.live));
+    areas = [
+      AvoidArea(
+        id: 'late',
+        center: sw.Coordinates(lat: 25, lng: 121.505),
+        radiusMeters: 50,
+        source: 'report',
+      ),
+    ];
+    loaded = true;
+    planner.pending.complete(
+      AvoidRoutePlan(
+        options: [
+          AvoidRouteOption(
+            level: AvoidLevel.full,
+            route: _route('without-late-area'),
+            passedAreaIds: [],
+          ),
+        ],
+        originInsideAreaIds: [],
+        destinationInsideAreaIds: [],
+        preference: _pref,
+      ),
+    );
+    final result = await future as sw.RouteSuccess;
+    expect(
+      result.warnings,
+      contains(AvoidingRouteService.areasUnavailableWarning),
+    );
+  });
+
   test('report radius matches between map and planner', () {
     expect(reportAvoidRadiusMeters, AvoidArea.reportRadiusMeters);
   });
@@ -529,5 +610,23 @@ final class _Fallback implements RouteService {
       routes: [_route('osrm')],
       warnings: const ['一般路線'],
     );
+  }
+}
+
+final class _TokenPlanner implements AvoidingRoutePlanner {
+  final tokens = <SafeWalkCancellation?>[];
+  final pending = <Completer<AvoidRoutePlan>>[];
+  @override
+  Future<AvoidRoutePlan> plan({
+    required sw.Coordinates origin,
+    required sw.Coordinates destination,
+    required List<AvoidArea> areas,
+    required RoutePreferenceKind preference,
+    SafeWalkCancellation? cancellation,
+  }) {
+    tokens.add(cancellation);
+    final answer = Completer<AvoidRoutePlan>();
+    pending.add(answer);
+    return answer.future;
   }
 }

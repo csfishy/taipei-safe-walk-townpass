@@ -1,5 +1,14 @@
 # 臺北安心行 Live 上線條件表
 
+## 2026-11-13 PR #102 審查修正
+
+以 PR head `c6dad39` 審查真實 OSM CSR／三級避讓、第三方同意拆分、取消／背景／SOS 與遲到結果。兩項 P2 已用原版失敗測試重現並修正：
+
+- 新請求原本只讓舊結果失效，沒有主動取消舊 provider／isolate；服務現在持有各次請求的取消 token，新請求立即取消舊工作，並連接呼叫端取消及完成清理。
+- 避讓載入狀態原本在路線完成時讀取；若通報在計算途中才載入，未套用該資料的路線可能漏掉警語。現在各 provider 嘗試分別記錄實際傳入的 areas 與載入狀態，warnings 依該次快照產生；下一次規劃才使用新資料。
+
+此次不改圖資、Schema、三級半徑、同意 UI、備援順序或敏感資料儲存。Readiness 維持 **WIRED_NOT_VERIFIED**；審查與單元／整合測試不替代 iPhone 飛航實走、中階手機效能與裝置驗收。本次完整 Flutter 測試 **1,278 通過／20 既有跳過／0 失敗**，相關 178 項全過；scoped analyze 零問題，Web build、路網 Python 5 項、native verifier 19 項、Schema／module guard 與 diff check 通過。最終 SHA 詳列 PR 審查更新。
+
 ## 2026-11-12 Live-C 接線增量（feat/offline-live-c）
 
 **WIRED_NOT_VERIFIED**。Stacked 於 Live-A #101／`9340b4c4262aab3a13434c561a9721a79cac91a4`，PR 目標 `feat/offline-map`，未合併、不代表 main。以下 Live-A 區段保留父分支驗證紀錄，本段描述目前增量。

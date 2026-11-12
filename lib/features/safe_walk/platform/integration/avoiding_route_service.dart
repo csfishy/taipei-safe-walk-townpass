@@ -33,6 +33,7 @@ final class AvoidingRouteService implements RouteService {
   final List<AvoidArea> Function() areas;
   final DateTime Function() _clock;
   int _latestCall = 0;
+  ManualCancellation? _active;
 
   static const insideWarning = '起點或目的地位於避讓緩衝區內，無法完整避開該區域';
   static const fallbackWarning = '暫時無法避讓緩衝區，這是一般步行路線';
@@ -46,6 +47,16 @@ final class AvoidingRouteService implements RouteService {
     SafeWalkCancellation? cancellation,
   }) async {
     final call = ++_latestCall;
+    // A superseded request must stop transport/isolate work, not just discard
+    // its eventual result. This also works when the caller supplied no token.
+    _active?.cancel();
+    final work = _active = ManualCancellation();
+    final caller = cancellation;
+    if (caller != null) {
+      if (caller.isCancelled) work.cancel();
+      caller.whenCancelled.then((_) => work.cancel());
+    }
+    cancellation = work;
     bool interrupted() =>
         (cancellation?.isCancelled ?? false) || call != _latestCall;
     sw.RouteFailure cancelled() =>
@@ -95,17 +106,25 @@ final class AvoidingRouteService implements RouteService {
         return await fallbackResult(warning: true);
       }
       AvoidRoutePlan plan;
-      Future<AvoidRoutePlan> compute(AvoidingRoutePlanner provider) =>
-          raceCancellation(
-            provider.plan(
-              origin: request.origin.coordinates,
-              destination: request.destination,
-              areas: List.unmodifiable(areas()),
-              preference: preference,
-              cancellation: cancellation,
-            ),
-            cancellation,
-          );
+      var plannedAreas = <AvoidArea>[];
+      var plannedAreasLoaded = true;
+      Future<AvoidRoutePlan> compute(AvoidingRoutePlanner provider) {
+        // Pair the disclosure with the exact area snapshot given to this
+        // provider. Reports may finish loading while its isolate is running.
+        plannedAreas = List.unmodifiable(areas());
+        plannedAreasLoaded = areasLoaded?.call() ?? true;
+        return raceCancellation(
+          provider.plan(
+            origin: request.origin.coordinates,
+            destination: request.destination,
+            areas: plannedAreas,
+            preference: preference,
+            cancellation: cancellation,
+          ),
+          cancellation,
+        );
+      }
+
       try {
         plan = await compute(planner);
       } on WalkingRouteProviderUnavailable {
@@ -141,8 +160,10 @@ final class AvoidingRouteService implements RouteService {
         routes: [for (final o in plan.options.reversed) o.route],
         warnings: [
           if (inside) insideWarning,
-          if (areasLoaded != null && !areasLoaded!())
-            areas().isEmpty ? areasUnavailableWarning : partialAreasWarning,
+          if (!plannedAreasLoaded)
+            plannedAreas.isEmpty
+                ? areasUnavailableWarning
+                : partialAreasWarning,
           ...{for (final option in plan.options) ...option.route.warnings},
           plan.preference.disclosure,
           '50 公尺為產品設定的避讓緩衝，不代表官方犯罪範圍或定位精度',
@@ -158,6 +179,9 @@ final class AvoidingRouteService implements RouteService {
         sw.RouteFailureStatus.providerUnavailable,
         '路線服務目前無法使用，請稍後重試',
       );
+    } finally {
+      work.cancel();
+      if (identical(_active, work)) _active = null;
     }
   }
 
