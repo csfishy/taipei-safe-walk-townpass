@@ -1,5 +1,11 @@
 # 臺北安心行：五模組持續開發契約
 
+## 活動後維護分工（2026-11-13）
+
+活動已結束，使用者指定後續 **M1–M5 全部由 M1 小魚統一負責**，涵蓋平台、導航、UI/UX、資料與陪伴功能的開發、維護、整合、測試及驗收。M2–M5 保留為技術模組名稱，原成員分工僅供歷史追溯。
+
+本節優先於下文及其他文件中的舊分工與人員等待要求；後續不再等待 M2–M5 作業、交付、原主責確認或非作者隊員 Review。一般變更與 Level B 確認由 M1 完成本機檢查及審查記錄。遠端必要 Checks／branch protection 仍須遵守，此調整不自動更動 GitHub 權限或繞過保護。模組依賴、契約、資料來源、測試、Live 驗收及安全／隱私與外部作用授權要求繼續有效。
+
 現行政策以 [LIVE-FIRST／NO PRODUCTION MOCK](SAFE_WALK_LIVE_FIRST.md) 為準，正式驗收見 [Live MVP](SAFE_WALK_LIVE_MVP.md)，現況見 [Readiness](SAFE_WALK_LIVE_READINESS.md)。新功能直接完成真實 Provider 與正式 UI 的完整操作流程，不要求先 Mock／Demo／Prototype。main `7b99fea` 正式入口仍 Mock，#35 接線已由 #49 restore 移除，不能因規範改字就視為完成。初始化已合併，M3 已有畫面，M2 已有具體 Provider，M5 已有控制器／TTS；不再以「第一輪只有抽象／README」限制開發。
 
 協作採 [Feature-First／Soft Ownership／Contract-Based Integration](SAFE_WALK_COLLABORATION.md)。M1 小魚、M2 Steven、M3 莅紋、M4 信義、M5 奶爸是平台／導航／體驗／資料／陪伴的主要負責人，**不是獨占目錄修改權**。所有成員可跨五模組修改功能與測試，由功能主責完成完整流程；說明目的、影響檔案與原主責並協調同檔案重疊，普通接線不需小魚事前批准或代寫。

@@ -1,5 +1,11 @@
 # 臺北安心行：開放式平行協作
 
+## 活動後維護分工（2026-11-13）
+
+活動已結束，使用者指定後續 **M1–M5 全部由 M1 小魚統一負責**，涵蓋平台、導航、UI/UX、資料與陪伴功能的開發、維護、整合、測試及驗收。M2–M5 保留為技術模組名稱，原成員分工僅供歷史追溯。
+
+本節優先於下文及其他文件中的舊分工與人員等待要求；後續不再等待 M2–M5 作業、交付、原主責確認或非作者隊員 Review。一般變更與 Level B 確認由 M1 完成本機檢查及審查記錄。遠端必要 Checks／branch protection 仍須遵守，此調整不自動更動 GitHub 權限或繞過保護。模組依賴、契約、資料來源、測試、Live 驗收及安全／隱私與外部作用授權要求繼續有效。
+
 2026-11-08（Asia/Taipei）。採用 **LIVE-FIRST DEVELOPMENT + NO PRODUCTION MOCK**，結合 **Feature-First Development + Soft Ownership + Contract-Based Integration**，完成 [Live MVP](SAFE_WALK_LIVE_MVP.md)。新功能直接做真 Provider、正式 UI 接線與完整使用者流程，不要求先 Mock／Demo／Prototype；完整定義及規範衝突對照見 [現行交付政策](SAFE_WALK_LIVE_FIRST.md)。本規範適用五位成員及其 AI Coding 工作；M1–M5 是技術分區與主要聯絡人，不是獨占修改權。舊文件中的「所有權」「交 M1 接線」「由 M3 維護」若涉及作者權限，以本規範的三層審查為準；資料、依賴及安全限制繼續有效。
 
 Production 僅使用真實、已完成適用驗收的資料來源與能力；Mock／Fake／fixtures 只用於隔離 Unit／Integration tests，正式入口不可選 `DataMode.mock`，既有 enum 保留相容。未完成能力顯示 Unavailable＋真實原因＋下一步，不回模擬 fallback、固定成功，不以只改文字／readiness／flags 冒充完成。其他模組 BLOCKED 不阻擋已獨立驗收的能力。main `7b99fea` 仍是 Mock 正式入口，本文件不等於程式已符合政策。
