@@ -1,5 +1,16 @@
 # 臺北安心行 Live 上線條件表
 
+## 2026-11-13 Live-B 與最新離線分支整合
+
+R5 **WIRED_NOT_VERIFIED**：正式主地圖與住家選點共用臺北繁中離線底圖，原生預設本機、
+Web 維持線上，SHA 複製失敗提示後回退，範圍外灰底提示。完整真實 MBTiles 26,607,616 bytes，
+Noto OFL 字型 16,435,884 bytes；來源與實作見 [離線規格 B5](SAFE_WALK_OFFLINE.md#b5-live-b-實作與方案選定2026-11-13)。
+保留最新目標分支 `191f606b6466d22bf8ae0abdbf36c046da02ba88`／#102 的全部 Live-C 修正，
+底圖、路網、求助點 sourceDate 同為 2026-11-11，sourceSha256 相同且由 CI 核對。
+各舊增量段落記錄的是當時 SHA，不再代表目前缺少 Live-B。當次 native 編譯、封包增量、
+測試與首次複製耗時以 PR #104 最終 head 證據為準；仍未有 iPhone／中階手機實機、FPS、
+記憶體與 VoiceOver 驗收，不以 Windows 或 CI 取代裝置驗證。依 main #103 新規範由 M1 統一維護及確認。
+
 ## 2026-11-13 PR #102 審查修正
 
 以 PR head `c6dad39` 審查真實 OSM CSR／三級避讓、第三方同意拆分、取消／背景／SOS 與遲到結果。兩項 P2 已用原版失敗測試重現並修正：
