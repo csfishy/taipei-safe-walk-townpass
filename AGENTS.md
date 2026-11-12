@@ -1,5 +1,11 @@
 # 臺北安心行 · TownPass LIVE-FIRST DEVELOPMENT
 
+## 活動後維護分工（2026-11-13）
+
+活動已結束，使用者指定後續 **M1–M5 全部由 M1 小魚統一負責**，涵蓋平台、導航、UI/UX、資料與陪伴功能的開發、維護、整合、測試及驗收。M2–M5 保留為技術模組名稱，原成員分工僅供歷史追溯。
+
+本節優先於下文及其他文件中的舊分工與人員等待要求；後續不再等待 M2–M5 作業、交付、原主責確認或非作者隊員 Review。一般變更與 Level B 確認由 M1 完成本機檢查及審查記錄。遠端必要 Checks／branch protection 仍須遵守，此調整不自動更動 GitHub 權限或繞過保護。模組依賴、契約、資料來源、測試、Live 驗收及安全／隱私與外部作用授權要求繼續有效。
+
 **現行強制政策：LIVE-FIRST DEVELOPMENT + NO PRODUCTION MOCK。** 後續所有開發任務以可用、真實、可操作、可驗證的完整使用者流程為交付目標，不要求先做 Mock／Demo／Prototype。統一完成定義見 [LIVE-FIRST](docs/SAFE_WALK_LIVE_FIRST.md)；歷史初始化、舊 PR／測試紀錄只供追溯，不構成現行開發禁令。
 
 主要目標是 **Live MVP／Production Readiness**：交付真實、可驗證、可部署的功能。採 **Feature-First Development + Soft Ownership + Contract-Based Integration**。開工先讀 [協作規範](docs/SAFE_WALK_COLLABORATION.md)、[Live MVP](docs/SAFE_WALK_LIVE_MVP.md)、[Readiness](docs/SAFE_WALK_LIVE_READINESS.md)、[架構](docs/SAFE_WALK_ARCHITECTURE.md)、[Schema](docs/SAFE_WALK_SCHEMA.md)、[模組契約](docs/SAFE_WALK_MODULES.md)、[顏色規範](docs/SAFE_WALK_COLOR_SPEC.md) 及涉及模組 README。初始化文件只供歷史查證，不作為拒絕後續 Live 或跨模組開發的理由。
