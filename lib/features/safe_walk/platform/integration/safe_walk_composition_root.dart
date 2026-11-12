@@ -646,6 +646,9 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
   }
 
   void _invalidateOperation() {
+    // Nearby lookups/routes belong to the same origin and destination intent.
+    // Cancelling only the destination request lets their late results revive.
+    _clearNearby();
     ++_boundaryRevision;
     _operation?.cancel();
     _operation = null;

@@ -393,6 +393,10 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView>
   }
 
   LatLng get _start {
+    final localOrigin = widget.pointsState.origin;
+    if (widget.pointsState.only && localOrigin != null) {
+      return LatLng(localOrigin.lat, localOrigin.lng);
+    }
     final position = widget.position;
     if (position != null) {
       return LatLng(position.coordinates.lat, position.coordinates.lng);
@@ -408,7 +412,8 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView>
   LatLng _at(sw.AssistancePoint p) =>
       LatLng(p.coordinates.lat, p.coordinates.lng);
 
-  List<sw.AssistancePoint> get _sorted => widget.pointsState.routes.isNotEmpty
+  List<sw.AssistancePoint> get _sorted =>
+      widget.pointsState.only || widget.pointsState.routes.isNotEmpty
       ? widget.pointsState.points
       : ([...widget.pointsState.points]..sort(
           (a, b) => metersBetween(
@@ -873,6 +878,8 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView>
                       showDestination:
                           widget.destinationConfigured && place.at != null,
                       showStart:
+                          (widget.pointsState.only &&
+                              widget.pointsState.origin != null) ||
                           widget.manualStart != null ||
                           widget.position != null ||
                           path.isNotEmpty,

@@ -82,6 +82,25 @@ void main() {
         t.widget<MarkerLayer>(find.byType(MarkerLayer)).markers,
         isNotEmpty,
       );
+      // Rebuilding a tile that loaded before the failures is not recovery.
+      final stale = TileImage(
+        vsync: t,
+        imageProvider: _PendingImage(),
+        coordinates: const TileCoordinates(0, 0, 0),
+        onLoadComplete: (_) {},
+        onLoadError: (_, error, stack) {},
+        tileDisplay: const TileDisplay.instantaneous(),
+        errorImage: null,
+        cancelLoading: Completer<void>(),
+      )..loadFinishedAt = DateTime.utc(2000);
+      t.widget<TileLayer>(find.byType(TileLayer)).tileBuilder!(
+        t.element(find.byType(TileLayer)),
+        const SizedBox.shrink(),
+        stale,
+      );
+      await t.pump();
+      expect(find.text(warning), findsOneWidget);
+      stale.dispose();
       // The warning neither steals gestures nor claims recovery after a quiet period.
       await t.pump(const Duration(seconds: 11));
       expect(find.text(warning), findsOneWidget);

@@ -13,6 +13,8 @@ import 'package:town_pass/features/safe_walk/presentation/safe_walk_map_view.dar
 import 'package:town_pass/features/safe_walk/navigation/route_reference_area_check.dart';
 import 'package:town_pass/features/safe_walk/navigation/route_service.dart';
 import 'package:town_pass/features/safe_walk/navigation/json_transport.dart';
+import 'package:town_pass/features/safe_walk/navigation/nearest_store_planner.dart';
+import 'package:town_pass/features/safe_walk/shared/contracts/safe_walk_navigation_scope.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/crime_route_alert_service.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_composition_root.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_live_loop_controller.dart';
@@ -1072,6 +1074,7 @@ void main() {
       List<sw.AssistancePoint>? stores,
       List<sw.Coordinates>? storeQueries,
       bool consentGranted = false,
+      NearbyPointFinder? finder,
     }) async {
       t.view.physicalSize = const Size(900, 3000);
       t.view.devicePixelRatio = 1;
@@ -1087,10 +1090,12 @@ void main() {
             crimeRepository: db.repository,
             reviewedAreas: areas,
             showLiveMap: showMap,
-            findStores: (origin, {cancellation}) async {
-              storeQueries?.add(origin);
-              return stores ?? const [];
-            },
+            findStores:
+                finder ??
+                (origin, {cancellation}) async {
+                  storeQueries?.add(origin);
+                  return stores ?? const [];
+                },
             watchPosition: () => const Stream<sw.Position>.empty(),
             homeLocationStore: _HomeStore(home),
             speaker: _SilentSpeaker(),
@@ -1270,11 +1275,102 @@ void main() {
       },
     );
 
+    for (final phase in ['lookup', 'route']) {
+      for (final boundary in [
+        'cancel',
+        'destination',
+        'start',
+        'background',
+        'SOS',
+      ]) {
+        testWidgets('nearby late $phase is discarded after $boundary', (
+          t,
+        ) async {
+          final lookup = Completer<List<sw.AssistancePoint>>();
+          final route = Completer<sw.RouteResult>();
+          SafeWalkCancellation? token;
+          final routes = _Routes((r) => route.future);
+          await pumpRoot(
+            t,
+            platform: _livePlatform(),
+            routes: routes,
+            db: _Db(),
+            consentGranted: true,
+            stores: [_store('a', 25.002)],
+            finder: phase == 'lookup'
+                ? (origin, {cancellation}) {
+                    token = cancellation;
+                    return lookup.future;
+                  }
+                : null,
+          );
+          await _openNearby(t, requestRoutes: false);
+          final scope = SafeWalkNavigationScope.of(
+            t.element(find.byType(SafeWalkFlow)),
+          );
+          switch (boundary) {
+            case 'cancel':
+              scope.onCancelRoute();
+            case 'destination':
+              scope.onDestinationChanged();
+            case 'start':
+              map(t).onStartChanged!(const LatLng(25.01, 121.51));
+            case 'background':
+              t.binding.handleAppLifecycleStateChanged(
+                AppLifecycleState.paused,
+              );
+            case 'SOS':
+              scope.onEmergencyOpened();
+          }
+          await t.pumpAndSettle();
+          if (phase == 'lookup') {
+            expect(token!.isCancelled, isTrue);
+            lookup.complete([_store('a', 25.002)]);
+          } else {
+            route.complete(_storeRoute(routes.requests.single, 120));
+          }
+          if (boundary == 'background') {
+            t.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+          }
+          await t.pumpAndSettle();
+          final flow = t.widget<SafeWalkFlow>(find.byType(SafeWalkFlow));
+          expect(flow.pointsLoading, isFalse);
+          expect(flow.pointRoutes, isEmpty);
+          expect(flow.points, isEmpty);
+          if (phase == 'lookup') expect(routes.requests, isEmpty);
+          await t.pumpWidget(const SizedBox.shrink());
+          t.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+        });
+      }
+    }
+
+    testWidgets(
+      'points-only UI preserves distance order from the real query origin',
+      (t) async {
+        await pumpRoot(
+          t,
+          platform: _livePlatform(),
+          routes: _Routes(),
+          db: _Db(),
+          stores: [_store('near', 25.001), _store('far', 25.004)],
+        );
+        await _openNearby(t, requestRoutes: false);
+        expect(map(t).pointsState.points.map((p) => p.id), ['near', 'far']);
+        expect(
+          t.getTopLeft(find.text('人工店家 near')).dy,
+          lessThan(t.getTopLeft(find.text('人工店家 far')).dy),
+        );
+        await t.pumpWidget(const SizedBox.shrink());
+      },
+    );
+
     testWidgets(
       'official map nearby tab renders points-only fallback with no polylines',
       (t) async {
         final routes = _Routes(
-          (r) async => _routeFail(r, sw.RouteFailureStatus.providerUnavailable),
+          (r) async => r.destination.lat == _destination.lat
+              ? _storeRoute(r, 100)
+              : _routeFail(r, sw.RouteFailureStatus.providerUnavailable),
         );
         await pumpRoot(
           t,
@@ -1287,6 +1383,10 @@ void main() {
           stores: [_store('a', 25.002)],
         );
         await openMap(t);
+        expect(
+          t.widget<PolylineLayer>(find.byType(PolylineLayer)).polylines,
+          isNotEmpty,
+        );
         await t.tap(find.text('最近求助地點').last);
         await t.pumpAndSettle();
         expect(map(t).pointsState.points, hasLength(1));
