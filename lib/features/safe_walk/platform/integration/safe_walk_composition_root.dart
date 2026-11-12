@@ -178,6 +178,8 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
   /// Live: up to three open convenience stores with their avoiding routes,
   /// safest then fastest first. Only after the walker asks for them.
   List<NearbyHelpOption> _nearby = const [];
+  List<sw.AssistancePoint> _nearbyLocal = const [];
+  sw.Coordinates? _nearbyOrigin;
   bool _nearbyLoading = false;
   String? _nearbyError;
   _RouteCancellation? _nearbyOperation;
@@ -772,6 +774,13 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
   }) async {
     bool current() => isCurrent?.call() ?? _isCurrent(operation);
     if (!await _askConsents(current)) return null;
+    return _readOrigin(operation, current);
+  }
+
+  Future<sw.Position?> _readOrigin(
+    _RouteCancellation operation,
+    bool Function() current,
+  ) async {
     final manual = _manualOrigin;
     if (manual != null) {
       return sw.Position(
@@ -796,7 +805,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
           ?.showSnackBar(const SnackBar(content: Text('暫時無法取得位置，請重新定位或選擇起點。')));
       return null;
     }
-    if (!mounted || !current() || !_navigation.hasRoutingConsent) {
+    if (!mounted || !current()) {
       return null;
     }
     if (located is! sw.LocationSuccess || !_usableLiveFix(located.position)) {
@@ -844,7 +853,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
   /// like a destination with the same avoiding routes. The three nearest are
   /// shown nearest first: the nearest one's route options as soon as they
   /// are ready, the others as they finish.
-  Future<void> _planNearby() async {
+  Future<void> _planNearby({bool requestConsent = false}) async {
     if (!widget.liveRoutes ||
         !mounted ||
         !_foreground ||
@@ -864,6 +873,8 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     bool current() => alive() && _navigation.hasRoutingConsent;
     setState(() {
       _nearby = const [];
+      _nearbyLocal = const [];
+      _nearbyOrigin = null;
       _nearbyLoading = true;
       _nearbyError = null;
     });
@@ -875,13 +886,10 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
       });
     }
 
-    final origin = await _consentedOrigin(operation, isCurrent: alive);
-    if (origin == null || !current()) {
-      return fail(
-        _navigation.hasRoutingConsent
-            ? '取得不到夠精確的位置（需 100 公尺內）。可以在地圖上選起點，再找附近營業中的店家。'
-            : '需要同意路線查詢並取得位置，才能找附近營業中的店家。',
-      );
+    final origin = await _readOrigin(operation, alive);
+    if (!alive()) return;
+    if (origin == null) {
+      return fail('取得不到夠精確的位置（需 100 公尺內）。請檢查定位權限、重新定位，或在地圖上選起點。');
     }
     final List<sw.AssistancePoint> stores;
     try {
@@ -889,7 +897,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
         origin.coordinates,
         cancellation: operation,
       );
-      if (!current()) return;
+      if (!alive()) return;
       // Closed ones are dropped; at most one with unknown hours; one spare in
       // case a place cannot be routed to.
       stores = pickNearbyCandidates(
@@ -909,6 +917,16 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
         '附近 2 公里內沒有資料標示營業中的便利商店或派出所（資料不完整，不代表附近沒有）。可以改走回家路線，或直接按緊急求助。',
       );
     }
+    setState(() {
+      _nearbyLocal = List.unmodifiable(stores);
+      _nearbyOrigin = origin.coordinates;
+    });
+    if (!_navigation.hasRoutingConsent) {
+      if (!requestConsent || !await _askConsents(alive)) {
+        return fail('僅據點、無路線：本機據點查詢不需第三方同意。若要規劃步行路線，請按重試並同意路線查詢。');
+      }
+    }
+    if (!current()) return;
     final all = [origin.coordinates, for (final s in stores) s.coordinates];
     await _loadCrime(
       sw.Coordinates(
@@ -924,7 +942,9 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     );
     if (!current()) return;
     final options = <NearbyHelpOption>[];
+    final failures = <sw.RouteFailureStatus>[];
     for (final store in stores) {
+      if (!current()) return;
       if (options.length == _nearbyCount) break;
       try {
         final result = await _storeRoutes.planRoute(
@@ -938,23 +958,61 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
           options.add(NearbyHelpOption(point: store, route: result));
           // Show each place as soon as its route is ready (nearest first);
           // the others keep loading behind it.
-          setState(() => _nearby = List.unmodifiable(options));
+          setState(() {
+            _nearby = List.unmodifiable(options);
+            _nearbyLocal = const [];
+          });
+        } else {
+          failures.add(
+            result is sw.RouteFailure
+                ? result.status
+                : sw.RouteFailureStatus.invalidInput,
+          );
         }
       } on SafeWalkCancelledException {
-        return;
+        return fail('路線計算已取消。需要時請重新規劃，或直接緊急求助。');
+      } on TimeoutException {
+        failures.add(sw.RouteFailureStatus.providerUnavailable);
+      } on JsonTransportException catch (error) {
+        failures.add(
+          error.failure == TransportFailure.network ||
+                  error.failure == TransportFailure.timeout
+              ? sw.RouteFailureStatus.providerUnavailable
+              : sw.RouteFailureStatus.invalidInput,
+        );
       } catch (_) {
+        failures.add(sw.RouteFailureStatus.invalidInput);
         // One store that cannot be routed must not hide the others.
         if (!current()) return;
       }
     }
+    if (!current()) return;
     if (options.isEmpty) {
-      return fail('找到附近營業中的求助地點，但暫時無法規劃步行路線，請稍後再試。');
+      if (!failures.every(
+        (s) => s == sw.RouteFailureStatus.providerUnavailable,
+      )) {
+        setState(() => _nearbyLocal = const []);
+      }
+      return fail(_nearbyFailureMessage(failures));
     }
     setState(() {
       // Nearest first; the walker picks among the three.
       _nearby = List.unmodifiable(options);
       _nearbyLoading = false;
     });
+  }
+
+  static String _nearbyFailureMessage(List<sw.RouteFailureStatus> failures) {
+    if (failures.every((s) => s == sw.RouteFailureStatus.providerUnavailable)) {
+      return '目前連不上路線服務。僅據點、無路線；可重試規劃路線，遇到危險請直接緊急求助。';
+    }
+    if (failures.contains(sw.RouteFailureStatus.cancelled)) {
+      return '路線計算已取消。需要時請重新規劃，或直接緊急求助。';
+    }
+    if (failures.contains(sw.RouteFailureStatus.invalidInput)) {
+      return '起點或目的地有問題，請重新定位或在地圖上選起點，再規劃路線。';
+    }
+    return '目前找不到可步行的路線。請改選起點或目的地，遇到危險請直接緊急求助。';
   }
 
   /// The walker chose a store: it becomes the navigation target. Its route,
@@ -976,6 +1034,8 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     _nearbyOperation?.cancel();
     _nearbyOperation = null;
     _nearby = const [];
+    _nearbyLocal = const [];
+    _nearbyOrigin = null;
     _nearbyLoading = false;
     _nearbyError = null;
   }
@@ -1322,14 +1382,18 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
         allowRealCalls: _dialerEnabled,
         // Live: real open stores, only after the walker asks for them.
         points: widget.liveRoutes
-            ? [for (final o in _nearby) o.point]
+            ? [..._nearbyLocal, for (final o in _nearby) o.point]
             : _points,
         pointRoutes: {for (final o in _nearby) o.point.id: o.route},
+        pointsOrigin: _nearbyOrigin,
+        pointsOnly: _nearbyLocal.isNotEmpty,
         onSelectPoint: widget.liveRoutes ? _selectPoint : null,
         pointsLoading: widget.liveRoutes ? _nearbyLoading : _pointsLoading,
         pointsError: widget.liveRoutes ? _nearbyError : _pointsError,
         onRetryPoints: widget.liveRoutes
-            ? () => unawaited(_planNearby())
+            ? () => unawaited(
+                _planNearby(requestConsent: _nearbyLocal.isNotEmpty),
+              )
             : () => unawaited(_loadPoints()),
         showMapTiles: widget.showLiveMap,
         reportBuilder: _report == null

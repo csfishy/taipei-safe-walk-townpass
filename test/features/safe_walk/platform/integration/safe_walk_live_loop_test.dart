@@ -12,6 +12,7 @@ import 'package:town_pass/features/safe_walk/presentation/safe_walk_flow.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_map_view.dart';
 import 'package:town_pass/features/safe_walk/navigation/route_reference_area_check.dart';
 import 'package:town_pass/features/safe_walk/navigation/route_service.dart';
+import 'package:town_pass/features/safe_walk/navigation/json_transport.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/crime_route_alert_service.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_composition_root.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_live_loop_controller.dart';
@@ -1070,6 +1071,7 @@ void main() {
       sw.Coordinates? home,
       List<sw.AssistancePoint>? stores,
       List<sw.Coordinates>? storeQueries,
+      bool consentGranted = false,
     }) async {
       t.view.physicalSize = const Size(900, 3000);
       t.view.devicePixelRatio = 1;
@@ -1079,6 +1081,7 @@ void main() {
         MaterialApp(
           home: SafeWalkCompositionRoot(
             liveRoutes: true,
+            consentGranted: consentGranted,
             platform: platform,
             routeService: routes,
             crimeRepository: db.repository,
@@ -1219,7 +1222,7 @@ void main() {
     );
 
     testWidgets(
-      'nearby points ask for route consent first; declining sends nothing',
+      'local nearby needs GPS but no third party consent; declining keeps points',
       (t) async {
         final platform = _livePlatform();
         final routes = _Routes();
@@ -1230,19 +1233,29 @@ void main() {
           routes: routes,
           db: db,
           home: _destination,
+          stores: [_store('a', 25.002)],
         );
         expect(
           t.widget<SafeWalkFlow>(find.byType(SafeWalkFlow)).mode,
           sw.DataMode.live,
         );
         expect(find.text('目前為示範資料，未連線真實服務'), findsNothing);
-        await _openNearby(t);
+        await _openNearby(t, requestRoutes: false);
         await t.pumpAndSettle();
         expect(find.byType(SafeWalkMapView), findsOneWidget);
+        expect(find.text('規劃路線需要你的位置'), findsNothing);
+        expect(map(t).pointsState.points, hasLength(1));
+        expect(map(t).pointsState.routes, isEmpty);
+        expect(find.text('直線距離，非步行路線'), findsOneWidget);
+        expect(routes.requests, isEmpty);
+        expect(db.calls, isEmpty);
+        map(t).pointsState.onRetry!();
+        await t.pumpAndSettle();
         expect(find.text('規劃路線需要你的位置'), findsOneWidget);
         await t.tap(find.text('不要'));
         await t.pumpAndSettle();
-        expect(find.textContaining('需要同意路線查詢並取得位置'), findsOneWidget);
+        expect(find.textContaining('本機據點查詢不需第三方同意'), findsOneWidget);
+        expect(map(t).pointsState.points, hasLength(1));
         t.widget<SafeWalkMapView>(find.byType(SafeWalkMapView)).onBack();
         await t.pumpAndSettle();
         await t.tap(find.text('緊急求助'));
@@ -1250,12 +1263,181 @@ void main() {
         expect(find.text('簡訊求助尚未配置'), findsOneWidget);
         expect(find.text('傳送簡訊'), findsNothing);
         expect(find.textContaining('示範完成'), findsNothing);
-        expect(platform.calls, 0);
+        expect(platform.calls, 2);
         expect(routes.requests, isEmpty);
         expect(db.calls, isEmpty);
         await t.pumpWidget(const SizedBox.shrink());
       },
     );
+
+    testWidgets(
+      'official map nearby tab renders points-only fallback with no polylines',
+      (t) async {
+        final routes = _Routes(
+          (r) async => _routeFail(r, sw.RouteFailureStatus.providerUnavailable),
+        );
+        await pumpRoot(
+          t,
+          platform: _livePlatform(),
+          routes: routes,
+          db: _Db(),
+          consentGranted: true,
+          showMap: true,
+          home: _destination,
+          stores: [_store('a', 25.002)],
+        );
+        await openMap(t);
+        await t.tap(find.text('最近求助地點').last);
+        await t.pumpAndSettle();
+        expect(map(t).pointsState.points, hasLength(1));
+        expect(find.text('僅據點、無路線'), findsOneWidget);
+        expect(find.text('直線距離，非步行路線'), findsOneWidget);
+        expect(find.text('重試規劃路線'), findsOneWidget);
+        expect(
+          t.widget<PolylineLayer>(find.byType(PolylineLayer)).polylines,
+          isEmpty,
+        );
+        expect(find.text('帶我去這裡'), findsNothing);
+        await t.pumpWidget(const SizedBox.shrink());
+      },
+    );
+
+    for (final status in sw.RouteFailureStatus.values) {
+      testWidgets('nearby all $status distinguishes failure and geometry', (
+        t,
+      ) async {
+        final routes = _Routes((r) async => _routeFail(r, status));
+        await pumpRoot(
+          t,
+          platform: _livePlatform(),
+          routes: routes,
+          db: _Db(),
+          consentGranted: true,
+          showMap: true,
+          stores: [_store('a', 25.002), _store('b', 25.003)],
+        );
+        await _openNearby(t);
+        await t.pumpAndSettle();
+        final state = map(t).pointsState;
+        expect(routes.requests, hasLength(2));
+        expect(state.routes, isEmpty);
+        expect(state.loading, isFalse);
+        expect(
+          state.points.length,
+          status == sw.RouteFailureStatus.providerUnavailable ? 2 : 0,
+        );
+        final message = switch (status) {
+          sw.RouteFailureStatus.providerUnavailable => '目前連不上路線服務',
+          sw.RouteFailureStatus.noRoute => '目前找不到可步行的路線',
+          sw.RouteFailureStatus.invalidInput => '起點或目的地有問題',
+          sw.RouteFailureStatus.cancelled => '路線計算已取消',
+        };
+        expect(state.error, contains(message));
+        expect(
+          t.widget<PolylineLayer>(find.byType(PolylineLayer)).polylines,
+          isEmpty,
+        );
+        if (state.only) {
+          expect(find.text('直線距離，非步行路線'), findsOneWidget);
+          expect(find.textContaining('公尺，北方'), findsWidgets);
+          expect(find.textContaining('OpenStreetMap 快照（'), findsWidgets);
+          expect(find.text('帶我去這裡'), findsNothing);
+          expect(find.text('緊急求助'), findsWidgets);
+        }
+        await t.pumpWidget(const SizedBox.shrink());
+      });
+    }
+
+    for (final error in [
+      const JsonTransportException(TransportFailure.network),
+      TimeoutException('artificial timeout'),
+      const SafeWalkCancelledException(),
+    ]) {
+      testWidgets(
+        'nearby thrown ${error.runtimeType} stops loading with an honest message',
+        (t) async {
+          final routes = _Routes((r) async => throw error);
+          await pumpRoot(
+            t,
+            platform: _livePlatform(),
+            routes: routes,
+            db: _Db(),
+            consentGranted: true,
+            stores: [_store('a', 25.002)],
+          );
+          await _openNearby(t);
+          await t.pumpAndSettle();
+          expect(map(t).pointsState.loading, isFalse);
+          expect(map(t).pointsState.points, hasLength(1));
+          expect(map(t).pointsState.routes, isEmpty);
+          expect(
+            map(t).pointsState.error,
+            contains(
+              error is SafeWalkCancelledException ? '路線計算已取消' : '目前連不上路線服務',
+            ),
+          );
+          await t.pumpWidget(const SizedBox.shrink());
+        },
+      );
+    }
+
+    testWidgets('nearby partial success keeps only routed options', (t) async {
+      final routes = _Routes(
+        (r) async => r.destination.lat == 25.002
+            ? _storeRoute(r, 120)
+            : _routeFail(r, sw.RouteFailureStatus.providerUnavailable),
+      );
+      await pumpRoot(
+        t,
+        platform: _livePlatform(),
+        routes: routes,
+        db: _Db(),
+        consentGranted: true,
+        stores: [_store('a', 25.002), _store('b', 25.003)],
+      );
+      await _openNearby(t);
+      await t.pumpAndSettle();
+      expect(map(t).pointsState.points.map((p) => p.id), ['a']);
+      expect(map(t).pointsState.routes.keys, ['a']);
+      expect(map(t).pointsState.only, isFalse);
+      expect(map(t).pointsState.error, isNull);
+      await t.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets('nearby retry and leave reject late route results', (t) async {
+      final pending = <Completer<sw.RouteResult>>[];
+      final routes = _Routes((r) {
+        final c = Completer<sw.RouteResult>();
+        pending.add(c);
+        return c.future;
+      });
+      await pumpRoot(
+        t,
+        platform: _livePlatform(),
+        routes: routes,
+        db: _Db(),
+        consentGranted: true,
+        stores: [_store('a', 25.002)],
+      );
+      await _openNearby(t);
+      map(t).pointsState.onRetry!();
+      await t.pumpAndSettle();
+      expect(pending, hasLength(2));
+      pending.first.complete(_storeRoute(routes.requests.first, 120));
+      await t.pumpAndSettle();
+      expect(map(t).pointsState.routes, isEmpty);
+      expect(map(t).pointsState.loading, isTrue);
+      map(t).onBack();
+      await t.pumpAndSettle();
+      pending.last.complete(_storeRoute(routes.requests.last, 120));
+      await t.pumpAndSettle();
+      expect(
+        t.widget<SafeWalkFlow>(find.byType(SafeWalkFlow)).pointRoutes,
+        isEmpty,
+      );
+      expect(t.widget<SafeWalkFlow>(find.byType(SafeWalkFlow)).points, isEmpty);
+      await t.pumpWidget(const SizedBox.shrink());
+    });
 
     testWidgets(
       'nearby points: three nearest open places, nearest first, switchable',
@@ -1295,7 +1477,7 @@ void main() {
           await t.tap(find.text('不要查詢'));
           await t.pumpAndSettle();
         }
-        expect(queries, hasLength(1));
+        expect(queries, hasLength(2));
         final map = t.widget<SafeWalkMapView>(find.byType(SafeWalkMapView));
         expect(map.pointsState.points.map((p) => p.id), ['a', 'b', 'c']);
         expect(
@@ -1348,6 +1530,7 @@ void main() {
         await pumpRoot(
           t,
           platform: platform,
+          consentGranted: true,
           routes: routes,
           db: _Db(),
           home: _destination,
@@ -1356,12 +1539,6 @@ void main() {
         );
         await _openNearby(t);
         await t.pumpAndSettle();
-        await t.tap(find.text('同意'));
-        await t.pumpAndSettle();
-        if (find.text('不要查詢').evaluate().isNotEmpty) {
-          await t.tap(find.text('不要查詢'));
-          await t.pumpAndSettle();
-        }
         expect(queries, isEmpty);
         expect(find.textContaining('取得不到夠精確的位置'), findsOneWidget);
         expect(find.text('在地圖上選起點'), findsOneWidget);
@@ -1786,9 +1963,16 @@ Future<void> _openReportStatus(WidgetTester t) async {
 
 /// 首頁不再有「附近求助地點」入口（主要入口是地圖面板的「最近求助地點」）；
 /// 清單畫面的程式碼仍保留，測試直接開啟它。
-Future<void> _openNearby(WidgetTester t) async {
+Future<void> _openNearby(WidgetTester t, {bool requestRoutes = true}) async {
   t
       .widget<SafeWalkHomeView>(find.byType(SafeWalkHomeView))
       .onOpen(SafeWalkEntry.points);
-  await t.pump();
+  await t.pumpAndSettle();
+  final map = t.widget<SafeWalkMapView>(find.byType(SafeWalkMapView));
+  if (requestRoutes &&
+      map.pointsState.only &&
+      (map.pointsState.error?.contains('本機據點查詢不需第三方同意') ?? false)) {
+    map.pointsState.onRetry!();
+    await t.pump();
+  }
 }
