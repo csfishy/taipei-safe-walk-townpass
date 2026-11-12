@@ -63,10 +63,16 @@ def verify(directory=ASSETS):
     expected = json.loads((directory / 'taipei_basemap.meta.json').read_text(encoding='utf-8'))
     if expected != actual:
         raise ValueError('Offline basemap metadata/digest mismatch')
+    for source_path in (directory.parent / 'route/taipei_walk_graph.meta.json',
+                        directory.parent / 'osm_help_points_taipei.json'):
+        source_meta = json.loads(source_path.read_text(encoding='utf-8'))
+        if (source_meta.get('sourceDate'), source_meta.get('sourceSha256')) != (
+                actual['sourceDate'], actual['sourceSha256']):
+            raise ValueError('D4 map, routing and help-point snapshots must share one PBF')
     for file in directory.iterdir():
         if file.is_file() and file.stat().st_size > 50_000_000:
             raise ValueError('Offline map asset exceeds 50 MB')
-    print(f"PASS: offline basemap metadata and SHA-256 ({actual['bytes']} bytes)")
+    print(f"PASS: offline basemap metadata and SHA-256 ({actual['bytes']} bytes); D4 shared PBF")
 
 
 if __name__ == '__main__':

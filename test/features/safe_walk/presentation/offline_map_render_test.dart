@@ -33,11 +33,15 @@ void main() {
       var onlineCalls = 0;
       final boundary = GlobalKey();
       try {
-      await tester.runAsync(() async {
-        final font = FontLoader('SafeWalkNotoTC')..addFont(
-          File('assets/safe_walk/map/NotoSansCJKtc-Regular.otf').readAsBytes().then(ByteData.sublistView));
-        await font.load();
-      });
+        await tester.runAsync(() async {
+          final font = FontLoader('SafeWalkNotoTC')
+            ..addFont(
+              File('assets/safe_walk/map/NotoSansCJKtc-Regular.otf')
+                  .readAsBytes()
+                  .then(ByteData.sublistView),
+            );
+          await font.load();
+        });
         final data = await tester.runAsync(loadOfflineBasemap);
         SafeWalkBasemap.offlineLoaderForTesting = () async => data!;
         await tester.pumpWidget(
