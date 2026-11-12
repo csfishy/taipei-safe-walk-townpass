@@ -96,6 +96,45 @@
 - 無任何請求送往 `tile.openstreetmap.org`（原生、離線模式時）；以網路紀錄或 mock transport 驗證。
 - `flutter analyze`、`flutter test`、Web build 不壞；CI 的 APK／IPA 檢查（`tool/verify_native_release.py`）依新資產調整並通過。
 
+### B5 Live-B 實作與方案選定（2026-11-13）
+
+工作分支 `feat/offline-live-b` 保留既有歷史，以 fast-forward 更新至最新
+`origin/feat/offline-map` **`04337aa0eb2db24a728216eed36716d57d075da3`**；PR 目標仍為
+`feat/offline-map`，不 merge。正式 `TPRoute.safeWalk` 已設 `liveRoutes: true`，
+本次直接接 `SafeWalkMap` 與住家選點，不另建 preview 入口。
+
+| 順序 | 結果／依據 |
+|---|---|
+| a：vector_map_tiles + PMTiles | Flutter 3.47.6 下 `flutter pub get` 失敗。`vector_map_tiles_pmtiles 1.5.2` → `pmtiles ^1.3.0` → `latlong2 ^0.9.0`，與 App `^0.10.1` 衝突；不 override、不降級既有 map 套件。 |
+| b：vector_map_tiles + MIT MBTiles adapter | 選用 `vector_map_tiles 9.0.0-beta.13`（BSD-3-Clause）、`vector_map_tiles_mbtiles 1.2.2`（MIT）、`mbtiles 0.5.1`（BSD-3-Clause）、`vector_tile_renderer 6.1.0`（BSD-3-Clause）。依賴解析成功；真實全檔可解碼與離線渲染繁中。舊 `alfa_vector_mbtiles 0.0.6` 限 flutter_map 4／latlong2 0.8，不採用。原生雙平台編譯證據以本 PR Checks 為準，未完成前不得宣稱通過。 |
+| c：點陣 MBTiles | b 已可解依賴與渲染，未採用；若原生編譯發現不可修復問題，須在同一任務繼續此備案。 |
+
+實際鎖定版本見 `pubspec.lock`，不使用 vector_map_tiles 10.x。新增依賴／資產／CI／封包驗證
+為 Level B，依現行 AGENTS 的活動後分工由 M1 小魚記錄確認，尚未 merge。
+
+- 完整產製工具與授權：[tool/offline_map/README.md](../tool/offline_map/README.md)。
+  使用 Java 21、Planetiler 0.10.2、固定 Protomaps profile commit，臺灣 PBF 與 Live-C #102
+  同為 **2026-11-11**，SHA `6d9b7a214e7617df8473e311466e0a2517209d937c579f6a2134a64421cc838d`。
+  D4 同日求助點已在 #102 產製，本 PR 不覆寫父分支既有快照；整合時一併採用。
+- `taipei.mbtiles` **26,607,616 bytes**，完整 bbox **24.95,121.44–25.22,121.68**；
+  z12–z15，z16–z19 overzoom；SHA 與圖磚數見同目錄 meta。字型獨立檔 **16,435,884 bytes**，
+  各單檔低於 50,000,000 bytes。不是從 OSM 圖磚伺服器批次下載。
+- Protomaps v4 schema／light 樣式，設計 CC0、程式 BSD-3-Clause；繁中字型 Noto Sans CJK TC
+  OFL-1.1（隨附授權）。Flutter 直接渲染 OTF，不使用遠端 glyph/sprite，也不依賴 PingFang 再散布。
+  稠密巷弄名稱於 z17 起顯示，捷運／火車站增加文字標示。快照不保證現況、可通行或安全。
+- 兩地圖共用 `SafeWalkBasemap`，原生預設離線；準備中不建立線上 provider。
+  先驗證支援目錄檔案 SHA，必要時從 asset 複製、重新驗 SHA、atomic rename；失敗提示後回退線上。
+  範圍外灰底＋「離線地圖範圍外」，不暗中送出 OSM 請求。Web 條件 import 保持線上。
+- CI 只驗 meta 與 SHA。native verifier 驗封包內圖磚／樣式／字型與 meta；犯罪資料隔離 guard
+  僅容許此公開底圖的**確切路徑＋固定內容 SHA**，其他 SQLite／犯罪資料、改名冒充或包內未知檔仍拒絕。
+
+本機測試包含：原生準備／成功不建網路圖層、範圍內外、複製失敗回退、Web 不開離線檔、
+遲到載入釋放、SHA 暖載入／損毀修復／新版本、真實全檔 z12／z15 解碼與 Noto 繁中渲染。
+Windows 渲染測試不代表 iPhone／Android 效能。APK／IPA 增量、首次複製時間、雙平台編譯、
+analyze／完整 tests／Web build 的當次結果記錄在 PR，不能以工具存在或測試替身宣稱通過。
+實體 iPhone／中階 Android 的 FPS、記憶體、飛航模式、VoiceOver 仍需 §4 驗收，狀態維持
+**WIRED_NOT_VERIFIED**；尚無實機證據不得改成 LIVE_VERIFIED。
+
 ---
 
 ## C. 裝置端步行路線（Level A 程式＋Level B 資產／依賴）
@@ -169,3 +208,11 @@
 6. 開始導航、偏離、重算、取消、背景、SOS 中斷皆正常。
 7. 關閉飛航模式，確認自動回到線上路線與圖磚，提示消失。
 8. 使用人工位置或模擬位置時，在證據中註明限制；不使用真實住家位置。
+
+Live-B 補充驗收（裝置尚未執行）：記錄裝置／OS／build SHA，從正式入口與住家選點各測一次。
+清除 App 資料後即開飛航模式，記錄首次 asset 複製耗時；再進入確認不重複複製。
+臺北 bbox 內 z12–z18 看街道、繁中路名、建物、公園、水系與捷運站，平移到範圍外看灰底提示，
+返回範圍內恢復。以 proxy／封包紀錄確認沒有 `tile.openstreetmap.org` 請求；其他路線服務請求
+與圖磚分開記錄。測試注入複製失敗時須看到回退提示，恢復連線後才可取得線上底圖。
+原生有效離線底圖在恢復連線後仍維持離線，Web 保持線上；上列第 7 步的線上回復不表示
+原生需丟棄有效離線底圖。記錄首次／暖載入、FPS、峰值記憶體與包大小，未執行逐項寫明。

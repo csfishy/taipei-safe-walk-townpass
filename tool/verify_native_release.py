@@ -1,5 +1,6 @@
 """Validate preview native packages against the current build metadata."""
 import argparse
+import hashlib
 import json
 from pathlib import Path
 import plistlib
@@ -150,12 +151,30 @@ def verify(platform, package_path, metadata_path, supabase_config_path=None):
                     package.read(app + 'Frameworks/App.framework/App'),
                 )
         require(json.loads(package.read(asset)) == expected, 'Embedded metadata does not match this source/build')
+        verify_offline_basemap(package, asset.removesuffix('build-info.json') + 'safe_walk/map/')
         if supabase_config_path is not None:
             verify_compiled_client(aot_binary, supabase_config_path)
 
     print(f'PASS: {platform} preview package, arm64 code and embedded source/version metadata')
     if supabase_config_path is not None:
         print('PASS: expected public client configuration is present in Flutter AOT code')
+
+
+def verify_offline_basemap(package, prefix):
+    """Compare package bytes to the reviewed source assets; no external download."""
+    root = Path(__file__).resolve().parents[1] / 'assets/safe_walk/map'
+    metadata_bytes = (root / 'taipei_basemap.meta.json').read_bytes()
+    require(package.read(prefix + 'taipei_basemap.meta.json') == metadata_bytes,
+            'Embedded offline basemap metadata does not match source')
+    meta = json.loads(metadata_bytes)
+    files = [('taipei.mbtiles', meta['sha256']),
+             (meta['style']['file'], meta['style']['sha256']),
+             (meta['font']['file'], meta['font']['sha256'])]
+    for name, expected_sha in files:
+        data = package.read(prefix + name)
+        require(0 < len(data) <= 50_000_000, 'Offline basemap asset exceeds 50 MB or is empty')
+        require(hashlib.sha256(data).hexdigest() == expected_sha,
+                'Embedded offline basemap asset digest mismatch')
 
 
 if __name__ == '__main__':

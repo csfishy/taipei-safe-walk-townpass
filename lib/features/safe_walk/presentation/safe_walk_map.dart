@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart' as ll;
+import 'package:town_pass/features/safe_walk/presentation/safe_walk_basemap.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_map_models.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_ui.dart';
 import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart'
@@ -14,10 +15,6 @@ import 'package:url_launcher/url_launcher.dart';
 /// 求助地點在地圖、圖例與清單上一律用同一個圖示（捧著愛心的手：這裡有人能幫你）；
 /// 種類（超商、派出所…）寫在文字裡。
 const helpPointIcon = Icons.volunteer_activism_rounded;
-
-/// OpenStreetMap 標準圖磚（不需 API Key）。使用條款要求標示來源並帶有可辨識的 User-Agent。
-const _kTileUrl = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
-const _kUserAgentPackage = 'town_pass';
 
 ll.LatLng _ll(LatLng p) => ll.LatLng(p.lat, p.lng);
 
@@ -31,6 +28,8 @@ class SafeWalkMap extends StatelessWidget {
 
   static TileProvider createTileProvider() =>
       tileProviderFactoryForTesting?.call() ?? NetworkTileProvider();
+
+  static bool get usesInjectedOnlineTiles => tileProviderFactoryForTesting != null;
 
   const SafeWalkMap({
     super.key,
@@ -277,18 +276,10 @@ class SafeWalkMap extends StatelessWidget {
       ),
       children: [
         if (showTiles)
-          TileLayer(
-            urlTemplate: _kTileUrl,
-            userAgentPackageName: _kUserAgentPackage,
-            maxNativeZoom: 19,
-            // Native uses flutter_map's HTTP-aware built-in cache; web uses the
-            // browser cache. Tests inject tiles without changing these defaults.
-            tileProvider: createTileProvider(),
-            errorTileCallback: (tile, error, stackTrace) => observe(tile),
-            tileBuilder: (context, child, tile) {
-              observe(tile);
-              return child;
-            },
+          SafeWalkBasemap(
+            onlineProvider: createTileProvider,
+            tileObserver: observe,
+            forceOnlineForTesting: tileProviderFactoryForTesting != null,
           ),
         if (avoidRadiusMeters > 0)
           CircleLayer(
@@ -350,7 +341,7 @@ class SafeWalkMap extends StatelessWidget {
                     child: const Padding(
                       padding: EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                       child: Text(
-                        '© OpenStreetMap',
+                        basemapAttribution,
                         style: TextStyle(
                           fontSize: 10,
                           color: TPColors.grayscale700,

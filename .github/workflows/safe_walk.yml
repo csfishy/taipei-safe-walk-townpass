@@ -42,6 +42,8 @@ jobs:
           python3 -m unittest discover -s tool -p 'test_*crime*.py' -v
           python3 -m unittest discover -s tool -p 'test_build_workflows.py' -v
       - run: python3 tool/release_metadata.py
+      - name: Verify bundled offline basemap metadata and SHA-256 (no downloads)
+        run: python3 tool/offline_map/metadata.py
       - name: Install the SDK pinned in .fvmrc
         uses: subosito/flutter-action@v2
         with:

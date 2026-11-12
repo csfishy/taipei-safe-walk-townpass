@@ -58,6 +58,12 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^2.0.0
   flutter_map: ^8.3.2
+  vector_map_tiles: 9.0.0-beta.13
+  vector_map_tiles_mbtiles: 1.2.2
+  mbtiles: 0.5.1
+  vector_tile_renderer: 6.1.0
+  crypto: 3.0.7
+  path_provider: ^2.1.5
   latlong2: ^0.10.1
   audioplayers: 6.1.0
   sensors_plus: ^7.1.1
@@ -99,6 +105,7 @@ flutter:
   assets:
     - assets/build-info.json
     - assets/safe_walk/
+    - assets/safe_walk/map/
     - assets/image/
     - assets/svg/
 
@@ -128,6 +135,9 @@ flutter:
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/custom-fonts/#from-packages
   fonts:
+    - family: SafeWalkNotoTC
+      fonts:
+        - asset: assets/safe_walk/map/NotoSansCJKtc-Regular.otf
     - family: PingFangTC
       fonts:
         - asset: fonts/PingFangTC-Thin.otf

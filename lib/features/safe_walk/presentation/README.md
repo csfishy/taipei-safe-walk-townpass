@@ -99,3 +99,16 @@ SafeWalkFlow(
 - 設計截圖：`M3_SCREENSHOTS=1 flutter test test/features/safe_walk/presentation/safe_walk_screenshots_test.dart --update-goldens`（需 `FLUTTER_ROOT`），產出 `screenshots/*.png`；CI 預設略過。
 - 本機預覽完整臺北通：`flutter run -d web-server --web-port 5191 --web-hostname 127.0.0.1`（`web/` 只在本機）。
 - 未有充分完成證據：iPhone 實機／讀屏、真實路線服務與 Live 地圖全流程、裝置實際朗讀。Mock／fake transport 或 screenshot test 不等於 LIVE_VERIFIED；啟用條件見 Live Readiness。
+
+## Live-B 離線底圖（2026-11-13）
+
+`SafeWalkMap` 與 `SafeWalkHomeSettingView` 共用 `SafeWalkBasemap`。
+原生預設使用 assets 的完整臺北 Protomaps 向量 MBTiles；Web 用條件 import 維持線上。
+範圍 24.95,121.44–25.22,121.68，2026-11-11 OSM 快照，z12–z15、較高縮放 overzoom。
+繁中路名使用隨附 OFL Noto 字型；來源／版權見 `safe_walk_sources.dart` 與 assets/map 授權。
+
+準備中不建立線上 provider；SHA 驗證／複製失敗才提示並回退線上，範圍外灰底提示。
+保留既有 `tileProviderFactoryForTesting`；新 `SafeWalkBasemap.offlineLoaderForTesting`
+可注入離線圖層／錯誤並驗證釋放。底圖不取 GPS、不持久化使用者位置。
+產製與驗收見 [離線規格 §B5](../../../../docs/SAFE_WALK_OFFLINE.md) 和
+[工具 README](../../../../tool/offline_map/README.md)。狀態 WIRED_NOT_VERIFIED，實機驗收仍待完成。

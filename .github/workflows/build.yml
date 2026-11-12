@@ -39,6 +39,8 @@ jobs:
       - name: Validate source and release version
         id: metadata
         run: python3 tool/release_metadata.py
+      - name: Verify bundled offline basemap metadata and SHA-256 (no downloads)
+        run: python3 tool/offline_map/metadata.py
       - name: Test release versioning and publication safeguards
         run: python3 -m unittest discover -s tool -p 'test_*release*.py' -v
       - uses: subosito/flutter-action@v2
