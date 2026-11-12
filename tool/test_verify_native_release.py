@@ -1,6 +1,7 @@
 """Verify current and previously published native build metadata formats."""
 from contextlib import redirect_stdout
 import io
+import hashlib
 import json
 from pathlib import Path
 import plistlib
@@ -9,7 +10,7 @@ import tempfile
 import unittest
 import zipfile
 
-from verify_native_release import PREVIEW_ID, arm64_macho_slice, read_client_config, validate_metadata, verify
+from verify_native_release import PREVIEW_ID, arm64_macho_slice, read_client_config, validate_metadata, verify, verify_offline_route
 
 
 ARM64 = 0x0100000C
@@ -226,6 +227,27 @@ class NativeReleaseClientConfigurationTest(unittest.TestCase):
             verify('ios', self.package('ios', self.encoded_values()), self.metadata_path, self.config)
         for value in self.client.values():
             self.assertNotIn(value, output.getvalue())
+
+
+class OfflineRouteReleaseTest(unittest.TestCase):
+    def test_embedded_graph_matches_reviewed_sha_and_size(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            graph = b'SWWALK01' + bytes(24)
+            meta = dict(bytes=len(graph), sha256=hashlib.sha256(graph).hexdigest(), license='ODbL-1.0')
+            (folder / 'taipei_walk_graph.meta.json').write_text(json.dumps(meta))
+            for corrupt in (False, True):
+                stream = io.BytesIO()
+                with zipfile.ZipFile(stream, 'w') as package:
+                    package.writestr('route/taipei_walk_graph.meta.json', json.dumps(meta))
+                    package.writestr('route/taipei_walk_graph.bin', graph if not corrupt else graph[:-1]+b'x')
+                stream.seek(0)
+                with zipfile.ZipFile(stream) as package:
+                    if corrupt:
+                        with self.assertRaisesRegex(ValueError, 'SHA-256'):
+                            verify_offline_route(package, 'route/', folder)
+                    else:
+                        verify_offline_route(package, 'route/', folder)
 
 
 if __name__ == '__main__':

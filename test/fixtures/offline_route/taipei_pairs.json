@@ -1,0 +1,15 @@
+{
+  "description": "Public landmarks only, manually selected test coordinates; no personal locations or tracks.",
+  "pairs": [
+    {"id":"main-cks","origin":[25.0478,121.5170],"destination":[25.0346,121.5219]},
+    {"id":"cityhall-sys","origin":[25.0375,121.5637],"destination":[25.0400,121.5600]},
+    {"id":"ximen-longshan","origin":[25.0421,121.5081],"destination":[25.0372,121.5000]},
+    {"id":"daan-technology","origin":[25.0325,121.5340],"destination":[25.0260,121.5435]},
+    {"id":"yuanshan-confucius","origin":[25.0713,121.5202],"destination":[25.0731,121.5155]},
+    {"id":"shilin-zhishan","origin":[25.0935,121.5262],"destination":[25.1031,121.5225]},
+    {"id":"ntu-gongguan","origin":[25.0174,121.5330],"destination":[25.0149,121.5342]},
+    {"id":"zhongshan-songjiang","origin":[25.0527,121.5204],"destination":[25.0520,121.5330]},
+    {"id":"nangang-kunyang","origin":[25.0520,121.6065],"destination":[25.0504,121.5933]},
+    {"id":"beitou-xinbeitou","origin":[25.1317,121.4986],"destination":[25.1373,121.5036]}
+  ]
+}
