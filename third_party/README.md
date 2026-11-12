@@ -17,6 +17,7 @@ Upstream archives:
 
 The adapter library is unchanged. Its pubspec points to the adjacent patched
 vector_map_tiles package so both the adapter and App use the same source.
+Both copies are marked publish_to: none because they are internal path packages.
 
 Only these six vector_map_tiles library files differ from the original release:
 
