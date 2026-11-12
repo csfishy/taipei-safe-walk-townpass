@@ -18,6 +18,51 @@ import 'package:town_pass/features/safe_walk/presentation/safe_walk_basemap.dart
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  testWidgets('leaving immediately during real native tile loading is clean', (
+    tester,
+  ) async {
+    final directory = (await tester.runAsync(
+      () => Directory.systemTemp.createTemp('safe-walk-quick-exit'),
+    ))!;
+    const channel = MethodChannel('plugins.flutter.io/path_provider');
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      channel,
+      (_) async => directory.path,
+    );
+    SafeWalkBasemap.isWebForTesting = false;
+    try {
+      final data = await tester.runAsync(loadOfflineBasemap);
+      SafeWalkBasemap.offlineLoaderForTesting = () async => data!;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: FlutterMap(
+            options: const MapOptions(
+              initialCenter: LatLng(25.047, 121.517),
+              initialZoom: 17,
+            ),
+            children: const [SafeWalkBasemap()],
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(find.byType(VectorTileLayer), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(seconds: 4));
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 300)),
+      );
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+    } finally {
+      SafeWalkBasemap.offlineLoaderForTesting = null;
+      SafeWalkBasemap.isWebForTesting = null;
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        channel,
+        null,
+      );
+      await tester.runAsync(() => directory.delete(recursive: true));
+    }
+  });
   testWidgets(
     'real native builder displays z17 overzoom without online tiles',
     (tester) async {
@@ -33,6 +78,23 @@ void main() {
       var onlineCalls = 0;
       final boundary = GlobalKey();
       try {
+        // A previous snapshot's unversioned cache must never poison this map.
+        await tester.runAsync(() async {
+          final z = 15;
+          final x = ((121.517 / 360 + .5) * (1 << z)).floor();
+          final radians = 25.047 * math.pi / 180;
+          final y =
+              ((1 -
+                          math.log(math.tan(radians) + 1 / math.cos(radians)) /
+                              math.pi) /
+                      2 *
+                      (1 << z))
+                  .floor();
+          final stale = Directory('${directory.path}/.vector_map');
+          await stale.create();
+          await File('${stale.path}/${z}_${x}_${y}_protomaps.pbf')
+              .writeAsBytes([255, 255, 255]);
+        });
         await tester.runAsync(() async {
           final font = FontLoader('SafeWalkNotoTC')
             ..addFont(
@@ -43,7 +105,9 @@ void main() {
           await font.load();
         });
         final data = await tester.runAsync(loadOfflineBasemap);
-        SafeWalkBasemap.offlineLoaderForTesting = () async => data!;
+        final tileLayer = data!.layer as VectorTileLayer;
+        expect(tileLayer.fileCacheMaximumSizeInBytes, 0);
+        SafeWalkBasemap.offlineLoaderForTesting = () async => data;
         await tester.pumpWidget(
           MaterialApp(
             home: RepaintBoundary(

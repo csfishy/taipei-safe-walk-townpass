@@ -1637,18 +1637,16 @@ packages:
   vector_map_tiles:
     dependency: "direct main"
     description:
-      name: vector_map_tiles
-      sha256: "42dce00e0f69352663f4c9c78fe5cc900704f6dd46019640ebda0d84cc14ce68"
-      url: "https://pub.dev"
-    source: hosted
+      path: "third_party/vector_map_tiles"
+      relative: true
+    source: path
     version: "9.0.0-beta.13"
   vector_map_tiles_mbtiles:
     dependency: "direct main"
     description:
-      name: vector_map_tiles_mbtiles
-      sha256: d0ba9f28583eee8c7f6e224c2e0aec7df6472aefe329ed46c497de9839545bb5
-      url: "https://pub.dev"
-    source: hosted
+      path: "third_party/vector_map_tiles_mbtiles"
+      relative: true
+    source: path
     version: "1.2.2"
   vector_math:
     dependency: transitive

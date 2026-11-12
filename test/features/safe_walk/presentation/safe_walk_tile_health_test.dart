@@ -6,6 +6,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart' as ll;
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_map.dart';
+import 'package:town_pass/features/safe_walk/presentation/safe_walk_basemap.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_map_models.dart';
 
 class _PendingImage extends ImageProvider<Object> {
@@ -37,6 +38,43 @@ class _Tiles extends TileProvider {
 }
 
 void main() {
+  testWidgets(
+    'network failure warning does not obscure offline recovery action',
+    (t) async {
+      final tiles = _Tiles();
+      SafeWalkMap.tileProviderFactoryForTesting = () => tiles;
+      SafeWalkBasemap.isWebForTesting = false;
+      SafeWalkBasemap.offlineLoaderForTesting = () async =>
+          throw StateError('copy failure');
+      addTearDown(() {
+        SafeWalkBasemap.isWebForTesting = null;
+        SafeWalkBasemap.offlineLoaderForTesting = null;
+      });
+      await t.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: SafeWalkMap(
+              start: LatLng(25.04, 121.53),
+              points: [],
+              anomalies: [],
+              path: [],
+            ),
+          ),
+        ),
+      );
+      await t.pumpAndSettle();
+      for (final pending in tiles.pending.where((p) => !p.cancelled).take(3)) {
+        pending.result.completeError(StateError('artificial network failure'));
+        await t.pump();
+      }
+      await t.pumpAndSettle();
+      expect(find.text('目前無法載入地圖底圖，標示的位置仍正確'), findsNothing);
+      expect(find.text('重試離線地圖'), findsOneWidget);
+      expect(find.textContaining('離線地圖無法載入，已改用線上底圖'), findsOneWidget);
+      expect(t.takeException(), isNull);
+      await t.pumpWidget(const SizedBox());
+    },
+  );
   testWidgets(
     'three tile failures warn; later success hides warning and preserves overlays',
     (t) async {

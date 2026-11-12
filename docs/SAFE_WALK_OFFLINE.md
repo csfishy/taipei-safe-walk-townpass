@@ -139,6 +139,32 @@ analyze／完整 tests／Web build 的當次結果記錄在 PR，不能以工具
 
 ---
 
+### B6 M1 審查與修正（PR #104，2026-11-13）
+
+依活動後維護規範由 M1 完成 Level B 依賴來源與 CI 變更審查；不改 SDK、套件版本、
+Schema、底圖快照或資料 SHA，也不解除實機驗收門檻。
+
+- 每次開圖重新驗證安裝檔 SHA，只共享進行中的複製工作；檔案遭刪除／損毀可修復，
+  新 meta SHA 安裝新檔。複製使用獨立暫存目錄、驗證後原子搬移，失敗可重試。
+- 視窗局部越界即提示；旋轉後依 bbox 裁切，保留範圍內地圖與 renderer 狀態。
+  越界灰底不建立線上圖層。線上回退的 provider 跨平移重用，避免資源遺漏。
+- 初始載入或本機 reader 非預期錯誤皆提示並回退線上，提供「重試離線地圖」。
+  正常缺磚 404／204 不誤判為全圖失敗；離開／遲到載入／重試皆釋放資源。
+  通用線上錯誤提示不遮住回退提示與重試按鈕。
+- 真實 native 快速進入後立即離開測試重現上游 worker CancellationException。
+  將既有兩套件以相同版本的來源納入 third_party；MIT adapter 程式未改，
+  vector_map_tiles 僅修六檔的非同步取消、計時器與關閉時機，以及真正停用大小為零的
+  persistent tile cache，避免舊版未帶 SHA 的 cache 混入新快照。原授權、來源 SHA、
+  修改清單與更新方式見 [third_party/README](../third_party/README.md)。不使用全域錯誤抑制。
+
+回歸涵蓋 production prepare 刪除／損毀修復、新 SHA、並行／失敗重試、部分越界與旋轉、
+越界不卸載圖層、provider 重用、reader 失敗與正常缺磚、回退後重試、資源釋放、
+真實全檔快速退出與舊 cache 污染。原版的刪檔、部分越界、provider 重建及快速退出
+測試先失敗，修正後通過。最終完整測試、嚴格分析（含兩套件來源）、Web 與雙原生 CI
+結果以 PR 當次 head 的紀錄為準。R5 維持 **WIRED_NOT_VERIFIED**，不把 CI 當 §4 實機驗收。
+
+---
+
 ## C. 裝置端步行路線（Level A 程式＋Level B 資產／依賴）
 
 ### C1 目標

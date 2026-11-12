@@ -5,14 +5,32 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 
-Future<String>? _preparing;
+final _store = OfflineMapFileStore();
 
 /// Concurrent map views share one verified, atomic asset installation.
-Future<String> prepareOfflineMapFile() => _preparing ??= installOfflineMapFile()
-    .catchError((Object error, StackTrace stack) {
-      _preparing = null;
-      Error.throwWithStackTrace(error, stack);
-    });
+Future<String> prepareOfflineMapFile() => _store.prepare();
+
+/// Share concurrent installation work, never a permanently trusted file path.
+/// Each later open verifies the current metadata and the bytes on disk again.
+class OfflineMapFileStore {
+  OfflineMapFileStore({this.bundle, this.supportDirectory});
+  final AssetBundle? bundle;
+  final Future<Directory> Function()? supportDirectory;
+  Future<String>? _pending;
+
+  Future<String> prepare() {
+    if (_pending != null) return _pending!;
+    late final Future<String> work;
+    work =
+        installOfflineMapFile(
+          bundle: bundle,
+          supportDirectory: supportDirectory,
+        ).whenComplete(() {
+          if (identical(_pending, work)) _pending = null;
+        });
+    return _pending = work;
+  }
+}
 
 Future<String> installOfflineMapFile({
   AssetBundle? bundle,
@@ -21,7 +39,7 @@ Future<String> installOfflineMapFile({
   final assets = bundle ?? rootBundle;
   const prefix = 'assets/safe_walk/map/';
   final meta = jsonDecode(
-    await assets.loadString('${prefix}taipei_basemap.meta.json'),
+    await assets.loadString('${prefix}taipei_basemap.meta.json', cache: false),
   ) as Map<String, dynamic>;
   final expected = meta['sha256'] as String;
   if (!RegExp(r'^[a-f0-9]{64}$').hasMatch(expected)) {
@@ -44,17 +62,24 @@ Future<String> installOfflineMapFile({
   if (sha256.convert(data).toString() != expected) {
     throw const FormatException('Offline map asset checksum mismatch');
   }
-  final temporary = File('${target.path}.tmp');
+  final staging = await directory.createTemp('install-');
+  final temporary = File('${staging.path}/taipei.mbtiles');
   try {
     await temporary.writeAsBytes(data, flush: true);
     if ((await sha256.bind(temporary.openRead()).first).toString() !=
         expected) {
       throw const FileSystemException('Offline map copy checksum mismatch');
     }
-    if (await target.exists()) await target.delete();
+    if (await target.exists()) {
+      // Another installer may have published this same snapshot while we wrote.
+      if ((await sha256.bind(target.openRead()).first).toString() == expected) {
+        return target.path;
+      }
+      await target.delete();
+    }
     await temporary.rename(target.path);
     return target.path;
   } finally {
-    if (await temporary.exists()) await temporary.delete();
+    await staging.delete(recursive: true);
   }
 }

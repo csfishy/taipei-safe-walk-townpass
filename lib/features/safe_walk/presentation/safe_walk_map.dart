@@ -29,7 +29,9 @@ class SafeWalkMap extends StatelessWidget {
   static TileProvider createTileProvider() =>
       tileProviderFactoryForTesting?.call() ?? NetworkTileProvider();
 
-  static bool get usesInjectedOnlineTiles => tileProviderFactoryForTesting != null;
+  static bool get usesInjectedOnlineTiles =>
+      tileProviderFactoryForTesting != null &&
+      !SafeWalkBasemap.hasOfflineLoaderOverride;
 
   const SafeWalkMap({
     super.key,
@@ -95,9 +97,9 @@ class SafeWalkMap extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => _MapTileHealth(
-    builder: (observe) => LayoutBuilder(
+    builder: (observe, onFallback) => LayoutBuilder(
       builder: (context, constraints) =>
-          _buildMap(context, constraints.biggest, observe),
+          _buildMap(context, constraints.biggest, observe, onFallback),
     ),
   );
 
@@ -105,6 +107,7 @@ class SafeWalkMap extends StatelessWidget {
     BuildContext context,
     Size viewport,
     void Function(TileImage) observe,
+    ValueChanged<bool> onFallback,
   ) {
     final interactive = !compact;
     // 初始視野：涵蓋起點、回家、所有求助地點與異常回報（避開上方標題與下方資訊框）。
@@ -279,7 +282,8 @@ class SafeWalkMap extends StatelessWidget {
           SafeWalkBasemap(
             onlineProvider: createTileProvider,
             tileObserver: observe,
-            forceOnlineForTesting: tileProviderFactoryForTesting != null,
+            forceOnlineForTesting: usesInjectedOnlineTiles,
+            onOfflineFallback: onFallback,
           ),
         if (avoidRadiusMeters > 0)
           CircleLayer(
@@ -381,12 +385,23 @@ class SafeWalkMap extends StatelessWidget {
 /// actual later successful load clears it; a quiet timer is not recovery.
 class _MapTileHealth extends StatefulWidget {
   const _MapTileHealth({required this.builder});
-  final Widget Function(void Function(TileImage)) builder;
+  final Widget Function(void Function(TileImage), ValueChanged<bool>) builder;
   @override
   State<_MapTileHealth> createState() => _MapTileHealthState();
 }
 
 class _MapTileHealthState extends State<_MapTileHealth> {
+  bool _offlineFallback = false;
+
+  void _setFallback(bool value) {
+    if (!mounted || value == _offlineFallback) return;
+    setState(() => _offlineFallback = value);
+    if (!value) {
+      _failures.clear();
+      _unavailable.value = false;
+    }
+  }
+
   final _unavailable = ValueNotifier(false);
   final _seen = Expando<DateTime>();
   final _failures = <DateTime>[];
@@ -427,10 +442,11 @@ class _MapTileHealthState extends State<_MapTileHealth> {
   @override
   Widget build(BuildContext context) => Stack(
     children: [
-      Positioned.fill(child: widget.builder(_observe)),
+      Positioned.fill(child: widget.builder(_observe, _setFallback)),
       ValueListenableBuilder<bool>(
         valueListenable: _unavailable,
-        builder: (context, unavailable, child) => unavailable
+        builder: (context, unavailable, child) =>
+            unavailable && !_offlineFallback
             ? Positioned(
                 top: 8,
                 left: 8,

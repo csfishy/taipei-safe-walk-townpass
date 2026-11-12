@@ -107,7 +107,11 @@ SafeWalkFlow(
 範圍 24.95,121.44–25.22,121.68，2026-11-11 OSM 快照，z12–z15、較高縮放 overzoom。
 繁中路名使用隨附 OFL Noto 字型；來源／版權見 `safe_walk_sources.dart` 與 assets/map 授權。
 
-準備中不建立線上 provider；SHA 驗證／複製失敗才提示並回退線上，範圍外灰底提示。
+準備中不建立線上 provider；每次開圖重驗 SHA，刪除／損毀則重新安裝，更新以 meta SHA 識別。
+SHA 驗證／複製或 reader 失敗提示並回退線上，可原地重試離線；正常缺磚不觸發回退。
+局部越界也提示，旋轉後裁切範圍外灰底並保留圖層。線上 provider 跨平移重用。
+已停用上游未分快照的檔案 cache；相同版本來源與六檔修補見 third_party/README.md。
+真實 native 快速退出、舊 cache 污染及各項失敗／重試均有回歸測試（§B6）。
 保留既有 `tileProviderFactoryForTesting`；新 `SafeWalkBasemap.offlineLoaderForTesting`
 可注入離線圖層／錯誤並驗證釋放。底圖不取 GPS、不持久化使用者位置。
 產製與驗收見 [離線規格 §B5](../../../../docs/SAFE_WALK_OFFLINE.md) 和
