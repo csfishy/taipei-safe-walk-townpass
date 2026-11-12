@@ -39,8 +39,12 @@ class PointsState {
     this.error,
     this.onRetry,
     this.routes = const {},
+    this.only = false,
+    this.origin,
   });
   final List<sw.AssistancePoint> points;
+  final bool only;
+  final sw.Coordinates? origin;
   final bool loading;
   final String? error;
 
@@ -389,6 +393,10 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView>
   }
 
   LatLng get _start {
+    final localOrigin = widget.pointsState.origin;
+    if (widget.pointsState.only && localOrigin != null) {
+      return LatLng(localOrigin.lat, localOrigin.lng);
+    }
     final position = widget.position;
     if (position != null) {
       return LatLng(position.coordinates.lat, position.coordinates.lng);
@@ -404,7 +412,8 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView>
   LatLng _at(sw.AssistancePoint p) =>
       LatLng(p.coordinates.lat, p.coordinates.lng);
 
-  List<sw.AssistancePoint> get _sorted => widget.pointsState.routes.isNotEmpty
+  List<sw.AssistancePoint> get _sorted =>
+      widget.pointsState.only || widget.pointsState.routes.isNotEmpty
       ? widget.pointsState.points
       : ([...widget.pointsState.points]..sort(
           (a, b) => metersBetween(
@@ -745,7 +754,11 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView>
     final liveWired = widget.onStartChanged != null;
     final waitingRoute =
         isHome && liveWired && rs.result == null && !rs.loading;
-    final path = routed ? rs.path ?? const <LatLng>[] : const <LatLng>[];
+    final path = !isHome && widget.pointsState.only
+        ? const <LatLng>[]
+        : routed
+        ? rs.path ?? const <LatLng>[]
+        : const <LatLng>[];
     final detail = _detailId == null
         ? null
         : widget.anomalies.where((a) => a.id == _detailId).firstOrNull;
@@ -865,6 +878,8 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView>
                       showDestination:
                           widget.destinationConfigured && place.at != null,
                       showStart:
+                          (widget.pointsState.only &&
+                              widget.pointsState.origin != null) ||
                           widget.manualStart != null ||
                           widget.position != null ||
                           path.isNotEmpty,
@@ -887,7 +902,10 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView>
                             ]
                           : const [],
                       showAttribution: false,
-                      altPaths: _pointsView || !routed
+                      altPaths:
+                          _pointsView ||
+                              !routed ||
+                              (!isHome && widget.pointsState.only)
                           ? const []
                           : [
                               for (final (i, r) in rs.options.indexed)
@@ -1221,7 +1239,9 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView>
           onPoint: _showPoints,
         ),
         const SizedBox(height: 12),
-        if (isHome &&
+        if (!isHome && ps.only && points.isNotEmpty)
+          _pointsOnlySheet(points)
+        else if (isHome &&
             widget.onStartChanged != null &&
             rs.result == null &&
             !rs.loading)
@@ -2042,12 +2062,67 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView>
     );
   }
 
+  Widget _pointsOnlySheet(List<sw.AssistancePoint> points) {
+    final ps = widget.pointsState;
+    final origin = ps.origin!;
+    final from = LatLng(origin.lat, origin.lng);
+    String direction(LatLng to) {
+      const names = ['北方', '東北方', '東方', '東南方', '南方', '西南方', '西方', '西北方'];
+      final a = from.lat * pi / 180, b = to.lat * pi / 180;
+      final dl = (to.lng - from.lng) * pi / 180;
+      final degrees =
+          (atan2(
+                    sin(dl) * cos(b),
+                    cos(a) * sin(b) - sin(a) * cos(b) * cos(dl),
+                  ) *
+                  180 /
+                  pi +
+              360) %
+          360;
+      return names[((degrees + 22.5) / 45).floor() % 8];
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('僅據點、無路線', style: SwText.heading),
+        Text('直線距離，非步行路線', style: SwText.bodyStrong),
+        if (ps.loading) const Text('正在規劃步行路線…'),
+        if (ps.error != null) Text(ps.error!, style: SwText.small),
+        SwChip(
+          label: '重試規劃路線',
+          icon: Icons.refresh,
+          onTap: ps.loading ? null : ps.onRetry,
+        ),
+        for (final p in points) ...[
+          const SizedBox(height: 8),
+          Text(p.name, style: SwText.bodyStrong),
+          Text(
+            '${_kind[p.kind]}・${_openLong[p.availability]}',
+            style: SwText.secondary,
+          ),
+          Text(
+            '直線約 ${metersBetween(from, _at(p)).round()} 公尺，${direction(_at(p))}',
+            style: SwText.body,
+          ),
+          Text(
+            'OpenStreetMap 快照（${p.source.retrievedAt.substring(0, 10)}）',
+            style: SwText.small,
+          ),
+          for (final limitation in p.source.limitations)
+            Text(limitation, style: SwText.small),
+        ],
+      ],
+    );
+  }
+
   Widget _pointsSheet(
     List<sw.AssistancePoint> points,
     sw.AssistancePoint? picked,
   ) {
     final ps = widget.pointsState;
     if (ps.loading && points.isEmpty) return const SwSkeleton();
+    if (ps.only && points.isNotEmpty) return _pointsOnlySheet(points);
     if (ps.error != null) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,

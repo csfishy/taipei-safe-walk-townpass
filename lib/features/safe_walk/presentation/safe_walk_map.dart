@@ -95,11 +95,18 @@ class SafeWalkMap extends StatelessWidget {
   final ValueChanged<LatLng>? onPick;
 
   @override
-  Widget build(BuildContext context) => LayoutBuilder(
-    builder: (context, constraints) => _buildMap(context, constraints.biggest),
+  Widget build(BuildContext context) => _MapTileHealth(
+    builder: (observe) => LayoutBuilder(
+      builder: (context, constraints) =>
+          _buildMap(context, constraints.biggest, observe),
+    ),
   );
 
-  Widget _buildMap(BuildContext context, Size viewport) {
+  Widget _buildMap(
+    BuildContext context,
+    Size viewport,
+    void Function(TileImage) observe,
+  ) {
     final interactive = !compact;
     // 初始視野：涵蓋起點、回家、所有求助地點與異常回報（避開上方標題與下方資訊框）。
     // 有路線時先框路線，避免遠處的其他資料影響視野。
@@ -277,6 +284,11 @@ class SafeWalkMap extends StatelessWidget {
             // Native uses flutter_map's HTTP-aware built-in cache; web uses the
             // browser cache. Tests inject tiles without changing these defaults.
             tileProvider: createTileProvider(),
+            errorTileCallback: (tile, error, stackTrace) => observe(tile),
+            tileBuilder: (context, child, tile) {
+              observe(tile);
+              return child;
+            },
           ),
         if (avoidRadiusMeters > 0)
           CircleLayer(
@@ -372,6 +384,84 @@ class SafeWalkMap extends StatelessWidget {
           ?.showSnackBar(const SnackBar(content: Text('無法開啟授權說明，請瀏覽 $url')));
     }
   }
+}
+
+/// Three distinct failures in ten seconds show a passive warning. Only an
+/// actual later successful load clears it; a quiet timer is not recovery.
+class _MapTileHealth extends StatefulWidget {
+  const _MapTileHealth({required this.builder});
+  final Widget Function(void Function(TileImage)) builder;
+  @override
+  State<_MapTileHealth> createState() => _MapTileHealthState();
+}
+
+class _MapTileHealthState extends State<_MapTileHealth> {
+  final _unavailable = ValueNotifier(false);
+  final _seen = Expando<DateTime>();
+  final _failures = <DateTime>[];
+  DateTime? _lastFailure;
+
+  void _observe(TileImage tile) {
+    final finished = tile.loadFinishedAt;
+    if (finished == null || _seen[tile] == finished) return;
+    _seen[tile] = finished;
+    final failed = tile.loadError;
+    scheduleMicrotask(() {
+      if (!mounted) return;
+      if (!failed) {
+        // A cached tile built after errors is not evidence of recovery if it
+        // finished loading before those errors.
+        if (_lastFailure != null && finished.isBefore(_lastFailure!)) return;
+        _failures.clear();
+        _unavailable.value = false;
+      } else {
+        if (_lastFailure == null || finished.isAfter(_lastFailure!)) {
+          _lastFailure = finished;
+        }
+        _failures.removeWhere(
+          (at) => finished.difference(at) > const Duration(seconds: 10),
+        );
+        _failures.add(finished);
+        if (_failures.length >= 3) _unavailable.value = true;
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _unavailable.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Stack(
+    children: [
+      Positioned.fill(child: widget.builder(_observe)),
+      ValueListenableBuilder<bool>(
+        valueListenable: _unavailable,
+        builder: (context, unavailable, child) => unavailable
+            ? Positioned(
+                top: 8,
+                left: 8,
+                right: 8,
+                child: IgnorePointer(
+                  child: Semantics(
+                    liveRegion: true,
+                    child: Material(
+                      color: SwColors.surface,
+                      borderRadius: BorderRadius.circular(8),
+                      child: const Padding(
+                        padding: EdgeInsets.all(8),
+                        child: Text('目前無法載入地圖底圖，標示的位置仍正確'),
+                      ),
+                    ),
+                  ),
+                ),
+              )
+            : const SizedBox.shrink(),
+      ),
+    ],
+  );
 }
 
 class _AnomalyMark extends StatelessWidget {
