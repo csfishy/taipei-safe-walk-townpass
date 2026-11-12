@@ -84,7 +84,8 @@ abstract class TPRoute {
       name: safeWalk,
       page: () => SafeWalkCompositionRoot(
         liveRoutes: true,
-        consentGranted: true,
+        // Third-party transmission consent is an explicit user choice.
+        // Local offline routing remains available when it is declined.
         // The person's own tap opens the phone's dialer for 110/119; they still
         // press call. Nothing is dialled, reported or dispatched by the app.
         allowEmergencyDialer: true,

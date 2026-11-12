@@ -54,6 +54,17 @@ const swCrimeDataLimit =
 /// 開放資料（競賽須知：核心資料須為合法公開資料並註明來源）。只列目前流程實際使用的資料。
 const swOpenData = <SwDataSource>[
   SwDataSource(
+    title: '裝置端離線步行路網（OSM 快照 2026-11-11）',
+    provider: '© OpenStreetMap contributors · Geofabrik',
+    purpose: '在臺北快照範圍內離線規劃步行與三級避讓路線，不送出起訖座標',
+    license: 'ODbL 1.0',
+    licenseUrl: _osmCopyright,
+    sourceUrl: 'https://download.geofabrik.de/asia/taiwan.html',
+    retrieved: '2026-11-12；來源快照 2026-11-11',
+    update: '隨版本更新；產生工具與衍生資料庫在公開 repo 的 tool/offline_route 與 assets/safe_walk/route',
+    limit: '範圍 24.95,121.44–25.22,121.68；可能與現況不同，不保證安全或無障礙。不儲存通報及犯罪位置，未載入時無法套用完整避讓。Web 維持線上路線。',
+  ),
+  SwDataSource(
     title: '地圖與步行路網',
     provider: '© OpenStreetMap contributors',
     purpose: '顯示地圖，並計算步行與避讓路線',

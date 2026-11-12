@@ -1,0 +1,9 @@
+{
+  "version": "taipei-foot-v1",
+  "bbox": [24.95, 121.44, 25.22, 121.68],
+  "highways": ["footway", "pedestrian", "path", "steps", "living_street", "residential", "service", "unclassified", "tertiary", "tertiary_link", "secondary", "secondary_link", "primary", "primary_link", "track", "corridor", "crossing"],
+  "explicitFoot": ["yes", "designated", "permissive", "official"],
+  "deniedFoot": ["no", "private", "use_sidepath"],
+  "deniedAccess": ["private", "no"],
+  "blockedBarriers": ["wall", "fence", "retaining_wall", "hedge", "block", "jersey_barrier"]
+}

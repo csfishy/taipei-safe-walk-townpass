@@ -68,7 +68,7 @@ void main() {
     // reporting service.
     final root = registrations.single.page() as SafeWalkCompositionRoot;
     expect(root.liveRoutes, isTrue);
-    expect(root.consentGranted, isTrue);
+    expect(root.consentGranted, isFalse);
     expect(root.allowEmergencyDialer, isTrue);
     expect(root.onOpenOfficialReport, isNotNull);
     // Tests carry no Supabase configuration, so nearby notification is absent
