@@ -1348,7 +1348,7 @@ void main() {
         await pumpRoot(
           t,
           platform: _livePlatform(),
-          routes: _Routes(),
+          routes: _Routes((r) async => _routeFail(r, sw.RouteFailureStatus.providerUnavailable)),
           db: _Db(),
           stores: [_store('near', 25.001), _store('far', 25.004)],
         );

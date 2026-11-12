@@ -161,6 +161,8 @@ Level B：資產／pubspec／直接宣告既有 crypto 3.0.7／官方入口／re
 
 驗證命令與實際結果以 PR 為準；需完整執行 scoped analyze、完整 Flutter tests、Python 路網及 native release 測試、Schema／module guard、Web build。Windows 未產生本次 SHA 的 APK／IPA，`verify_native_release.py` 的真實封包驗證仍待原生 CI，不把工具單元測試或 `--help` 當封包通過。全專案 analyzer 若包含既有 lint，須與 scoped 結果分開報告。
 
+本次在最新 Live-A `9340b4c` 上實跑：完整 `flutter test --no-pub` **1,276 通過、20 跳過、0 失敗**；scoped analyze（safe_walk／tool／tests／正式 route）零問題；Python 路網 5、native release verifier 19、metadata 7、workflow 4 項通過；codegen、固定 lock、Schema `--check`、正常 history/module guard、犯罪資料隔離、Markdown 本地連結與 diff check 通過；Web build 通過（flutter_tts 既有 Wasm dry-run 提示不等於 Wasm 編譯通過）。全目錄 `flutter analyze --no-pub` **失敗**：工作區既有 ignored `artifacts/` 歷史檔案缺生成程式，以及官方舊 lint，共 1,032 項（750 errors／26 warnings／256 infos），未修改那些檔案，不能列為 PASS。20 個跳過是既有 opt-in／裝置類案例，非本次真實路網測試跳過。iPhone、中階手機、當次 APK／IPA、飛航實走與原生 release 封包驗證未執行。
+
 #### Live-C 的 §4 iPhone 驗收補充（尚未執行）
 
 1. 記錄 build SHA、iPhone／iOS，從 TownPass 正式入口進入；使用公開地標人工或模擬位置，註明不是實走 GPS 證據。首次選擇拒絕第三方傳送同意，允許定位，確認仍能規劃 offline-osm-graph，沒有路線第三方外送。

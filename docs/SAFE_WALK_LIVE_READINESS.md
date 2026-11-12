@@ -11,6 +11,8 @@
 
 路網載入／驗證桌機 427.463 ms；3.04 km 已載入圖規劃 162.805 ms；冷 isolate 解析＋規劃 560.543 ms。這些不代表中階手機達標。路網超過原 15 MB 目標但低於 50 MB 硬限制；尚無 Live-B 底圖產出。路網、求助點同 PBF 重產，3,699 筆 node／way 求助點；關係物件與開放時段／無障礙限制見工具 README。Level B 由 M1 小魚確認，D3 請 M2 Steven Review；不改 Schema、不 merge、不部署。
 
+最新 parent 上完整 Flutter tests 1,276 通過／20 既有跳過；scoped analyze 零問題、Web build、路網 Python 5 項、release verifier 單元 19 項與契約／guard 通過。全目錄 analyze 被本機 ignored artifacts 的缺生成檔與舊 lint 共 1,032 項阻擋，非 PASS；沒有當次 APK／IPA／iPhone 驗收，詳見 C6。
+
 ## 2026-11-12 Live-A 接線增量（feat/offline-live-a）
 
 基底為 `origin/feat/offline-map` 的 `3542156195cff7d032fecf704a5b683e24fa4a79`，並非宣稱本項已合入 main。已核對 `lib/util/tp_route.dart` 的正式 `TPRoute.safeWalk`：使用 `SafeWalkCompositionRoot(liveRoutes: true, consentGranted: true)`，組合根的導航模式為 Live，據點讀取已 commit 的 `assets/safe_walk/osm_help_points_taipei.json`，路線為 Valhalla／OSRM；無需改正式入口開關。下方 2026-11-08 與歷史表的固定 Mock 描述只適用各自記錄的 SHA，不代表本分支現況。
