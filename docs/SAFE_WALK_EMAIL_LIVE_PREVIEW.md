@@ -31,6 +31,8 @@
 
 本機 Windows 不宣稱可編譯 iOS；IPA 以 GitHub Actions macOS 的實際建置、檢查與 release asset 為準。Release 記錄 source commit、build number 與 checksum；下載時核對相同版本。IPA 未簽署且無 provisioning profile，由使用者自行簽署安裝，不能直接透過 TestFlight 安裝。
 
+初次 PR CI 的完整 Flutter 1332 項通過／20 項 skip、原生旗標 10 項及瀏覽器 18 項測試通過，Android／Web 建置亦通過；iOS 未開始編譯即因 hosted ARM64 容量不足耗盡 runner 分配重試而取消。改用官方支援的 `macos-15-intel` 主機池，保留 Xcode 26.1.1、iPhone arm64 交叉編譯及所有原產物檢查，需由新 head 的 CI 重新驗證。[官方 runner 規格](https://docs.github.com/en/actions/how-tos/write-workflows/choose-where-workflows-run/choose-the-runner-for-a-job)、[macOS 15 Intel 映像的 Xcode 清單](https://github.com/actions/runner-images/blob/main/images/macos/macos-15-Readme.md)。
+
 ## iPhone 測試步驟
 
 1. 下載本次 release 的 `taipei-safe-walk-townpass-ios-unsigned.ipa`，核對 source commit／SHA256SUMS，自行簽署並安裝。

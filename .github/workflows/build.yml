@@ -157,7 +157,10 @@ jobs:
 
   ios:
     needs: check
-    runs-on: macos-15
+    # macos-15 now selects arm64 hosts; use the supported Intel pool after
+    # hosted arm64 capacity exhausted retries before this job could start.
+    # Xcode still cross-compiles the device app as iPhone arm64.
+    runs-on: macos-15-intel
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
