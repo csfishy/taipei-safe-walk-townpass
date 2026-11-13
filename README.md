@@ -5,7 +5,7 @@
 
 臺北安心行是以臺北市政府 **TownPass** Flutter App 為基底開發的協作專案，參與「2026 臺北城市通微服務黑客松」。目標是讓使用者在夜間或不熟悉的路段，能查看步行路線、附近便利商店、公共安全相關資訊與求助管道，並可使用模擬陪伴語音功能。
 
-> **重要：** 本專案為競賽開發中的作品，**不是官方市政服務**，不能取代 110、119 或任何官方求助管道。專案目前仍在 LIVE-FIRST 收斂中，各功能是否可用請以下方 [目前狀態](#目前狀態) 為準。
+> **重要：** 本專案為競賽成果的持續維護作品，**不是官方市政服務**，不能取代 110、119 或任何官方求助管道。專案目前仍在 LIVE-FIRST 收斂中，各功能是否可用請以下方 [目前狀態](#目前狀態) 為準。
 
 ## 目錄
 
@@ -31,12 +31,13 @@
 
 | 功能 | 說明 | 狀態 |
 |---|---|---|
-| 步行路線規劃 | 以 OSRM 步行路網計算路線，回傳實際 geometry、距離與可取得的時間 | 已實作，尚未接入正式入口 |
-| 路線跟隨 | 依 M1 提供的定位更新計算進度與偏離路線 | 已實作，尚未接入正式入口 |
-| 50 公尺避讓路線 | 對回報點與有座標的犯罪參考點套用 50 公尺產品避讓緩衝，並以真實路網重新規劃 | 規格已定（見 [Live MVP](docs/SAFE_WALK_LIVE_MVP.md#50-公尺避讓規格)），程式經 PR #59 合併；驗收以 Readiness 為準 |
-| 附近便利商店 | 以 OSM 查詢附近便利商店，並可選擇交由使用者自行開啟外部導航 | 已實作，尚未接入正式入口 |
+| 步行路線規劃 | 原生依序使用 Valhalla → 裝置端離線避讓 → OSRM，回傳真實步行 geometry 與距離；離線 ETA 保留未知 | 已接入正式入口，待實機驗收 |
+| 路線跟隨 | 依平台前景定位更新計算進度、偏離與重新規劃；取消／離開／背景清理工作 | 已接入正式入口，待實機驗收 |
+| 50 公尺避讓路線 | 對當次已載入的回報點與犯罪參考點套用產品避讓緩衝，提供三級路線；未載入或資料不完整時揭露限制 | 線上／原生離線均已接線，待實機驗收；不代表官方犯罪邊界或安全保證 |
+| 附近求助據點 | 查詢本機 OSM 便利商店／派出所快照；可規劃 App 內步行路線，路線服務不可用時保留據點、直線距離／方位與非路線警語 | 已接入正式入口，待實機驗收；不補假路徑或 ETA |
+| 臺北離線底圖 | 主地圖與住家選點共用繁中 Protomaps 向量底圖；原生預設離線、Web 線上，支援 SHA 修復／更新、範圍提示及失敗回退重試 | PR #105 已合入 main；R5：WIRED_NOT_VERIFIED |
 | 全市月別暴力犯罪統計 | 來源抓取與解析已完成，用於呈現全市歷史統計（非即時路段風險） | 已實作，尚未接入 UI |
-| 北北基犯罪參考資料 | 持久 Supabase 資料，App 只透過受限唯讀介面查詢 | 唯讀 Repository 與 SQL 已合併，尚未接入正式流程 |
+| 北北基犯罪參考資料 | 經獨立同意後透過受限唯讀介面查詢；通報／犯罪參考避讓區域僅留在請求記憶體 | 正式查詢接線已存在；後端與裝置驗收依 Readiness，不以參考點冒充精確案發點 |
 | 陪伴語音模擬 | 使用裝置內建 TTS 播放模擬陪伴內容；無可用引擎時顯示文字預覽 | 已接線，待實機驗收 |
 | 本機核准音訊 | 播放經授權的本地音檔 | 未實作 |
 | 110／119 系統撥號與官方通報入口 | 使用者主動點選後開啟手機撥號畫面（自己按撥號），並可開啟臺北通既有的線上報案服務；app 不會代撥、代報或派遣 | 已接線於正式入口，待實機驗收；簡訊報案號碼尚未核對，仍未配置 |
@@ -60,14 +61,46 @@
 | BLOCKED | 缺必要身分、安全、資料權限或官方授權，不能公開啟用 |
 | NOT_IMPLEMENTED | 尚無正式實作 |
 
-依 [Live Readiness](docs/SAFE_WALK_LIVE_READINESS.md) 的 2026-11-08 基線（main `7b99fea`），截至該基線：
+### 2026-11-13 main 整合現況
 
-- **正式入口使用 Live 接線**；已移除內建示範資料、人工路線與假成功。未配置服務顯示不可用；真實 Provider 與實機仍需分別驗收。
-- 目前**沒有任何能力被標為 LIVE_VERIFIED**。
-- 真實 GPS、OSRM 路線、TTS 等能力的個別實作或接線已存在，但仍需正式入口接線與實機驗收。
-- 附近協助者通知與警消派遣維持 BLOCKED。
+[PR #105](https://github.com/csfishy/taipei-safe-walk-townpass/pull/105) 已將 Live-A／B／C 合入 main，
+核對提交為 [`b281cc0`](https://github.com/csfishy/taipei-safe-walk-townpass/commit/b281cc0b5aba9b1dcb3dae51e8371c5ec23a4e46)。
+正式入口使用 Live 接線；未配置或失敗顯示真實限制與下一步，不回退到 Mock。
+[Readiness](docs/SAFE_WALK_LIVE_READINESS.md) 中較早 SHA 的段落是歷史紀錄，不代表目前仍未接線。
 
-main 之後又有新的合併（例如 PR #59），文件基線與程式可能不同步。請以各 PR 的程式、CI 結果與最新 Readiness 文件為準，不要把本段視為最新驗收結論。
+- **Live-A：斷網據點備援。** 無法規劃路線時仍顯示本機求助點；直線距離／方位明示不是步行路線，不生成假路徑。
+- **Live-B：繁中離線底圖。** 臺北 bbox 為緯度 24.95–25.22、經度 121.44–121.68；z12–z15 圖磚，高縮放 overzoom。原生有效離線模式不建立 `tile.openstreetmap.org` provider；部分越界提示、範圍外灰底。每次開圖重驗安裝檔 SHA，損毀可修復；載入／reader 失敗明示回退線上並提供重試。Web 維持線上。
+- **Live-C：裝置端步行路線。** 真實 OSM 路網以 A*、線段吸附及三級避讓規劃，原生備援順序為 Valhalla → 離線避讓 → OSRM。未同意第三方傳送仍可本機規劃；定位權限與犯罪查詢同意分開。取消、背景、SOS 與換起訖點會中止舊工作。
+- **來源與授權。** 底圖、路網、求助點使用同一份 2026-11-11 Geofabrik Taiwan PBF；OSM 資料為 ODbL，Protomaps 樣式與套件保留其授權，繁中字型為 Noto OFL。圖資不保證現況、可通行性或安全；不從 OSM 標準圖磚伺服器批次下載。
+- **維護分工。** 活動後 M1 小魚統一負責 M1–M5；模組邊界、測試、安全要求與 GitHub 分支保護繼續有效。
+
+### 合併後 CI 與發佈證據
+
+以下結果均對應 main `b281cc0`，不是僅引用合併前的 PR checks：
+
+| 檢查／流程 | 結果與證據 |
+|---|---|
+| Safe Walk CI | [成功](https://github.com/csfishy/taipei-safe-walk-townpass/actions/runs/43343958808)；選用 Android debug build 依規則略過 |
+| check-and-build | [成功](https://github.com/csfishy/taipei-safe-walk-townpass/actions/runs/43343958814)；check、Web、Android release APK、unsigned iOS IPA、native verifier 與封包資料隔離通過 |
+| 自動發佈 | 同次 main CI 的 prerelease 與 Pages jobs 成功；[預覽版下載](https://github.com/csfishy/taipei-safe-walk-townpass/releases)／[Web 預覽](https://csfishy.github.io/taipei-safe-walk-townpass/) |
+
+CI 與預覽部署成功不等於實機驗收，也不代表 unsigned IPA 可直接安裝。
+原生首次複製、手機 FPS／記憶體與實走結果尚未提供。
+
+### 尚待完成的 §4 實機驗收
+
+**R5 維持 WIRED_NOT_VERIFIED**，本次離線功能不標為 LIVE_VERIFIED。
+完整步驟見 [離線需求 §4](docs/SAFE_WALK_OFFLINE.md#4-iphone-飛航模式驗收清單三項共用) 與 [PR #105 驗收清單](https://github.com/csfishy/taipei-safe-walk-townpass/pull/105)：
+
+- [ ] iPhone 飛航模式冷啟動、主地圖與住家選點首次複製／暖載入；刪除或損毀安裝檔修復及新 SHA 更新。
+- [ ] 臺北範圍內 z12–z18 繁中路名可讀、平移／旋轉／部分越界提示；封包紀錄確認有效離線模式沒有 OSM tile 請求。
+- [ ] 本機據點與離線目的地路線、快照日期、未套用／部分避讓警語；無路線、範圍外及資料缺失時不補假路徑／ETA。
+- [ ] 定位拒絕／精度差、拒絕或撤回第三方同意；前景跟隨、偏離重算、快速進出、取消、背景／返回與 SOS 中斷，舊結果不得復活。
+- [ ] 注入複製／reader 失敗，驗線上回退提示、離線重試及恢復連線。有效原生底圖維持離線，Web 維持線上。
+- [ ] iPhone 與中階 Android 的冷／暖載入、3 km 規劃耗時、FPS、峰值記憶體、包大小／安裝容量、VoiceOver／放大文字及 safe area。
+
+測試證據記錄裝置、OS 與 build SHA；使用公開地標／人工位置並註明模擬限制，不使用真實住家、不撥真實緊急電話、不送真通報。
+附近協助者通知與警消自動派遣的既有 BLOCKED 要求不因離線功能合併而解除。
 
 ## 快速開始
 
@@ -160,13 +193,16 @@ Android、iOS 執行前需先安裝對應 SDK、模擬器或準備實機。執�
 - **軟性所有權**：每個模組有主要聯絡人與主要負責範圍，但**任何成員都可以修改各模組的功能程式與測試**，不以資料夾限制作者。
 - **契約式整合**：業務模組只依賴自身與 `shared/`，透過依賴注入組合；具體的跨模組實作組合放在 `platform/integration/`。
 
-| 模組 | 主要聯絡人 | 主要範圍 |
+活動後自 2026-11-13 起，**M1–M5 由 M1 小魚統一開發、維護、審查及驗收**；原成員分工僅供歷史追溯。
+技術分區與依賴邊界仍保留：
+
+| 模組 | 現行負責人 | 主要範圍 |
 |---|---|---|
 | M1 平台 | 小魚 | `platform/`、`shared/`、composition、套件與 route、原生設定、CI |
-| M2 導航 | Steven | `navigation/`：OSRM、RouteFollower、目的地與據點路線 |
-| M3 呈現 | 莅紋 | `presentation/`：正式 UI/UX 設計方向與重大改版 |
-| M4 公共安全資料 | 信義 | `safety_data/`：來源、Parser、Repository、資料品質 |
-| M5 陪伴 | 奶爸 | `companion/`：控制器、TTS／音訊、清理與中斷 |
+| M2 導航 | 小魚 | `navigation/`：線上／離線路線、RouteFollower、目的地與據點路線 |
+| M3 呈現 | 小魚 | `presentation/`：正式 UI/UX、離線底圖與錯誤呈現 |
+| M4 公共安全資料 | 小魚 | `safety_data/`：來源、Parser、Repository、資料品質 |
+| M5 陪伴 | 小魚 | `companion/`：控制器、TTS／音訊、清理與中斷 |
 
 ### 資料契約
 
@@ -186,9 +222,9 @@ Android、iOS 執行前需先安裝對應 SDK、模擬器或準備實機。執�
 | 應用框架 | Flutter 3.47.6、Dart 3.13.5（以 [.fvmrc](.fvmrc) 固定） | 單一程式碼支援 Android、iOS 與 Web |
 | 基底 App | TownPass Flutter（臺北市政府，GPLv3） | 官方殼、登入、路由、主題與既有服務 |
 | 狀態與路由 | GetX（`get`） | 官方 App 的路由與頁面狀態 |
-| 地圖與路線 | `flutter_map`、`latlong2`、OpenStreetMap 圖磚、Valhalla `pedestrian`／`exclude_polygons`／`use_lit`、OSRM 備援、`RouteFollower` | App 內步行路線、產品緩衝避讓、夜間照明偏好及前景偏離重規劃；[日夜與自動規劃](#日夜照明與自動路線規劃)依下表說明 |
+| 地圖與路線 | `flutter_map`、`latlong2`、Protomaps MBTiles／Noto 繁中、`vector_map_tiles`、本機 CSR／A*、Valhalla／OSRM、`RouteFollower` | App 內步行路線、產品緩衝避讓、夜間照明偏好及前景偏離重規劃；[日夜與自動規劃](#日夜照明與自動路線規劃)依下表說明 |
 | 定位與感測 | `geolocator`、`sensors_plus` | 使用者主動觸發的定位與裝置感測 |
-| 據點與犯罪參考資料 | OSM Overpass API（便利商店，ODbL）；臺北市統計資料庫月別暴力犯罪 CSV；Supabase 唯讀查詢（RPC，僅使用公開金鑰） | 附近據點與歷史統計參考；不是即時路段風險 |
+| 據點與犯罪參考資料 | Geofabrik OSM 本機求助點快照（ODbL）；臺北市統計資料庫月別暴力犯罪 CSV；Supabase 唯讀查詢（RPC，僅使用公開金鑰） | 附近據點與歷史統計參考；不是即時路段風險 |
 | 語音與音訊 | `flutter_tts`（裝置 TTS）、`audioplayers`（模擬陪伴鈴聲，屬 Level B 依賴） | 模擬陪伴語音與提示音 |
 | 本機儲存 | `shared_preferences` | 使用者設定的「家」，只存在裝置上 |
 | 資料契約 | JSON Schema（`schemas/`）、`json_serializable`、`build_runner` | 單一來源的 payload 契約與生成的 Dart Model |
@@ -276,7 +312,7 @@ Android、iOS 執行前需先安裝對應 SDK、模擬器或準備實機。執�
 
 ```bash
 # 安心行與工具的嚴格分析（門檻）
-flutter analyze --no-pub lib/features/safe_walk tool test/features/safe_walk
+flutter analyze --no-pub lib/features/safe_walk tool test/features/safe_walk third_party/vector_map_tiles/lib third_party/vector_map_tiles_mbtiles/lib
 
 # 全專案分析：允許既有 style info，error／warning 仍會失敗
 flutter analyze --no-pub --no-fatal-infos
@@ -289,6 +325,10 @@ flutter test --no-pub --platform chrome test/web_startup_test.dart --reporter ex
 
 # Schema 與生成產物一致性
 dart run tool/generate_safe_walk_contracts.dart --check
+
+# 公開離線資產驗證（不下載或重新產製圖資）
+python3 tool/offline_map/metadata.py
+python3 -m unittest discover -s tool/offline_route -p 'test_*.py' -v
 
 # Python 工具測試
 python3 -m unittest discover -s tool -p 'test_*crime*.py' -v
@@ -341,8 +381,8 @@ flutter build web --release --no-pub --base-href /taipei-safe-walk-townpass/ --n
 1. **開工前**：`git fetch origin`，確認最新 `origin/main`、開放中的 PR、CI 狀態與工作樹，避免覆寫他人成果。
 2. **分支**：一般功能使用短期分支（例如 `feat/…`、`fix/…`、`docs/…`）。依賴未合併成果時，使用 stacked PR，並在描述中明列 parent 與 head SHA。
 3. **審查層級**：
-   - **Level A**：一般功能、UI callback、導航邏輯、資料轉換、音訊與測試。通過相關測試與必要 CI 後，由一位具權限、非作者的隊員審查。
-   - **Level B**：共用 Schema／Contracts／Models、依賴與 lockfile、TownPass route、原生設定、重大 UI、CI 與重大架構。合併前需對應主要負責人確認。
+   - **Level A**：一般功能、UI callback、導航邏輯、資料轉換、音訊與測試；活動後由 M1 完成本機檢查及審查紀錄，保留必要 CI。
+   - **Level B**：共用 Schema／Contracts／Models、依賴與 lockfile、TownPass route、原生設定、重大 UI、CI 與重大架構。活動後由 M1 完成確認，仍遵守遠端必要 Checks 與 branch protection。
    - **Level C**：真實外部作用，例如警消發送、附近協助者通知、Supabase 身分／RPC／RLS、敏感位置儲存、正式部署與 Live 開關。需隊長明確授權與安全、隱私審查。
 4. **PR 內容**需包含：完成的使用者功能與完成定義、主要檔案與影響模組、契約變更（沒有則寫無）、審查層級、實際執行的命令與結果、未驗證項目、外部或裝置依賴，以及對 Live 可用性與安全狀態的影響。
 5. **禁止事項**：不 force push、不直接推送 `main`、不刪除或重設他人分支、不移動已發布的 tag、不寫入官方 upstream、不以未驗證結果宣稱完成。
@@ -356,6 +396,10 @@ flutter build web --release --no-pub --base-href /taipei-safe-walk-townpass/ --n
 | [AGENTS.md](AGENTS.md) | 協作規則、修改範圍、資料與 Git 規則 |
 | [LIVE-FIRST 完成定義](docs/SAFE_WALK_LIVE_FIRST.md) | 正式入口只用 Live、Unavailable 的定義與驗收證據 |
 | [Live MVP](docs/SAFE_WALK_LIVE_MVP.md) | 正式功能驗收規格，含 50 公尺避讓規格 |
+| [離線能力與 §4 實機驗收](docs/SAFE_WALK_OFFLINE.md) | Live-A／B／C 規格、來源、限制與裝置待辦 |
+| [底圖產製工具](tool/offline_map/README.md) | 真實臺北圖磚、樣式、字型、SHA 與授權 |
+| [裝置端路網工具](tool/offline_route/README.md) | PBF 規則、CSR 格式、重現與路網限制 |
+| [地圖套件修補紀錄](third_party/README.md) | 固定版本、來源 SHA、授權與六檔修補範圍 |
 | [Live Readiness](docs/SAFE_WALK_LIVE_READINESS.md) | 逐能力現況、接線缺口、測試與實機證據 |
 | [Live 接線盤點](docs/SAFE_WALK_LIVE_WIRING_AUDIT.md) | 正式入口的程式接線盤點 |
 | [Live 計畫](docs/SAFE_WALK_LIVE_PLAN.md) | P0–P2 工程計畫與分工 |
@@ -388,7 +432,7 @@ flutter build web --release --no-pub --base-href /taipei-safe-walk-townpass/ --n
 
 ## 免責聲明
 
-- 臺北安心行是競賽開發中的作品，**不是官方服務**，不提供緊急救援，也不保證路線、資料或求助功能在任何情況下可用。
+- 臺北安心行是競賽成果的持續維護作品，**不是官方服務**，不提供緊急救援，也不保證路線、資料或求助功能在任何情況下可用。
 - 遇到危險或緊急狀況，請直接撥打 110 或 119，或使用官方求助管道。
 - 測試時請勿撥打真實緊急電話，也不要送出真實通報。
 - 路線與統計資料僅供參考，不代表路段安全或治安保證。
