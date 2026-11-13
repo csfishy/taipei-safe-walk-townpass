@@ -8,6 +8,7 @@ permissions and a trusted, explicitly invoked import remain necessary.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import os
 from pathlib import Path, PurePosixPath
 import re
@@ -18,6 +19,25 @@ import zipfile
 
 
 SQLITE_HEADER = b"SQLite format 3\x00"
+# One reviewed public OSM basemap, never a generic SQLite/MBTiles exemption.
+# Changing the snapshot requires reviewing this digest along with its provenance.
+PUBLIC_BASEMAP_SHA256 = '774d69bad7866536abbd679d0dc4d8d9f97bedc45d3db398cd14c32d061d4f25'
+PUBLIC_BASEMAP_PATHS = {
+    'assets/safe_walk/map/taipei.mbtiles',
+    'assets/assets/safe_walk/map/taipei.mbtiles',
+    'assets/flutter_assets/assets/safe_walk/map/taipei.mbtiles',
+    'payload/runner.app/frameworks/app.framework/flutter_assets/assets/safe_walk/map/taipei.mbtiles',
+}
+
+
+def reviewed_public_basemap(name, stream):
+    if normalized_name(name) not in PUBLIC_BASEMAP_PATHS:
+        return False
+    digest = hashlib.sha256(SQLITE_HEADER)
+    for block in iter(lambda: stream.read(1024 * 1024), b''):
+        digest.update(block)
+    return digest.hexdigest() == PUBLIC_BASEMAP_SHA256
+
 PRIVATE_DIRECTORIES = {".local-data", "crime-reference-data"}
 MANUAL_SQL_DIRECTORY = "supabase/crime_reference/"
 SHELL_SUFFIXES = {".sh", ".bash", ".ps1", ".cmd", ".bat"}
@@ -177,7 +197,8 @@ def scan_repository(root: Path) -> list[str]:
         if forbidden_database_name(relative):
             errors.append(f"{relative}: private crime database/data path cannot be tracked or packaged")
         with candidate.open("rb") as stream:
-            if stream.read(len(SQLITE_HEADER)) == SQLITE_HEADER:
+            if (stream.read(len(SQLITE_HEADER)) == SQLITE_HEADER
+                    and not reviewed_public_basemap(relative, stream)):
                 errors.append(f"{relative}: SQLite binary cannot be tracked or packaged")
     for relative in sorted(sources):
         path = normalized_name(relative)
@@ -203,7 +224,8 @@ def scan_archive(path: Path) -> list[str]:
                 if forbidden_database_name(member.filename):
                     errors.append(f"{label}: private crime database/data path in package")
                 with archive.open(member) as stream:
-                    if stream.read(len(SQLITE_HEADER)) == SQLITE_HEADER:
+                    if (stream.read(len(SQLITE_HEADER)) == SQLITE_HEADER
+                            and not reviewed_public_basemap(member.filename, stream)):
                         errors.append(f"{label}: SQLite binary in package")
     except (OSError, RuntimeError, zipfile.BadZipFile, NotImplementedError) as error:
         errors.append(f"{path.name}: archive cannot be verified ({type(error).__name__})")

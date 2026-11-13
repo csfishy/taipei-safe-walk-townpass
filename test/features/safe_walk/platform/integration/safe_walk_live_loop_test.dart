@@ -1705,7 +1705,7 @@ void main() {
       await t.ensureVisible(find.text('地圖與步行路網'));
       await t.tap(find.text('地圖與步行路網'));
       await t.pumpAndSettle();
-      expect(find.textContaining('地圖圖磚自動載入，不再詢問'), findsOneWidget);
+      expect(find.textContaining('原生預設離線底圖不送圖磚請求'), findsOneWidget);
       expect(platform.calls, 1);
       expect(routes.requests, hasLength(1));
       expect(db.calls, isEmpty);

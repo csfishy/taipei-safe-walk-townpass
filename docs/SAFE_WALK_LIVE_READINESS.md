@@ -1,5 +1,16 @@
 # 臺北安心行 Live 上線條件表
 
+## 2026-11-13 Live-B 與最新離線分支整合
+
+R5 **WIRED_NOT_VERIFIED**：正式主地圖與住家選點共用臺北繁中離線底圖，原生預設本機、
+Web 維持線上，SHA 複製失敗提示後回退，範圍外灰底提示。完整真實 MBTiles 26,607,616 bytes，
+Noto OFL 字型 16,435,884 bytes；來源與實作見 [離線規格 B5](SAFE_WALK_OFFLINE.md#b5-live-b-實作與方案選定2026-11-13)。
+保留最新目標分支 `191f606b6466d22bf8ae0abdbf36c046da02ba88`／#102 的全部 Live-C 修正，
+底圖、路網、求助點 sourceDate 同為 2026-11-11，sourceSha256 相同且由 CI 核對。
+各舊增量段落記錄的是當時 SHA，不再代表目前缺少 Live-B。當次 native 編譯、封包增量、
+測試與首次複製耗時以 PR #104 最終 head 證據為準；仍未有 iPhone／中階手機實機、FPS、
+記憶體與 VoiceOver 驗收，不以 Windows 或 CI 取代裝置驗證。依 main #103 新規範由 M1 統一維護及確認。
+
 ## 2026-11-13 PR #102 審查修正
 
 以 PR head `c6dad39` 審查真實 OSM CSR／三級避讓、第三方同意拆分、取消／背景／SOS 與遲到結果。兩項 P2 已用原版失敗測試重現並修正：
@@ -102,7 +113,7 @@ Mock unit test、建構 provider、API 可達、截圖或 CI 綠燈都不足以�
 | R2 OSRM 步行路線 | M2 Steven；M1 小魚接線；M3 莅紋呈現 | IMPLEMENTED_NOT_WIRED | `navigation/default_route_service.dart`、`osrm_walking_route_provider.dart`、HTTP transport；root 已建構 OSRM | mode/gates 關閉；Flow 未接 scope 路線/同意；真 geometry、距離/可用 ETA、目的地選擇未完整接入 | `routing.openstreetmap.de/routed-foot`；公開 fair-use demo 無可用性保證，正式容量須確認或配置合約/自管服務 | 起訖座標送第三方需獨立可撤回同意；失敗不切 Mock；walkingNetworkVerified 只指步行網路，非安全認證 | 否；真 endpoint、取消/失敗、地圖及裝置證據未齊 |
 | R3 路線控制／scope 邊界 | M1 小魚 | WIRED_NOT_VERIFIED | `platform/integration/safe_walk_navigation_controller.dart`、`shared/contracts/safe_walk_navigation_scope.dart`；root 已提供 snapshot/callbacks、模式與 requestId 驗證 | Flow 尚未消費 scope；換目的地、撤同意、背景、SOS 的正式端到端閉環待完成 | M1 位置、M2 RouteService、M3 UI | 取消立即清路線，遲到結果不得復活；模式與 requestId 一致 | 否；內部接線不等於產品導航完成 |
 | R4 RouteFollower／位置進度 | M2 Steven；M1 小魚接位置；M3 莅紋呈現 | IMPLEMENTED_NOT_WIRED | `navigation/route_follower.dart` 的進度/偏離運算及測試 | 主 App 尚未消費 RouteFollower；需消費 M1 位置更新、真路線並接進度/偏離/重算 UI | RouteResult geometry、M1 有效 GPS；不另開 GPS watcher | 使用者啟動/停止；背景/離開清理；精度差/過期不冒稱進度正確 | 否；實走與位置更新策略待驗 |
-| R5 真實地圖與 Live UI | M3 莅紋；M1 小魚平台/依賴 | IMPLEMENTED_NOT_WIRED | 已有 Flow 與 route 參數；#29 的 `DemoMap` renderer 已接 flutter_map／OSM 圖磚、座標投影及 attribution，底圖子能力為 WIRED_NOT_VERIFIED | scope 未接 Flow；路線/點位仍 Mock；Live 模式、真 RouteResult 整合與缺值分流未完成；禁止假 ETA、避險件數、地標/示範路徑 | OSM 標準圖磚需網路，須遵守來源標示、快取與使用條款；沿用 TownPass Theme/TPColors | 定位/第三方分開同意；Live/Demo/Unavailable 清楚；loading/cancel/error/未知值正確 | 否；Live gates 未開，真資料端到端與 iPhone 驗收缺少 |
+| R5 真實地圖與 Live UI | M1 小魚（活動後統一維護） | WIRED_NOT_VERIFIED | 正式 liveRoutes 入口已使用真實地圖；Live-B 共用 SafeWalkBasemap 接主地圖與住家選點，臺北完整 Protomaps MBTiles、2026-11-11 OSM 快照、隨附 Noto 繁中；SHA 複製／失敗回退／範圍外與來源揭露已接線 | iPhone／Android 實機飛航模式、FPS／記憶體／VoiceOver 與包大小待驗；雙平台編譯與當次測試證據見 Live-B PR，不以 Windows 渲染代替裝置驗收 | 原生預設離線；Web／離線檔失敗用 OSM 線上圖磚；ODbL、Protomaps CC0／BSD、Noto OFL；z16–z19 overzoom | 本機底圖不外傳位置；線上回退揭露檢視範圍與 IP；不改定位／路線同意，不儲存敏感位置 | 否；WIRED_NOT_VERIFIED，依 SAFE_WALK_OFFLINE §B5／§4 完成裝置證據後評估 |
 | R6 已查證求助據點 | M4 信義；M1 小魚注入；M2 Steven路線；M3 莅紋呈現 | NOT_IMPLEMENTED | `safety_data/contract_safety_data.dart` parser、Mock repository；M1 snapshot lookup 與 M2 via ID 驗證 | 尚無正式 Live assistance source；Mock 查詢 Live 拋不可用；需來源正規化、查證/更新與 UI | 合法開放資料；逐來源授權、取得/更新日期、coverage、limitations | 無資料/查詢失敗/未配置分開；AED/商店不等同認證救援；未知營業不填假值 | 否；來源、查證、provider、查詢/途經驗收缺少 |
 | R7 附近便利商店／外部導航 | M2 Steven；M1 小魚 handoff；M3 莅紋操作 | IMPLEMENTED_NOT_WIRED | `osm_convenience_store_source.dart`、`nearest_store_planner.dart`、`google_maps_link.dart`；有 consent/取消及路徑演算法 | Overpass/planner 未接 composition；link builder 尚無正式開啟流程、失敗狀態/同意 UI | OSM/Overpass、OSRM、Google Maps／系統 URL handler | 位置傳第三方須同意；商店只是查得場所，不假稱政府救援；失敗由使用者選外部導航 | 否；真查詢、正確場所/座標及 iPhone handoff 待驗 |
 | R8 全市月別暴力犯罪資訊 | M4 信義；M1 小魚整合；M3 莅紋呈現 | IMPLEMENTED_NOT_WIRED | `safety_data/violent_crime/taipei_violent_crime_repository.dart`、CSV normalizer、GetConnect fetcher、6h cache/取消 | 未接 composition/UI；module-local `CityMonthlyCrimeStatistics` 不適用 district `AreaStatistics`，不得硬塞 | data.taipei metadata／主計處 CSV；保留來源、license、取得/更新、全市月別限制 | 不宣稱行政區、道路、逐時風險；不把歷史率變成即時安全路線 | 否；Dart 真資料抓取、呈現與裝置驗收待補 |

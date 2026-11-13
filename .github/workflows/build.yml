@@ -39,6 +39,8 @@ jobs:
       - name: Validate source and release version
         id: metadata
         run: python3 tool/release_metadata.py
+      - name: Verify bundled offline basemap metadata and SHA-256 (no downloads)
+        run: python3 tool/offline_map/metadata.py
       - name: Test release versioning and publication safeguards
         run: python3 -m unittest discover -s tool -p 'test_*release*.py' -v
       - uses: subosito/flutter-action@v2
@@ -51,7 +53,7 @@ jobs:
       - run: dart run tool/generate_safe_walk_contracts.dart --check
       - run: dart run tool/check_safe_walk_baseline.dart
       - name: Strict Safe Walk analysis
-        run: flutter analyze --no-pub lib/features/safe_walk tool test/features/safe_walk
+        run: flutter analyze --no-pub lib/features/safe_walk tool test/features/safe_walk third_party/vector_map_tiles/lib third_party/vector_map_tiles_mbtiles/lib
       - name: Analyze (errors and warnings are fatal; existing style infos are advisory)
         run: flutter analyze --no-fatal-infos
       - run: flutter test --reporter expanded

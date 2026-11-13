@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:town_pass/features/safe_walk/presentation/safe_walk_basemap.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -54,6 +55,16 @@ const swCrimeDataLimit =
 /// 開放資料（競賽須知：核心資料須為合法公開資料並註明來源）。只列目前流程實際使用的資料。
 const swOpenData = <SwDataSource>[
   SwDataSource(
+    title: '離線底圖（OSM 快照 $offlineMapSnapshotDate）',
+    provider: '© OpenStreetMap contributors · Geofabrik · Protomaps',
+    purpose: '原生 App 在臺北範圍內離線顯示街道、路名、建物、水系、公園與捷運站',
+    license: 'OSM 衍生資料 ODbL 1.0；Protomaps 樣式 CC0／BSD-3-Clause；Noto 繁中字型 OFL-1.1',
+    licenseUrl: _osmCopyright,
+    sourceUrl: 'https://download.geofabrik.de/asia/taiwan.html',
+    update: '隨 App 版本更新，來源快照 $offlineMapSnapshotDate',
+    limit: '涵蓋 24.95,121.44–25.22,121.68；z16–z19 放大 z15。範圍外顯示灰底與提示。快照可能與現況不同，不保證安全或可通行。Web／離線檔失敗時使用線上圖磚。',
+  ),
+  SwDataSource(
     title: '裝置端離線步行路網（OSM 快照 2026-11-11）',
     provider: '© OpenStreetMap contributors · Geofabrik',
     purpose: '在臺北快照範圍內離線規劃步行與三級避讓路線，不送出起訖座標',
@@ -71,8 +82,8 @@ const swOpenData = <SwDataSource>[
     license: 'ODbL 1.0',
     licenseUrl: _osmCopyright,
     sourceUrl: 'https://www.openstreetmap.org/',
-    update: '地圖圖磚與路線在使用時線上取得',
-    limit: '地圖圖磚自動載入，不再詢問；地圖服務會收到目前檢視範圍與 IP。路線僅供參考，不代表沿途安全。',
+    update: 'Web／離線檔無法使用時線上取得底圖；第三方路線依原同意流程查詢',
+    limit: '線上地圖服務會收到目前檢視範圍與 IP。原生預設離線底圖不送圖磚請求。路線僅供參考，不代表沿途安全。',
   ),
   SwDataSource(
     title: '附近便利商店與警察設施',

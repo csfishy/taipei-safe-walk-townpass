@@ -173,6 +173,11 @@ class NativeReleaseClientConfigurationTest(unittest.TestCase):
                                  macho(compiled_values) if aot_image is None else aot_image)
                 asset = app + 'Frameworks/App.framework/flutter_assets/assets/build-info.json'
             package.writestr(asset, json.dumps(self.metadata))
+            map_root = Path(__file__).resolve().parents[1] / 'assets/safe_walk/map'
+            prefix = asset.removesuffix('build-info.json') + 'safe_walk/map/'
+            for name in ('taipei_basemap.meta.json', 'taipei.mbtiles', 'style.json',
+                         'NotoSansCJKtc-Regular.otf'):
+                package.write(map_root / name, prefix + name)
             package.writestr('unused-client-config.json', json.dumps(self.client))
         return path
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart' as ll;
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_map.dart';
+import 'package:town_pass/features/safe_walk/presentation/safe_walk_basemap.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_map_models.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -111,12 +112,9 @@ class _SafeWalkHomeSettingViewState extends State<SafeWalkHomeSettingView> {
                             ),
                     ),
                     children: [
-                      TileLayer(
-                        urlTemplate:
-                            'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                        userAgentPackageName: 'town_pass',
-                        maxNativeZoom: 19,
-                        tileProvider: SafeWalkMap.createTileProvider(),
+                      SafeWalkBasemap(
+                        onlineProvider: SafeWalkMap.createTileProvider,
+                        forceOnlineForTesting: SafeWalkMap.usesInjectedOnlineTiles,
                       ),
                       if (pin != null)
                         MarkerLayer(
@@ -181,12 +179,12 @@ class _SafeWalkHomeSettingViewState extends State<SafeWalkHomeSettingView> {
                     style: SwText.secondary,
                   ),
                   Text(
-                    '地圖自動載入 OpenStreetMap 圖磚，服務會收到檢視範圍與 IP；編輯時範圍包含已儲存的家。',
+                    '原生 App 預設使用臺北離線底圖。Web 或離線檔無法使用時改用線上圖磚，服務會收到檢視範圍與 IP；編輯時範圍可能包含已儲存的家。',
                     style: SwText.secondary,
                   ),
                   TextButton(
                     onPressed: _openAttribution,
-                    child: const Text('© OpenStreetMap contributors'),
+                    child: const Text(basemapAttribution),
                   ),
                   if (_error != null) ...[
                     const SizedBox(height: 8),

@@ -44,6 +44,8 @@ jobs:
       - name: Validate bundled offline OSM routing data and rules
         run: python3 -m unittest discover -s tool/offline_route -p 'test_*.py' -v
       - run: python3 tool/release_metadata.py
+      - name: Verify bundled offline basemap metadata and SHA-256 (no downloads)
+        run: python3 tool/offline_map/metadata.py
       - name: Install the SDK pinned in .fvmrc
         uses: subosito/flutter-action@v2
         with:
@@ -84,7 +86,7 @@ jobs:
           exit "$analysis_exit"
       - name: Strict analysis of Safe Walk, tools and new tests
         id: scoped_analysis
-        run: flutter analyze --no-pub lib/features/safe_walk tool test/features/safe_walk
+        run: flutter analyze --no-pub lib/features/safe_walk tool test/features/safe_walk third_party/vector_map_tiles/lib third_party/vector_map_tiles_mbtiles/lib
       - name: Run the complete Flutter test suite
         id: tests
         run: flutter test --no-pub --reporter expanded 2>&1 | tee build/ci-reports/flutter-tests.log
