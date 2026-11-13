@@ -346,7 +346,11 @@ void main() {
     await tester.tap(find.text('同意查詢'));
     await tester.pumpAndSettle();
     expect(queries, 0, reason: 'query waits for a real position boundary');
-    expect(platform.cancellations.first.isCancelled, isTrue);
+    expect(
+      platform.cancellations.first.isCancelled,
+      isFalse,
+      reason: 'map GPS remains active across destination changes',
+    );
     platform.locations.last.complete(_position());
     await tester.pumpAndSettle();
     expect(queries, 1);
@@ -355,8 +359,10 @@ void main() {
     expect(map.crimeSpots.single.label, contains('人工測試來源'));
     expect(map.crimeSpots.single.label, contains('門牌參考位置'));
     final circles = tester
-        .widget<CircleLayer>(find.byType(CircleLayer))
-        .circles;
+        .widgetList<CircleLayer>(find.byType(CircleLayer))
+        .expand((layer) => layer.circles)
+        .where((circle) => circle.useRadiusInMeter && circle.radius == 50)
+        .toList();
     expect(circles, hasLength(1));
     expect(circles.single.radius, 50);
     expect(circles.single.useRadiusInMeter, isTrue);

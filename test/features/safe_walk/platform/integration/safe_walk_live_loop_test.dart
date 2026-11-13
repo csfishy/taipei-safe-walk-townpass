@@ -1114,15 +1114,6 @@ void main() {
           .destinationConfigured) {
         await t.tap(find.text('目的地'));
         await t.pumpAndSettle();
-        // Count only this explicitly selected destination's GPS work.
-        (t
-                        .widget<SafeWalkCompositionRoot>(
-                          find.byType(SafeWalkCompositionRoot),
-                        )
-                        .platform
-                    as _Platform)
-                .calls =
-            0;
       }
       expect(find.byType(SafeWalkLiveRoutePage), findsNothing);
     }
@@ -1188,8 +1179,8 @@ void main() {
         expectDirectMap();
         expect(
           platform.calls,
-          3,
-          reason: 'each explicit map entry previews nearby; tiles do not add GPS reads',
+          4,
+          reason: 'map entry, foreground resume and SOS return refresh GPS',
         );
         expect(routes.requests, isEmpty);
         expect(db.calls, isEmpty);
@@ -1214,7 +1205,7 @@ void main() {
         expect(routes.requests, isEmpty);
         expect(db.calls, isEmpty);
         await openMap(t);
-        expect(platform.calls, 0);
+        expect(platform.calls, 1);
         expect(routes.requests, isEmpty);
         expect(db.calls, isEmpty);
         await runLoop(t);
@@ -1705,7 +1696,7 @@ void main() {
       await openMap(t);
       expect(map(t).showMapTiles, isTrue);
       expect(find.byType(TileLayer), findsOneWidget);
-      expect(platform.calls, 0);
+      expect(platform.calls, 1);
       expect(routes.requests, isEmpty);
       expect(db.calls, isEmpty);
       await runLoop(t, referenceConsent: false);
@@ -2033,7 +2024,11 @@ void main() {
             expect(find.byType(SafeWalkMapView), findsNothing);
           }
           expect(routes.requests, hasLength(1));
-          expect(platform.calls, 1);
+          expect(
+            platform.calls,
+            interrupt == 'background' ? 2 : 1,
+            reason: 'resume refreshes map GPS, not navigation',
+          );
           await t.pumpWidget(const SizedBox.shrink());
         },
       );
