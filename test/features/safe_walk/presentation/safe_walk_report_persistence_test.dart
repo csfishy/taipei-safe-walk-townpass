@@ -3,7 +3,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_map.dart';
+
 import '../../../support/safe_walk_fixtures.dart';
+
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_flow.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_map_view.dart';
 import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart'
@@ -33,7 +35,9 @@ Future<void> _pump(WidgetTester t, SafeWalkFlow flow) async {
 Future<void> _form(WidgetTester t) async {
   await t.tap(find.bySemanticsLabel('回報狀況，在地圖上標出異常'));
   await t.pumpAndSettle();
-  t.widget<SafeWalkMap>(find.byType(SafeWalkMap)).onPick!(const LatLng(0.5, 0.75));
+  t.widget<SafeWalkMap>(find.byType(SafeWalkMap)).onPick!(
+    const LatLng(0.5, 0.75),
+  );
   await t.pumpAndSettle();
   await t.ensureVisible(find.text('標示到地圖'));
   await t.pumpAndSettle();
@@ -158,6 +162,8 @@ void main() {
           },
         ),
       );
+      await t.tap(find.text('目的地'));
+      await t.pumpAndSettle();
       expect(find.text('家在哪裡？'), findsOneWidget);
       await _form(t);
       expect(find.text('這裡發生什麼事？'), findsOneWidget);
@@ -268,7 +274,7 @@ void main() {
           homeLocation: sw.Coordinates(lat: 0.6, lng: 0.8),
           onLoadReports: () => response.future,
           onReportsChanged: (spots) => events.add('reports:${spots.length}'),
-          onPlanRoute: (_) => events.add('route'),
+          onRetryPoints: () => events.add('nearby'),
         ),
       );
       expect(events, isEmpty);
@@ -276,7 +282,7 @@ void main() {
       response.complete([_saved('persisted')]);
       await t.pumpAndSettle();
       expect(_reports(t).single.id, 'persisted');
-      expect(events, ['reports:1', 'route']);
+      expect(events, ['reports:1', 'nearby']);
       await t.tap(find.bySemanticsLabel('返回'));
       await t.pumpAndSettle();
       await t.tap(find.text('點擊開始'));

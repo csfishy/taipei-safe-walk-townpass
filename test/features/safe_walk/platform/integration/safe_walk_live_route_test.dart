@@ -3,12 +3,16 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:town_pass/features/safe_walk/navigation/nearest_store_planner.dart';
 import 'package:town_pass/features/safe_walk/navigation/route_service.dart';
 import 'package:town_pass/features/safe_walk/platform/home_location/home_location_service.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_composition_root.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_route_speaker.dart';
 import 'package:town_pass/features/safe_walk/platform/platform_service.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_flow.dart';
+import 'package:town_pass/features/safe_walk/presentation/safe_walk_map.dart';
+import 'package:town_pass/features/safe_walk/presentation/safe_walk_map_models.dart'
+    show LatLng;
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_map_view.dart';
 import 'package:town_pass/features/safe_walk/safety_data/crime_reference/crime_reference_repository.dart';
 import 'package:town_pass/features/safe_walk/shared/contracts/cancellation.dart';
@@ -21,6 +25,10 @@ void main() {
     RouteService? routes,
     _Gps gps, {
     Stream<sw.Position> Function()? watch,
+    Stream<double> Function()? heading,
+    NearbyPointFinder? finder,
+    bool nearby = false,
+    bool hasHome = true,
   }) async {
     t.view.physicalSize = const Size(1170, 2532);
     t.view.devicePixelRatio = 3;
@@ -32,7 +40,10 @@ void main() {
           routeService: routes,
           platform: gps,
           watchPosition: watch,
-          homeLocationStore: _SavedHomeStore(),
+          watchHeading: heading ?? () => const Stream.empty(),
+          findStores: finder ?? (origin, {cancellation}) async => [],
+          homeLocationStore: _SavedHomeStore()
+            .._value = hasHome ? '{"lat":25.0330,"lng":121.5704}' : null,
           speaker: _UnavailableSpeaker(),
           crimeRepository: CrimeReferenceRepository(transport: null),
         ),
@@ -42,7 +53,219 @@ void main() {
     await t.tap(find.text('點擊開始'));
     await t.pump();
     await t.pump(const Duration(milliseconds: 400));
+    if (!nearby) {
+      // These regressions exercise an explicitly selected saved destination.
+      await t.tap(find.text('目的地'));
+      await t.pump();
+      await t.pump(const Duration(milliseconds: 400));
+      gps.calls = 0;
+    }
   }
+
+  for (final hasHome in [false, true]) {
+    testWidgets(
+      'main card previews nearest help on every entry (home=$hasHome)',
+      (t) async {
+        final routes = _Answering();
+        final gps = _Gps();
+        var queries = 0, watches = 0, headings = 0;
+        await mount(
+          t,
+          routes,
+          gps,
+          nearby: true,
+          hasHome: hasHome,
+          finder: (origin, {cancellation}) async {
+            queries++;
+            return [_helpPoint('far', 121.5684), _helpPoint('near', 121.5664)];
+          },
+          watch: () {
+            watches++;
+            return const Stream.empty();
+          },
+          heading: () {
+            headings++;
+            return const Stream.empty();
+          },
+        );
+        await t.pumpAndSettle();
+        expect(queries, 1);
+        expect(gps.calls, 1);
+        expect(routes.requests.map((r) => r.destination.lng), [
+          121.5664,
+          121.5684,
+        ]);
+        expect(
+          t.widget<SafeWalkMapView>(find.byType(SafeWalkMapView)).targetPointId,
+          'near',
+        );
+        expect(find.text('家在哪裡？'), findsNothing);
+        expect(find.text('規劃路線需要你的位置'), findsNothing);
+        expect(watches, 0, reason: 'preview only uses a single GPS fix');
+        expect(headings, 0);
+        expect(
+          t
+              .widget<SafeWalkMapView>(find.byType(SafeWalkMapView))
+              .routeState
+              .path,
+          isNotEmpty,
+        );
+        await t.ensureVisible(find.text('開始導覽'));
+        await t.tap(find.text('開始導覽'));
+        await t.pumpAndSettle();
+        expect(watches, 1);
+        expect(headings, 1);
+        await t.tap(find.text('結束導覽'));
+        await t.pumpAndSettle();
+        // Changing the visible segment must not become the next entry's default.
+        if (hasHome) {
+          await t.tap(find.text('目的地'));
+          await t.pumpAndSettle();
+          await t.tap(find.text('不要'));
+          await t.pumpAndSettle();
+        }
+        t.widget<SafeWalkMapView>(find.byType(SafeWalkMapView)).onBack();
+        await t.pumpAndSettle();
+        await t.tap(find.text('點擊開始'));
+        await t.pumpAndSettle();
+        expect(queries, 2);
+        expect(
+          t.widget<SafeWalkMapView>(find.byType(SafeWalkMapView)).targetPointId,
+          'near',
+        );
+        expect(watches, 1, reason: 're-entry returns to preview');
+        await t.pumpWidget(const SizedBox.shrink());
+      },
+    );
+  }
+
+  testWidgets('switching to destination discards a late nearby lookup', (
+    t,
+  ) async {
+    final lookup = Completer<List<sw.AssistancePoint>>();
+    SafeWalkCancellation? token;
+    final routes = _Answering();
+    await mount(
+      t,
+      routes,
+      _Gps(),
+      nearby: true,
+      finder: (origin, {cancellation}) {
+        token = cancellation;
+        return lookup.future;
+      },
+    );
+    await t.tap(find.text('目的地'));
+    await t.pumpAndSettle();
+    await t.tap(find.text('同意'));
+    await t.pumpAndSettle();
+    expect(token?.isCancelled, isTrue);
+    lookup.complete([_helpPoint('late', 121.5664)]);
+    await t.pumpAndSettle();
+    expect(routes.requests.single.destination.lng, 121.5704);
+    final map = t.widget<SafeWalkMapView>(find.byType(SafeWalkMapView));
+    expect(map.targetPointId, isNull);
+    expect(map.pointsState.points, isEmpty);
+    expect(find.textContaining('→ 家'), findsOneWidget);
+  });
+
+  testWidgets(
+    'refreshing nearby routes retains the chosen point as results arrive',
+    (t) async {
+      final routes = _Answering();
+      await mount(
+        t,
+        routes,
+        _Gps(),
+        nearby: true,
+        finder: (origin, {cancellation}) async => [
+          _helpPoint('near', 121.5664),
+          _helpPoint('far', 121.5684),
+        ],
+      );
+      await t.pumpAndSettle();
+      await t.tap(find.text('人工求助地點 far').first);
+      await t.pumpAndSettle();
+      final map = t.widget<SafeWalkMapView>(find.byType(SafeWalkMapView));
+      expect(map.targetPointId, 'far');
+      map.pointsState.onRetry!();
+      await t.pumpAndSettle();
+      final refreshed = t.widget<SafeWalkMapView>(find.byType(SafeWalkMapView));
+      expect(refreshed.targetPointId, 'far');
+      expect(
+        refreshed.routeState.result,
+        same(refreshed.pointsState.routes['far']),
+      );
+      expect(routes.requests, hasLength(4));
+      expect(find.text('開始導覽'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'changing the origin queries nearby once and keeps preview mode',
+    (t) async {
+      final origins = <sw.Coordinates>[];
+      final routes = _Answering();
+      var watches = 0;
+      await mount(
+        t,
+        routes,
+        _Gps(),
+        nearby: true,
+        finder: (origin, {cancellation}) async {
+          origins.add(origin);
+          return [_helpPoint('near', 121.5664)];
+        },
+        watch: () {
+          watches++;
+          return const Stream.empty();
+        },
+      );
+      await t.pumpAndSettle();
+      await t.tap(find.textContaining('→ 求助地點').first);
+      await t.pumpAndSettle();
+      await t.tap(find.text('在地圖上選起點'));
+      await t.pumpAndSettle();
+      t.widget<SafeWalkMap>(find.byType(SafeWalkMap)).onPick!(
+        const LatLng(25.034, 121.565),
+      );
+      await t.pumpAndSettle();
+      expect(origins, hasLength(2));
+      expect(origins.last.lat, 25.034);
+      expect(routes.requests, hasLength(2));
+      expect(routes.requests.last.origin.source, sw.PositionSource.manual);
+      expect(routes.requests.last.destination.lng, 121.5664);
+      expect(watches, 0);
+      expect(find.textContaining('指定起點 → 求助地點'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'default nearby location failure can retry without a saved home',
+    (t) async {
+      final gps = _Gps()..denied = true;
+      final routes = _Answering();
+      await mount(
+        t,
+        routes,
+        gps,
+        nearby: true,
+        hasHome: false,
+        finder: (origin, {cancellation}) async => [
+          _helpPoint('near', 121.5664),
+        ],
+      );
+      await t.pumpAndSettle();
+      expect(routes.requests, isEmpty);
+      expect(find.text('求助地點暫時載入失敗'), findsOneWidget);
+      expect(find.text('開始導覽'), findsNothing);
+      gps.denied = false;
+      await t.tap(find.text('再試一次'));
+      await t.pumpAndSettle();
+      expect(routes.requests.single.destination.lng, 121.5664);
+      expect(find.text('開始導覽'), findsOneWidget);
+    },
+  );
 
   testWidgets(
     'opening the map asks consent, then plans a live route from GPS',
@@ -98,7 +321,11 @@ void main() {
       await t.tap(find.text('同意'));
       await t.pumpAndSettle();
       expect(routes.requests, hasLength(1));
-      expect(listening, isTrue, reason: 'GPS follows once a live route exists');
+      expect(listening, isFalse, reason: 'preview does not follow GPS');
+      await t.ensureVisible(find.text('開始導覽'));
+      await t.tap(find.text('開始導覽'));
+      await t.pumpAndSettle();
+      expect(listening, isTrue);
 
       positions.add(_at(25.0330, 121.5655)); // on the route
       await t.pump();
@@ -262,6 +489,37 @@ void main() {
   });
 }
 
+// Synthetic public-place fixtures; no real GPS or external services.
+sw.AssistancePoint _helpPoint(String id, double lng) =>
+    sw.AssistancePoint.fromJson({
+      'schemaVersion': '1.0.0',
+      'id': id,
+      'name': '人工求助地點 $id',
+      'kind': 'convenience_store',
+      'coordinates': {'lat': 25.0330, 'lng': lng},
+      'address': null,
+      'publicPhone': null,
+      'recognition': {
+        'status': 'unconfirmed',
+        'evidenceUrl': null,
+        'checkedAt': null,
+      },
+      'availability': 'open',
+      'availabilityCheckedAt': DateTime.now().toUtc().toIso8601String(),
+      'capabilities': ['unknown'],
+      'source': {
+        'datasetId': 'test-nearby',
+        'title': '人工測試資料',
+        'dataMode': 'live',
+        'sourceUrl': 'https://example.test/',
+        'retrievedAt': DateTime.now().toUtc().toIso8601String(),
+        'dataUpdatedAt': null,
+        'license': null,
+        'coverage': '人工',
+        'limitations': ['僅供隔離測試'],
+      },
+    });
+
 final class _DelayedReplan implements RouteService {
   final requests = <sw.RouteRequest>[];
   final tokens = <SafeWalkCancellation?>[];
@@ -374,6 +632,7 @@ final class _Answering implements RouteService {
 
 final class _Gps implements PlatformService {
   int calls = 0;
+  bool denied = false;
   @override
   Future<sw.LocationResult> getCurrentPosition({
     required sw.DataMode mode,
@@ -387,6 +646,12 @@ final class _Gps implements PlatformService {
       );
     }
     calls++;
+    if (denied) {
+      return sw.LocationFailure(
+        status: sw.LocationFailureStatus.unavailable,
+        message: 'test denied',
+      );
+    }
     return sw.LocationSuccess(
       position: sw.Position(
         coordinates: sw.Coordinates(lat: 25.0330, lng: 121.5654),

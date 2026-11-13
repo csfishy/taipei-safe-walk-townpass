@@ -139,7 +139,7 @@ void main() {
     await _pump(t, SafeWalkFlow(points: demoAssistancePoints()));
     await t.tap(find.text('點擊開始'));
     await t.pumpAndSettle();
-    expect(find.textContaining('7-ELEVEN'), findsNothing);
+    expect(find.textContaining('求助地點'), findsWidgets);
     await t.tap(find.text('最近求助地點'));
     await t.pumpAndSettle();
     expect(find.bySemanticsLabel('換下一個求助地點'), findsOneWidget);
@@ -186,7 +186,11 @@ void main() {
     await t.pump(const Duration(seconds: 1));
     expect(speaker.spoken.length, 2);
     expect(speaker.spoken.last, startsWith("Don't stop anywhere"));
-    for (final line in ['好，我走大路，不要催啦。', '我在便利商店旁邊，前面就是路口。', '好，我看到你了，我現在直接走過去。電話先不要掛。']) {
+    for (final line in [
+      '好，我走大路，不要催啦。',
+      '我在便利商店旁邊，前面就是路口。',
+      '好，我看到你了，我現在直接走過去。電話先不要掛。',
+    ]) {
       await t.tap(find.text(line));
       await t.pump(const Duration(seconds: 1));
     }
@@ -332,6 +336,8 @@ void main() {
     await _pump(t, const SafeWalkFlow());
     await t.tap(find.text('點擊開始'));
     await t.pumpAndSettle();
+    await t.tap(find.text('目的地'));
+    await t.pumpAndSettle();
     await t.tap(find.textContaining('→ 家'));
     await t.pumpAndSettle();
     expect(find.text('要去哪裡？'), findsOneWidget);
@@ -405,7 +411,10 @@ void main() {
       expect(asked, isEmpty, reason: '還在首頁，使用者沒操作前不規劃');
       await t.tap(find.text('點擊開始'));
       await t.pumpAndSettle();
-      expect(asked, hasLength(1), reason: '點主卡打開地圖才規劃');
+      expect(asked, isEmpty, reason: '預設查詢求助地點，不查回家路線');
+      await t.tap(find.text('目的地'));
+      await t.pumpAndSettle();
+      expect(asked, hasLength(1));
       t
           .widget<SafeWalkMapView>(find.byType(SafeWalkMapView))
           .onAddPlace('學校', const LatLng(25.002, 121.502));
@@ -424,6 +433,8 @@ void main() {
       );
       await t.tap(find.text('點擊開始'));
       await t.pump(const Duration(milliseconds: 600));
+      await t.tap(find.text('目的地'));
+      await t.pump();
       expect(find.text('正在計算步行路線…'), findsOneWidget);
       expect(find.textContaining('已繞開'), findsNothing);
     });
@@ -444,6 +455,8 @@ void main() {
       );
       expect(find.textContaining('示範求助據點'), findsNothing);
       expect(find.textContaining('已繞開'), findsNothing);
+      await t.tap(find.text('目的地'));
+      await t.pumpAndSettle();
       expect(find.text('路線服務尚未配置'), findsWidgets);
       expect(
         t.widget<SafeWalkMapView>(find.byType(SafeWalkMapView)).routeState.path,
@@ -488,6 +501,8 @@ void main() {
       );
       await t.tap(find.text('點擊開始'));
       await t.pumpAndSettle();
+      await t.tap(find.text('目的地'));
+      await t.pumpAndSettle();
       expect(find.text('找不到回家路線'), findsWidgets);
       expect(find.text('附近道路資料不足。'), findsOneWidget);
       await t.tap(find.text('再試一次'));
@@ -509,9 +524,42 @@ void main() {
       await t.tap(find.text('點擊開始'));
       await t.pumpAndSettle();
       expect(find.textContaining('示範'), findsNothing);
+      await t.tap(find.text('目的地'));
+      await t.pumpAndSettle();
       expect(find.textContaining('約 420 公尺'), findsOneWidget);
       expect(find.text('沿大路走，避開 2 個回報點'), findsWidgets, reason: '摘要與路線卡片都會顯示');
       expect(find.textContaining('6 分鐘'), findsWidgets);
+    });
+
+    testWidgets('回報資料重載後重新查詢求助地點，不規劃回家路線', (t) async {
+      final point = demoAssistancePoints().first;
+      final result = ok();
+      var nearby = 0;
+      final destinations = <sw.Coordinates>[];
+      await _pump(
+        t,
+        SafeWalkFlow(
+          homeLocation: sw.Coordinates(lat: 25.001, lng: 121.5012),
+          points: [point],
+          pointRoutes: {point.id: result},
+          route: result,
+          onSelectPoint: (_) {},
+          onRetryPoints: () => nearby++,
+          onPlanRoute: destinations.add,
+          onLoadReports: () async => [],
+        ),
+      );
+      await t.tap(find.text('點擊開始'));
+      await t.pumpAndSettle();
+      final before = nearby;
+      t.widget<SafeWalkMapView>(find.byType(SafeWalkMapView)).onRetryReports!();
+      await t.pumpAndSettle();
+      expect(nearby, before + 1);
+      expect(destinations, isEmpty);
+      expect(
+        t.widget<SafeWalkMapView>(find.byType(SafeWalkMapView)).targetPointId,
+        point.id,
+      );
     });
   });
 }

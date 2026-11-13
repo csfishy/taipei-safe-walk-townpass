@@ -75,7 +75,7 @@ void main() {
           },
           onReportsChanged: (spots) =>
               areas.add(spots.map((a) => a.id).toList()),
-          onPlanRoute: (_) => plans++,
+          onRetryPoints: () => plans++,
         ),
       );
       await _detail(t, 'selected');
@@ -263,7 +263,7 @@ void main() {
           onResolveReport: (_) => pending.future,
           onReportsChanged: (spots) =>
               areas.add(spots.map((a) => a.id).toList()),
-          onPlanRoute: (_) => plans++,
+          onRetryPoints: () => plans++,
         ),
       );
       await _detail(t, 'selected');

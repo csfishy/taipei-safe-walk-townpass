@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_map.dart';
+
 import '../../../support/safe_walk_fixtures.dart';
+
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_flow.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_home_view.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_map_view.dart';
@@ -63,6 +65,8 @@ void main() {
     );
     await tester.tap(find.text('點擊開始'));
     await tester.pumpAndSettle();
+    await tester.tap(find.text('目的地'));
+    await tester.pumpAndSettle();
     final map = tester.widget<SafeWalkMapView>(find.byType(SafeWalkMapView));
     final renderer = tester.widget<SafeWalkMap>(find.byType(SafeWalkMap));
     expect(destinations, isEmpty);
@@ -85,6 +89,8 @@ void main() {
       ),
     );
     await tester.tap(find.text('點擊開始'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('目的地'));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('crime-query-status')), findsOneWidget);
     // 查詢設定在首頁的「資料來源與授權」。
@@ -126,6 +132,8 @@ void main() {
       ),
     );
     await tester.tap(find.text('點擊開始'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('目的地'));
     await tester.pumpAndSettle();
     final circles = tester
         .widget<CircleLayer>(find.byType(CircleLayer))
@@ -191,6 +199,8 @@ void main() {
     );
     await tester.tap(find.text('點擊開始'));
     await tester.pumpAndSettle();
+    await tester.tap(find.text('目的地'));
+    await tester.pumpAndSettle();
     await tester.tap(find.bySemanticsLabel(RegExp('^50 公尺避讓緩衝區：人工舊詳情')));
     await tester.pumpAndSettle();
     expect(find.text('人工舊詳情'), findsOneWidget);
@@ -218,6 +228,8 @@ void main() {
       ),
     );
     await tester.tap(find.text('點擊開始'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('目的地'));
     await tester.pumpAndSettle();
     destinations.clear();
     final map = tester.widget<SafeWalkMapView>(find.byType(SafeWalkMapView));
@@ -248,6 +260,8 @@ void main() {
       ),
     );
     await tester.tap(find.text('點擊開始'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('目的地'));
     await tester.pumpAndSettle();
     expect(find.text('路線來源：test-only'), findsNothing);
     expect(find.text('暫時無法避讓緩衝區，這是一般步行路線'), findsOneWidget);
@@ -295,11 +309,17 @@ void main() {
     });
   }
 
-  for (final entry in [SafeWalkEntry.map, SafeWalkEntry.report, SafeWalkEntry.points]) {
+  for (final entry in [
+    SafeWalkEntry.map,
+    SafeWalkEntry.report,
+    SafeWalkEntry.points,
+  ]) {
     testWidgets('${entry.name} 進入 SOS 都通知平台停止導航', (tester) async {
       var left = 0;
       await _pump(tester, SafeWalkFlow(onLeaveMap: () => left++));
-      tester.widget<SafeWalkHomeView>(find.byType(SafeWalkHomeView)).onOpen(entry);
+      tester
+          .widget<SafeWalkHomeView>(find.byType(SafeWalkHomeView))
+          .onOpen(entry);
       await tester.pumpAndSettle();
       await tester.tap(find.text('緊急求助').first);
       await tester.pumpAndSettle();
@@ -308,15 +328,10 @@ void main() {
   }
 
   test('選路後保留 Live 無示範政策，未知時間保持未知', () {
-    final state = RouteState(
-      result: _routes(seconds: null),
-    ).select(1);
+    final state = RouteState(result: _routes(seconds: null)).select(1);
     expect(state.path, isNotEmpty);
     expect(state.best!.id, 'detour');
     expect(state.minutes, isNull);
-    expect(
-      const RouteState().select(1).failed,
-      isTrue,
-    );
+    expect(const RouteState().select(1).failed, isTrue);
   });
 }

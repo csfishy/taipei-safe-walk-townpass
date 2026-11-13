@@ -44,6 +44,7 @@ class SafeWalkFlow extends StatefulWidget {
     this.onRetryPoints,
     this.pointRoutes = const {},
     this.onSelectPoint,
+    this.onResetTarget,
     this.route,
     this.routeLoading = false,
     this.onPlanRoute,
@@ -102,6 +103,9 @@ class SafeWalkFlow extends StatefulWidget {
   /// M1: the walker chose this point as the target; navigate there with the
   /// route already planned for it.
   final ValueChanged<String>? onSelectPoint;
+
+  /// Cancel obsolete preview work when switching target kinds.
+  final VoidCallback? onResetTarget;
 
   /// 前往目前目的地的路線（M2 RouteService → M1 提供）。未配置時顯示 unavailable，不補人工路線。
   final sw.RouteResult? route;
@@ -187,18 +191,38 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
   String? _lastPlannedReports;
   bool _appActive = true;
 
-  /// 目前導航的目標：null＝目的地（家／常用地點）；否則是求助地點 id。
+  /// Selected help point; null also covers a nearby lookup still in progress.
   String? _targetPointId;
+  bool _nearbyTarget = true;
+  MapStartView _mapStart = MapStartView.nearbyRoute;
 
   void _setTarget(sw.AssistancePoint? point) {
-    if (point == null && _targetPointId == null) return;
-    if (point?.id != _targetPointId) {
-      setState(() => _targetPointId = point?.id);
+    if (point == null) {
+      ++_editGeneration;
+      widget.onResetTarget?.call();
     }
+    setState(() {
+      _nearbyTarget = point != null;
+      _targetPointId = point?.id;
+    });
     if (point == null) {
       _planRoute();
     } else {
       widget.onSelectPoint?.call(point.id);
+    }
+  }
+
+  void _showNearby() {
+    ++_editGeneration;
+    final changed = !_nearbyTarget;
+    setState(() {
+      _nearbyTarget = true;
+      if (changed) _targetPointId = null;
+    });
+    if (changed) widget.onResetTarget?.call();
+    final ps = _pointsState;
+    if (changed || (ps.points.isEmpty && !ps.loading && ps.error == null)) {
+      widget.onRetryPoints?.call();
     }
   }
 
@@ -208,7 +232,11 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
     widget.onStartChanged?.call(
       at == null ? null : sw.Coordinates(lat: at.lat, lng: at.lng),
     );
-    _planRoute();
+    if (_nearbyTarget) {
+      _targetPointId = null;
+    } else {
+      _planRoute();
+    }
   }
 
   String? _emergencyMessage;
@@ -320,7 +348,7 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
   // Live mode never shows invented danger points or stand-in assistance points.
   List<Anomaly> _anomalies = <Anomaly>[];
 
-  Future<void> _loadReports() async {
+  Future<void> _loadReports({bool replan = true}) async {
     if (widget.mode != sw.DataMode.live) return;
     final load = widget.onLoadReports;
     if (load == null) {
@@ -351,7 +379,7 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
         }.values.toList();
         _reportsLoading = false;
       });
-      _planRoute();
+      if (replan && _isMapScreen(_screen) && _appActive) _planRoute();
     } catch (_) {
       if (!mounted || generation != _reportsGeneration) return;
       setState(() {
@@ -426,7 +454,8 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
   bool get _missingLiveHome => _place.isHome && widget.homeLocation == null;
 
   RouteState get _routeState {
-    if (_missingLiveHome && _targetPointId == null) {
+    if (_nearbyTarget && _targetPointId == null) return const RouteState();
+    if (_missingLiveHome && !_nearbyTarget) {
       return RouteState(
         result: sw.RouteFailure(
           requestId: 'home-not-set',
@@ -458,13 +487,13 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
   void _planRoute({sw.Coordinates? savedDestination}) {
     _lastPlannedReports = _reportSignature;
     widget.onReportsChanged?.call(_reportSpots);
-    if (savedDestination != null) _targetPointId = null;
-    // 目標是求助地點時，重新規劃（例如回報變了）也是往那個地點。
-    final target = _targetPointId == null
-        ? null
-        : _pointsState.points.where((p) => p.id == _targetPointId).firstOrNull;
-    if (target != null) {
-      widget.onPlanRoute?.call(target.coordinates);
+    if (savedDestination != null) {
+      _nearbyTarget = false;
+      _targetPointId = null;
+    }
+    if (_nearbyTarget) {
+      // Refresh nearby routes, retaining the selected ID as results arrive.
+      widget.onRetryPoints?.call();
       return;
     }
     if (_missingLiveHome && savedDestination == null) return;
@@ -476,12 +505,14 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
   }
 
   void _selectPlace(String id) {
-    if (id == _placeId && _targetPointId == null) return;
+    if (id == _placeId && !_nearbyTarget) return;
     ++_editGeneration;
     setState(() {
       _placeId = id;
+      _nearbyTarget = false;
       _targetPointId = null;
     });
+    widget.onResetTarget?.call();
     _planRoute();
   }
 
@@ -508,8 +539,13 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
       _callKey.currentState?.leave();
     }
     // 使用者明確打開地圖（點「安心行」主卡）時才請 M1 規劃路線；一進安心行不自動送出。
-    if (_isMapScreen(s) && !_isMapScreen(_screen)) {
-      _afterMapOpened(s);
+    final openingMap = _isMapScreen(s) && !_isMapScreen(_screen);
+    if (openingMap && _screen == _Screen.home) {
+      _nearbyTarget = true;
+      _targetPointId = null;
+    }
+    if (openingMap) {
+      _mapStart = _nearbyTarget ? MapStartView.nearbyRoute : MapStartView.route;
     }
     if (!_isMapScreen(s) && _isMapScreen(_screen)) {
       ++_editGeneration;
@@ -526,32 +562,29 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
       }
       _screen = s;
     });
+    if (openingMap) _afterMapOpened(s);
   }
 
-  /// 打開地圖後的第一個查詢；路線與犯罪資料的同意會依序在這裡問。
+  /// Load report buffers before the first preview query.
   void _afterMapOpened(_Screen s) {
     if (widget.mode == sw.DataMode.live && widget.onLoadReports != null) {
       unawaited(_loadReportsThenPlan(s));
       return;
     }
     unawaited(_loadReports());
-    _planOpenedMap(s);
+    _planRoute();
   }
 
   Future<void> _loadReportsThenPlan(_Screen s) async {
-    await _loadReports();
-    if (!mounted || _screen != s) return;
-    // _loadReports also replans on success; retry failures still allow the user
-    // to navigate with an explicit incomplete-report disclosure.
-    if (_reportsError != null || s == _Screen.points) _planOpenedMap(s);
-  }
-
-  void _planOpenedMap(_Screen s) {
-    if (s == _Screen.points && widget.mode == sw.DataMode.live) {
-      widget.onRetryPoints?.call();
-    } else {
-      _planRoute();
+    final reports = _reportsGeneration + 1;
+    await _loadReports(replan: false);
+    if (!mounted ||
+        _screen != s ||
+        !_appActive ||
+        reports != _reportsGeneration) {
+      return;
     }
+    _planRoute();
   }
 
   void _openEmergency() {
@@ -618,6 +651,7 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
       routeState: _routeState,
       targetPointId: _targetPointId,
       onTarget: _setTarget,
+      onShowNearby: _showNearby,
       onStartNavigation: widget.onStartNavigation,
       onEndNavigation: widget.onEndNavigation,
       manualStart: _manualStart,
@@ -734,7 +768,7 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
             : () => widget.onHomeChanged!(null),
         onBack: () => _go(_Screen.settings),
       ),
-      _Screen.map => map(),
+      _Screen.map => map(start: _mapStart),
       _Screen.points => map(start: MapStartView.points),
       _Screen.report =>
         widget.reportBuilder?.call(context, () => _go(_Screen.home)) ??
