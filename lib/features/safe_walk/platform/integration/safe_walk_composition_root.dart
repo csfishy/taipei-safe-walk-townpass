@@ -460,6 +460,8 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
   sw.Coordinates? _manualOrigin;
 
   // Route following: one follower per option; re-plan only when off all of them.
+  bool _guidanceActive = false;
+  sw.Position? _previewPosition;
   sw.Coordinates? _destination;
   sw.RouteResult? _followed;
   sw.RouteSuccess? _guidancePreview;
@@ -575,6 +577,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     final result = _navigation.routeResult;
     if (result is sw.RouteSuccess) _guidancePreview = result;
     if (!widget.liveRoutes ||
+        !_guidanceActive ||
         _manualOrigin != null ||
         !_navigationActive ||
         !_foreground ||
@@ -620,6 +623,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
         !_foreground ||
         !_navigationActive ||
         !_routeAllowed ||
+        !_guidanceActive ||
         _followers.isEmpty ||
         !_usableLiveFix(position)) {
       return;
@@ -684,6 +688,8 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     // Nearby lookups/routes belong to the same origin and destination intent.
     // Cancelling only the destination request lets their late results revive.
     _clearNearby();
+    _guidanceActive = false;
+    _previewPosition = null;
     ++_boundaryRevision;
     _operation?.cancel();
     _operation = null;
@@ -854,6 +860,8 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
       );
       return null;
     }
+    final position = located.position;
+    setState(() => _previewPosition = position);
     return located.position;
   }
 
@@ -903,7 +911,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
         _lifetime.isCancelled) {
       return;
     }
-    _nearbyOperation?.cancel();
+    _invalidateOperation();
     _openNavigation();
     final operation = _nearbyOperation = _RouteCancellation();
     bool alive() =>
@@ -1140,6 +1148,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
   void _endGuidance() {
     final preview = _guidancePreview;
     _navigationActive = false;
+    _guidanceActive = false;
     ++_boundaryRevision;
     _operation?.cancel();
     _operation = null;
@@ -1157,6 +1166,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
   void _startGuidance() {
     if (!mounted || !_foreground || _lifetime.isCancelled) return;
     _openNavigation();
+    _guidanceActive = true;
     _followed = null;
     _syncFollowing();
   }
@@ -1432,6 +1442,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
         pointsOrigin: _nearbyOrigin,
         pointsOnly: _nearbyLocal.isNotEmpty,
         onSelectPoint: widget.liveRoutes ? _selectPoint : null,
+        onResetTarget: widget.liveRoutes ? _invalidateOperation : null,
         pointsLoading: widget.liveRoutes ? _nearbyLoading : _pointsLoading,
         pointsError: widget.liveRoutes ? _nearbyError : _pointsError,
         onRetryPoints: widget.liveRoutes
@@ -1449,7 +1460,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
               ),
         onLeaveReport: () => _report?.cancel(),
         route: widget.liveRoutes ? _navigation.routeResult : null,
-        livePosition: _livePosition,
+        livePosition: _livePosition ?? _previewPosition,
         liveHeading: _livePosition == null ? null : _heading,
         onLeaveMap: _closeNavigation,
         onStartNavigation: _startGuidance,

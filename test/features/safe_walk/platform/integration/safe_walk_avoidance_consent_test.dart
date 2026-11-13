@@ -276,6 +276,8 @@ void main() {
     expect(find.byType(AlertDialog), findsNothing);
     await tester.tap(find.text('點擊開始'));
     await tester.pumpAndSettle();
+    await tester.tap(find.text('目的地'));
+    await tester.pumpAndSettle();
     await _skipSetHome(tester);
     expect(find.byKey(const Key('crime-query-status')), findsOneWidget);
   });
@@ -306,6 +308,8 @@ void main() {
     expect(routes.requests, isEmpty);
     await tester.tap(find.text('點擊開始'));
     await tester.pumpAndSettle();
+    await tester.tap(find.text('目的地'));
+    await tester.pumpAndSettle();
     await _skipSetHome(tester);
     expect(
       tester.widget<Text>(find.byKey(const Key('crime-query-status'))).data,
@@ -335,12 +339,15 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('點擊開始'));
     await tester.pumpAndSettle();
+    await tester.tap(find.text('目的地'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('同意'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('同意查詢'));
     await tester.pumpAndSettle();
     expect(queries, 0, reason: 'query waits for a real position boundary');
-    platform.locations.single.complete(_position());
+    expect(platform.cancellations.first.isCancelled, isTrue);
+    platform.locations.last.complete(_position());
     await tester.pumpAndSettle();
     expect(queries, 1);
     final map = tester.widget<SafeWalkMap>(find.byType(SafeWalkMap));

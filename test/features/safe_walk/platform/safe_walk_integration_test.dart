@@ -200,7 +200,8 @@ void main() {
       await t.pumpAndSettle();
       expect(find.text('地圖載入設定'), findsNothing);
       expect(find.byType(TileLayer), findsOneWidget);
-      expect(find.text('家在哪裡？'), findsOneWidget);
+      expect(find.text('家在哪裡？'), findsNothing);
+      expect(find.text('最近求助地點'), findsOneWidget);
       expect(find.text('規劃路線需要你的位置'), findsNothing);
       await back(t);
       await back(t);

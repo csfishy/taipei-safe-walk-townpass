@@ -1109,6 +1109,21 @@ void main() {
       await t.tap(find.text('點擊開始'));
       await t.pumpAndSettle();
       expect(find.byType(SafeWalkMapView), findsOneWidget);
+      if (t
+          .widget<SafeWalkMapView>(find.byType(SafeWalkMapView))
+          .destinationConfigured) {
+        await t.tap(find.text('目的地'));
+        await t.pumpAndSettle();
+        // Count only this explicitly selected destination's GPS work.
+        (t
+                        .widget<SafeWalkCompositionRoot>(
+                          find.byType(SafeWalkCompositionRoot),
+                        )
+                        .platform
+                    as _Platform)
+                .calls =
+            0;
+      }
       expect(find.byType(SafeWalkLiveRoutePage), findsNothing);
     }
 
@@ -1171,7 +1186,11 @@ void main() {
         await t.binding.handlePopRoute();
         await t.pumpAndSettle();
         expectDirectMap();
-        expect(platform.calls, 0, reason: 'loading tiles never reads GPS');
+        expect(
+          platform.calls,
+          3,
+          reason: 'each explicit map entry previews nearby; tiles do not add GPS reads',
+        );
         expect(routes.requests, isEmpty);
         expect(db.calls, isEmpty);
         await t.pumpWidget(const SizedBox.shrink());
@@ -1348,7 +1367,10 @@ void main() {
         await pumpRoot(
           t,
           platform: _livePlatform(),
-          routes: _Routes((r) async => _routeFail(r, sw.RouteFailureStatus.providerUnavailable)),
+          routes: _Routes(
+            (r) async =>
+                _routeFail(r, sw.RouteFailureStatus.providerUnavailable),
+          ),
           db: _Db(),
           stores: [_store('near', 25.001), _store('far', 25.004)],
         );
@@ -1598,7 +1620,11 @@ void main() {
         // Start navigation: the card waits for a position, then can end.
         await t.tap(find.text('開始導覽'));
         await t.pumpAndSettle();
-        expect(find.text('等待定位…'), findsOneWidget);
+        expect(
+          find.text('等待定位…'),
+          findsNothing,
+          reason: 'preview retains its GPS fix',
+        );
         await t.tap(find.text('結束導覽'));
         await t.pumpAndSettle();
         expect(find.text('開始導覽'), findsOneWidget);
@@ -1725,7 +1751,11 @@ void main() {
       expect(map(t).destinationConfigured, isFalse);
       expect(map(t).routeState.best, isNull);
       expect(map(t).anomalies, isEmpty);
-      expect(platform.calls, 0);
+      expect(
+        platform.calls,
+        1,
+        reason: 'nearby preview does not require a home',
+      );
       expect(routes.requests, isEmpty);
       expect(db.calls, isEmpty);
       await t.pumpWidget(const SizedBox.shrink());

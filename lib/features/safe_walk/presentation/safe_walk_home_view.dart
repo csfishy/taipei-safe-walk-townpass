@@ -201,7 +201,7 @@ class _GoHomeCardState extends State<_GoHomeCard> {
   @override
   Widget build(BuildContext context) => Semantics(
     button: true,
-    label: '安心行，選擇目的地並規劃步行路線，點擊開始',
+    label: '安心行，查詢最近求助地點並預覽步行路線，點擊開始',
     child: DecoratedBox(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),

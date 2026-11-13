@@ -33,6 +33,8 @@ void main() {
     );
     await t.tap(find.text('點擊開始'));
     await t.pumpAndSettle();
+    await t.tap(find.text('目的地'));
+    await t.pumpAndSettle();
     expect(asked, isEmpty);
     expect(find.text('請先返回首頁設定「家」的位置，再規劃回家路線。'), findsWidgets);
     expect(
@@ -65,8 +67,10 @@ void main() {
     await t.pumpAndSettle();
     await t.tap(find.text('點擊開始'));
     await t.pumpAndSettle();
+    await t.tap(find.text('目的地'));
+    await t.pumpAndSettle();
     expect(asked, isEmpty);
-    // 可以儲存家時，一進地圖就直接請使用者在地圖上點選家。
+    // 切換目的地後，才請使用者在地圖上點選家。
     expect(find.text('家在哪裡？'), findsOneWidget);
     expect(
       t.widget<SafeWalkMapView>(find.byType(SafeWalkMapView)).routeState.path,
@@ -85,6 +89,8 @@ void main() {
       ),
     );
     await t.tap(find.text('點擊開始'));
+    await t.pumpAndSettle();
+    await t.tap(find.text('目的地'));
     await t.pumpAndSettle();
     expect(asked, hasLength(1));
     expect(asked.single.lat, 0.5);
@@ -125,7 +131,10 @@ void main() {
 
     expect(find.byType(FlutterMap), findsOneWidget);
     expect(find.text('載入地圖'), findsNothing);
-    expect(find.text('© OpenStreetMap contributors · Protomaps'), findsOneWidget);
+    expect(
+      find.text('© OpenStreetMap contributors · Protomaps'),
+      findsOneWidget,
+    );
     await t.tapAt(const Offset(200, 300));
     await t.pumpAndSettle();
     await t.tap(find.text('儲存'));

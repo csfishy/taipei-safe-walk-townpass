@@ -29,7 +29,7 @@ const _openLong = {
   sw.OpeningStatus.unknown: '營業時間不確定',
 };
 
-enum MapStartView { route, points, report }
+enum MapStartView { route, nearbyRoute, points, report }
 
 /// 求助地點資料的狀態（由 M1 → M4 提供）：載入中、錯誤、或清單（可能是空的）。
 class PointsState {
@@ -133,7 +133,7 @@ class RouteState {
   }.toList(growable: false);
 }
 
-/// 地圖：預設回家路線（繞開異常回報）；「最近求助地點」為中性的第二個目的地；回報狀況直接在地圖上操作。
+/// 地圖：支援目的地與最近求助地點的路線預覽；回報狀況直接在地圖上操作。
 /// 底部資訊框可收合，讓地圖露出更多。
 class SafeWalkMapView extends StatefulWidget {
   const SafeWalkMapView({
@@ -168,6 +168,7 @@ class SafeWalkMapView extends StatefulWidget {
     this.showMapTiles = true,
     this.targetPointId,
     this.onTarget,
+    this.onShowNearby,
     this.onStartNavigation,
     this.onEndNavigation,
     this.isLive = true,
@@ -183,6 +184,7 @@ class SafeWalkMapView extends StatefulWidget {
 
   /// 使用者換了導航目標（求助地點；null＝回目的地）。
   final ValueChanged<sw.AssistancePoint?>? onTarget;
+  final VoidCallback? onShowNearby;
   final VoidCallback? onStartNavigation, onEndNavigation;
 
   /// 犯罪參考位置及產品設定的避讓緩衝（紫色，非案發範圍）。
@@ -239,7 +241,9 @@ class SafeWalkMapView extends StatefulWidget {
 class _SafeWalkMapViewState extends State<SafeWalkMapView>
     with WidgetsBindingObserver {
   /// null = 回家；數字 = 第幾個最近求助地點。
-  int? _pointIndex;
+  late int? _pointIndex = widget.startView == MapStartView.nearbyRoute
+      ? 0
+      : null;
   late bool _pointsView = widget.startView == MapStartView.points;
   late bool _picking = widget.startView == MapStartView.report;
   _SheetSize _size = _SheetSize.normal;
@@ -299,8 +303,9 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView>
           .firstOrNull;
     }
     // 店家結果更新時，同一店家的新路線也交回共用導航控制器。
-    if (!mapEquals(old.pointsState.routes, widget.pointsState.routes) &&
-        widget.pointsState.routes.isNotEmpty) {
+    if ((!mapEquals(old.pointsState.routes, widget.pointsState.routes) &&
+            widget.pointsState.routes.isNotEmpty) ||
+        (old.pointsState.loading && !widget.pointsState.loading)) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _targetCurrentPoint();
       });
@@ -354,6 +359,9 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _targetCurrentPoint();
+    });
   }
 
   @override
@@ -429,8 +437,10 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView>
       _routeChoice = 0;
       _stepsOpen = false;
     });
-    _loadPointsIfNeeded();
-    _targetCurrentPoint();
+    (widget.onShowNearby ?? _loadPointsIfNeeded)();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _targetCurrentPoint();
+    });
   }
 
   /// 正在看某個求助地點的路線時，把它設為導航目標（有真實路線才需要）。
@@ -438,6 +448,12 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView>
     final points = _sorted;
     final i = _pointIndex;
     if (i == null || _pointsView || points.isEmpty) return;
+    final selected = widget.targetPointId;
+    if (selected != null &&
+        widget.pointsState.loading &&
+        !points.any((p) => p.id == selected)) {
+      return;
+    }
     final p = points[i % points.length];
     final route = widget.pointsState.routes[p.id];
     if (route != null &&
@@ -452,7 +468,8 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView>
       _pointIndex = null;
       _routeChoice = 0;
     });
-    if (widget.targetPointId != null) widget.onTarget?.call(null);
+    widget.onTarget?.call(null);
+    if (_homeUnset) _startSetHome();
   }
 
   void _loadPointsIfNeeded() {
@@ -746,7 +763,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView>
     final storeResult = point == null
         ? null
         : widget.pointsState.routes[point.id];
-    final rs = targeted || storeResult == null
+    final rs = isHome || targeted
         ? _rs
         : RouteState(result: storeResult, selected: _routeChoice);
     final routed = isHome || targeted || storeResult != null;
@@ -1320,8 +1337,8 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView>
           SwStateMessage(
             icon: Icons.search_off_rounded,
             title: '附近還沒有求助地點資料',
-            message: '這不代表附近沒有求助管道。可以先走回家路線，或直接按緊急求助。',
-            actionLabel: '改走回家路線',
+            message: '這不代表附近沒有求助管道。可以切換目的地，或直接按緊急求助。',
+            actionLabel: '選擇目的地',
             onAction: _targetDestination,
           )
         else ...[
