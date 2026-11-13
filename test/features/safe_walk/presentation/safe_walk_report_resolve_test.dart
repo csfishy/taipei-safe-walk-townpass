@@ -22,6 +22,13 @@ Anomaly _report(String id) => Anomaly(
   mode: sw.DataMode.live,
 );
 
+sw.Position _gps() => sw.Position(
+  coordinates: sw.Coordinates(lat: 0.5, lng: 0.75),
+  source: sw.PositionSource.gps,
+  accuracyMeters: 10,
+  observedAt: DateTime.now().toUtc().toIso8601String(),
+);
+
 Future<void> _pump(WidgetTester t, SafeWalkFlow flow) async {
   t.view.physicalSize = const Size(1170, 2532);
   t.view.devicePixelRatio = 3;
@@ -64,6 +71,7 @@ void main() {
       await _pump(
         t,
         SafeWalkFlow(
+          livePosition: _gps(),
           mode: sw.DataMode.live,
           showMapTiles: false,
           homeLocation: sw.Coordinates(lat: 0.6, lng: 0.8),
@@ -117,6 +125,7 @@ void main() {
       await _pump(
         t,
         SafeWalkFlow(
+          livePosition: _gps(),
           mode: sw.DataMode.live,
           showMapTiles: false,
           onLoadReports: () async => [_report('selected')],
@@ -147,6 +156,7 @@ void main() {
       await _pump(
         t,
         SafeWalkFlow(
+          livePosition: _gps(),
           mode: sw.DataMode.live,
           showMapTiles: false,
           onLoadReports: () async => [_report('selected')],
@@ -169,6 +179,7 @@ void main() {
       await _pump(
         t,
         SafeWalkFlow(
+          livePosition: _gps(),
           mode: sw.DataMode.live,
           showMapTiles: false,
           onLoadReports: () async =>
@@ -194,6 +205,7 @@ void main() {
       await _pump(
         t,
         SafeWalkFlow(
+          livePosition: _gps(),
           mode: sw.DataMode.live,
           showMapTiles: false,
           onLoadReports: () async => [],
@@ -219,6 +231,7 @@ void main() {
       await _pump(
         t,
         SafeWalkFlow(
+          livePosition: _gps(),
           mode: sw.DataMode.live,
           showMapTiles: false,
           onLoadReports: () async => ++queries == 1 ? [] : [_report(draft!.id)],
@@ -256,6 +269,7 @@ void main() {
       await _pump(
         t,
         SafeWalkFlow(
+          livePosition: _gps(),
           mode: sw.DataMode.live,
           showMapTiles: false,
           homeLocation: sw.Coordinates(lat: 0.6, lng: 0.8),
@@ -285,7 +299,11 @@ void main() {
     var calls = 0;
     await _pump(
       t,
-      SafeWalkFlow(showMapTiles: false, onResolveReport: (_) async => calls++),
+      SafeWalkFlow(
+        livePosition: _gps(),
+        showMapTiles: false,
+        onResolveReport: (_) async => calls++,
+      ),
     );
     expect(_reports(t), isEmpty);
     expect(calls, 0);

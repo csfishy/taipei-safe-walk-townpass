@@ -58,7 +58,6 @@ void main() {
       await t.tap(find.text('目的地'));
       await t.pump();
       await t.pump(const Duration(milliseconds: 400));
-      gps.calls = 0;
     }
   }
 
@@ -101,7 +100,11 @@ void main() {
         );
         expect(find.text('家在哪裡？'), findsNothing);
         expect(find.text('規劃路線需要你的位置'), findsNothing);
-        expect(watches, 0, reason: 'preview only uses a single GPS fix');
+        expect(
+          watches,
+          1,
+          reason: 'preview shares foreground GPS with the 100m circle',
+        );
         expect(headings, 0);
         expect(
           t
@@ -133,11 +136,121 @@ void main() {
           t.widget<SafeWalkMapView>(find.byType(SafeWalkMapView)).targetPointId,
           'near',
         );
-        expect(watches, 1, reason: 're-entry returns to preview');
+        expect(watches, 2, reason: 're-entry resumes map GPS without guidance');
         await t.pumpWidget(const SizedBox.shrink());
       },
     );
   }
+
+  testWidgets(
+    'map GPS is shared, stops in background, and resumes without guidance',
+    (t) async {
+      var listeners = 0, cancellations = 0;
+      final positions = StreamController<sw.Position>.broadcast(
+        onListen: () => listeners++,
+        onCancel: () => cancellations++,
+      );
+      final gps = _Gps();
+      final routes = _Answering();
+      await mount(t, routes, gps, nearby: true, watch: () => positions.stream);
+      await t.pumpAndSettle();
+      expect(listeners, 1);
+      expect(routes.requests, isEmpty);
+      positions.add(_at(25.0332, 121.5654));
+      await t.pumpAndSettle();
+      expect(
+        t.widget<SafeWalkMap>(find.byType(SafeWalkMap)).rangeCenter!.lat,
+        25.0332,
+      );
+      t.widget<SafeWalkFlow>(find.byType(SafeWalkFlow)).onEndNavigation!();
+      await t.pumpAndSettle();
+      expect(cancellations, 0, reason: 'ending guidance retains map GPS');
+      t.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      await t.pump();
+      expect(cancellations, 1);
+      positions.add(_at(25.05, 121.59));
+      t.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await t.pumpAndSettle();
+      expect(gps.calls, 2);
+      expect(listeners, 2);
+      expect(
+        routes.requests,
+        isEmpty,
+        reason: 'resuming map GPS never starts navigation',
+      );
+      t.widget<SafeWalkMapView>(find.byType(SafeWalkMapView)).onBack();
+      await t.pumpAndSettle();
+      expect(cancellations, 2);
+      await t.pumpWidget(const SizedBox.shrink());
+      await t.runAsync(positions.close);
+    },
+  );
+
+  testWidgets('late initial map GPS cannot revive a closed map subscription', (
+    t,
+  ) async {
+    final pending = Completer<sw.LocationResult>();
+    final gps = _Gps()..response = () => pending.future;
+    final routes = _Answering();
+    var watches = 0;
+    await mount(
+      t,
+      routes,
+      gps,
+      nearby: true,
+      watch: () {
+        watches++;
+        return const Stream.empty();
+      },
+    );
+    expect(gps.calls, 1);
+    expect(watches, 0);
+    t.widget<SafeWalkMapView>(find.byType(SafeWalkMapView)).onBack();
+    await t.pumpAndSettle();
+    pending.complete(sw.LocationSuccess(position: _at(25.033, 121.5654)));
+    await t.pumpAndSettle();
+    expect(watches, 0);
+    expect(routes.requests, isEmpty);
+    gps.response = null;
+    await t.tap(find.text('點擊開始'));
+    await t.pumpAndSettle();
+    expect(watches, 1);
+    expect(gps.calls, 2);
+  });
+
+  testWidgets(
+    'GPS stream error hides the range and explicit retry restores the shared stream',
+    (t) async {
+      var listeners = 0;
+      final positions = StreamController<sw.Position>.broadcast(
+        onListen: () => listeners++,
+      );
+      await mount(
+        t,
+        _Answering(),
+        _Gps(),
+        nearby: true,
+        watch: () => positions.stream,
+      );
+      await t.pumpAndSettle();
+      expect(listeners, 1);
+      positions.addError(StateError('synthetic GPS failure'));
+      await t.pumpAndSettle();
+      expect(
+        t.widget<SafeWalkMap>(find.byType(SafeWalkMap)).rangeCenter,
+        isNull,
+      );
+      await t.tap(find.byTooltip('重新定位查看範圍'));
+      await t.pumpAndSettle();
+      expect(listeners, 2);
+      expect(
+        t.widget<SafeWalkMap>(find.byType(SafeWalkMap)).rangeCenter,
+        isNotNull,
+      );
+      await t.pumpWidget(const SizedBox.shrink());
+      await t.runAsync(positions.close);
+    },
+  );
 
   testWidgets('switching to destination discards a late nearby lookup', (
     t,
@@ -168,6 +281,50 @@ void main() {
     expect(map.pointsState.points, isEmpty);
     expect(find.textContaining('→ 家'), findsOneWidget);
   });
+
+  testWidgets(
+    'refreshing help routes during guidance preserves following and shares GPS',
+    (t) async {
+      final positions = StreamController<sw.Position>.broadcast();
+      final routes = _Answering();
+      var watches = 0;
+      await mount(
+        t,
+        routes,
+        _Gps(),
+        nearby: true,
+        watch: () {
+          watches++;
+          return positions.stream;
+        },
+        finder: (origin, {cancellation}) async => [
+          _helpPoint('near', 121.5664),
+        ],
+      );
+      await t.pumpAndSettle();
+      await t.ensureVisible(find.text('開始導覽'));
+      await t.tap(find.text('開始導覽'));
+      await t.pumpAndSettle();
+      t
+          .widget<SafeWalkMapView>(find.byType(SafeWalkMapView))
+          .pointsState
+          .onRetry!();
+      await t.pumpAndSettle();
+      expect(routes.requests, hasLength(2));
+      expect(find.text('結束導覽'), findsOneWidget);
+      positions.add(_at(25.04, 121.5654));
+      await t.pumpAndSettle();
+      expect(
+        routes.requests,
+        hasLength(3),
+        reason: 'guidance still handles off-route fixes',
+      );
+      expect(routes.requests.last.destination.lng, 121.5664);
+      expect(watches, 1);
+      await t.pumpWidget(const SizedBox.shrink());
+      await t.runAsync(positions.close);
+    },
+  );
 
   testWidgets(
     'refreshing nearby routes retains the chosen point as results arrive',
@@ -235,7 +392,7 @@ void main() {
       expect(routes.requests, hasLength(2));
       expect(routes.requests.last.origin.source, sw.PositionSource.manual);
       expect(routes.requests.last.destination.lng, 121.5664);
-      expect(watches, 0);
+      expect(watches, 1);
       expect(find.textContaining('指定起點 → 求助地點'), findsOneWidget);
     },
   );
@@ -274,7 +431,11 @@ void main() {
       final gps = _Gps();
       await mount(t, routes, gps);
       expect(find.text('規劃路線需要你的位置'), findsOneWidget);
-      expect(gps.calls, 0, reason: 'no GPS before consent');
+      expect(
+        gps.calls,
+        1,
+        reason: 'map GPS is independent of third-party route consent',
+      );
 
       await t.tap(find.text('同意'));
       await t.pump();
@@ -321,7 +482,11 @@ void main() {
       await t.tap(find.text('同意'));
       await t.pumpAndSettle();
       expect(routes.requests, hasLength(1));
-      expect(listening, isFalse, reason: 'preview does not follow GPS');
+      expect(
+        listening,
+        isTrue,
+        reason: 'preview updates the GPS range without guidance',
+      );
       await t.ensureVisible(find.text('開始導覽'));
       await t.tap(find.text('開始導覽'));
       await t.pumpAndSettle();
@@ -456,7 +621,11 @@ void main() {
     expect(find.text('路線重新規劃中…'), findsOneWidget);
     await t.tap(find.text('結束導覽'));
     await t.pumpAndSettle();
-    expect(cancellations, 1);
+    expect(
+      cancellations,
+      0,
+      reason: 'ending guidance retains foreground map GPS',
+    );
     expect(routes.tokens.last?.isCancelled, isTrue);
     expect(
       t.widget<SafeWalkMapView>(find.byType(SafeWalkMapView)).routeState.result,
@@ -477,7 +646,7 @@ void main() {
     await t.ensureVisible(find.text('開始導覽'));
     await t.tap(find.text('開始導覽'));
     await t.pumpAndSettle();
-    expect(listeners, 2, reason: 'an explicit start resumes GPS');
+    expect(listeners, 1, reason: 'guidance reuses the existing map GPS stream');
     positions.add(_at(25.0330, 121.5655));
     await t.pumpAndSettle();
     expect(
@@ -633,6 +802,7 @@ final class _Answering implements RouteService {
 final class _Gps implements PlatformService {
   int calls = 0;
   bool denied = false;
+  Future<sw.LocationResult> Function()? response;
   @override
   Future<sw.LocationResult> getCurrentPosition({
     required sw.DataMode mode,
@@ -646,6 +816,7 @@ final class _Gps implements PlatformService {
       );
     }
     calls++;
+    if (response != null) return response!();
     if (denied) {
       return sw.LocationFailure(
         status: sw.LocationFailureStatus.unavailable,

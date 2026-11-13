@@ -22,6 +22,13 @@ Anomaly _saved(String id) => Anomaly(
   mode: sw.DataMode.live,
 );
 
+sw.Position _gps() => sw.Position(
+  coordinates: sw.Coordinates(lat: 0.5, lng: 0.75),
+  source: sw.PositionSource.gps,
+  accuracyMeters: 10,
+  observedAt: DateTime.now().toUtc().toIso8601String(),
+);
+
 Future<void> _pump(WidgetTester t, SafeWalkFlow flow) async {
   t.view.physicalSize = const Size(1170, 2532);
   t.view.devicePixelRatio = 3;
@@ -54,6 +61,7 @@ void main() {
     await _pump(
       t,
       SafeWalkFlow(
+        livePosition: _gps(),
         mode: sw.DataMode.live,
         showMapTiles: false,
         onLoadReports: () => query.future,
@@ -83,6 +91,7 @@ void main() {
       await _pump(
         t,
         SafeWalkFlow(
+          livePosition: _gps(),
           mode: sw.DataMode.live,
           showMapTiles: false,
           onLoadReports: () => ++attempts == 1
@@ -121,6 +130,7 @@ void main() {
     await _pump(
       t,
       SafeWalkFlow(
+        livePosition: _gps(),
         mode: sw.DataMode.mock,
         showMapTiles: false,
         onLoadReports: () async {
@@ -150,6 +160,7 @@ void main() {
       await _pump(
         t,
         SafeWalkFlow(
+          livePosition: _gps(),
           mode: sw.DataMode.live,
           showMapTiles: false,
           onHomeChanged: (_) async {
@@ -202,6 +213,7 @@ void main() {
       await _pump(
         t,
         SafeWalkFlow(
+          livePosition: _gps(),
           mode: sw.DataMode.live,
           showMapTiles: false,
           onLoadReports: () async => [],
@@ -231,7 +243,11 @@ void main() {
   testWidgets('Live without storage never creates a local success', (t) async {
     await _pump(
       t,
-      const SafeWalkFlow(mode: sw.DataMode.live, showMapTiles: false),
+      SafeWalkFlow(
+        livePosition: _gps(),
+        mode: sw.DataMode.live,
+        showMapTiles: false,
+      ),
     );
     await _form(t);
     await t.tap(find.text('標示到地圖'));
@@ -269,6 +285,7 @@ void main() {
       await _pump(
         t,
         SafeWalkFlow(
+          livePosition: _gps(),
           mode: sw.DataMode.live,
           showMapTiles: false,
           homeLocation: sw.Coordinates(lat: 0.6, lng: 0.8),
@@ -298,6 +315,7 @@ void main() {
       await _pump(
         t,
         SafeWalkFlow(
+          livePosition: _gps(),
           mode: sw.DataMode.live,
           showMapTiles: false,
           onLoadReports: () async {
@@ -324,6 +342,7 @@ void main() {
       await _pump(
         t,
         SafeWalkFlow(
+          livePosition: _gps(),
           mode: sw.DataMode.live,
           showMapTiles: false,
           onLoadReports: () async =>
@@ -359,6 +378,7 @@ void main() {
     await _pump(
       t,
       SafeWalkFlow(
+        livePosition: _gps(),
         mode: sw.DataMode.live,
         showMapTiles: false,
         onLoadReports: () async => [],

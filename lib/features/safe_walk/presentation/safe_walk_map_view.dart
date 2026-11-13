@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart' show mapEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_map.dart';
+import 'package:town_pass/features/safe_walk/presentation/report_range.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_map_models.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_ui.dart';
 import 'package:town_pass/features/safe_walk/shared/route_instructions.dart';
@@ -139,6 +140,7 @@ class SafeWalkMapView extends StatefulWidget {
   const SafeWalkMapView({
     super.key,
     required this.position,
+    this.onReportLocate,
     this.heading,
     required this.pointsState,
     required this.anomalies,
@@ -219,6 +221,7 @@ class SafeWalkMapView extends StatefulWidget {
   /// 編輯常用地點的名稱與位置；null 時不顯示編輯。
   final Future<void> Function(String id, String name, LatLng at)? onEditPlace;
   final sw.Position? position;
+  final Future<sw.LocationResult> Function()? onReportLocate;
 
   /// 手機朝向（度，從北方順時針）；有值時目前位置畫成指向箭頭。
   final double? heading;
@@ -265,6 +268,14 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView>
   @override
   void didUpdateWidget(SafeWalkMapView old) {
     super.didUpdateWidget(old);
+    if (old.position != widget.position) {
+      _reportFix = null;
+      _scheduleGpsExpiry();
+    }
+    if (_detailId != null &&
+        !widget.anomalies.any((a) => a.id == _detailId && _canReadReport(a))) {
+      _detailId = null;
+    }
     if (old.isLive != widget.isLive) {
       ++_reportGeneration;
       _savingReport = false;
@@ -338,6 +349,8 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView>
     _newPlaceName = '家';
     _editingPlaceId = 'home';
     _picking = false;
+    _reportLocating = false;
+    _reportCenter = null;
     _legend = false;
     _pin = null;
     _detailId = null;
@@ -354,22 +367,222 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView>
   String? _reportError;
   Anomaly? _reportDraft;
   int _reportGeneration = 0;
+  LatLng? _reportCenter;
+  sw.Position? _reportFix;
+  bool _reportLocating = false, _rangeActive = true;
+  Timer? _gpsExpiry;
+  int _rangeCameraRevision = 0;
+
+  sw.Position? get _rangePosition {
+    final local = _reportFix;
+    final live = widget.position;
+    if (local == null) return live;
+    if (live == null) return local;
+    final localTime = DateTime.tryParse(local.observedAt ?? '');
+    final liveTime = DateTime.tryParse(live.observedAt ?? '');
+    return localTime != null && liveTime != null && localTime.isAfter(liveTime)
+        ? local
+        : live;
+  }
+
+  LatLng? get _gpsCenter =>
+      _rangeActive ? reportGpsCenter(_rangePosition) : null;
+  bool _canReadReport(Anomaly report) =>
+      !_picking &&
+      withinReportRange(_gpsCenter, report.at, reportDetailRadiusMeters);
+  bool _canPickReport(LatLng at) =>
+      _picking &&
+      !_reportLocating &&
+      _gpsCenter != null &&
+      withinReportRange(_reportCenter, at, reportPickRadiusMeters);
+
+  void _scheduleGpsExpiry() {
+    _gpsExpiry?.cancel();
+    final stamp = _rangePosition?.observedAt;
+    final observed = stamp == null ? null : DateTime.tryParse(stamp);
+    if (observed == null) return;
+    final delay = observed
+        .add(const Duration(seconds: 60))
+        .difference(DateTime.now());
+    if (delay.isNegative) return;
+    _gpsExpiry = Timer(delay + const Duration(milliseconds: 1), () {
+      if (mounted) setState(() => _detailId = null);
+    });
+  }
+
+  Future<sw.Position?> _freshReportGps() async {
+    final locate = widget.onReportLocate;
+    if (locate == null) {
+      return reportGpsCenter(widget.position) == null ? null : widget.position;
+    }
+    try {
+      final result = await locate();
+      return result is sw.LocationSuccess &&
+              reportGpsCenter(result.position) != null
+          ? result.position
+          : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _beginReporting() async {
+    final generation = ++_reportGeneration;
+    setState(() {
+      _picking = true;
+      _reportLocating = true;
+      _reportCenter = null;
+      _pin = null;
+      _detailId = null;
+      _crimeDetail = null;
+      _newPlaceName = null;
+      _editingPlaceId = null;
+      _pickingStart = false;
+      _legend = false;
+      _reportError = null;
+      _reportDraft = null;
+      _toast = null;
+      if (_size == _SheetSize.collapsed) _size = _SheetSize.normal;
+    });
+    final position = await _freshReportGps();
+    if (!mounted ||
+        !_rangeActive ||
+        generation != _reportGeneration ||
+        !_picking) {
+      return;
+    }
+    setState(() {
+      _reportLocating = false;
+      _reportFix = position;
+      _reportCenter = reportGpsCenter(position);
+      ++_rangeCameraRevision;
+      if (_reportCenter == null) _reportError = '未取得精度 30 公尺內的有效 GPS，請重新定位後回報。';
+    });
+    _scheduleGpsExpiry();
+  }
+
+  Widget _rangeStatus() => Row(
+    children: [
+      Expanded(
+        child: Text(
+          _reportLocating
+              ? '正在取得回報用 GPS…'
+              : _picking
+              ? ((_pin == null ? _reportError : null) ??
+                    (_gpsCenter == null
+                        ? '定位尚未就緒，請重新定位'
+                        : '可回報範圍 500 公尺（啟動時 GPS）'))
+              : _gpsCenter == null
+              ? '定位尚未就緒，無法查看回報詳情'
+              : '可查看回報範圍 100 公尺',
+          style: SwText.smallStrong,
+        ),
+      ),
+      IconButton(
+        tooltip: _picking ? '重新定位回報範圍' : '重新定位查看範圍',
+        onPressed: _reportBusy || _reportLocating
+            ? null
+            : () => unawaited(_refreshRangeGps()),
+        icon: const Icon(Icons.my_location_rounded),
+      ),
+    ],
+  );
+
+  void _cancelReporting() {
+    ++_reportGeneration;
+    setState(() {
+      _picking = false;
+      _reportLocating = false;
+      _reportCenter = null;
+      _pin = null;
+      _reportError = null;
+      _reportDraft = null;
+    });
+  }
+
+  void _pickReportAt(LatLng at) {
+    if (!_canPickReport(at)) {
+      setState(
+        () => _reportError = _gpsCenter == null
+            ? '定位尚未就緒或精度不足，請重新定位。'
+            : '只能回報啟動時 GPS 周圍 500 公尺內的位置。',
+      );
+      return;
+    }
+    setState(() {
+      _pin = at;
+      _reportError = null;
+      _reportDraft = null;
+    });
+  }
+
+  void _openReport(String id) {
+    final report = widget.anomalies.where((a) => a.id == id).firstOrNull;
+    if (report == null) return;
+    if (_picking) {
+      _pickReportAt(report.at);
+      return;
+    }
+    if (!_canReadReport(report)) {
+      setState(() => _toast = '只能查看目前 GPS 周圍 100 公尺內的回報詳情。');
+      return;
+    }
+    setState(() {
+      _crimeDetail = null;
+      _detailId = id;
+      _toast = null;
+      _pin = null;
+      if (_size == _SheetSize.collapsed) _size = _SheetSize.normal;
+    });
+  }
+
+  Future<void> _refreshRangeGps() async {
+    if (_picking) {
+      await _beginReporting();
+      return;
+    }
+    final generation = _reportGeneration;
+    final position = await _freshReportGps();
+    if (!mounted || !_rangeActive || generation != _reportGeneration) return;
+    setState(() {
+      _reportFix = position;
+      _detailId = null;
+    });
+    _scheduleGpsExpiry();
+  }
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _scheduleGpsExpiry();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _targetCurrentPoint();
+      if (mounted) {
+        _targetCurrentPoint();
+        if (_picking) unawaited(_beginReporting());
+      }
     });
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      setState(() => _rangeActive = true);
+    }
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.hidden ||
         state == AppLifecycleState.detached) {
       ++_reportGeneration;
+      _gpsExpiry?.cancel();
+      setState(() {
+        _rangeActive = false;
+        _picking = false;
+        _reportLocating = false;
+        _reportCenter = null;
+        _reportFix = null;
+        _pin = null;
+        _detailId = null;
+      });
       if (_reportBusy) {
         setState(() {
           _savingReport = false;
@@ -397,6 +610,8 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView>
     // AnimatedSwitcher keeps outgoing pages mounted during the transition.
     // A late write must not show success or navigate that outgoing page.
     ++_reportGeneration;
+    _rangeActive = false;
+    _gpsExpiry?.cancel();
     leave();
   }
 
@@ -642,6 +857,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView>
   @override
   void dispose() {
     ++_reportGeneration;
+    _gpsExpiry?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _note.dispose();
     super.dispose();
@@ -649,6 +865,10 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView>
 
   Future<void> _submit() async {
     if (_reportBusy || _pin == null) return;
+    if (!_canPickReport(_pin!)) {
+      setState(() => _reportError = '回報位置不在有效的 500 公尺範圍內，請重新定位或選點。');
+      return;
+    }
     final description = _note.text.trim();
     final previous = _reportDraft;
     // Keep the same request ID when retrying an uncertain network result.
@@ -703,7 +923,10 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView>
       _note.clear();
       _pin = null;
       _picking = false;
-      _detailId = a.id;
+      _reportCenter = null;
+      _detailId = withinReportRange(_gpsCenter, a.at, reportDetailRadiusMeters)
+          ? a.id
+          : null;
       if (_size == _SheetSize.collapsed) _size = _SheetSize.normal;
       _toast = '已儲存並標示在地圖上';
     });
@@ -711,6 +934,10 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView>
 
   Future<void> _resolve(Anomaly report) async {
     if (_reportBusy) return;
+    if (!_canReadReport(report)) {
+      setState(() => _detailId = null);
+      return;
+    }
     final generation = ++_reportGeneration;
     setState(() {
       _resolvingReportId = report.id;
@@ -839,6 +1066,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView>
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (!_pickingStart && _newPlaceName == null) _rangeStatus(),
         if (widget.isLive && widget.reportsLoading) ...[
           Semantics(
             liveRegion: true,
@@ -872,6 +1100,20 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView>
                   Positioned.fill(
                     child: SafeWalkMap(
                       showTiles: widget.showMapTiles,
+                      rangeCenter: _picking ? _reportCenter : _gpsCenter,
+                      rangeRadiusMeters: _picking
+                          ? reportPickRadiusMeters
+                          : reportDetailRadiusMeters,
+                      reportCameraCenter: _picking ? _reportCenter : null,
+                      rangeCameraRevision: _rangeCameraRevision,
+                      visibleReportIds: {
+                        for (final a in widget.anomalies)
+                          if (_picking
+                              ? _canPickReport(a.at)
+                              : _canReadReport(a))
+                            a.id,
+                      },
+                      reporting: _picking,
                       // 真實路線從使用者實際位置出發。
                       start:
                           widget.manualStart ??
@@ -883,7 +1125,8 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView>
                               : _start),
                       points: points,
                       heading: widget.position == null ? null : widget.heading,
-                      follow: _navigating && widget.position != null
+                      follow:
+                          !_picking && _navigating && widget.position != null
                           ? LatLng(
                               widget.position!.coordinates.lat,
                               widget.position!.coordinates.lng,
@@ -906,6 +1149,8 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView>
                               _crimeDetail = widget.crimeSpots[i];
                               _detailId = null;
                               _picking = false;
+                              _reportLocating = false;
+                              _reportCenter = null;
                               _pin = null;
                               _toast = null;
                               if (_size == _SheetSize.collapsed) {
@@ -937,18 +1182,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView>
                       selectedPointId: _pointsView ? picked?.id : point?.id,
                       selectedAnomalyId: detail?.id,
                       pin: _pin,
-                      onAnomaly: _reportBusy
-                          ? null
-                          : (id) => setState(() {
-                              _crimeDetail = null;
-                              _detailId = id;
-                              _toast = null;
-                              _picking = false;
-                              _pin = null;
-                              if (_size == _SheetSize.collapsed) {
-                                _size = _SheetSize.normal;
-                              }
-                            }),
+                      onAnomaly: _reportBusy ? null : _openReport,
                       onPoint: _pointsView
                           ? (id) => setState(() => _pickedPointId = id)
                           : null,
@@ -994,12 +1228,7 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView>
                               });
                             }
                           : _picking
-                          ? (at) => setState(() {
-                              _pin = at;
-                              if (_size == _SheetSize.collapsed) {
-                                _size = _SheetSize.normal;
-                              }
-                            })
+                          ? _pickReportAt
                           : null,
                     ),
                   ),
@@ -1102,6 +1331,8 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView>
                                       _legend = !_legend;
                                       if (_legend) {
                                         _picking = false;
+                                        _reportLocating = false;
+                                        _reportCenter = null;
                                         _pin = null;
                                       }
                                     });
@@ -1116,24 +1347,11 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView>
                                   warn: true,
                                   onTap: () {
                                     if (_reportBusy) return;
-                                    setState(() {
-                                      _picking = !_picking;
-                                      // Reporting is also available before home
-                                      // setup; map taps now select the report.
-                                      _newPlaceName = null;
-                                      _editingPlaceId = null;
-                                      _pickingStart = false;
-                                      _crimeDetail = null;
-                                      _legend = false;
-                                      _pin = null;
-                                      _detailId = null;
-                                      _toast = null;
-                                      _reportError = null;
-                                      _reportDraft = null;
-                                      if (_size == _SheetSize.collapsed) {
-                                        _size = _SheetSize.normal;
-                                      }
-                                    });
+                                    if (_picking) {
+                                      _cancelReporting();
+                                    } else {
+                                      unawaited(_beginReporting());
+                                    }
                                   },
                                 ),
                               ],
@@ -1164,35 +1382,6 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView>
                           : const SizedBox.shrink(),
                     ),
                   ),
-                  if (_picking && _pin == null)
-                    Positioned(
-                      left: 16,
-                      right: 16,
-                      top: MediaQuery.paddingOf(context).top + 100,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 10,
-                        ),
-                        decoration: BoxDecoration(
-                          color: SwColors.warnBg,
-                          borderRadius: BorderRadius.circular(24),
-                          border: Border.all(color: SwColors.warnText),
-                          boxShadow: SwShadow.float,
-                        ),
-                        child: Text(
-                          _pickingStart
-                              ? '點地圖選擇起點'
-                              : _newPlaceName != null
-                              ? '點地圖選擇「$_newPlaceName」的位置'
-                              : '點地圖選擇要回報的位置，或點 ⚠ 更新既有回報',
-                          textAlign: TextAlign.center,
-                          style: SwText.bodyStrong.copyWith(
-                            color: SwColors.warnText,
-                          ),
-                        ),
-                      ),
-                    ),
                 ],
               ),
             ),
@@ -1647,6 +1836,8 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView>
           _pickingStart = true;
           _newPlaceName = null;
           _picking = false;
+          _reportLocating = false;
+          _reportCenter = null;
           _legend = false;
           _pin = null;
           _detailId = null;
@@ -1839,6 +2030,8 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView>
                                         _newPlaceName = name.text.trim();
                                         _editingPlaceId = editingId;
                                         _picking = false;
+                                        _reportLocating = false;
+                                        _reportCenter = null;
                                         _legend = false;
                                         _pin = null;
                                         _detailId = null;
@@ -1897,24 +2090,22 @@ class _SafeWalkMapViewState extends State<SafeWalkMapView>
     children: [
       Text('要回報哪裡？', style: SwText.heading),
       const SizedBox(height: 4),
-      Text('在地圖上點一下位置，或用你現在的位置。', style: SwText.secondary),
+      Text('僅能回報啟動時 GPS 周圍 500 公尺內的位置。', style: SwText.secondary),
       const SizedBox(height: 8),
       SwButtonPair(
         first: SwPrimaryButton(
           label: '用我目前的位置',
           icon: Icons.my_location_rounded,
-          onTap: widget.isLive && widget.position == null
+          onTap: _reportCenter == null || _gpsCenter == null || _reportLocating
               ? null
-              : () => setState(() => _pin = _start),
+              : () => _pickReportAt(_gpsCenter!),
         ),
         second: SwOutlineButton(
           label: '取消回報',
           icon: Icons.close_rounded,
-          onTap: () => setState(() => _picking = false),
+          onTap: _cancelReporting,
         ),
       ),
-      if (widget.isLive && widget.position == null)
-        Text('尚未取得目前位置，請直接在地圖上選擇回報位置。', style: SwText.small),
     ],
   );
 

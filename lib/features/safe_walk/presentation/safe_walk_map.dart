@@ -58,6 +58,12 @@ class SafeWalkMap extends StatelessWidget {
     this.onPoint,
     this.onPick,
     this.compact = false,
+    this.rangeCenter,
+    this.rangeRadiusMeters = 0,
+    this.reportCameraCenter,
+    this.rangeCameraRevision = 0,
+    this.visibleReportIds,
+    this.reporting = false,
   });
   final LatLng start;
   final List<sw.AssistancePoint> points;
@@ -94,6 +100,11 @@ class SafeWalkMap extends StatelessWidget {
   final LatLng? pin;
   final ValueChanged<String>? onAnomaly, onPoint;
   final ValueChanged<LatLng>? onPick;
+  final LatLng? rangeCenter, reportCameraCenter;
+  final double rangeRadiusMeters;
+  final int rangeCameraRevision;
+  final Set<String>? visibleReportIds;
+  final bool reporting;
 
   @override
   Widget build(BuildContext context) => _MapTileHealth(
@@ -113,15 +124,36 @@ class SafeWalkMap extends StatelessWidget {
     // 初始視野：涵蓋起點、回家、所有求助地點與異常回報（避開上方標題與下方資訊框）。
     // 有路線時先框路線，避免遠處的其他資料影響視野。
     final live = avoidRadiusMeters > 0 && path.length > 1;
-    final fit = LatLngBounds.fromPoints([
-      _ll(start),
-      for (final at in path) _ll(at),
-      if (!live) ...[
-        if (showDestination && destination != null) _ll(destination!),
-        for (final p in points) ll.LatLng(p.coordinates.lat, p.coordinates.lng),
-        for (final a in anomalies) _ll(a.at),
-      ],
-    ]);
+    final center = reportCameraCenter;
+    final delta = rangeRadiusMeters / 6371000 * 180 / math.pi;
+    final longitudeDelta = center == null
+        ? 0.0
+        : delta / math.max(.001, math.cos(center.lat * math.pi / 180));
+    final fit = LatLngBounds.fromPoints(
+      center != null
+          ? [
+              ll.LatLng(
+                (center.lat - delta).clamp(-90, 90),
+                center.lng - longitudeDelta,
+              ),
+              ll.LatLng(
+                (center.lat + delta).clamp(-90, 90),
+                center.lng + longitudeDelta,
+              ),
+            ]
+          : [
+              _ll(start),
+              for (final at in path) _ll(at),
+              if (!live) ...[
+                if (showDestination && destination != null) _ll(destination!),
+                for (final p in points)
+                  ll.LatLng(p.coordinates.lat, p.coordinates.lng),
+                for (final a in anomalies) _ll(a.at),
+              ],
+            ],
+    );
+    bool reportVisible(Anomaly a) =>
+        visibleReportIds == null || visibleReportIds!.contains(a.id);
 
     Marker marker(
       LatLng at,
@@ -157,15 +189,22 @@ class SafeWalkMap extends StatelessWidget {
       for (final a in anomalies)
         marker(
           a.at,
-          a.id == selectedAnomalyId ? 34 : 26,
+          reportVisible(a) && a.id == selectedAnomalyId ? 34 : 26,
           _AnomalyMark(
-            status: a.status,
-            selected: a.id == selectedAnomalyId,
+            status: reportVisible(a) && !reporting
+                ? a.status
+                : AnomalyStatus.pending,
+            selected: reportVisible(a) && a.id == selectedAnomalyId,
             small: compact,
           ),
-          label:
-              '${anomalyCategoryLabel[a.category]}，${anomalyStatusLabel[a.status]}，查看與回報新狀況',
-          onTap: onAnomaly == null ? null : () => onAnomaly!(a.id),
+          label: !reportVisible(a)
+              ? '範圍外回報標示'
+              : reporting
+              ? '選擇此回報位置'
+              : '${anomalyCategoryLabel[a.category]}，${anomalyStatusLabel[a.status]}，查看與回報新狀況',
+          onTap: onAnomaly == null || !reportVisible(a)
+              ? null
+              : () => onAnomaly!(a.id),
         ),
       for (final (i, c) in crimeSpots.indexed)
         marker(
@@ -238,7 +277,9 @@ class SafeWalkMap extends StatelessWidget {
       // A changed destination gets a fresh fit. Unchanged route values retain
       // the user's current pan/zoom through other view rebuilds.
       key: ValueKey(
-        follow != null
+        reportCameraCenter != null
+            ? 'report ${center!.lat},${center.lng} $rangeCameraRevision'
+            : follow != null
             ? 'follow ${follow!.lat.toStringAsFixed(4)},${follow!.lng.toStringAsFixed(4)}'
             : path.map((at) => '${at.lat},${at.lng}').join('|'),
       ),
@@ -285,6 +326,25 @@ class SafeWalkMap extends StatelessWidget {
             forceOnlineForTesting: usesInjectedOnlineTiles,
             onOfflineFallback: onFallback,
           ),
+        if (rangeCenter != null && rangeRadiusMeters > 0)
+          CircleLayer(
+            circles: [
+              CircleMarker(
+                point: _ll(rangeCenter!),
+                radius: rangeRadiusMeters,
+                useRadiusInMeter: true,
+                color: (reporting ? SwColors.warnMark : SwColors.brand)
+                    .withValues(alpha: .08),
+                borderColor: reporting ? SwColors.warnText : SwColors.brand,
+                borderStrokeWidth: 2,
+              ),
+              CircleMarker(
+                point: _ll(rangeCenter!),
+                radius: 4,
+                color: reporting ? SwColors.warnText : SwColors.brand,
+              ),
+            ],
+          ),
         if (avoidRadiusMeters > 0)
           CircleLayer(
             circles: [
@@ -298,7 +358,7 @@ class SafeWalkMap extends StatelessWidget {
                   borderStrokeWidth: 1.5,
                 ),
               for (final a in anomalies)
-                if (a.status != AnomalyStatus.cleared)
+                if (a.status != AnomalyStatus.cleared && reportVisible(a))
                   CircleMarker(
                     point: _ll(a.at),
                     radius: avoidRadiusMeters,

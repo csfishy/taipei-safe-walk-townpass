@@ -62,6 +62,8 @@ class SafeWalkFlow extends StatefulWidget {
     this.livePosition,
     this.liveHeading,
     this.onLeaveMap,
+    this.onMapOpened,
+    this.onRefreshMapPosition,
     this.onStartNavigation,
     this.onEndNavigation,
     this.speaker = const UnavailableSpeaker(),
@@ -140,6 +142,8 @@ class SafeWalkFlow extends StatefulWidget {
 
   /// 離開地圖時呼叫，讓 M1 停止持續定位與路線請求。
   final VoidCallback? onLeaveMap;
+  final VoidCallback? onMapOpened;
+  final Future<sw.LocationResult> Function()? onRefreshMapPosition;
   final VoidCallback? onStartNavigation, onEndNavigation;
   final SafeWalkSpeaker speaker;
   final SafeWalkAlarm alarm;
@@ -567,6 +571,7 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
 
   /// Load report buffers before the first preview query.
   void _afterMapOpened(_Screen s) {
+    widget.onMapOpened?.call();
     if (widget.mode == sw.DataMode.live && widget.onLoadReports != null) {
       unawaited(_loadReportsThenPlan(s));
       return;
@@ -645,6 +650,7 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
     Widget map({MapStartView start = MapStartView.route}) => SafeWalkMapView(
       key: ValueKey(start),
       position: widget.livePosition ?? _position,
+      onReportLocate: widget.onRefreshMapPosition,
       heading: widget.liveHeading,
       showMapTiles: widget.showMapTiles,
       pointsState: _pointsState,

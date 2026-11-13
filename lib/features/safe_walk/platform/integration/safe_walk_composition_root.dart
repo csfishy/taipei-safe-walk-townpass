@@ -461,6 +461,10 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
 
   // Route following: one follower per option; re-plan only when off all of them.
   bool _guidanceActive = false;
+  bool _mapVisible = false;
+  int _mapGpsGeneration = 0;
+  _RouteCancellation? _mapGpsRequest;
+  Future<sw.LocationResult>? _mapGpsTask;
   sw.Position? _previewPosition;
   sw.Coordinates? _destination;
   sw.RouteResult? _followed;
@@ -571,8 +575,8 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     }
   }
 
-  /// Replace route followers during a replan, retaining the one foreground GPS
-  /// subscription. Cancellation, failure and leaving navigation still stop it.
+  /// Replace route followers while retaining the shared foreground map GPS.
+  /// Ending guidance stops followers/heading; leaving the map also stops GPS.
   void _syncFollowing() {
     final result = _navigation.routeResult;
     if (result is sw.RouteSuccess) _guidancePreview = result;
@@ -599,10 +603,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
       return;
     }
     _followers = [for (final r in result.routes) RouteFollower(r)];
-    _watch ??= (widget.watchPosition ?? watchDevicePosition)().listen(
-      _onPosition,
-      onError: (_) => _stopFollowing(),
-    );
+    _ensureMapWatch();
     _headingSub ??= (widget.watchHeading ?? watchDeviceHeading)().listen(
       (h) {
         // Redraw only for a visible turn; the sensors report ~15 times/s.
@@ -619,16 +620,24 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
   }
 
   void _onPosition(sw.Position position) {
-    if (!mounted ||
-        !_foreground ||
-        !_navigationActive ||
+    if (!mounted || !_foreground || !_mapVisible || !_usableLiveFix(position)) {
+      return;
+    }
+    final previous = _livePosition?.observedAt;
+    if (previous != null &&
+        position.observedAt != null &&
+        DateTime.parse(position.observedAt!)
+            .isBefore(DateTime.parse(previous))) {
+      return;
+    }
+    setState(() => _livePosition = position);
+    if (!_navigationActive ||
         !_routeAllowed ||
         !_guidanceActive ||
         _followers.isEmpty ||
         !_usableLiveFix(position)) {
       return;
     }
-    setState(() => _livePosition = position);
     final updates = [for (final f in _followers) f.update(position)];
     final offAll = updates.every((u) => u.shouldReroute);
     final destination = _destination;
@@ -648,13 +657,109 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
   }
 
   void _stopFollowing() {
-    unawaited(_watch?.cancel());
-    _watch = null;
     unawaited(_headingSub?.cancel());
     _headingSub = null;
     _heading = null;
     _followers = const [];
+  }
+
+  void _openMap() {
+    if (!widget.liveRoutes || !_foreground || _lifetime.isCancelled) return;
+    _mapVisible = true;
+    unawaited(_refreshMapPosition());
+  }
+
+  void _ensureMapWatch() {
+    if (!_mapVisible ||
+        !_foreground ||
+        _lifetime.isCancelled ||
+        _watch != null) {
+      return;
+    }
+    final generation = _mapGpsGeneration;
+    _watch = (widget.watchPosition ?? watchDevicePosition)().listen(
+      (p) {
+        if (generation == _mapGpsGeneration) _onPosition(p);
+      },
+      onError: (_) {
+        if (mounted && generation == _mapGpsGeneration) {
+          final failedWatch = _watch;
+          _watch = null;
+          unawaited(failedWatch?.cancel());
+          setState(() {
+            _livePosition = null;
+            _previewPosition = null;
+          });
+        }
+      },
+    );
+  }
+
+  Future<sw.LocationResult> _refreshMapPosition() {
+    if (!_mapVisible || !_foreground || _lifetime.isCancelled) {
+      return Future.value(_locationFailure('定位操作已取消。'));
+    }
+    return _mapGpsTask ??= _readMapPosition();
+  }
+
+  Future<sw.LocationResult> _readMapPosition() async {
+    final generation = _mapGpsGeneration;
+    final token = _mapGpsRequest = _RouteCancellation();
+    try {
+      final result = await Future.any<sw.LocationResult>([
+        Future.sync(
+          () => _platform.getCurrentPosition(
+            mode: sw.DataMode.live,
+            userInitiated: true,
+            cancellation: token,
+          ),
+        ),
+        token.whenCancelled.then((_) => _locationFailure('定位操作已取消。')),
+      ]);
+      if (!mounted ||
+          !_foreground ||
+          !_mapVisible ||
+          token.isCancelled ||
+          generation != _mapGpsGeneration) {
+        return _locationFailure('定位操作已取消。');
+      }
+      if (result is sw.LocationSuccess && _usableLiveFix(result.position)) {
+        _onPosition(result.position);
+        _ensureMapWatch();
+        return result;
+      }
+      setState(() {
+        _livePosition = null;
+        _previewPosition = null;
+      });
+      return result is sw.LocationFailure
+          ? result
+          : _locationFailure('未取得有效 GPS，請重新定位。');
+    } catch (_) {
+      if (mounted && generation == _mapGpsGeneration) {
+        setState(() {
+          _livePosition = null;
+          _previewPosition = null;
+        });
+      }
+      return _locationFailure('暫時無法取得位置，請重新定位。');
+    } finally {
+      if (generation == _mapGpsGeneration) {
+        _mapGpsRequest = null;
+        _mapGpsTask = null;
+      }
+    }
+  }
+
+  void _stopMapGps() {
+    ++_mapGpsGeneration;
+    _mapGpsRequest?.cancel();
+    _mapGpsRequest = null;
+    _mapGpsTask = null;
+    unawaited(_watch?.cancel());
+    _watch = null;
     _livePosition = null;
+    _previewPosition = null;
   }
 
   bool _usableLiveFix(sw.Position position) =>
@@ -797,7 +902,12 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
   /// destination or lifecycle boundary invalidates every later continuation.
   Future<void> _planTo(sw.Coordinates destination) async {
     if (!mounted || !_foreground || _lifetime.isCancelled) return;
+    final continueGuidance =
+        _guidanceActive &&
+        _destination?.lat == destination.lat &&
+        _destination?.lng == destination.lng;
     _invalidateOperation();
+    _guidanceActive = continueGuidance;
     _openNavigation();
     _destination = destination;
     final operation = _operation = _RouteCancellation();
@@ -838,11 +948,15 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     }
     final sw.LocationResult located;
     try {
-      located = await _platform.getCurrentPosition(
-        mode: _navigation.mode,
-        userInitiated: true,
-        cancellation: operation,
-      );
+      located = _mapVisible
+          ? (_livePosition != null && _usableLiveFix(_livePosition!)
+                ? sw.LocationSuccess(position: _livePosition!)
+                : await _refreshMapPosition())
+          : await _platform.getCurrentPosition(
+              mode: _navigation.mode,
+              userInitiated: true,
+              cancellation: operation,
+            );
     } on SafeWalkCancelledException {
       return null;
     } catch (_) {
@@ -911,7 +1025,9 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
         _lifetime.isCancelled) {
       return;
     }
+    final continueGuidance = _guidanceActive;
     _invalidateOperation();
+    _guidanceActive = continueGuidance;
     _openNavigation();
     final operation = _nearbyOperation = _RouteCancellation();
     bool alive() =>
@@ -1143,7 +1259,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     if (!_lifetime.isCancelled && _foreground) _navigationActive = true;
   }
 
-  /// Ending guidance stops all work but keeps the last route as a preview.
+  /// Ending guidance stops route work, retaining preview and foreground map GPS.
   /// A fresh explicit start may resume following that route.
   void _endGuidance() {
     final preview = _guidancePreview;
@@ -1171,7 +1287,9 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     _syncFollowing();
   }
 
-  void _closeNavigation() {
+  void _closeNavigation({bool preserveMap = false}) {
+    if (!preserveMap) _mapVisible = false;
+    _stopMapGps();
     _cancelMapReports();
     _navigationActive = false;
     _destination = null;
@@ -1199,10 +1317,11 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
         state == AppLifecycleState.hidden ||
         state == AppLifecycleState.detached) {
       _foreground = false;
-      _closeNavigation();
+      _closeNavigation(preserveMap: true);
       unawaited(_alarm.stop());
     } else if (state == AppLifecycleState.resumed) {
       _foreground = true;
+      if (_mapVisible) unawaited(_refreshMapPosition());
     }
     if (mounted) setState(() {});
   }
@@ -1463,6 +1582,8 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
         livePosition: _livePosition ?? _previewPosition,
         liveHeading: _livePosition == null ? null : _heading,
         onLeaveMap: _closeNavigation,
+        onMapOpened: widget.liveRoutes ? _openMap : null,
+        onRefreshMapPosition: widget.liveRoutes ? _refreshMapPosition : null,
         onStartNavigation: _startGuidance,
         onEndNavigation: _endGuidance,
         crimeSpots: _crimeSpots,
@@ -1518,6 +1639,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _cancelMapReports();
+    _stopMapGps();
     _stopFollowing();
     _navigation.removeListener(_syncFollowing);
     _operation?.cancel();
