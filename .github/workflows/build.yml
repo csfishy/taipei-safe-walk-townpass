@@ -57,6 +57,8 @@ jobs:
       - name: Analyze (errors and warnings are fatal; existing style infos are advisory)
         run: flutter analyze --no-fatal-infos
       - run: flutter test --reporter expanded
+      - name: Test the native preview startup with email Live testing enabled
+        run: flutter test --no-pub --dart-define=SAFE_WALK_EMAIL_LIVE_TEST=true test/features/safe_walk/platform/integration/official_safe_walk_entry_test.dart test/features/safe_walk/platform/integration/email_live_test_page_test.dart test/features/safe_walk/platform/nearby_emergency/email_live_test_transport_test.dart --reporter expanded
       - name: Test browser guards in Chrome (device plugin boundary stubbed)
         run: |
           flutter test --platform chrome test/web_startup_test.dart test/features/safe_walk/navigation/json_post_web_test.dart test/features/safe_walk/platform/supabase/web_rpc_post_web_test.dart --reporter expanded
@@ -136,14 +138,14 @@ jobs:
         # Pure Dart: do not trigger unrelated macOS native-asset build hooks.
         run: dart tool/prepare_native_client_config.dart "$RUNNER_TEMP/native-client.json"
       - name: Build test-signed release APK
-        run: flutter build apk --release --no-pub --dart-define-from-file="$RUNNER_TEMP/native-client.json" --build-name '${{ needs.check.outputs.version }}' --build-number "$GITHUB_RUN_NUMBER"
+        run: flutter build apk --release --no-pub --dart-define=SAFE_WALK_EMAIL_LIVE_TEST=true --dart-define-from-file="$RUNNER_TEMP/native-client.json" --build-name '${{ needs.check.outputs.version }}' --build-number "$GITHUB_RUN_NUMBER"
       - name: Verify and stage APK
         run: |
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose build/app/outputs/flutter-apk/app-release.apk
           mkdir -p artifacts
           cp build/app/outputs/flutter-apk/app-release.apk artifacts/taipei-safe-walk-townpass-android-prerelease.apk
       - name: Verify APK source metadata and compiled arm64 payload
-        run: python3 tool/verify_native_release.py android artifacts/taipei-safe-walk-townpass-android-prerelease.apk --supabase-config "$RUNNER_TEMP/native-client.json"
+        run: python3 tool/verify_native_release.py android artifacts/taipei-safe-walk-townpass-android-prerelease.apk --supabase-config "$RUNNER_TEMP/native-client.json" --email-live-test
       - name: Verify APK excludes reference database binaries
         run: python3 tool/check_crime_database_isolation.py --archive artifacts/taipei-safe-walk-townpass-android-prerelease.apk
       - uses: actions/upload-artifact@v4
@@ -179,7 +181,7 @@ jobs:
         # Pure Dart: do not trigger unrelated macOS native-asset build hooks.
         run: dart tool/prepare_native_client_config.dart "$RUNNER_TEMP/native-client.json"
       - name: Build unsigned iPhone device app
-        run: flutter build ios --release --no-codesign --no-pub --dart-define-from-file="$RUNNER_TEMP/native-client.json" --build-name '${{ needs.check.outputs.build_name }}' --build-number "$GITHUB_RUN_NUMBER"
+        run: flutter build ios --release --no-codesign --no-pub --dart-define=SAFE_WALK_EMAIL_LIVE_TEST=true --dart-define-from-file="$RUNNER_TEMP/native-client.json" --build-name '${{ needs.check.outputs.build_name }}' --build-number "$GITHUB_RUN_NUMBER"
       - name: Package and verify unsigned IPA
         run: |
           APP=build/ios/iphoneos/Runner.app
@@ -194,7 +196,7 @@ jobs:
           ditto -c -k --keepParent "$RUNNER_TEMP/ipa/Payload" artifacts/taipei-safe-walk-townpass-ios-unsigned.ipa
           unzip -t artifacts/taipei-safe-walk-townpass-ios-unsigned.ipa
       - name: Verify unsigned IPA identity, version and arm64 payload
-        run: python3 tool/verify_native_release.py ios artifacts/taipei-safe-walk-townpass-ios-unsigned.ipa --supabase-config "$RUNNER_TEMP/native-client.json"
+        run: python3 tool/verify_native_release.py ios artifacts/taipei-safe-walk-townpass-ios-unsigned.ipa --supabase-config "$RUNNER_TEMP/native-client.json" --email-live-test
       - name: Verify IPA excludes reference database binaries
         run: python3 tool/check_crime_database_isolation.py --archive artifacts/taipei-safe-walk-townpass-ios-unsigned.ipa
       - uses: actions/upload-artifact@v4
