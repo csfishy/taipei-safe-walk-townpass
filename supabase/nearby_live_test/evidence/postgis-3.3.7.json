@@ -1,0 +1,137 @@
+{
+  "status": "PASS",
+  "checked_at_utc": "2026-11-13T14:52:11.553Z",
+  "version": {
+    "postgis": "3.3.7",
+    "postgres": "PostgreSQL 15.13 on x86_64-alpine-linux-musl, compiled by gcc (Alpine 12.2.1_git20220924-r10) 12.2.1 20220924, 64-bit"
+  },
+  "passed_groups": 30,
+  "results": [
+    {
+      "name": "install over CRLF commits in separate namespace",
+      "status": "PASS"
+    },
+    {
+      "name": "read-only verifier passes locked state",
+      "status": "PASS"
+    },
+    {
+      "name": "installed test login is disabled by default",
+      "status": "PASS"
+    },
+    {
+      "name": "arbitrary new email logs in without Auth signup or mail",
+      "status": "PASS"
+    },
+    {
+      "name": "trim and case normalize to same account, independent session",
+      "status": "PASS"
+    },
+    {
+      "name": "invalid email is rejected",
+      "status": "PASS"
+    },
+    {
+      "name": "forged bearer session is rejected",
+      "status": "PASS"
+    },
+    {
+      "name": "location requires explicit helper opt-in",
+      "status": "PASS"
+    },
+    {
+      "name": "real opt-in and location writes persist",
+      "status": "PASS"
+    },
+    {
+      "name": "invalid coordinate including NaN is rejected",
+      "status": "PASS"
+    },
+    {
+      "name": "position update rate is enforced",
+      "status": "PASS"
+    },
+    {
+      "name": "out-of-radius helper is not selected",
+      "status": "PASS"
+    },
+    {
+      "name": "send selects only nearby test helpers and never production profiles",
+      "status": "PASS"
+    },
+    {
+      "name": "recipient sees actual persisted alert and no sender identity",
+      "status": "PASS"
+    },
+    {
+      "name": "idempotent send adds no duplicate deliveries",
+      "status": "PASS"
+    },
+    {
+      "name": "different account cannot fetch recipient data even when also a helper",
+      "status": "PASS"
+    },
+    {
+      "name": "SOS cooldown is enforced",
+      "status": "PASS"
+    },
+    {
+      "name": "rolling hourly quota survives physical alert cleanup",
+      "status": "PASS"
+    },
+    {
+      "name": "one-device logout preserves another session and location",
+      "status": "PASS"
+    },
+    {
+      "name": "opt-out deletes location and pending recipient records",
+      "status": "PASS"
+    },
+    {
+      "name": "expired location is not selected",
+      "status": "PASS"
+    },
+    {
+      "name": "expired session is rejected",
+      "status": "PASS"
+    },
+    {
+      "name": "fifty-recipient limit and sender exclusion apply in the database",
+      "status": "PASS"
+    },
+    {
+      "name": "test-account cap rejects new labels but permits an existing one",
+      "status": "PASS"
+    },
+    {
+      "name": "global login throttle rejects excess attempts",
+      "status": "PASS"
+    },
+    {
+      "name": "raw email and bearer tokens are not stored",
+      "status": "PASS"
+    },
+    {
+      "name": "API roles cannot read tables or execute private helpers",
+      "status": "PASS"
+    },
+    {
+      "name": "time-window expiry denies every business path",
+      "status": "PASS"
+    },
+    {
+      "name": "production verifier and fixture account counts remain unchanged",
+      "status": "PASS"
+    },
+    {
+      "name": "independent test verifier passes final disabled state",
+      "status": "PASS"
+    }
+  ],
+  "sha256": {
+    "01_install.sql": "54ded2073c0b73481fa1716c05965d7ac5eb5970d05f877dc19cc07163a1f9e7",
+    "02_enable_for_two_hours.sql": "b0a3a5511e9b0fec964f31c54def0d3fd31f5e4f67b0a68f9684f481fa03491c",
+    "03_verify.sql": "35ed625ea8f55cc9393f2659559c6da3fde0dd581bac2e1eb83c7cfe949eca71",
+    "run_tests.cjs": "1413ca324f1d199ac5dce3d991eb25a2ebf5127dbbc7c59e0b7ca539b44d1090"
+  }
+}

@@ -1,0 +1,103 @@
+{
+  "status": "PASS",
+  "started_at_utc": "2026-11-13T07:45:03.503Z",
+  "completed_at_utc": "2026-11-13T07:46:26.772Z",
+  "expected_postgis": "3.3.7",
+  "versions": {
+    "postgres": "PostgreSQL 15.13 on x86_64-alpine-linux-musl, compiled by gcc (Alpine 12.2.1_git20220924-r10) 12.2.1 20220924, 64-bit",
+    "postgis_library": "3.3.7",
+    "postgis_scripts": "3.3.7 a0c7967",
+    "postgis_full_version": "POSTGIS=\"3.3.7 a0c7967\" [EXTENSION] PGSQL=\"150\" GEOS=\"3.11.2-CAPI-1.17.2\" PROJ=\"9.2.1\" LIBXML=\"2.11.8\" LIBJSON=\"0.16\"",
+    "postgis_extension": "3.3.7",
+    "pgcrypto": "1.3"
+  },
+  "passed_groups": 18,
+  "groups": [
+    {
+      "name": "metadata inventory runs read-only before upgrade",
+      "status": "PASS"
+    },
+    {
+      "name": "nonempty four-table baseline upgrades atomically",
+      "status": "PASS"
+    },
+    {
+      "name": "post-upgrade verifier runs in a read-only transaction",
+      "status": "PASS"
+    },
+    {
+      "name": "rows, unrelated data, legacy definitions/ACLs and auth CASCADE are preserved",
+      "status": "PASS"
+    },
+    {
+      "name": "second application fails without changing the installed backend",
+      "status": "PASS"
+    },
+    {
+      "name": "full upgraded behavior suite: permissions, 499/501m, TTL, contacts, limits and deletion",
+      "status": "PASS"
+    },
+    {
+      "name": "all 13 RPCs reject anon and authenticated-without-session",
+      "status": "PASS"
+    },
+    {
+      "name": "verifier rejects body/default/ACL/index/FK/CHECK drift",
+      "status": "PASS"
+    },
+    {
+      "name": "concurrent identical SOS requests return the same completed result once",
+      "status": "PASS"
+    },
+    {
+      "name": "concurrent different SOS requests cannot bypass sender rate limit",
+      "status": "PASS"
+    },
+    {
+      "name": "concurrent initial location reports cannot bypass 10-second limit",
+      "status": "PASS"
+    },
+    {
+      "name": "two accounts cannot consume the same invite code",
+      "status": "PASS"
+    },
+    {
+      "name": "50-helper cap includes contacts separately and deduplicates an overlapping contact",
+      "status": "PASS"
+    },
+    {
+      "name": "upgrade rejects unexpected column and leaves four-table baseline intact",
+      "status": "PASS"
+    },
+    {
+      "name": "upgrade rejects wrong extension schema and leaves four-table baseline intact",
+      "status": "PASS"
+    },
+    {
+      "name": "upgrade rejects unexpected existing RPC and leaves four-table baseline intact",
+      "status": "PASS"
+    },
+    {
+      "name": "upgrade rejects invalid existing consent and leaves four-table baseline intact",
+      "status": "PASS"
+    },
+    {
+      "name": "upgrade rejects unsafe default table grant (late postcondition failure) and leaves four-table baseline intact",
+      "status": "PASS"
+    }
+  ],
+  "sha256": {
+    "01_create_tables.sql": "02c2bda2cc52f4d72a6d102b7a4345b45bdc69e68277e9ff28f4e7cc8ff032dd",
+    "02_verify.sql": "98f3bcb04856b935812623231180d94b01debe62c9e1e953fe6cbc9790d1014e",
+    "03_inventory.sql": "b1f0b543959b2be257ade5487b06388544af847ef599abf8cfa37cf129b7dd77",
+    "04_verify_backend.sql": "9874032fe8cc5fcad3ba1830f5cd5a6acefbc6ab422a6390b1969ea00af14b0a",
+    "migrations/20261107221444_allow_optional_helper_accuracy.sql": "68eccb00603839b74272557a08a6b95f23ba453140ac18e01c6442738fc89efd",
+    "migrations/20261113000000_upgrade_nearby_backend.sql": "17535042aa58baf30f037e065f5cbb0bb83cf2ca7a480333bdc33e3f055d79bf",
+    "local_test/00_bootstrap.sql": "391a4c5eda14bc7446dca2c2f914530d030c55ff056d8ea00ad161d36eea6e2e",
+    "local_test/20_upgrade_fixture.sql": "da8c7a32ede5ed687c65197fb8e0cb08108103ce3ed2cce6ae8bc754045d55b9",
+    "local_test/21_assert_preserved.sql": "e690f3e7e95b2cfbccf179432e19016df888c05d1057882451540969326bf1cb",
+    "local_test/30_test_upgraded_backend.sql": "0b956120b0c9393cc413d7614d7d3479e8ae41da955a859209f6f8686ad409be",
+    "local_test/run_upgrade_tests.cjs": "7f825819d2f0dd26f7bf7435eccf827e6596f2871cb8b4017d1f5657698d4c59"
+  },
+  "scope": "Disposable loopback databases with synthetic Auth/positions only; no remote deployment"
+}
