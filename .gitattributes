@@ -5,7 +5,9 @@
 *.yml text eol=lf
 *.py text eol=lf
 *.png binary
+*.bin binary
 *.otf binary
+*.mbtiles binary
 
 # Defense in depth for git archive; CI also inspects actual Web/APK/IPA bytes.
 .local-data/** export-ignore

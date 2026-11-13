@@ -125,7 +125,7 @@ void main() {
 
     expect(find.byType(FlutterMap), findsOneWidget);
     expect(find.text('載入地圖'), findsNothing);
-    expect(find.text('© OpenStreetMap contributors'), findsOneWidget);
+    expect(find.text('© OpenStreetMap contributors · Protomaps'), findsOneWidget);
     await t.tapAt(const Offset(200, 300));
     await t.pumpAndSettle();
     await t.tap(find.text('儲存'));
@@ -171,7 +171,7 @@ void main() {
     expect(map.options.initialCenter.latitude, 0.5);
     expect(map.options.initialCenter.longitude, 0.75);
     expect(find.text('載入地圖'), findsNothing);
-    expect(find.textContaining('範圍包含已儲存的家'), findsOneWidget);
+    expect(find.textContaining('範圍可能包含已儲存的家'), findsOneWidget);
     await t.tap(find.text('儲存'));
     await t.pumpAndSettle();
     expect(saved.single?.lat, 0.5);

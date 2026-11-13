@@ -1,5 +1,6 @@
 """Validate preview native packages against the current build metadata."""
 import argparse
+import hashlib
 import json
 from pathlib import Path
 import plistlib
@@ -110,7 +111,22 @@ def arm64_macho_slice(binary):
     return thin_arm64(binary[offset:offset + size])
 
 
-def verify(platform, package_path, metadata_path, supabase_config_path=None):
+def verify_offline_route(package, asset_prefix, folder):
+    """Verify release contains the exact reviewed public OSM asset and meta."""
+    folder = Path(folder)
+    meta_name = 'taipei_walk_graph.meta.json'
+    graph_name = 'taipei_walk_graph.bin'
+    expected = json.loads((folder / meta_name).read_text(encoding='utf-8'))
+    embedded = json.loads(package.read(asset_prefix + meta_name))
+    graph = package.read(asset_prefix + graph_name)
+    require(embedded == expected, 'Offline route metadata differs from source')
+    require(len(graph) == expected['bytes'] and len(graph) <= 50_000_000,
+            'Offline route size differs or exceeds 50 MB')
+    require(hashlib.sha256(graph).hexdigest() == expected['sha256'], 'Offline route SHA-256 mismatch')
+    require(graph[:8] == b'SWWALK01' and expected['license'] == 'ODbL-1.0', 'Invalid offline route format/license')
+
+
+def verify(platform, package_path, metadata_path, supabase_config_path=None, offline_route_path=None):
     expected = json.loads(Path(metadata_path).read_text(encoding='utf-8'))
     validate_metadata(expected)
 
@@ -150,6 +166,10 @@ def verify(platform, package_path, metadata_path, supabase_config_path=None):
                     package.read(app + 'Frameworks/App.framework/App'),
                 )
         require(json.loads(package.read(asset)) == expected, 'Embedded metadata does not match this source/build')
+        verify_offline_basemap(package, asset.removesuffix('build-info.json') + 'safe_walk/map/')
+        if offline_route_path is not None:
+            prefix = asset.removesuffix('assets/build-info.json') + 'assets/safe_walk/route/'
+            verify_offline_route(package, prefix, offline_route_path)
         if supabase_config_path is not None:
             verify_compiled_client(aot_binary, supabase_config_path)
 
@@ -158,14 +178,32 @@ def verify(platform, package_path, metadata_path, supabase_config_path=None):
         print('PASS: expected public client configuration is present in Flutter AOT code')
 
 
+def verify_offline_basemap(package, prefix):
+    """Compare package bytes to the reviewed source assets; no external download."""
+    root = Path(__file__).resolve().parents[1] / 'assets/safe_walk/map'
+    metadata_bytes = (root / 'taipei_basemap.meta.json').read_bytes()
+    require(package.read(prefix + 'taipei_basemap.meta.json') == metadata_bytes,
+            'Embedded offline basemap metadata does not match source')
+    meta = json.loads(metadata_bytes)
+    files = [('taipei.mbtiles', meta['sha256']),
+             (meta['style']['file'], meta['style']['sha256']),
+             (meta['font']['file'], meta['font']['sha256'])]
+    for name, expected_sha in files:
+        data = package.read(prefix + name)
+        require(0 < len(data) <= 50_000_000, 'Offline basemap asset exceeds 50 MB or is empty')
+        require(hashlib.sha256(data).hexdigest() == expected_sha,
+                'Embedded offline basemap asset digest mismatch')
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('platform', choices=('android', 'ios'))
     parser.add_argument('package', type=Path)
     parser.add_argument('--metadata', type=Path, default=Path('assets/build-info.json'))
     parser.add_argument('--supabase-config', type=Path, help='Require these public client settings in Flutter AOT code')
+    parser.add_argument('--offline-route', type=Path, default=Path('assets/safe_walk/route'), help='Require reviewed offline OSM routing assets in the release')
     args = parser.parse_args()
     try:
-        verify(args.platform, args.package, args.metadata, args.supabase_config)
+        verify(args.platform, args.package, args.metadata, args.supabase_config, args.offline_route)
     except (ValueError, KeyError, OSError, zipfile.BadZipFile, plistlib.InvalidFileException) as error:
         raise SystemExit(f'Native release verification failed: {error}') from error

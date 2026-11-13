@@ -38,6 +38,8 @@ class SafeWalkFlow extends StatefulWidget {
     this.allowRealCalls = false,
     this.points,
     this.pointsLoading = false,
+    this.pointsOnly = false,
+    this.pointsOrigin,
     this.pointsError,
     this.onRetryPoints,
     this.pointRoutes = const {},
@@ -88,6 +90,8 @@ class SafeWalkFlow extends StatefulWidget {
   /// 求助地點（M4 → M1 提供）。未配置時顯示不可用，不補人工資料。
   final List<sw.AssistancePoint>? points;
   final bool pointsLoading;
+  final bool pointsOnly;
+  final sw.Coordinates? pointsOrigin;
   final String? pointsError;
   final VoidCallback? onRetryPoints;
 
@@ -487,6 +491,8 @@ class _SafeWalkFlowState extends State<SafeWalkFlow>
     error: widget.pointsError,
     onRetry: widget.onRetryPoints,
     routes: widget.pointRoutes,
+    only: widget.pointsOnly,
+    origin: widget.pointsOrigin,
   );
 
   void _go(_Screen s) {

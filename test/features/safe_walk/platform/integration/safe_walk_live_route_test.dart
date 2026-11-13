@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:town_pass/features/safe_walk/navigation/route_service.dart';
 import 'package:town_pass/features/safe_walk/platform/home_location/home_location_service.dart';
@@ -17,7 +18,7 @@ import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart
 void main() {
   Future<void> mount(
     WidgetTester t,
-    RouteService routes,
+    RouteService? routes,
     _Gps gps, {
     Stream<sw.Position> Function()? watch,
   }) async {
@@ -155,15 +156,49 @@ void main() {
     },
   );
 
-  testWidgets('declining consent sends nothing', (t) async {
-    final routes = _Routes();
-    final gps = _Gps();
-    await mount(t, routes, gps);
-    await t.tap(find.text('不要'));
-    await t.pump();
-    expect(gps.calls, 0);
-    expect(routes.requests, isEmpty);
-  });
+  testWidgets(
+    'declining third-party consent still plans a real bundled offline route',
+    (t) async {
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(
+        const MethodChannel('xyz.luan/audioplayers'),
+        (call) async {
+          if (call.method == 'create') {
+            final id = (call.arguments as Map)['playerId'];
+            messenger.setMockMethodCallHandler(
+              MethodChannel('xyz.luan/audioplayers/events/$id'),
+              (_) async => null,
+            );
+          }
+          return null;
+        },
+      );
+      final gps = _Gps();
+      await mount(t, null, gps, watch: () => const Stream.empty());
+      await t.tap(find.text('不要'));
+      await t.pump();
+      for (var i = 0; i < 60; i++) {
+        await t.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 50)),
+        );
+        await t.pump();
+        final result = t.widget<SafeWalkFlow>(find.byType(SafeWalkFlow)).route;
+        if (result is sw.RouteSuccess) break;
+      }
+      final flow = t.widget<SafeWalkFlow>(find.byType(SafeWalkFlow));
+      expect(gps.calls, 1);
+      expect(flow.routingConsent, isFalse);
+      final result = flow.route as sw.RouteSuccess;
+      expect(
+        result.routes.every((r) => r.provider == 'offline-osm-graph'),
+        isTrue,
+      );
+      expect(result.warnings.join(), contains('離線路網資料：2026-11-11'));
+      expect(result.warnings.join(), contains('未套用避讓'));
+      await t.pumpWidget(const SizedBox.shrink());
+    },
+  );
 
   testWidgets('ending guidance cancels GPS and late replan; starting resumes', (
     t,

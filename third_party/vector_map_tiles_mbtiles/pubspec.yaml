@@ -1,0 +1,32 @@
+name: vector_map_tiles_mbtiles
+publish_to: none
+description: Mapbox MBTiles vector tile provider for vector_map_files / flutter_map that can be used for a 100% offline map.
+repository: https://github.com/josxha/flutter_map_plugins
+issue_tracker: https://github.com/josxha/flutter_map_plugins/issues
+topics: [ flutter-map, vector-map-tiles, map, mbtiles ]
+version: 1.2.2
+funding:
+  - https://paypal.me/joschaeckert
+  - https://github.com/sponsors/josxha
+
+environment:
+  sdk: '>=3.6.0 <4.0.0'
+  flutter: ">=1.17.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  mbtiles: ^0.5.0
+  vector_map_tiles:
+    path: ../vector_map_tiles
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  test: ^1.24.9
+  mocktail: ^1.0.5
+  build_runner: ^2.4.8
+  latlong2: ">=0.9.0 <0.11.0"
+  flutter_map: ^8.0.0
+  very_good_analysis: ^11.0.0
+  vector_tile_renderer: ^6.1.0

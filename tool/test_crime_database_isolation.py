@@ -122,6 +122,24 @@ class WritePolicyTest(unittest.TestCase):
 
 
 class ArchiveIsolationTest(unittest.TestCase):
+    def test_only_exact_reviewed_basemap_bytes_at_approved_path_are_allowed(self):
+        root = Path(__file__).resolve().parents[1]
+        basemap = root / 'assets/safe_walk/map/taipei.mbtiles'
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'package.zip'
+            name = 'assets/flutter_assets/assets/safe_walk/map/taipei.mbtiles'
+            with zipfile.ZipFile(path, 'w') as archive:
+                archive.write(basemap, name)
+            self.assertEqual(scan_archive(path), [])
+            # Renaming a private/unknown database to the map filename is rejected.
+            with zipfile.ZipFile(path, 'w') as archive:
+                archive.writestr(name, SQLITE_HEADER + b'synthetic private data')
+            self.assertTrue(scan_archive(path))
+            # The valid public bytes do not exempt any other database path.
+            with zipfile.ZipFile(path, 'w') as archive:
+                archive.write(basemap, 'assets/other.mbtiles')
+            self.assertTrue(scan_archive(path))
+
     def test_zip_apk_and_ipa_sqlite_payloads_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
             for suffix, member in (("zip", "assets/data.bin"), ("apk", "assets/flutter_assets/cache.dat"),

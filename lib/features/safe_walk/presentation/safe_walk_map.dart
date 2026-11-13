@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart' as ll;
+import 'package:town_pass/features/safe_walk/presentation/safe_walk_basemap.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_map_models.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_ui.dart';
 import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart'
@@ -14,10 +15,6 @@ import 'package:url_launcher/url_launcher.dart';
 /// 求助地點在地圖、圖例與清單上一律用同一個圖示（捧著愛心的手：這裡有人能幫你）；
 /// 種類（超商、派出所…）寫在文字裡。
 const helpPointIcon = Icons.volunteer_activism_rounded;
-
-/// OpenStreetMap 標準圖磚（不需 API Key）。使用條款要求標示來源並帶有可辨識的 User-Agent。
-const _kTileUrl = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
-const _kUserAgentPackage = 'town_pass';
 
 ll.LatLng _ll(LatLng p) => ll.LatLng(p.lat, p.lng);
 
@@ -31,6 +28,10 @@ class SafeWalkMap extends StatelessWidget {
 
   static TileProvider createTileProvider() =>
       tileProviderFactoryForTesting?.call() ?? NetworkTileProvider();
+
+  static bool get usesInjectedOnlineTiles =>
+      tileProviderFactoryForTesting != null &&
+      !SafeWalkBasemap.hasOfflineLoaderOverride;
 
   const SafeWalkMap({
     super.key,
@@ -95,11 +96,19 @@ class SafeWalkMap extends StatelessWidget {
   final ValueChanged<LatLng>? onPick;
 
   @override
-  Widget build(BuildContext context) => LayoutBuilder(
-    builder: (context, constraints) => _buildMap(context, constraints.biggest),
+  Widget build(BuildContext context) => _MapTileHealth(
+    builder: (observe, onFallback) => LayoutBuilder(
+      builder: (context, constraints) =>
+          _buildMap(context, constraints.biggest, observe, onFallback),
+    ),
   );
 
-  Widget _buildMap(BuildContext context, Size viewport) {
+  Widget _buildMap(
+    BuildContext context,
+    Size viewport,
+    void Function(TileImage) observe,
+    ValueChanged<bool> onFallback,
+  ) {
     final interactive = !compact;
     // 初始視野：涵蓋起點、回家、所有求助地點與異常回報（避開上方標題與下方資訊框）。
     // 有路線時先框路線，避免遠處的其他資料影響視野。
@@ -270,13 +279,11 @@ class SafeWalkMap extends StatelessWidget {
       ),
       children: [
         if (showTiles)
-          TileLayer(
-            urlTemplate: _kTileUrl,
-            userAgentPackageName: _kUserAgentPackage,
-            maxNativeZoom: 19,
-            // Native uses flutter_map's HTTP-aware built-in cache; web uses the
-            // browser cache. Tests inject tiles without changing these defaults.
-            tileProvider: createTileProvider(),
+          SafeWalkBasemap(
+            onlineProvider: createTileProvider,
+            tileObserver: observe,
+            forceOnlineForTesting: usesInjectedOnlineTiles,
+            onOfflineFallback: onFallback,
           ),
         if (avoidRadiusMeters > 0)
           CircleLayer(
@@ -338,7 +345,7 @@ class SafeWalkMap extends StatelessWidget {
                     child: const Padding(
                       padding: EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                       child: Text(
-                        '© OpenStreetMap',
+                        basemapAttribution,
                         style: TextStyle(
                           fontSize: 10,
                           color: TPColors.grayscale700,
@@ -372,6 +379,96 @@ class SafeWalkMap extends StatelessWidget {
           ?.showSnackBar(const SnackBar(content: Text('無法開啟授權說明，請瀏覽 $url')));
     }
   }
+}
+
+/// Three distinct failures in ten seconds show a passive warning. Only an
+/// actual later successful load clears it; a quiet timer is not recovery.
+class _MapTileHealth extends StatefulWidget {
+  const _MapTileHealth({required this.builder});
+  final Widget Function(void Function(TileImage), ValueChanged<bool>) builder;
+  @override
+  State<_MapTileHealth> createState() => _MapTileHealthState();
+}
+
+class _MapTileHealthState extends State<_MapTileHealth> {
+  bool _offlineFallback = false;
+
+  void _setFallback(bool value) {
+    if (!mounted || value == _offlineFallback) return;
+    setState(() => _offlineFallback = value);
+    if (!value) {
+      _failures.clear();
+      _unavailable.value = false;
+    }
+  }
+
+  final _unavailable = ValueNotifier(false);
+  final _seen = Expando<DateTime>();
+  final _failures = <DateTime>[];
+  DateTime? _lastFailure;
+
+  void _observe(TileImage tile) {
+    final finished = tile.loadFinishedAt;
+    if (finished == null || _seen[tile] == finished) return;
+    _seen[tile] = finished;
+    final failed = tile.loadError;
+    scheduleMicrotask(() {
+      if (!mounted) return;
+      if (!failed) {
+        // A cached tile built after errors is not evidence of recovery if it
+        // finished loading before those errors.
+        if (_lastFailure != null && finished.isBefore(_lastFailure!)) return;
+        _failures.clear();
+        _unavailable.value = false;
+      } else {
+        if (_lastFailure == null || finished.isAfter(_lastFailure!)) {
+          _lastFailure = finished;
+        }
+        _failures.removeWhere(
+          (at) => finished.difference(at) > const Duration(seconds: 10),
+        );
+        _failures.add(finished);
+        if (_failures.length >= 3) _unavailable.value = true;
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _unavailable.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Stack(
+    children: [
+      Positioned.fill(child: widget.builder(_observe, _setFallback)),
+      ValueListenableBuilder<bool>(
+        valueListenable: _unavailable,
+        builder: (context, unavailable, child) =>
+            unavailable && !_offlineFallback
+            ? Positioned(
+                top: 8,
+                left: 8,
+                right: 8,
+                child: IgnorePointer(
+                  child: Semantics(
+                    liveRegion: true,
+                    child: Material(
+                      color: SwColors.surface,
+                      borderRadius: BorderRadius.circular(8),
+                      child: const Padding(
+                        padding: EdgeInsets.all(8),
+                        child: Text('目前無法載入地圖底圖，標示的位置仍正確'),
+                      ),
+                    ),
+                  ),
+                ),
+              )
+            : const SizedBox.shrink(),
+      ),
+    ],
+  );
 }
 
 class _AnomalyMark extends StatelessWidget {

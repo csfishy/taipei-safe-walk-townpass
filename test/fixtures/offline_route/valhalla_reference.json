@@ -1,0 +1,66 @@
+{
+  "endpoint": "https://valhalla1.openstreetmap.de/route",
+  "retrievedAt": "2026-11-12T15:16:51.151169+00:00",
+  "pairs": [
+    {
+      "id": "main-cks",
+      "status": "ok",
+      "distanceMeters": 2212.0,
+      "shape": "mmxwn@yaywfFl]`EdHat@z@iHv@^h^xOvB}GxMbC^J`AsGlFq^^iCb@uCPkAXiBz@gGdCh@xFk]vBoO~I|C\\gGdA^vE~@pr@|MXFtDr@bEv@lB^dy@zOfB\\hCf@~@}Fb@qCxBwN\\_C|Es[`@mC\\wB~AcKNgAn@}DhEwXdAeHd@eDh@eDbDp@bUgzARY\\g@xjAfTz@dAnBV~Bn@zAi@lk@|KxFhA~PfDxGpAp@LbCd@pe@lJVoDp@uEtB^bC^dARhAPpCn@rBb@dd@hJjo@|NvA@h@i@lAn@jEzBtDlB|@f@bAf@bl@ezA|@aCfAkC|C|A~Av@dAj@iAvC^PhMpGvT|KjA}C^RfTrKnB`AnGmPfOtH"
+    },
+    {
+      "id": "cityhall-sys",
+      "status": "ok",
+      "distanceMeters": 730.0,
+      "shape": "ujdwn@ydtzfFeKIGfIGxIw@~mAAnB?x@EnG?p@KtPWXCvDChEXz@C|Ei@fe@UlRmGEGbGG`GAnBkr@}@]r]k^i@}E?uD@K`Ee@k@qW]iFGuAABwCHoI"
+    },
+    {
+      "id": "ximen-longshan",
+      "status": "ok",
+      "distanceMeters": 1426.0,
+      "shape": "mjmwn@mngwfF`BZp]xGjb@hIvMbChEz@xF`AzGxA_@jEnQxDn^|HjLdCnFpA|Cj@`CgA`TtEjSrErs@~N~@RnBVfB\\tFt@t@pDl@fCv@vDrAp@l@dAhHbZ`ApDl@pDbLxf@?dCPrCrLvMlCxEQlEI~Hi@lo@?nCgA`l@GlJCjBAz@g@tx@CbDElC[vVUhVEzDA~BAhAOzL_Azl@I`FyBUEAKm_@SC]Aa@?o@?IcEoFLyEPeDN"
+    },
+    {
+      "id": "daan-technology",
+      "status": "ok",
+      "distanceMeters": 1552.0,
+      "shape": "s|zvn@mkzxfFdA}AxBqCbBaBvEsCjD_BJGlEmCKcCG_CiAm@[a@oAmC_AaCsA}C{AiBk@eAS{@k@HbDeMeA_@r@qCfAaE`@{Bl@}IYAAcBr@Ad@Cp@Q^[\\g@Tk@Lm@@u@My@Ui@Yc@i@a@o@Ok@EI??{B~GCPA|AGrAWrDsB~D}BpHsCx@[fI{IbGaGrEaFb@c@\\Fj@QNm@_AgBjB_Ab@Ep@b@B`@?b@ZFlCZ|@Ap@]hAuBh@o@~@]lAOb@N`@^\\J`AIhBm@pB]zF?pD`@zBGjBa@v@c@h@g@f@aAvCr@lDv@|DRbGFj@GvDi@bEk@vGyBfIgBf@cQCyBCwA?aDlZ@Zi^pFBdBuBJg[~OAb]ol@fRm_@vNmYf@eADyGHyJrHDlFDvEBfC@pOJpJopAb@wx@NqTDiK?}@FwDz@@OaBCaDzZRzA@"
+    },
+    {
+      "id": "yuanshan-confucius",
+      "status": "ok",
+      "distanceMeters": 667.0,
+      "shape": "ojfyn@uj_xfFk[qBS|AIpAi@hICf@Eb@^FShBa@vDqD?u@leAGrFKdHAdFYdc@IdKMlPCtD_CEeBvpAUfDaU?mGEaFEwNMqFvAh@lRBrA"
+    },
+    {
+      "id": "shilin-zhishan",
+      "status": "ok",
+      "distanceMeters": 1255.0,
+      "shape": "oyqzn@_ekxfFwIjBmAX{j@`PgEvBcAnGeZvGwDhA{Ab@sA^yA\\qAXwCv@uCp@_]rIqGlByb@`Myr@xS{EvA}]~Np@pDxEfYHn@DVp@nFDTuOxCeOvCuAL_C\\s{@hO{Et@uFlAk@cDk@aD{@}AsFeKoARkd@pR_g@zOg@aC}A\\eEnAkEx@wNhCuEj@_IjAaFx@m@pEcE`@eVdCcNtAiPvA"
+    },
+    {
+      "id": "ntu-gongguan",
+      "status": "ok",
+      "distanceMeters": 419.0,
+      "shape": "eb}un@mcxxfFtAmODg@VwCfKnAhEj@|B|@fDyDrB]tBqChRfRvG~GtA_B|AeB|CqDT[tk@il@kCeDtAuAZ[`BcBzC}C`@e@TXRXTVrAdBt@`DjB`CdAkAdCsCVZhAkAjDmD"
+    },
+    {
+      "id": "zhongshan-songjiang",
+      "status": "ok",
+      "distanceMeters": 1337.0,
+      "shape": "u_bxn@wo_xfFn@cFt@{FtHgt@hH}p@ToILyEhFv@\\iFn@aK|@il@D_CwCFoCk@hAmr@~@om@HgGDoCi@uD\\qx@BiHf@gETql@bH_@|DUV{D@}A?uABiN?gA?wAGqC?}r@IqFRw{@}BAUyG@gGLsiA@uDZuDRqjA@_G?cC"
+    },
+    {
+      "id": "nangang-kunyang",
+      "status": "ok",
+      "distanceMeters": 1365.0,
+      "shape": "qu`xn@eug}fF`@`HtDdn@NdCPdD\\tFV`Fd@lIlFr~@LvDyDVtArVTfDvCfh@jV~fEtQ`_DtHthA`@tFXfFlBnRVdBwDt@J`AnDrVJ`AL|@zHnk@f@hDZzBhAWrGrd@"
+    },
+    {
+      "id": "beitou-xinbeitou",
+      "status": "ok",
+      "distanceMeters": 1072.0,
+      "shape": "ef||n@mwtvfF_BlAoZtUc@X}DvCyDrCaKnHaQzL_At@cAcBsDkGaEcHiF}Ig@{@y@oBsAp@qA^wDJiDGiAU{CiCiMaOkf@kn@cPiRyAkBeCyB{DaD{DmCqE_DsHoCkDoAyOaEeKcEgGqCaAc@gFoEaBsBaCwF{CmJ{CoJuBeBoMqBHuCYaVmBDGkEcMNaDurBaCPsF\\aCReBqFjCaG"
+    }
+  ]
+}

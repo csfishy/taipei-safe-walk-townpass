@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show HapticFeedback, rootBundle;
 import 'package:town_pass/features/safe_walk/navigation/avoid_area.dart';
+import 'package:town_pass/features/safe_walk/navigation/offline_graph_route_planner.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/crime_reference_wiring.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/map_report_wiring.dart';
 import 'package:town_pass/features/safe_walk/platform/supabase/safe_walk_supabase_config.dart';
@@ -178,6 +179,8 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
   /// Live: up to three open convenience stores with their avoiding routes,
   /// safest then fastest first. Only after the walker asks for them.
   List<NearbyHelpOption> _nearby = const [];
+  List<sw.AssistancePoint> _nearbyLocal = const [];
+  sw.Coordinates? _nearbyOrigin;
   bool _nearbyLoading = false;
   String? _nearbyError;
   _RouteCancellation? _nearbyOperation;
@@ -222,6 +225,14 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
 
   /// Unresolved reports to route around (50 m circles), sent by the map.
   List<AvoidArea> _areas = const [];
+  bool _reportsLoaded = false;
+  bool _crimeLoaded = false;
+  String get _crimeMemoryDisclosure => _crimeAreas.isEmpty
+      ? '本次路線未套用犯罪參考避讓。'
+      : '本次僅套用記憶體中先前載入的犯罪參考位置，可能不完整；不寫入裝置儲存。';
+  bool _routingConsentAsked = false;
+  bool get _localRouting => !kIsWeb && widget.liveRoutes;
+  bool get _routeAllowed => _navigation.hasRoutingConsent || _localRouting;
 
   late final MapReportWiring _mapReports = widget.mapReportRepository == null
       ? MapReportWiring.fromEnvironment()
@@ -256,9 +267,14 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     (cancellation) => _mapReports.save(draft, cancellation: cancellation),
   );
 
-  Future<List<Anomaly>> _loadMapReports() => _mapReportOperation(
-    (cancellation) => _mapReports.load(cancellation: cancellation),
-  );
+  Future<List<Anomaly>> _loadMapReports() async {
+    _reportsLoaded = false;
+    final result = await _mapReportOperation(
+      (cancellation) => _mapReports.load(cancellation: cancellation),
+    );
+    _reportsLoaded = true;
+    return result;
+  }
 
   Future<void> _resolveMapReport(String reportId) => _mapReportOperation(
     (cancellation) => _mapReports.resolve(reportId, cancellation: cancellation),
@@ -337,6 +353,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
       return;
     }
     const m = 0.006; // ~600 m margin around the start/destination box
+    _crimeLoaded = false;
     setState(() => _crimeQueryStatus = '犯罪參考資料查詢中…');
     try {
       // Consent and operation state are checked immediately before the effect.
@@ -382,6 +399,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
               source: 'crime',
             ),
         ];
+        _crimeLoaded = true;
         _crimeQueryStatus = located.isEmpty
             ? '查詢成功，沒有可定位的犯罪參考紀錄；不代表沿途安全。'
             : '已取得 ${located.length} 筆歷史參考位置，套用產品設定的 50 公尺避讓緩衝。'
@@ -395,19 +413,20 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
       setState(
         () => _crimeQueryStatus =
             '犯罪參考資料查詢失敗：${_crimeFailureMessage(error.failure)}'
-            '本次路線未套用犯罪參考避讓。',
+            '$_crimeMemoryDisclosure',
       );
     } on ArgumentError {
       if (!isCurrent() || !_hasCrimeConsent) return;
       setState(
         () => _crimeQueryStatus =
             '犯罪參考資料查詢失敗：查詢範圍過大或條件不適用，請縮短行程後重新規劃。'
-            '本次路線未套用犯罪參考避讓。',
+            '$_crimeMemoryDisclosure',
       );
     } catch (_) {
       if (!isCurrent() || !_hasCrimeConsent) return;
       setState(
-        () => _crimeQueryStatus = '犯罪參考資料查詢失敗；請重新規劃路線以重試。本次路線未套用犯罪參考避讓。',
+        () =>
+            _crimeQueryStatus = '犯罪參考資料查詢失敗；請重新規劃路線以重試。$_crimeMemoryDisclosure',
       );
     }
   }
@@ -486,12 +505,12 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     _speaker = widget.speaker ?? _deviceSpeaker();
     _alarm = DeviceSafeWalkAlarm();
     final transport = widget.routeTransport ?? createDefaultJsonTransport();
-    bool hasConsent() =>
-        _navigation.hasRoutingConsent &&
+    bool navigationActive() =>
         _navigation.liveNavigationAvailable &&
         _navigationActive &&
         _foreground &&
         !_lifetime.isCancelled;
+    bool hasConsent() => navigationActive() && _navigation.hasRoutingConsent;
     final osrm = DefaultRouteService(
       pointLookup: _lookupRoutePoints,
       liveProvider: OsrmWalkingRouteProvider(
@@ -501,9 +520,26 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
       ),
     );
     final planner = ValhallaAvoidingRoutePlanner(hasConsent: hasConsent);
+    final offline = _localRouting
+        ? OfflineGraphRoutePlanner(
+            isNavigationActive: navigationActive,
+            loadAsset: () async => (
+              bytes: (await rootBundle.load(
+                'assets/safe_walk/route/taipei_walk_graph.bin',
+              )).buffer.asUint8List(),
+              meta: jsonDecode(
+                await rootBundle.loadString(
+                  'assets/safe_walk/route/taipei_walk_graph.meta.json',
+                ),
+              ) as Map<String, dynamic>,
+            ),
+          )
+        : null;
     RouteService avoiding() => widget.liveRoutes
         ? AvoidingRouteService(
             planner: planner,
+            offlinePlanner: offline,
+            areasLoaded: () => _reportsLoaded && _crimeLoaded,
             fallback: osrm,
             areas: () => [..._areas, ..._crimeAreas],
           )
@@ -514,6 +550,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
       mode: sw.DataMode.live,
       livePresentationReady: widget.liveRoutes,
       liveProviderReady: widget.liveRoutes,
+      allowOfflineRouting: _localRouting,
     );
     _navigation.addListener(_syncFollowing);
     if (widget.liveRoutes && widget.consentGranted) {
@@ -541,7 +578,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
         _manualOrigin != null ||
         !_navigationActive ||
         !_foreground ||
-        !_navigation.hasRoutingConsent) {
+        !_routeAllowed) {
       _followed = result;
       _stopFollowing();
       return;
@@ -582,7 +619,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     if (!mounted ||
         !_foreground ||
         !_navigationActive ||
-        !_navigation.hasRoutingConsent ||
+        !_routeAllowed ||
         _followers.isEmpty ||
         !_usableLiveFix(position)) {
       return;
@@ -639,11 +676,14 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
 
   Future<void> _planRoute(sw.RouteRequest request) async {
     if (_lifetime.isCancelled || !_foreground || !_navigationActive) return;
-    if (widget.liveRoutes && !_navigation.hasRoutingConsent) return;
+    if (widget.liveRoutes && !_routeAllowed) return;
     await _navigation.planRoute(request);
   }
 
   void _invalidateOperation() {
+    // Nearby lookups/routes belong to the same origin and destination intent.
+    // Cancelling only the destination request lets their late results revive.
+    _clearNearby();
     ++_boundaryRevision;
     _operation?.cancel();
     _operation = null;
@@ -652,12 +692,10 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     _locationRequest = null;
     _stopFollowing();
     _navigation.cancelRoute();
-    _crimeAreas = const [];
-    _crimeSpots = const [];
     _crimeQueryStatus = !_crime.isConfigured
         ? '犯罪參考資料尚未配置；路線未套用犯罪參考避讓。'
         : _hasCrimeConsent
-        ? '犯罪參考查詢已清除；重新規劃路線時才會查詢。'
+        ? '犯罪參考查詢已停止；重新規劃路線時才會查詢，既有記憶體資料可能不完整。'
         : '未同意犯罪參考查詢；路線不套用犯罪參考避讓。';
   }
 
@@ -673,6 +711,9 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     _hasCrimeConsent = consent;
     _crimeConsentAsked = true;
     if (!consent) {
+      _crimeAreas = const [];
+      _crimeSpots = const [];
+      _crimeLoaded = false;
       _clearNearby();
       _invalidateOperation();
     }
@@ -703,6 +744,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
         agreed == null) {
       return;
     }
+    _routingConsentAsked = true;
     _setRoutingConsent(agreed);
   }
 
@@ -753,7 +795,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     _openNavigation();
     _destination = destination;
     final operation = _operation = _RouteCancellation();
-    bool current() => _isCurrent(operation) && _navigation.hasRoutingConsent;
+    bool current() => _isCurrent(operation) && _routeAllowed;
     final origin = await _consentedOrigin(operation);
     if (origin == null || !current()) return;
     await _loadCrime(origin.coordinates, destination, operation);
@@ -772,6 +814,13 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
   }) async {
     bool current() => isCurrent?.call() ?? _isCurrent(operation);
     if (!await _askConsents(current)) return null;
+    return _readOrigin(operation, current);
+  }
+
+  Future<sw.Position?> _readOrigin(
+    _RouteCancellation operation,
+    bool Function() current,
+  ) async {
     final manual = _manualOrigin;
     if (manual != null) {
       return sw.Position(
@@ -796,7 +845,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
           ?.showSnackBar(const SnackBar(content: Text('暫時無法取得位置，請重新定位或選擇起點。')));
       return null;
     }
-    if (!mounted || !current() || !_navigation.hasRoutingConsent) {
+    if (!mounted || !current()) {
       return null;
     }
     if (located is! sw.LocationSuccess || !_usableLiveFix(located.position)) {
@@ -811,16 +860,19 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
   /// Route consent, then (once) the crime query consent: one dialog at a
   /// time. True when routing is allowed and the caller is still current.
   Future<bool> _askConsents(bool Function() current) async {
-    if (!_navigation.hasRoutingConsent) {
+    if (!_navigation.hasRoutingConsent &&
+        (!_routingConsentAsked || !_localRouting)) {
       final prompt = _routingConsentPrompt ??= _askRoutingConsent();
       final agreed = await prompt;
       if (identical(_routingConsentPrompt, prompt)) {
         _routingConsentPrompt = null;
       }
-      if (!current() || agreed != true) return false;
-      _setRoutingConsent(true);
+      if (!current() || agreed == null) return false;
+      _routingConsentAsked = true;
+      if (agreed) _setRoutingConsent(true);
+      if (!agreed && !_localRouting) return false;
     }
-    if (!current() || !_navigation.hasRoutingConsent) return false;
+    if (!current() || !_routeAllowed) return false;
     if (_crime.isConfigured && !_crimeConsentAsked) {
       final prompt = _crimeConsentPrompt ??= _askCrimeConsent();
       final agreed = await prompt;
@@ -834,7 +886,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
             : '未同意犯罪參考查詢；本次路線不套用犯罪參考避讓。',
       );
     }
-    return current() && _navigation.hasRoutingConsent;
+    return current() && _routeAllowed;
   }
 
   static const _nearbyCount = 3;
@@ -844,7 +896,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
   /// like a destination with the same avoiding routes. The three nearest are
   /// shown nearest first: the nearest one's route options as soon as they
   /// are ready, the others as they finish.
-  Future<void> _planNearby() async {
+  Future<void> _planNearby({bool requestConsent = false}) async {
     if (!widget.liveRoutes ||
         !mounted ||
         !_foreground ||
@@ -861,9 +913,11 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
         !_lifetime.isCancelled &&
         identical(_nearbyOperation, operation) &&
         !operation.isCancelled;
-    bool current() => alive() && _navigation.hasRoutingConsent;
+    bool current() => alive() && _routeAllowed;
     setState(() {
       _nearby = const [];
+      _nearbyLocal = const [];
+      _nearbyOrigin = null;
       _nearbyLoading = true;
       _nearbyError = null;
     });
@@ -875,13 +929,10 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
       });
     }
 
-    final origin = await _consentedOrigin(operation, isCurrent: alive);
-    if (origin == null || !current()) {
-      return fail(
-        _navigation.hasRoutingConsent
-            ? '取得不到夠精確的位置（需 100 公尺內）。可以在地圖上選起點，再找附近營業中的店家。'
-            : '需要同意路線查詢並取得位置，才能找附近營業中的店家。',
-      );
+    final origin = await _readOrigin(operation, alive);
+    if (!alive()) return;
+    if (origin == null) {
+      return fail('取得不到夠精確的位置（需 100 公尺內）。請檢查定位權限、重新定位，或在地圖上選起點。');
     }
     final List<sw.AssistancePoint> stores;
     try {
@@ -889,7 +940,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
         origin.coordinates,
         cancellation: operation,
       );
-      if (!current()) return;
+      if (!alive()) return;
       // Closed ones are dropped; at most one with unknown hours; one spare in
       // case a place cannot be routed to.
       stores = pickNearbyCandidates(
@@ -909,6 +960,16 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
         '附近 2 公里內沒有資料標示營業中的便利商店或派出所（資料不完整，不代表附近沒有）。可以改走回家路線，或直接按緊急求助。',
       );
     }
+    setState(() {
+      _nearbyLocal = List.unmodifiable(stores);
+      _nearbyOrigin = origin.coordinates;
+    });
+    if (!_navigation.hasRoutingConsent && !_localRouting) {
+      if (!requestConsent || !await _askConsents(alive)) {
+        return fail('僅據點、無路線：本機據點查詢不需第三方同意。若要規劃步行路線，請按重試並同意路線查詢。');
+      }
+    }
+    if (!current()) return;
     final all = [origin.coordinates, for (final s in stores) s.coordinates];
     await _loadCrime(
       sw.Coordinates(
@@ -924,7 +985,9 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     );
     if (!current()) return;
     final options = <NearbyHelpOption>[];
+    final failures = <sw.RouteFailureStatus>[];
     for (final store in stores) {
+      if (!current()) return;
       if (options.length == _nearbyCount) break;
       try {
         final result = await _storeRoutes.planRoute(
@@ -938,23 +1001,61 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
           options.add(NearbyHelpOption(point: store, route: result));
           // Show each place as soon as its route is ready (nearest first);
           // the others keep loading behind it.
-          setState(() => _nearby = List.unmodifiable(options));
+          setState(() {
+            _nearby = List.unmodifiable(options);
+            _nearbyLocal = const [];
+          });
+        } else {
+          failures.add(
+            result is sw.RouteFailure
+                ? result.status
+                : sw.RouteFailureStatus.invalidInput,
+          );
         }
       } on SafeWalkCancelledException {
-        return;
+        return fail('路線計算已取消。需要時請重新規劃，或直接緊急求助。');
+      } on TimeoutException {
+        failures.add(sw.RouteFailureStatus.providerUnavailable);
+      } on JsonTransportException catch (error) {
+        failures.add(
+          error.failure == TransportFailure.network ||
+                  error.failure == TransportFailure.timeout
+              ? sw.RouteFailureStatus.providerUnavailable
+              : sw.RouteFailureStatus.invalidInput,
+        );
       } catch (_) {
+        failures.add(sw.RouteFailureStatus.invalidInput);
         // One store that cannot be routed must not hide the others.
         if (!current()) return;
       }
     }
+    if (!current()) return;
     if (options.isEmpty) {
-      return fail('找到附近營業中的求助地點，但暫時無法規劃步行路線，請稍後再試。');
+      if (!failures.every(
+        (s) => s == sw.RouteFailureStatus.providerUnavailable,
+      )) {
+        setState(() => _nearbyLocal = const []);
+      }
+      return fail(_nearbyFailureMessage(failures));
     }
     setState(() {
       // Nearest first; the walker picks among the three.
       _nearby = List.unmodifiable(options);
       _nearbyLoading = false;
     });
+  }
+
+  static String _nearbyFailureMessage(List<sw.RouteFailureStatus> failures) {
+    if (failures.every((s) => s == sw.RouteFailureStatus.providerUnavailable)) {
+      return '目前連不上路線服務。僅據點、無路線；可重試規劃路線，遇到危險請直接緊急求助。';
+    }
+    if (failures.contains(sw.RouteFailureStatus.cancelled)) {
+      return '路線計算已取消。需要時請重新規劃，或直接緊急求助。';
+    }
+    if (failures.contains(sw.RouteFailureStatus.invalidInput)) {
+      return '起點或目的地有問題，請重新定位或在地圖上選起點，再規劃路線。';
+    }
+    return '目前找不到可步行的路線。請改選起點或目的地，遇到危險請直接緊急求助。';
   }
 
   /// The walker chose a store: it becomes the navigation target. Its route,
@@ -976,6 +1077,8 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
     _nearbyOperation?.cancel();
     _nearbyOperation = null;
     _nearby = const [];
+    _nearbyLocal = const [];
+    _nearbyOrigin = null;
     _nearbyLoading = false;
     _nearbyError = null;
   }
@@ -988,6 +1091,7 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
         '會把起點、目的地及要避開的 50 公尺緩衝區傳給路線服務'
         '（valhalla1.openstreetmap.de、routing.openstreetmap.de）計算步行路線；'
         '附近求助地點用 App 內建的 OpenStreetMap 快照查詢，不另外傳送位置。'
+        '原生手機可選擇不要，改用裝置內的離線路網（僅限臺北快照範圍）；離線規劃不傳送位置。'
         '導航期間會在前景持續更新位置，用於路線跟隨與偏離後重新規劃；離開導航或進入背景即停止。'
         '系統定位權限與犯罪參考資料查詢會分別取得同意；可在首頁「資料來源與授權」撤回路線查詢同意。',
       ),
@@ -1322,14 +1426,18 @@ class _SafeWalkCompositionRootState extends State<SafeWalkCompositionRoot>
         allowRealCalls: _dialerEnabled,
         // Live: real open stores, only after the walker asks for them.
         points: widget.liveRoutes
-            ? [for (final o in _nearby) o.point]
+            ? [..._nearbyLocal, for (final o in _nearby) o.point]
             : _points,
         pointRoutes: {for (final o in _nearby) o.point.id: o.route},
+        pointsOrigin: _nearbyOrigin,
+        pointsOnly: _nearbyLocal.isNotEmpty,
         onSelectPoint: widget.liveRoutes ? _selectPoint : null,
         pointsLoading: widget.liveRoutes ? _nearbyLoading : _pointsLoading,
         pointsError: widget.liveRoutes ? _nearbyError : _pointsError,
         onRetryPoints: widget.liveRoutes
-            ? () => unawaited(_planNearby())
+            ? () => unawaited(
+                _planNearby(requestConsent: _nearbyLocal.isNotEmpty),
+              )
             : () => unawaited(_loadPoints()),
         showMapTiles: widget.showLiveMap,
         reportBuilder: _report == null

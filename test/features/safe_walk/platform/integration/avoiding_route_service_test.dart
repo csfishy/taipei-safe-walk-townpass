@@ -1,13 +1,19 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:town_pass/features/safe_walk/navigation/avoid_area.dart';
 import 'package:town_pass/features/safe_walk/navigation/cancellable.dart';
+import 'package:town_pass/features/safe_walk/navigation/offline_graph_route_planner.dart';
+import 'package:town_pass/features/safe_walk/navigation/valhalla_avoiding_route_planner.dart';
 import 'package:town_pass/features/safe_walk/navigation/route_preference.dart';
 import 'package:town_pass/features/safe_walk/navigation/route_service.dart';
 import 'package:town_pass/features/safe_walk/navigation/walking_route_provider.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/avoiding_route_service.dart';
+
 import '../../../../support/safe_walk_fixtures.dart';
+
 import 'package:town_pass/features/safe_walk/shared/contracts/cancellation.dart';
 import 'package:town_pass/features/safe_walk/shared/models/safe_walk_models.dart'
     as sw;
@@ -36,11 +42,13 @@ sw.RouteRequest _request(
   sw.DataMode mode, {
   sw.PositionSource? source,
   DateTime? at,
+  sw.Coordinates? origin,
+  sw.Coordinates? destination,
 }) => sw.RouteRequest(
   requestId: 'r1',
   mode: mode,
   origin: sw.Position(
-    coordinates: sw.Coordinates(lat: 25.0, lng: 121.5),
+    coordinates: origin ?? sw.Coordinates(lat: 25.0, lng: 121.5),
     source:
         source ??
         (mode == sw.DataMode.live
@@ -49,7 +57,7 @@ sw.RouteRequest _request(
     accuracyMeters: 10,
     observedAt: (at ?? DateTime.now()).toUtc().toIso8601String(),
   ),
-  destination: sw.Coordinates(lat: 25.0, lng: 121.51),
+  destination: destination ?? sw.Coordinates(lat: 25.0, lng: 121.51),
   departAt: DateTime.now().toUtc().toIso8601String(),
   preference: sw.RouteKind.direct,
   maxExtraDistanceMeters: 500,
@@ -57,6 +65,218 @@ sw.RouteRequest _request(
 );
 
 void main() {
+  test(
+    'D3 unavailable online then offline, fresh combined areas, no OSRM',
+    () async {
+      final online = _DelayedPlanner();
+      final offline = _Planner(
+        AvoidRoutePlan(
+          options: [
+            AvoidRouteOption(
+              level: AvoidLevel.full,
+              route: _route('offline'),
+              passedAreaIds: const [],
+            ),
+          ],
+          originInsideAreaIds: const [],
+          destinationInsideAreaIds: const [],
+          preference: _pref,
+        ),
+      );
+      var loaded = <AvoidArea>[];
+      final fallback = _Fallback();
+      final service = AvoidingRouteService(
+        planner: online,
+        offlinePlanner: offline,
+        fallback: fallback,
+        areas: () => loaded,
+        areasLoaded: () => false,
+      );
+      final future = service.planRoute(_request(sw.DataMode.live));
+      loaded = [
+        for (final source in ['report', 'crime'])
+          AvoidArea(
+            id: source,
+            center: sw.Coordinates(lat: 25, lng: 121.5),
+            radiusMeters: 50,
+            source: source,
+          ),
+      ];
+      online.pending.completeError(const WalkingRouteProviderUnavailable());
+      final result = await future as sw.RouteSuccess;
+      expect(offline.areas.map((a) => a.id), ['report', 'crime']);
+      expect(fallback.calls, 0);
+      expect(
+        result.warnings,
+        contains(AvoidingRouteService.partialAreasWarning),
+      );
+    },
+  );
+
+  test('D3 falls through to OSRM only when offline unavailable', () async {
+    final online = _Planner(null),
+        offline = _Planner(null),
+        fallback = _Fallback();
+    final result = await AvoidingRouteService(
+      planner: online,
+      offlinePlanner: offline,
+      fallback: fallback,
+      areas: () => [],
+    ).planRoute(_request(sw.DataMode.live));
+    expect(result, isA<sw.RouteSuccess>());
+    expect([online.calls, offline.calls, fallback.calls], [1, 1, 1]);
+  });
+
+  test('cancellation during offline work never starts OSRM', () async {
+    final offline = _DelayedPlanner(),
+        fallback = _Fallback(),
+        token = ManualCancellation();
+    final result = AvoidingRouteService(
+      planner: _Planner(null),
+      offlinePlanner: offline,
+      fallback: fallback,
+      areas: () => [],
+    ).planRoute(_request(sw.DataMode.live), cancellation: token);
+    await Future<void>.delayed(Duration.zero);
+    token.cancel();
+    expect(
+      (await result as sw.RouteFailure).status,
+      sw.RouteFailureStatus.cancelled,
+    );
+    expect(fallback.calls, 0);
+    offline.pending.completeError(const WalkingRouteProviderUnavailable());
+  });
+
+  test(
+    'real bundled graph works without third-party consent or transport',
+    () async {
+      var sends = 0;
+      final fallback = _Fallback();
+      final service = AvoidingRouteService(
+        planner: ValhallaAvoidingRoutePlanner(
+          hasConsent: () => false,
+          post: (uri, body, {cancellation, required hasConsent}) async {
+            sends++;
+            throw StateError('must not send');
+          },
+        ),
+        offlinePlanner: OfflineGraphRoutePlanner(
+          isNavigationActive: () => true,
+          loadAsset: () async => (
+            bytes: File('assets/safe_walk/route/taipei_walk_graph.bin')
+                .readAsBytesSync(),
+            meta: jsonDecode(
+              File('assets/safe_walk/route/taipei_walk_graph.meta.json')
+                  .readAsStringSync(),
+            ) as Map<String, dynamic>,
+          ),
+        ),
+        fallback: fallback,
+        areas: () => [],
+        areasLoaded: () => false,
+      );
+      final result = await service.planRoute(
+        _request(
+          sw.DataMode.live,
+          origin: sw.Coordinates(lat: 25.0478, lng: 121.517),
+          destination: sw.Coordinates(lat: 25.0346, lng: 121.5219),
+        ),
+      ) as sw.RouteSuccess;
+      expect(sends, 0);
+      expect(fallback.calls, 0);
+      expect(
+        result.routes.every((r) => r.provider == 'offline-osm-graph'),
+        isTrue,
+      );
+      expect(result.warnings.join(), contains('離線路網資料：2026-11-11'));
+      expect(
+        result.warnings,
+        contains(AvoidingRouteService.areasUnavailableWarning),
+      );
+    },
+  );
+
+  test(
+    'superseding a request promptly cancels provider work without caller token',
+    () async {
+      final planner = _TokenPlanner();
+      final service = AvoidingRouteService(
+        planner: planner,
+        fallback: _Fallback(),
+        areas: () => [],
+      );
+      final first = service.planRoute(_request(sw.DataMode.live));
+      final firstToken = planner.tokens.single;
+      final second = service.planRoute(_request(sw.DataMode.live));
+      expect(firstToken?.isCancelled, isTrue);
+      expect(
+        (await first.timeout(
+          const Duration(seconds: 1),
+        ) as sw.RouteFailure).status,
+        sw.RouteFailureStatus.cancelled,
+      );
+      planner.pending.last.complete(
+        AvoidRoutePlan(
+          options: [
+            AvoidRouteOption(
+              level: AvoidLevel.full,
+              route: _route('latest'),
+              passedAreaIds: [],
+            ),
+          ],
+          originInsideAreaIds: [],
+          destinationInsideAreaIds: [],
+          preference: _pref,
+        ),
+      );
+      expect(await second, isA<sw.RouteSuccess>());
+      planner.pending.first.completeError(
+        const WalkingRouteProviderUnavailable(),
+      );
+    },
+  );
+
+  test('late area load cannot erase disclosure about the snapshot actually planned', () async {
+    final planner = _DelayedPlanner();
+    var loaded = false;
+    var areas = <AvoidArea>[];
+    final service = AvoidingRouteService(
+      planner: planner,
+      fallback: _Fallback(),
+      areas: () => areas,
+      areasLoaded: () => loaded,
+    );
+    final future = service.planRoute(_request(sw.DataMode.live));
+    areas = [
+      AvoidArea(
+        id: 'late',
+        center: sw.Coordinates(lat: 25, lng: 121.505),
+        radiusMeters: 50,
+        source: 'report',
+      ),
+    ];
+    loaded = true;
+    planner.pending.complete(
+      AvoidRoutePlan(
+        options: [
+          AvoidRouteOption(
+            level: AvoidLevel.full,
+            route: _route('without-late-area'),
+            passedAreaIds: [],
+          ),
+        ],
+        originInsideAreaIds: [],
+        destinationInsideAreaIds: [],
+        preference: _pref,
+      ),
+    );
+    final result = await future as sw.RouteSuccess;
+    expect(
+      result.warnings,
+      contains(AvoidingRouteService.areasUnavailableWarning),
+    );
+  });
+
   test('report radius matches between map and planner', () {
     expect(reportAvoidRadiusMeters, AvoidArea.reportRadiusMeters);
   });
@@ -390,5 +610,23 @@ final class _Fallback implements RouteService {
       routes: [_route('osrm')],
       warnings: const ['一般路線'],
     );
+  }
+}
+
+final class _TokenPlanner implements AvoidingRoutePlanner {
+  final tokens = <SafeWalkCancellation?>[];
+  final pending = <Completer<AvoidRoutePlan>>[];
+  @override
+  Future<AvoidRoutePlan> plan({
+    required sw.Coordinates origin,
+    required sw.Coordinates destination,
+    required List<AvoidArea> areas,
+    required RoutePreferenceKind preference,
+    SafeWalkCancellation? cancellation,
+  }) {
+    tokens.add(cancellation);
+    final answer = Completer<AvoidRoutePlan>();
+    pending.add(answer);
+    return answer.future;
   }
 }

@@ -380,25 +380,15 @@ sw.Coordinates _coordinate(List<double> point) =>
 
 /// Shortest distance in metres from [p] to the polyline ([lng, lat] pairs).
 double _minDistance(List<List<double>> line, sw.Coordinates p) {
-  final metresPerDegree = earthRadiusMeters * math.pi / 180;
-  final k = metresPerDegree * math.cos(p.lat * math.pi / 180);
   var best = double.infinity;
   for (var i = 0; i + 1 < line.length; i++) {
-    final ax = (line[i][0] - p.lng) * k,
-        ay = (line[i][1] - p.lat) * metresPerDegree;
-    final bx = (line[i + 1][0] - p.lng) * k,
-        by = (line[i + 1][1] - p.lat) * metresPerDegree;
-    final dx = bx - ax, dy = by - ay, len = dx * dx + dy * dy;
-    final t = len == 0 ? 0.0 : (-(ax * dx + ay * dy) / len).clamp(0.0, 1.0);
     best = math.min(
       best,
-      distanceMeters(
-        p,
-        sw.Coordinates(
-          lng: line[i][0] + t * (line[i + 1][0] - line[i][0]),
-          lat: line[i][1] + t * (line[i + 1][1] - line[i][1]),
-        ),
-      ),
+      projectToGeoJsonSegment(
+        toGeoJson(p),
+        (longitude: line[i][0], latitude: line[i][1]),
+        (longitude: line[i + 1][0], latitude: line[i + 1][1]),
+      ).distance,
     );
   }
   return best;

@@ -1,5 +1,13 @@
 # M2｜Steven：座標運算與 RouteService
 
+## 2026-11-12 Live-C 裝置端路網增量
+
+`feat/offline-live-c` 以 Live-A #101 的 `9340b4c` 為 stacked base，目標 `feat/offline-map`，尚未合併。Readiness **WIRED_NOT_VERIFIED**。新增 `offline_walk_graph.dart`（驗證真實 OSM CSR／最近線段吸附）與 `offline_graph_route_planner.dart`（request isolate 的 A*／三級避讓／轉彎提示），不讀 GPS、不寫通報與犯罪位置。資料與重現步驟見 [tool/offline_route](../../../../tool/offline_route/README.md)。
+
+原生正式入口／附近據點：Valhalla → offline-osm-graph → OSRM；Web 維持線上。正式入口不再自動授第三方同意，本機規劃與導航只需使用者操作及定位權限，線上傳送另需同意。拒絕第三方同意仍能離線規劃；撤回同意／背景／離開／SOS 仍取消當前工作。所有來源日期、未套用（完整）避讓與圓內端點警語沿既有 warnings 顯示。快照與 SourceMetadata 不新增 wire 欄位。
+
+實際來源 2026-11-11，指定 bbox，473,961 節點／1,068,246 邊，bin 23,223,303 bytes；同 PBF 求助點 3,699 筆。桌機讀取＋驗證 427.463 ms，3.04 km 三級規劃 162.805 ms，冷 isolate＋解析＋規劃 560.543 ms；手機效能／iPhone 實走尚未驗證。十組公開地標與 Valhalla 差異均在 ±25%，full 每段都驗離 50 m 測試圓。原生資料缺失或超過 500 m 吸附回 unavailable，斷路 no_route，沒有樣本／直線 fallback。詳見 [離線需求 C6](../../../../docs/SAFE_WALK_OFFLINE.md#c6-live-c-實作與實測2026-11-12) 與 §4 iPhone 清單。以下舊盤點按當時 SHA 解讀。
+
 **現行政策：LIVE-FIRST DEVELOPMENT + NO PRODUCTION MOCK。** 正式入口只使用真實 OSRM／合法路網與 App 內 OSM 地圖；不導往 Google Maps 作為競賽導航。Fake／Mock／fixtures 僅限隔離測試，不作為 Live 前置版本或正式 fallback。功能須從主動定位／獨立同意、查詢、目的地選擇、真實路線到 UI 與取消／錯誤完整交付，見 [完成定義](../../../../docs/SAFE_WALK_LIVE_FIRST.md)。
 
 所有成員均可跨 M1～M5 修改功能與相應測試，自行 AI Coding、除錯及建立 PR。修改其他模組時說明目的、影響檔案及原主要負責人，先核對進行中的 PR 避免同時改同一檔；普通 Level A 變更不需小魚事前批准，Level B 合併前確認；Level C 合併前須隊長明確授權及安全／隱私審查，正式啟用前完成適用驗收。完整規則見 [開放協作](../../../../docs/SAFE_WALK_COLLABORATION.md)。

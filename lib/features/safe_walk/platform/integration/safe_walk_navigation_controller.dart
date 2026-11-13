@@ -18,6 +18,7 @@ final class SafeWalkNavigationController extends ChangeNotifier {
     this.mode = sw.DataMode.mock,
     this.livePresentationReady = false,
     this.liveProviderReady = false,
+    this.allowOfflineRouting = false,
     DateTime Function()? clock,
   }) : _clock = clock ?? DateTime.now;
 
@@ -31,6 +32,9 @@ final class SafeWalkNavigationController extends ChangeNotifier {
   /// Remains false until the M2 consent/cancellation fixes are integrated and
   /// the live provider is approved for this composition.
   final bool liveProviderReady;
+
+  /// Allows a local provider without granting permission to any transport.
+  final bool allowOfflineRouting;
 
   bool get liveNavigationAvailable =>
       livePresentationReady && liveProviderReady;
@@ -82,7 +86,8 @@ final class SafeWalkNavigationController extends ChangeNotifier {
   void showRoute(sw.RouteResult result) {
     if (_disposed || result.mode != mode) return;
     if (mode == sw.DataMode.live &&
-        (!liveNavigationAvailable || !hasRoutingConsent)) {
+        (!liveNavigationAvailable ||
+            (!hasRoutingConsent && !allowOfflineRouting))) {
       return;
     }
     _clearRoute();
@@ -107,7 +112,8 @@ final class SafeWalkNavigationController extends ChangeNotifier {
       return;
     }
     if (mode == sw.DataMode.live &&
-        (!liveNavigationAvailable || !hasRoutingConsent)) {
+        (!liveNavigationAvailable ||
+            (!hasRoutingConsent && !allowOfflineRouting))) {
       final reason = !liveNavigationAvailable
           ? '真實導航尚未開放；路線介面與供應商接線仍待完成。'
           : '請先同意將起訖座標傳送至第三方路線服務。';
