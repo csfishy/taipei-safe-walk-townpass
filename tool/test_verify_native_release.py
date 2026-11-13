@@ -10,7 +10,16 @@ import tempfile
 import unittest
 import zipfile
 
-from verify_native_release import PREVIEW_ID, arm64_macho_slice, read_client_config, validate_metadata, verify, verify_offline_route
+from verify_native_release import PREVIEW_ID, arm64_macho_slice, read_client_config, validate_metadata, verify, verify_offline_route, verify_email_live_test
+
+
+class EmailLiveTestPayloadTests(unittest.TestCase):
+    def test_both_markers_are_required_in_compiled_payload(self):
+        verify_email_live_test(b'safe_walk.live_test.email.v1 swtest_')
+        verify_email_live_test('safe_walk.live_test.email.v1 swtest_'.encode('utf-16le'))
+        for incomplete in (b'', b'swtest_', b'safe_walk.live_test.email.v1'):
+            with self.subTest(payload=incomplete), self.assertRaises(ValueError):
+                verify_email_live_test(incomplete)
 
 
 ARM64 = 0x0100000C

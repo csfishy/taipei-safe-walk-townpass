@@ -137,6 +137,14 @@ def condition(name, event='push', ref='refs/heads/main', results=None, cancelled
 
 
 class BuildWorkflowTests(unittest.TestCase):
+    def test_native_preview_builds_wire_and_verify_email_test_code(self):
+        for name in ('android', 'ios'):
+            job = build_job(name)
+            self.assertIn('--dart-define=SAFE_WALK_EMAIL_LIVE_TEST=true', job)
+            self.assertIn('--email-live-test', job)
+        self.assertNotIn('SAFE_WALK_EMAIL_LIVE_TEST', build_job('web'))
+        self.assertIn('--dart-define=SAFE_WALK_EMAIL_LIVE_TEST=true', build_job('check'))
+
     def test_publication_depends_on_all_checks_and_platforms(self):
         for name in ('publish', 'pages-settings'):
             self.assertIn('needs: [check, web, android, ios]', build_job(name))

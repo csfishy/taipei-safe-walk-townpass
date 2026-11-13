@@ -59,6 +59,14 @@ def verify_compiled_client(binary, config_path):
         )
 
 
+def verify_email_live_test(binary):
+    # Inspect real AOT code, not a bundled source file or declared build flag.
+    # Runtime/recipient delivery remains a separate device acceptance check.
+    for marker in ('safe_walk.live_test.email.v1', 'swtest_'):
+        require(marker.encode() in binary or marker.encode('utf-16le') in binary,
+                'Flutter AOT payload is missing the email Live-test backend')
+
+
 def arm64_macho_slice(binary):
     """Select a bounded arm64 Mach-O image from a thin or Apple fat binary."""
     arm64 = 0x0100000C
@@ -126,7 +134,7 @@ def verify_offline_route(package, asset_prefix, folder):
     require(graph[:8] == b'SWWALK01' and expected['license'] == 'ODbL-1.0', 'Invalid offline route format/license')
 
 
-def verify(platform, package_path, metadata_path, supabase_config_path=None, offline_route_path=None):
+def verify(platform, package_path, metadata_path, supabase_config_path=None, offline_route_path=None, email_live_test=False):
     expected = json.loads(Path(metadata_path).read_text(encoding='utf-8'))
     validate_metadata(expected)
 
@@ -161,7 +169,7 @@ def verify(platform, package_path, metadata_path, supabase_config_path=None, off
             binary = package.read(app + info['CFBundleExecutable'])
             arm64_macho_slice(binary)
             asset = app + 'Frameworks/App.framework/flutter_assets/assets/build-info.json'
-            if supabase_config_path is not None:
+            if supabase_config_path is not None or email_live_test:
                 aot_binary = arm64_macho_slice(
                     package.read(app + 'Frameworks/App.framework/App'),
                 )
@@ -172,10 +180,14 @@ def verify(platform, package_path, metadata_path, supabase_config_path=None, off
             verify_offline_route(package, prefix, offline_route_path)
         if supabase_config_path is not None:
             verify_compiled_client(aot_binary, supabase_config_path)
+        if email_live_test:
+            verify_email_live_test(aot_binary)
 
     print(f'PASS: {platform} preview package, arm64 code and embedded source/version metadata')
     if supabase_config_path is not None:
         print('PASS: expected public client configuration is present in Flutter AOT code')
+    if email_live_test:
+        print('PASS: email Live-test backend is present in Flutter AOT code')
 
 
 def verify_offline_basemap(package, prefix):
@@ -202,8 +214,9 @@ if __name__ == '__main__':
     parser.add_argument('--metadata', type=Path, default=Path('assets/build-info.json'))
     parser.add_argument('--supabase-config', type=Path, help='Require these public client settings in Flutter AOT code')
     parser.add_argument('--offline-route', type=Path, default=Path('assets/safe_walk/route'), help='Require reviewed offline OSM routing assets in the release')
+    parser.add_argument('--email-live-test', action='store_true', help='Require the email Live-test backend in Flutter AOT code')
     args = parser.parse_args()
     try:
-        verify(args.platform, args.package, args.metadata, args.supabase_config, args.offline_route)
+        verify(args.platform, args.package, args.metadata, args.supabase_config, args.offline_route, args.email_live_test)
     except (ValueError, KeyError, OSError, zipfile.BadZipFile, plistlib.InvalidFileException) as error:
         raise SystemExit(f'Native release verification failed: {error}') from error

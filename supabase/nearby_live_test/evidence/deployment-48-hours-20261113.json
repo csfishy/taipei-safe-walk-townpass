@@ -1,0 +1,113 @@
+{
+  "status": "DEPLOYED_ENABLED_VERIFIED",
+  "project_ref": "gxofnhzkqcmzrftxqddi",
+  "enabled_at_utc": "2026-11-13T15:23:10.845667Z",
+  "enabled_until_utc": "2026-11-15T15:23:10.845667Z",
+  "window_hours": 48,
+  "test_verifier": "PASS",
+  "production_locked_verifier": "PASS",
+  "production_snapshot_unchanged": true,
+  "before": {
+    "tables": [
+      {
+        "rows": 0,
+        "table": "alert_deliveries",
+        "digest": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      {
+        "rows": 0,
+        "table": "alerts",
+        "digest": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      {
+        "rows": 0,
+        "table": "contact_invite_attempts",
+        "digest": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      {
+        "rows": 0,
+        "table": "contact_invites",
+        "digest": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      {
+        "rows": 0,
+        "table": "helper_areas",
+        "digest": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      {
+        "rows": 0,
+        "table": "helper_locations",
+        "digest": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      {
+        "rows": 0,
+        "table": "helper_profiles",
+        "digest": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      {
+        "rows": 0,
+        "table": "trusted_contacts",
+        "digest": "d41d8cd98f00b204e9800998ecf8427e"
+      }
+    ],
+    "function_digest": "0da5947a034bff58393fc12fc353b6ec",
+    "relation_acl_digest": "cad8d361a75807ab4d88d248a768eaa8",
+    "schema_acl_digest": "6f3579d38e4b482d32ee13b417282c8f"
+  },
+  "after": {
+    "tables": [
+      {
+        "rows": 0,
+        "table": "alert_deliveries",
+        "digest": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      {
+        "rows": 0,
+        "table": "alerts",
+        "digest": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      {
+        "rows": 0,
+        "table": "contact_invite_attempts",
+        "digest": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      {
+        "rows": 0,
+        "table": "contact_invites",
+        "digest": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      {
+        "rows": 0,
+        "table": "helper_areas",
+        "digest": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      {
+        "rows": 0,
+        "table": "helper_locations",
+        "digest": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      {
+        "rows": 0,
+        "table": "helper_profiles",
+        "digest": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      {
+        "rows": 0,
+        "table": "trusted_contacts",
+        "digest": "d41d8cd98f00b204e9800998ecf8427e"
+      }
+    ],
+    "function_digest": "0da5947a034bff58393fc12fc353b6ec",
+    "relation_acl_digest": "cad8d361a75807ab4d88d248a768eaa8",
+    "schema_acl_digest": "6f3579d38e4b482d32ee13b417282c8f"
+  },
+  "deployment_ui_rls_option": "Run and enable RLS",
+  "remote_business_rpc_or_device_tests_executed": false,
+  "sha256": {
+    "00_preflight_readonly.sql": "92e1a151531330fd3c18d8415940edbec1c10a7e2aceae2a68308fa5c53effd6",
+    "01_install.sql": "54ded2073c0b73481fa1716c05965d7ac5eb5970d05f877dc19cc07163a1f9e7",
+    "02_enable_for_48_hours.sql": "663ff25f97b0e5feaf686d6cae8ebdf3e3c6ffe68d8707b73cbe37a1c22f3836",
+    "03_verify.sql": "35ed625ea8f55cc9393f2659559c6da3fde0dd581bac2e1eb83c7cfe949eca71",
+    "04_production_snapshot_readonly.sql": "af7e49cea4dd1024c6f0c1fa8592213ae3c0909ed1959dc1d4a5ddc5c1ea83bf"
+  }
+}

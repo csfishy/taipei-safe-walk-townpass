@@ -1,5 +1,5 @@
 import 'package:get/get.dart';
-import 'package:town_pass/features/safe_walk/platform/integration/official_nearby_alerts.dart';
+import 'package:town_pass/features/safe_walk/platform/integration/official_safe_walk_entry.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_composition_root.dart';
 import 'package:town_pass/page/account/account_view.dart';
 import 'package:town_pass/page/account/account_view_controller.dart';
@@ -82,19 +82,19 @@ abstract class TPRoute {
     ),
     GetPage(
       name: safeWalk,
-      page: () => SafeWalkCompositionRoot(
-        liveRoutes: true,
-        // Third-party transmission consent is an explicit user choice.
-        // Local offline routing remains available when it is declined.
-        // The person's own tap opens the phone's dialer for 110/119; they still
-        // press call. Nothing is dialled, reported or dispatched by the app.
-        allowEmergencyDialer: true,
-        // TownPass's own online and voice reporting service.
-        onOpenOfficialReport: () => openUri(uri: 'local://online_police'),
-        // Nearby notification: an anonymous per-phone identity, created only when
-        // the person first joins or sends an SOS. Null (unavailable) when this
-        // build has no Supabase configuration.
-        nearbyAlerts: createOfficialNearbyAlerts(),
+      page: () => OfficialSafeWalkEntry(
+        flowBuilder: (nearbyAlerts) => SafeWalkCompositionRoot(
+          liveRoutes: true,
+          // Third-party transmission consent is an explicit user choice.
+          // Local offline routing remains available when it is declined.
+          // The person's own tap opens the phone's dialer for 110/119; they still
+          // press call. Nothing is dialled, reported or dispatched by the app.
+          allowEmergencyDialer: true,
+          // TownPass's own online and voice reporting service.
+          onOpenOfficialReport: () => openUri(uri: 'local://online_police'),
+          // Explicit native preview builds use the separately deployed swtest_ API.
+          nearbyAlerts: nearbyAlerts,
+        ),
       ),
     ),
     GetPage(

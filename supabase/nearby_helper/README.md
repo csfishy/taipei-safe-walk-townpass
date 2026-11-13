@@ -1,6 +1,10 @@
 # 附近協助者通知：資料表建置與隔離後端
 
-遠端已完成的是私有四表、封鎖權限與選填定位精度 migration。PR #71 合併的 `001_nearby_helper.sql` 後端及 authenticated transport 則仍未遠端部署、未接入 App，也未啟用通知。下方分別保留實際資料表部署證據，以及隔離後端的實作與本機測試方式；R13 持續 **BLOCKED**。
+**目前狀態（2026-11-13）：完整 owner-only 後端已部署至既有 Supabase 專案，遠端唯讀 verifier PASS；新版通知未啟用，R13 持續 BLOCKED。** 遠端現為 8 張私有表、13 個新版 public RPC 與 1 個私有清除函式；API 角色有效 EXECUTE 權限合計為 0。部署授權、實際時間、腳本、測試及限制見[部署紀錄](DEPLOYMENT_20261113.md)。目前 App 已有 authenticated transport 與正式入口接線，但新版 RPC 保持不可由 App 呼叫。
+
+**前一階段（2026-11-13）：** 已依遠端唯讀盤點完成[完整 RPC 前向升級包與驗證紀錄](BACKEND_UPGRADE.md)，包含交易式 migration、唯讀 verifier、非空四表升級與併發測試。之後依使用者新授權部署其封鎖版，啟用版沒有部署。下方保留原四表與 fresh-install 實作的歷史紀錄；不能將 `001_nearby_helper.sql` 直接套用到既有遠端，亦不可重跑已完成的升級。
+
+已補完與遠端相同 **PostGIS 3.3.7** 發佈版號的本機重驗：**18 組全部通過**，migration／verifier 無須修改；測試 runner 已修正官方 scripts 版本的 revision 後綴判讀。詳見[精確版本驗證紀錄](BACKEND_UPGRADE.md#2026-11-13postgis-337-精確版本相容性重驗)與[JSON 報告](local_test/evidence/postgis-3.3.7.json)。
 
 本目錄依使用者授權，把兩份 Markdown 的四表草案具體化為可手動審查的 SQL。初次規格為 commit `92565c9`，經 PR #70 合併至 main `0dd580d` 的[設計提案](../../docs/SAFE_WALK_NEARBY_HELPER_DESIGN.md)與[安全狀態](../../docs/SAFE_WALK_NEARBY_SECURITY.md)。初次授權範圍是隔離空表、索引、RLS 與撤權；此次依新版兩份 MD 調整既有資料庫，附近通知仍未啟用。
 
@@ -65,8 +69,9 @@ R13 附近通知維持 **BLOCKED**。後續仍須完成身分來源／資格、�
 ## 隔離後端實作（PR #71；尚未遠端部署）
 
 Implements the design in [SAFE_WALK_NEARBY_HELPER_DESIGN.md](../../docs/SAFE_WALK_NEARBY_HELPER_DESIGN.md).
-**The `001_nearby_helper.sql` RPC backend and authenticated transport are not
-deployed, wired into the app, or enabled.** The manual table migrations above have
+**The `001_nearby_helper.sql` RPC backend is not remotely deployed. The current
+official app entry supplies the authenticated transport, but delivery is not
+verified or approved for public use.** The manual table migrations above have
 been applied; their verification does not verify these RPCs. Readiness for nearby
 notification stays **BLOCKED** until the evidence listed in
 [SAFE_WALK_NEARBY_SECURITY.md](../../docs/SAFE_WALK_NEARBY_SECURITY.md) exists and the
@@ -178,6 +183,8 @@ runs in the background or when the app is closed, because the project has no pus
 (FCM/APNs). The existing SMS card is unrelated to this path.
 
 [`AuthenticatedNearbyAlertTransport`](../../lib/features/safe_walk/platform/nearby_emergency/authenticated_nearby_alert_transport.dart)
-calls these RPCs with the user's session token. It needs a `NearbySession`, which only
-exists once the team decides where user identity comes from (TownPass login or Supabase
-Auth). Until a composition supplies one, the app keeps using the unavailable transport.
+calls these RPCs with the user's session token. The current official composition
+supplies `SupabaseAnonymousNearbySession`; missing configuration, Auth settings or
+RPC deployment can still make actions unavailable. This does not establish helper
+eligibility or lift BLOCKED. See [the upgrade package](BACKEND_UPGRADE.md) for the
+current deployment gap and local test evidence.

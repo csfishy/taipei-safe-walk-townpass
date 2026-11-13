@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:town_pass/features/safe_walk/platform/nearby_emergency/email_live_test_build.dart';
 import 'package:town_pass/gen/assets.gen.dart';
 import 'package:town_pass/service/account_service.dart';
 import 'package:town_pass/service/device_service.dart';
@@ -68,7 +69,7 @@ class MyApp extends StatelessWidget {
         ),
       ),
       debugShowCheckedModeBanner: false,
-      initialRoute: TPRoute.main,
+      initialRoute: emailLiveTestBuild ? TPRoute.safeWalk : TPRoute.main,
       onInit: () {
         NotificationService.requestPermission();
       },

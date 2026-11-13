@@ -1,0 +1,62 @@
+{
+  "status": "PASS",
+  "checked_at_utc": "2026-11-13T08:12:34.070Z",
+  "version": {
+    "library": "3.3.7",
+    "scripts": "3.3.7 a0c7967",
+    "extension": "3.3.7",
+    "postgres": "PostgreSQL 15.13 on x86_64-alpine-linux-musl, compiled by gcc (Alpine 12.2.1_git20220924-r10) 12.2.1 20220924, 64-bit"
+  },
+  "passed_groups": 11,
+  "results": [
+    {
+      "name": "nonempty four-table upgrade over CRLF transport commits with owner-only RPCs",
+      "status": "PASS"
+    },
+    {
+      "name": "read-only locked verifier passes",
+      "status": "PASS"
+    },
+    {
+      "name": "data, legacy RPC ACLs, unrelated rows and auth CASCADE preserved",
+      "status": "PASS"
+    },
+    {
+      "name": "anon cannot execute any of the 13 RPCs",
+      "status": "PASS"
+    },
+    {
+      "name": "authenticated cannot execute any of the 13 RPCs",
+      "status": "PASS"
+    },
+    {
+      "name": "service_role cannot execute any of the 13 RPCs",
+      "status": "PASS"
+    },
+    {
+      "name": "enabled-profile verifier rejects locked profile",
+      "status": "PASS"
+    },
+    {
+      "name": "locked verifier rejects accidental authenticated SOS grant",
+      "status": "PASS"
+    },
+    {
+      "name": "repeat migration fails atomically and leaves owner-only state intact",
+      "status": "PASS"
+    },
+    {
+      "name": "all 14 function bodies retain CRLF and match canonical LF digest",
+      "status": "PASS"
+    },
+    {
+      "name": "normalizing CRLF does not hide a changed function body",
+      "status": "PASS"
+    }
+  ],
+  "sha256": {
+    "migrations/20261113010000_upgrade_nearby_backend_locked.sql": "ffd39808b374b8e95dfe5e85c64c715b868b1be64d3741fb9f834065c8c254ba",
+    "06_verify_locked_backend.sql": "83ef6647b23986e237b9191f9095071b45c781cd0603ba0f0388a80f1eb56064",
+    "local_test/run_locked_tests.cjs": "a0f4b50549b684b85aa4b7ae74c95cd35ef199aba3644e63cf4d7e9874e01705"
+  }
+}

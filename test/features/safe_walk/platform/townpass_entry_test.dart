@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 import 'package:town_pass/bean/activity.dart';
 import 'package:town_pass/bean/home_banner.dart';
 import 'package:town_pass/features/safe_walk/platform/integration/safe_walk_composition_root.dart';
+import 'package:town_pass/features/safe_walk/platform/integration/official_safe_walk_entry.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_emergency_view.dart';
 import 'package:town_pass/features/safe_walk/presentation/safe_walk_flow.dart';
 import 'package:town_pass/page/city_service/model/my_service_model.dart';
@@ -62,11 +63,12 @@ void main() {
 
     expect(registrations, hasLength(1));
     // Constructing the widget does not mount it or request native capabilities.
-    expect(registrations.single.page(), isA<SafeWalkCompositionRoot>());
+    expect(registrations.single.page(), isA<OfficialSafeWalkEntry>());
     // The official entry is Live and turns on the phone dialer (the person's own
     // tap opens it; nothing is dialled by the app) and TownPass's own online
     // reporting service.
-    final root = registrations.single.page() as SafeWalkCompositionRoot;
+    final entry = registrations.single.page() as OfficialSafeWalkEntry;
+    final root = entry.flowBuilder(null) as SafeWalkCompositionRoot;
     expect(root.liveRoutes, isTrue);
     expect(root.consentGranted, isFalse);
     expect(root.allowEmergencyDialer, isTrue);

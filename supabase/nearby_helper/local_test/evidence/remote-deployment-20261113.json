@@ -1,0 +1,59 @@
+{
+  "status": "DEPLOYED_LOCKED_VERIFIED",
+  "project_ref": "gxofnhzkqcmzrftxqddi",
+  "method": "manual_supabase_sql_editor",
+  "script_writes_migration_history": false,
+  "predeploy_checks_utc": [
+    "2026-11-13T07:57:35.393253Z",
+    "2026-11-13T08:11:42.810010Z"
+  ],
+  "verified_at_utc": "2026-11-13T08:15:08.957329Z",
+  "verified_at_asia_taipei": "2026-11-13T16:15:08.957329+08:00",
+  "remote_postgres": "PostgreSQL 17.11 on aarch64-unknown-linux-gnu, gcc 15.2.0",
+  "postgis": "3.3.7",
+  "pgcrypto": "1.3",
+  "ui_observed": {
+    "status": "DEPLOYED_LOCKED_VERIFIED",
+    "api_execute_permissions": 0,
+    "private_tables": 8,
+    "public_rpcs": 13
+  },
+  "verifier_contract_passed": {
+    "columns": 37,
+    "constraints": 26,
+    "private_purge_functions": 1,
+    "function_bodies": "canonical LF digest matches validated SQL",
+    "roles_denied": [
+      "PUBLIC",
+      "anon",
+      "authenticated",
+      "service_role"
+    ]
+  },
+  "new_rpc_api_execution_enabled": false,
+  "legacy_rpc_permissions_changed_by_script": false,
+  "auth_settings_changed": false,
+  "cron_jobs_created": false,
+  "app_flags_changed": false,
+  "business_rpcs_invoked": false,
+  "first_attempt": {
+    "committed": false,
+    "reason": "Windows CRLF retained in prosrc changed raw digest",
+    "rollback_observed": {
+      "private_tables": 4,
+      "new_public_rpcs": 0
+    }
+  },
+  "validated_groups": {
+    "original_business_profile_postgis_3_3_7": 18,
+    "owner_only_crlf_profile_postgis_3_3_7": 11
+  },
+  "sha256": {
+    "05_predeploy_readonly.sql": "acc3966fb9d4ded41cdd5a239c764bff52500cdcb5caaf8a768ecf8761ad5c2f",
+    "migrations/20261113010000_upgrade_nearby_backend_locked.sql": "ffd39808b374b8e95dfe5e85c64c715b868b1be64d3741fb9f834065c8c254ba",
+    "06_verify_locked_backend.sql": "83ef6647b23986e237b9191f9095071b45c781cd0603ba0f0388a80f1eb56064",
+    "07_postdeploy_readonly.sql": "827c1059da91cdd51722562ff884f8ddeee9d4d810ee61d529ebd734effd027a"
+  },
+  "evidence_source": "Observed Supabase SQL Editor result, plus full read-only verifier; screenshot in ignored artifacts/nearby-helper/deployment-verified.png",
+  "limitations": "No real-device delivery or public activation; legacy RPCs retain preexisting privileges; R13 BLOCKED"
+}
