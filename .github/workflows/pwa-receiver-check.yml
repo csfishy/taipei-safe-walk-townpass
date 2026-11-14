@@ -4,6 +4,8 @@ on:
     paths:
       - 'pwa_receiver/**'
       - 'supabase/nearby_live_test/**'
+      - 'supabase/functions/nearby-push/**'
+      - 'supabase/config.toml'
       - '.github/workflows/pwa-receiver-check.yml'
   workflow_dispatch:
 permissions:
@@ -27,6 +29,11 @@ jobs:
         working-directory: pwa_receiver
       - run: npm test
         working-directory: pwa_receiver
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.2.12
+      - run: deno check --config supabase/functions/nearby-push/deno.json supabase/functions/nearby-push/index.ts
+      - run: deno test --allow-env --config supabase/functions/nearby-push/deno.json pwa_receiver/test/edge-runtime_test.ts
       - run: python3 supabase/nearby_live_test/pwa/generate_verifier.py --check
       - run: python3 tool/check_crime_database_isolation.py
       - uses: actions/upload-artifact@v4

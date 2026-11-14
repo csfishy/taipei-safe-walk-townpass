@@ -1,5 +1,9 @@
 # 臺北安心行 PWA 協助者接收器
 
+後續授權更新：使用者已要求遠端唯讀確認後部署、發布與啟用 Web Push；部署順序與兩台 iPhone 步驟見 [DEPLOYMENT.md](DEPLOYMENT.md)。
+新增 Supabase Edge adapter（Deno 型別檢查與離線 runtime 測試通過），可免常駐本機 Node；目前仍待 CLI 登入後完成遠端盤點，不能視為已上線。
+下文「暫不部署」記錄的是最初實作回合的授權與驗證邊界。
+
 狀態：**WIRED_NOT_VERIFIED**（程式已接線；本機合成資料驗證，尚未部署／實機 Web Push 驗收）。
 使用者 2026-11-14 確認流程並授權實作與隔離測試，**暫不部署**。本次沒有遠端設定、寄信、推播、Live 延期或帳號申請。
 主責 M1 小魚，涉及 platform/UI、Supabase Level B/C；IPA 保持既有 `swtest_send`。

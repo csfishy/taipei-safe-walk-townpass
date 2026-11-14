@@ -17,3 +17,14 @@ test('worker is disabled without explicit enablement, before reading any credent
  const result=spawnSync(process.execPath,[path.join(root,'worker/main.mjs')],{encoding:'utf8',env:{...process.env,PWA_PUSH_ENABLED:'false'}});
  assert.notEqual(result.status,0);assert.match(result.stderr,/Worker locked/);
 });
+test('CI public configuration builds receiver scope without bundling worker or private credentials',async()=>{
+ const parent=path.join(root,'../artifacts/config-tests');await mkdir(parent,{recursive:true});const folder=await mkdtemp(path.join(parent,'ci-'));
+ try {
+  const result=spawnSync(process.execPath,[path.join(root,'build-from-env.mjs'),'--out',path.join(folder,'receiver')],{
+    encoding:'utf8',env:{...process.env,SUPABASE_URL:'https://fixture.supabase.co',SUPABASE_PUBLISHABLE_KEY:'sb_publishable_synthetic',NEARBY_VAPID_PUBLIC_KEY:'B'.repeat(87),NEARBY_VAPID_PRIVATE_KEY:'must-not-be-in-web'}});
+  assert.equal(result.status,0,result.stderr);
+  const fs=await import('node:fs/promises'),config=await fs.readFile(path.join(folder,'receiver/config.mjs'),'utf8');
+  assert(config.includes('sb_publishable_synthetic'));assert(!config.includes('must-not-be-in-web'));
+  await assert.rejects(fs.access(path.join(folder,'receiver/worker')));
+ } finally {await rm(folder,{recursive:true,force:true});}
+});
