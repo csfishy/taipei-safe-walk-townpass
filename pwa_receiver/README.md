@@ -1,7 +1,7 @@
 # 臺北安心行 PWA 協助者接收器
 
 後續授權更新：使用者已要求遠端唯讀確認後部署、發布與啟用 Web Push；部署順序與兩台 iPhone 步驟見 [DEPLOYMENT.md](DEPLOYMENT.md)。
-新增 Supabase Edge adapter（Deno 型別檢查與離線 runtime 測試通過），可免常駐本機 Node；目前仍待 CLI 登入後完成遠端盤點，不能視為已上線。
+遠端唯讀盤點、v2 升級、Supabase Edge 工作器與 Web Push 啟用已完成；啟用後 verifier PASS，正式資料／函式／ACL 指紋一致。網站發布以 CI 的實際部署狀態為準，iPhone 鎖屏顯示與聲音仍待裝置驗收。後端證據見 [deployment-backend-20261114.json](../supabase/nearby_live_test/pwa/evidence/deployment-backend-20261114.json)。
 下文「暫不部署」記錄的是最初實作回合的授權與驗證邊界。
 
 狀態：**WIRED_NOT_VERIFIED**（程式已接線；本機合成資料驗證，尚未部署／實機 Web Push 驗收）。
