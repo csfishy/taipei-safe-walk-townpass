@@ -108,6 +108,9 @@ artifacts/
 *.apk
 assets/build-info.json
 coverage/
+node_modules/
+pwa_receiver/test-results/
+pwa_receiver/playwright-report/
 
 # Crime reference data lives outside every checkout; include SQLite sidecars.
 .local-data/

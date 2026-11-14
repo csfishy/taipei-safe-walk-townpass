@@ -1,0 +1,120 @@
+{
+  "status": "PASS",
+  "version": {
+    "postgis": "3.3.7",
+    "postgres": "PostgreSQL 15.13 on x86_64-alpine-linux-musl, compiled by gcc (Alpine 12.2.1_git20220924-r10) 12.2.1 20220924, 64-bit"
+  },
+  "passed_groups": 26,
+  "results": [
+    {
+      "name": "atomic preflight rejects v1 privilege drift without adding objects",
+      "status": "PASS"
+    },
+    {
+      "name": "v1 populated database upgrades atomically with CRLF; push stays disabled",
+      "status": "PASS"
+    },
+    {
+      "name": "v2 read-only verifier passes with locked formal backend",
+      "status": "PASS"
+    },
+    {
+      "name": "old v1 verifier correctly refuses v2 instead of silently passing",
+      "status": "PASS"
+    },
+    {
+      "name": "register requires session, secret device and allowed provider",
+      "status": "PASS"
+    },
+    {
+      "name": "registration alone neither opts in nor starts reception",
+      "status": "PASS"
+    },
+    {
+      "name": "freshness and accuracy enforced on server including NaN",
+      "status": "PASS"
+    },
+    {
+      "name": "start clamps to 30 minutes, session and global Live deadline",
+      "status": "PASS"
+    },
+    {
+      "name": "foreground update moves center but never renews the lease",
+      "status": "PASS"
+    },
+    {
+      "name": "IPA-compatible send queues per device, counts account once, excludes far/self",
+      "status": "PASS"
+    },
+    {
+      "name": "send retry creates no duplicate push jobs",
+      "status": "PASS"
+    },
+    {
+      "name": "anon cannot claim queue or read subscriptions; service cannot use receiver API",
+      "status": "PASS"
+    },
+    {
+      "name": "push switch gates worker; claims are exclusive and deadline bounded",
+      "status": "PASS"
+    },
+    {
+      "name": "stale claim completion cannot mark accepted; transient failure schedules retry",
+      "status": "PASS"
+    },
+    {
+      "name": "stop clears only this device, cancels pending jobs and hides alerts",
+      "status": "PASS"
+    },
+    {
+      "name": "device logout removes its binding and jobs; other device stays bound",
+      "status": "PASS"
+    },
+    {
+      "name": "account opt-out revokes every receiver lease and pending delivery",
+      "status": "PASS"
+    },
+    {
+      "name": "expired lease cannot update or fetch even with a valid session",
+      "status": "PASS"
+    },
+    {
+      "name": "500m boundary uses PostGIS geography, not degree distance",
+      "status": "PASS"
+    },
+    {
+      "name": "gone subscription stops reception and cancels further jobs",
+      "status": "PASS"
+    },
+    {
+      "name": "global deadline also clamps a newly requested lease",
+      "status": "PASS"
+    },
+    {
+      "name": "four exhausted worker claims cannot be picked forever",
+      "status": "PASS"
+    },
+    {
+      "name": "verifier detects privilege drift and recovers after rollback",
+      "status": "PASS"
+    },
+    {
+      "name": "global Live expiry gates receiver, IPA send and worker without extension",
+      "status": "PASS"
+    },
+    {
+      "name": "trusted cleanup physically removes expired locations and subscriptions",
+      "status": "PASS"
+    },
+    {
+      "name": "formal function definitions/ACLs and upgrade fixture data stay unchanged",
+      "status": "PASS"
+    }
+  ],
+  "checked_at_utc": "2026-11-14T04:51:34.803Z",
+  "sha256": {
+    "01_upgrade.sql": "de4b420449c294542cd30c562e4c52732afe7091b46369f0910aeb264d4fa812",
+    "02_verify.sql": "4c916ebbd13fd760c33c8b92caf2a8b7fbdcc243d97311f2c9d985eda82d3bb2",
+    "run_tests.cjs": "d3eb04a9538297010b72606b864c0dfea5f46278a5233415ead42e8dd1601a24"
+  }
+}

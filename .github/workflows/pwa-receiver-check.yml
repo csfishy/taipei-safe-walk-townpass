@@ -1,0 +1,36 @@
+name: PWA receiver checks (no deployment)
+on:
+  pull_request:
+    paths:
+      - 'pwa_receiver/**'
+      - 'supabase/nearby_live_test/**'
+      - '.github/workflows/pwa-receiver-check.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  receiver:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: pwa_receiver/package-lock.json
+      - run: npm ci --ignore-scripts
+        working-directory: pwa_receiver
+      - run: npx playwright install --with-deps chromium
+        working-directory: pwa_receiver
+      - run: npm run build
+        working-directory: pwa_receiver
+      - run: npm test
+        working-directory: pwa_receiver
+      - run: python3 supabase/nearby_live_test/pwa/generate_verifier.py --check
+      - run: python3 tool/check_crime_database_isolation.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pwa-receiver-browser-evidence
+          path: artifacts/pwa-evidence/
