@@ -1,0 +1,7 @@
+# Only this explicitly named function is deployed manually. No db push/reset.
+project_id = "taipei-safe-walk-townpass"
+
+[functions.nearby-push]
+# Dedicated 256-bit scheduler token is checked by the handler. Public anon or
+# publishable keys cannot authorize this service-to-service endpoint.
+verify_jwt = false

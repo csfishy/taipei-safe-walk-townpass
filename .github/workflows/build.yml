@@ -82,6 +82,21 @@ jobs:
       - run: dart run build_runner build
       - name: Build for the GitHub Pages project path
         run: flutter build web --release --no-pub --base-href /taipei-safe-walk-townpass/ --no-web-resources-cdn
+      - uses: actions/setup-node@v4
+        if: vars.NEARBY_PWA_ENABLED == 'true'
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: pwa_receiver/package-lock.json
+      - name: Build PWA receiver into its own scope
+        if: vars.NEARBY_PWA_ENABLED == 'true'
+        env:
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          NEARBY_VAPID_PUBLIC_KEY: ${{ vars.NEARBY_VAPID_PUBLIC_KEY }}
+        run: |
+          npm ci --ignore-scripts --prefix pwa_receiver
+          node pwa_receiver/build-from-env.mjs --out build/web/receiver
       - name: Package website
         run: |
           cp assets/build-info.json build/web/build-info.json

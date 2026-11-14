@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#356C77"><meta name="referrer" content="strict-origin-when-cross-origin">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://tile.openstreetmap.org; connect-src 'self' https://*.supabase.co; object-src 'none'; base-uri 'self'; form-action 'none'">
+<meta name="apple-mobile-web-app-capable" content="yes"><link rel="manifest" href="./manifest.webmanifest"><link rel="apple-touch-icon" href="./icon-192.png">
+<link rel="stylesheet" href="./vendor/leaflet.css"><link rel="stylesheet" href="./style.css"><title>臺北安心行・協助者接收器</title></head>
+<body><header><strong>臺北安心行</strong><span>協助者接收器 · Live 測試</span></header>
+<main><section class="map-panel" aria-label="自己與呼救位置地圖"><div id="map"></div>
+<div class="map-tools"><button id="follow">回到我的位置</button><button id="fit">顯示全部呼救</button></div>
+<p id="map-note">地圖已開啟；尚未取得自己的位置。底圖需另行同意載入。</p></section>
+<section class="controls"><p class="warning">信箱不經驗證，知道相同信箱即可冒用測試身分。此功能僅限受控 Live 測試，不是緊急服務。</p>
+<p>iPhone 請用 Safari「分享 → 加入主畫面」，再從主畫面開啟（iOS 16.4 以上）。鎖屏提示音受靜音、專注模式與通知設定控制。</p>
+<form id="login-form"><label for="email">測試帳號 e-mail</label><div class="row"><input id="email" type="email" maxlength="254" autocomplete="email" required><button id="login" type="submit">登入／建立</button></div></form>
+<div class="row"><button id="notify">啟用通知</button><button id="logout">登出本裝置</button></div>
+<label class="consent"><input type="checkbox" id="map-consent">同意載入 OpenStreetMap 底圖。顯示區域會傳給圖磚服務；只在前景載入，不下載離線地圖。</label>
+<label class="consent"><input type="checkbox" id="location-consent">同意在前景持續定位；開始接收後將位置回報 Supabase，用於 500 公尺附近呼救篩選。背景沿用最後有效區域。</label>
+<div class="row"><button id="locate">取得／更新我的位置</button><button id="start">開始／續收 30 分鐘</button><button id="stop" class="danger">停止本裝置接收</button></div>
+<p id="lease">尚未開始接收</p><p id="coordinates">自己的座標：尚未取得</p><p id="server-location"></p>
+<p id="status" role="status" aria-live="polite"></p><p id="push-state"></p>
+<h2>有效呼救</h2><p>藍點是自己；紅點是呼救者發送時的位置。距離為直線距離，非步行路線。</p><div id="alerts">目前沒有有效呼救。</div>
+<p class="small">鎖屏後不持續更新 GPS；移動可能離開原接收區域。接收期限屆滿不自動續收，後端 Live 測試結束時也會停止。停止／登出若離線，遠端停止尚未確認；已被工作器領取或推播服務接受的通知仍可能到達。</p>
+</section></main><script src="./vendor/leaflet.js"></script><script type="module" src="./app.mjs"></script></body></html>
