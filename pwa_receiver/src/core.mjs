@@ -114,6 +114,9 @@ export class Receiver {
     if(epoch!==this.epoch || this.pendingStop) return;
     this.lease=Date.parse(deadline); this.center=fix; this.lastReport=this.now();
     this.knownLease=this.lease; this.storage.setItem('receiver.leaseUntil',String(this.lease));
+    // Starting reception is an explicit, consented action. A preceding stop
+    // cleared the watcher, so resume it even if the last fix is still fresh.
+    this.tracking=true; this.startWatch();
     this.message='已開始接收：半徑 500 公尺；30 分鐘內到期，不自動續收。'; this.changed();
   }
   async report() {

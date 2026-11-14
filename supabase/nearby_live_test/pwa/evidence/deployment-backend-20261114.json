@@ -1,0 +1,180 @@
+{
+  "phase": "BACKEND_DEPLOYED",
+  "project_ref": "gxofnhzkqcmzrftxqddi",
+  "preflight": [
+    {
+      "enabled_until": "2026-11-15 15:23:10.845667+00",
+      "live_enabled": true,
+      "postgis": "3.3.7",
+      "receiver_rpcs": 0,
+      "scheduler_extensions": {
+        "supabase_vault": "0.3.1"
+      },
+      "status": "PWA_PREFLIGHT_READONLY_OK",
+      "version": "PostgreSQL 17.11 on aarch64-unknown-linux-gnu, compiled by gcc (GCC) 15.2.0, 64-bit"
+    }
+  ],
+  "after_upgrade_verifier": [
+    {
+      "enabled_until": "2026-11-15 15:23:10.845667+00",
+      "push_enabled": false,
+      "status": "LIVE_TEST_PWA_V2_CONTRACT_VERIFIED",
+      "test_enabled": true
+    }
+  ],
+  "enabled_verifier": [
+    {
+      "enabled_until": "2026-11-15 15:23:10.845667+00",
+      "push_enabled": true,
+      "status": "LIVE_TEST_PWA_V2_CONTRACT_VERIFIED",
+      "test_enabled": true
+    }
+  ],
+  "production_before": [
+    {
+      "production_data": [
+        {
+          "digest": "d41d8cd98f00b204e9800998ecf8427e",
+          "rows": 0,
+          "table": "alert_deliveries"
+        },
+        {
+          "digest": "d41d8cd98f00b204e9800998ecf8427e",
+          "rows": 0,
+          "table": "alerts"
+        },
+        {
+          "digest": "d41d8cd98f00b204e9800998ecf8427e",
+          "rows": 0,
+          "table": "contact_invite_attempts"
+        },
+        {
+          "digest": "d41d8cd98f00b204e9800998ecf8427e",
+          "rows": 0,
+          "table": "contact_invites"
+        },
+        {
+          "digest": "d41d8cd98f00b204e9800998ecf8427e",
+          "rows": 0,
+          "table": "helper_areas"
+        },
+        {
+          "digest": "d41d8cd98f00b204e9800998ecf8427e",
+          "rows": 0,
+          "table": "helper_locations"
+        },
+        {
+          "digest": "d41d8cd98f00b204e9800998ecf8427e",
+          "rows": 0,
+          "table": "helper_profiles"
+        },
+        {
+          "digest": "d41d8cd98f00b204e9800998ecf8427e",
+          "rows": 0,
+          "table": "trusted_contacts"
+        }
+      ],
+      "production_function_digest": "0da5947a034bff58393fc12fc353b6ec",
+      "production_relation_acl_digest": "cad8d361a75807ab4d88d248a768eaa8",
+      "production_schema_acl_digest": "6f3579d38e4b482d32ee13b417282c8f"
+    }
+  ],
+  "production_after": [
+    {
+      "production_data": [
+        {
+          "digest": "d41d8cd98f00b204e9800998ecf8427e",
+          "rows": 0,
+          "table": "alert_deliveries"
+        },
+        {
+          "digest": "d41d8cd98f00b204e9800998ecf8427e",
+          "rows": 0,
+          "table": "alerts"
+        },
+        {
+          "digest": "d41d8cd98f00b204e9800998ecf8427e",
+          "rows": 0,
+          "table": "contact_invite_attempts"
+        },
+        {
+          "digest": "d41d8cd98f00b204e9800998ecf8427e",
+          "rows": 0,
+          "table": "contact_invites"
+        },
+        {
+          "digest": "d41d8cd98f00b204e9800998ecf8427e",
+          "rows": 0,
+          "table": "helper_areas"
+        },
+        {
+          "digest": "d41d8cd98f00b204e9800998ecf8427e",
+          "rows": 0,
+          "table": "helper_locations"
+        },
+        {
+          "digest": "d41d8cd98f00b204e9800998ecf8427e",
+          "rows": 0,
+          "table": "helper_profiles"
+        },
+        {
+          "digest": "d41d8cd98f00b204e9800998ecf8427e",
+          "rows": 0,
+          "table": "trusted_contacts"
+        }
+      ],
+      "production_function_digest": "0da5947a034bff58393fc12fc353b6ec",
+      "production_relation_acl_digest": "cad8d361a75807ab4d88d248a768eaa8",
+      "production_schema_acl_digest": "6f3579d38e4b482d32ee13b417282c8f"
+    }
+  ],
+  "edge_health": {
+    "checked_at_utc": "2026-11-14T05:20:07.362Z",
+    "authenticated_health": 200,
+    "ready": true,
+    "public_key_rejected": 401
+  },
+  "cron": [
+    {
+      "active": true,
+      "jobname": "swtest-nearby-push",
+      "last_status": "succeeded",
+      "schedule": "10 seconds"
+    },
+    {
+      "active": true,
+      "jobname": "swtest-nearby-push-cleanup",
+      "last_status": "succeeded",
+      "schedule": "* * * * *"
+    }
+  ],
+  "cron_digests": [
+    {
+      "command_digest": "78ca5bed37b902fc70164611e7e0150e",
+      "database": "postgres",
+      "jobname": "swtest-nearby-push",
+      "username": "postgres"
+    },
+    {
+      "command_digest": "4a97cda749e7475fda6008d04d81054d",
+      "database": "postgres",
+      "jobname": "swtest-nearby-push-cleanup",
+      "username": "postgres"
+    }
+  ],
+  "scheduled_http": [
+    {
+      "response_count": 9,
+      "status_code": 200,
+      "timed_out": false
+    }
+  ],
+  "source_sha256": {
+    "supabase/nearby_live_test/pwa/01_upgrade.sql": "de4b420449c294542cd30c562e4c52732afe7091b46369f0910aeb264d4fa812",
+    "supabase/nearby_live_test/pwa/02_verify.sql": "4c916ebbd13fd760c33c8b92caf2a8b7fbdcc243d97311f2c9d985eda82d3bb2",
+    "supabase/nearby_live_test/pwa/04_scheduler_extensions.sql": "3de7210ec788075cd149c7e373dca1c5b0b4f1c7130a7dd500a38af6bb95dd1a",
+    "supabase/functions/nearby-push/index.ts": "c2ab6d987b616a278f65981e8207fed6e46dabdc17dc0ce5bc149d35fb0586a0"
+  },
+  "recorded_at_utc": "2026-11-14T05:45:17.245200+00:00",
+  "initial_main_merge": "8dcf793aa4c35a55c0c40fabd8de77b6d66f37dd"
+}

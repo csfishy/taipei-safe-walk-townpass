@@ -32,7 +32,7 @@ test('foreground movement reports center without renewing lease; throttle 10s',a
 });
 test('background clears only watcher and retains last reception center',async()=>{
   const s=setup();s.c.fix=s.fix();await s.c.start();s.c.locate();s.c.visibility(false);
-  assert.equal(s.c.watch,null);assert.equal(s.c.center.lat,25);assert(s.c.active);assert.equal(s.cleared(),1);
+  assert.equal(s.c.watch,null);assert.equal(s.c.center.lat,25);assert(s.c.active);assert.equal(s.cleared(),2);
   s.emit();assert.equal(s.c.fix.lat,25);s.setNow(time+11000);await s.c.report();
   assert.equal(s.calls.filter(x=>x.name==='receiver_location').length,0);
 });
@@ -46,6 +46,12 @@ test('offline stop remains pending in storage, never reports success',async()=>{
 });
 test('manual refresh restarts one watcher instead of accumulating watchers',()=>{
   const s=setup();s.c.locate();s.c.locate();assert.equal(s.cleared(),1);assert.equal(s.c.watch,7);
+});
+test('starting again after stop resumes foreground GPS even while the previous fix is fresh',async()=>{
+  const s=setup();s.c.fix=s.fix();await s.c.start();await s.c.stop();
+  assert.equal(s.c.watch,null);assert.equal(s.c.tracking,false);
+  await s.c.start();assert.equal(s.c.watch,7);assert.equal(s.c.tracking,true);
+  s.emit();assert.equal(s.c.fix.lat,25.001);
 });
 test('pending offline stop replays before lease restoration',async()=>{
   const s=setup();s.c.pendingStop=true;s.stored.set('receiver.pendingStop','true');
