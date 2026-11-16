@@ -46,7 +46,7 @@
 | 110／119 系統撥號與官方通報入口 | 使用者主動點選後開啟手機撥號畫面（自己按撥號），並可開啟臺北通既有的線上報案服務；app 不會代撥、代報或派遣 | 已接線於正式入口，待實機驗收；簡訊報案號碼尚未核對，仍未配置 |
 | 附近協助者位置通知 | 通知附近已加入的協助者 | 受阻（BLOCKED）：缺可信身分、權限與防濫用機制 |
 | 信箱附近通知測試 | 原生預發版以自填、未驗證信箱登入獨立測試後端，提供加入協助、SOS 與前景輪詢 | PR #111 已合併；已記錄部署，測試窗口現已逾期；不解除正式通知的 BLOCKED |
-| PWA 協助者接收器 | 獨立 `/receiver/` 網站，以每裝置 500 公尺／最多 30 分鐘接收區域串接 Web Push | PR #112／#113 已合併；已記錄後端部署，WIRED_NOT_VERIFIED；測試窗口現已逾期，iPhone 鎖屏／聲音待驗 |
+| PWA 協助者接收器 | 獨立 `/receiver/` 網站，以每裝置 500 公尺／最多 30 分鐘接收區域串接 Web Push | PR #112／#113 已合併並有部署紀錄；使用者於 2026-11-16 確認協助者相關 PWA 實機測試已通過；測試窗口現已逾期 |
 | 守護區區域警報 | 協助者主動設定最多 3 個區域，SOS 落在範圍內時納入通知對象；透過 App 內橫幅接收 | 正式 RPC 保持 owner-only，資格／防濫用與雙裝置驗收未完成，維持 BLOCKED；信箱測試後端不提供守護區 |
 | 警消案件自動派遣 | 自動送出警消案件 | 受阻（BLOCKED）：無官方授權；`officialReceipt` 恆為 `null` |
 
@@ -73,7 +73,7 @@
 
 - **GPS 範圍（[#110](https://github.com/csfishy/taipei-safe-walk-townpass/pull/110)）。** 地圖停留期間共用一份前景 GPS；回報中心固定、可主動重新定位，詳情資格隨目前位置更新。誤差需 ≤30 公尺、位置需在 60 秒內；手動導航起點不能代替 GPS。背景／離開／SOS 會取消定位，回前景不自動續導航。詳見 [GPS 回報規格](docs/SAFE_WALK_REPORT_RANGES.md)。
 - **原生信箱測試（[#111](https://github.com/csfishy/taipei-safe-walk-townpass/pull/111)）。** 預發 APK／IPA 以 `SAFE_WALK_EMAIL_LIVE_TEST=true` 建置，沿用官方安心行路由。自填信箱只作測試標籤，不證明身分、不寄驗證碼；測試資料與正式附近通知、犯罪參考資料分開。部署與期限見 [測試後端紀錄](supabase/nearby_live_test/DEPLOYMENT_20261113.md)。
-- **PWA 接收器（[#112](https://github.com/csfishy/taipei-safe-walk-townpass/pull/112)、[#113](https://github.com/csfishy/taipei-safe-walk-townpass/pull/113)）。** 前景定位更新接收區域，背景／鎖屏沿用最後中心，需主動續收；停止後重新開始會恢復定位。已有 v2 後端、Edge 工作器及 Web Push 啟用紀錄；iPhone 鎖屏顯示、聲音與雙裝置流程仍待驗收。見 [接收器說明](pwa_receiver/README.md) 與 [發布流程](pwa_receiver/DEPLOYMENT.md)。
+- **PWA 接收器（[#112](https://github.com/csfishy/taipei-safe-walk-townpass/pull/112)、[#113](https://github.com/csfishy/taipei-safe-walk-townpass/pull/113)）。** 前景定位更新接收區域，背景／鎖屏沿用最後中心，需主動續收；停止後重新開始會恢復定位。已有 v2 後端、Edge 工作器及 Web Push 啟用紀錄；**使用者於 2026-11-16 確認協助者相關 PWA 實機測試已通過**。此為使用者回報的實機結果，與 CI／瀏覽器合成測試分開記錄；舊文件中的 PWA「待實機驗收」描述為當時狀態。本次未另行重測，也不將此結果擴及原生離線導航或正式守護區。見 [接收器說明](pwa_receiver/README.md) 與 [發布流程](pwa_receiver/DEPLOYMENT.md)。
 
 **測試期限：** 上述原生／PWA 共用的已記錄窗口截止於 2026-11-15 23:23:10（Asia/Taipei），截至本次更新已逾期。依現有設計，逾期拒絕測試業務操作；本次僅核對程式與既有紀錄，未重新查驗遠端控制列、延期、推播或清除資料。到期不等於資料已實體刪除。正式 13 個 `nearby_*` RPC 保持 owner-only；隔離測試不代表正式救援服務上線。
 
@@ -370,6 +370,8 @@ npm test
 
 瀏覽器測試使用人工 GPS 與攔截回應；Linux 需先安裝 Playwright Chromium，完整條件見 [接收器 README](pwa_receiver/README.md#本機建置與驗證)。這些測試不能代替兩台 iPhone 的鎖屏、聲音、到期與停止／登出驗收。
 
+**實機結果更新（2026-11-16）：** 使用者確認協助者相關 PWA 實機測試已通過。本 README 依此更新測試狀態；未提供的裝置型號、OS、安裝版本與逐項紀錄不另行推定。
+
 ## CI、預覽版與網站
 
 | 工作流 | 觸發 | 內容 |
@@ -393,7 +395,7 @@ main `150c60a` 的 [Pages 工作流](https://github.com/csfishy/taipei-safe-walk
 - [Flutter Web 預覽](https://csfishy.github.io/taipei-safe-walk-townpass/)
 - [PWA 協助者接收器](https://csfishy.github.io/taipei-safe-walk-townpass/receiver/)
 
-PWA 使用獨立 `receiver/` Service Worker scope；iPhone 需 iOS 16.4+，Safari 加入主畫面後從圖示開啟，再明確允許通知。CI 僅在 `NEARBY_PWA_ENABLED=true` 時附帶接收器。上述是部署證據與入口，**不代表逾期後測試 API 可用或實機通知已驗收**；本次未重新執行網站或裝置測試。
+PWA 使用獨立 `receiver/` Service Worker scope；iPhone 需 iOS 16.4+，Safari 加入主畫面後從圖示開啟，再明確允許通知。CI 僅在 `NEARBY_PWA_ENABLED=true` 時附帶接收器。協助者相關 PWA 實機測試已由使用者於 2026-11-16 確認通過；**測試通過不延長後端窗口**。本次未重新執行網站或裝置測試。
 
 ## 建置
 
