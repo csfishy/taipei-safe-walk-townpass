@@ -7,6 +7,8 @@
 
 > **重要：** 本專案為競賽成果的持續維護作品，**不是官方市政服務**，不能取代 110、119 或任何官方求助管道。專案目前仍在 LIVE-FIRST 收斂中，各功能是否可用請以下方 [目前狀態](#目前狀態) 為準。
 
+> **2026-11-16 更新：** main 已整合 GPS 回報範圍、原生信箱測試入口與 PWA 協助者接收器。已記錄的 Live 測試窗口於 **2026-11-15 23:23:10（Asia/Taipei）** 截止，現已逾期；本次未延期或重新啟用。網站可開啟、CI 成功與測試 API 可用是不同狀態，不能據此宣稱目前可收發通知。
+
 ## 目錄
 
 - [功能總覽](#功能總覽)
@@ -38,11 +40,14 @@
 | 臺北離線底圖 | 主地圖與住家選點共用繁中 Protomaps 向量底圖；原生預設離線、Web 線上，支援 SHA 修復／更新、範圍提示及失敗回退重試 | PR #105 已合入 main；R5：WIRED_NOT_VERIFIED |
 | 全市月別暴力犯罪統計 | 來源抓取與解析已完成，用於呈現全市歷史統計（非即時路段風險） | 已實作，尚未接入 UI |
 | 北北基犯罪參考資料 | 經獨立同意後透過受限唯讀介面查詢；通報／犯罪參考避讓區域僅留在請求記憶體 | 正式查詢接線已存在；後端與裝置驗收依 Readiness，不以參考點冒充精確案發點 |
+| GPS 回報範圍與詳情 | 回報模式固定當次 GPS 中心的 500 公尺選點範圍；一般模式僅允許查看目前 GPS 100 公尺內的使用者回報詳情 | PR #110 已合併，待實機驗收；屬 App 互動限制，所有回報仍參與 50 公尺避讓 |
 | 陪伴語音模擬 | 使用裝置內建 TTS 播放模擬陪伴內容；無可用引擎時顯示文字預覽 | 已接線，待實機驗收 |
 | 本機核准音訊 | 播放經授權的本地音檔 | 未實作 |
 | 110／119 系統撥號與官方通報入口 | 使用者主動點選後開啟手機撥號畫面（自己按撥號），並可開啟臺北通既有的線上報案服務；app 不會代撥、代報或派遣 | 已接線於正式入口，待實機驗收；簡訊報案號碼尚未核對，仍未配置 |
 | 附近協助者位置通知 | 通知附近已加入的協助者 | 受阻（BLOCKED）：缺可信身分、權限與防濫用機制 |
-| 守護區區域警報 | 協助者主動設定最多 3 個區域，SOS 落在範圍內時納入通知對象；透過 App 內橫幅接收 | 已隔離實作；後端部署、資格／防濫用與雙裝置驗收待完成，維持 BLOCKED |
+| 信箱附近通知測試 | 原生預發版以自填、未驗證信箱登入獨立測試後端，提供加入協助、SOS 與前景輪詢 | PR #111 已合併；已記錄部署，測試窗口現已逾期；不解除正式通知的 BLOCKED |
+| PWA 協助者接收器 | 獨立 `/receiver/` 網站，以每裝置 500 公尺／最多 30 分鐘接收區域串接 Web Push | PR #112／#113 已合併並有部署紀錄；使用者於 2026-11-16 確認協助者相關 PWA 實機測試已通過；測試窗口現已逾期 |
+| 守護區區域警報 | 協助者主動設定最多 3 個區域，SOS 落在範圍內時納入通知對象；透過 App 內橫幅接收 | 正式 RPC 保持 owner-only，資格／防濫用與雙裝置驗收未完成，維持 BLOCKED；信箱測試後端不提供守護區 |
 | 警消案件自動派遣 | 自動送出警消案件 | 受阻（BLOCKED）：無官方授權；`officialReceipt` 恆為 `null` |
 
 進入點：安心行會從 TownPass **首頁新聞上方的「臺北安心行」功能卡片**，或「城市服務」的釘選項目開啟，兩處進入同一個原生功能頁，返回後回到原本的 TownPass 畫面。
@@ -61,10 +66,17 @@
 | BLOCKED | 缺必要身分、安全、資料權限或官方授權，不能公開啟用 |
 | NOT_IMPLEMENTED | 尚無正式實作 |
 
-### 2026-11-13 main 整合現況
+### 2026-11-16 main 整合現況
 
-[PR #105](https://github.com/csfishy/taipei-safe-walk-townpass/pull/105) 已將 Live-A／B／C 合入 main，
-核對提交為 [`b281cc0`](https://github.com/csfishy/taipei-safe-walk-townpass/commit/b281cc0b5aba9b1dcb3dae51e8371c5ec23a4e46)。
+本次核對遠端 main 為 [`150c60a`](https://github.com/csfishy/taipei-safe-walk-townpass/commit/150c60afc7bd18843ccfbb0bfc2e47ec4dc20ed1)（PR #113）。
+[PR #105](https://github.com/csfishy/taipei-safe-walk-townpass/pull/105) 的 Live-A／B／C 已保留，後續整合以下能力：
+
+- **GPS 範圍（[#110](https://github.com/csfishy/taipei-safe-walk-townpass/pull/110)）。** 地圖停留期間共用一份前景 GPS；回報中心固定、可主動重新定位，詳情資格隨目前位置更新。誤差需 ≤30 公尺、位置需在 60 秒內；手動導航起點不能代替 GPS。背景／離開／SOS 會取消定位，回前景不自動續導航。詳見 [GPS 回報規格](docs/SAFE_WALK_REPORT_RANGES.md)。
+- **原生信箱測試（[#111](https://github.com/csfishy/taipei-safe-walk-townpass/pull/111)）。** 預發 APK／IPA 以 `SAFE_WALK_EMAIL_LIVE_TEST=true` 建置，沿用官方安心行路由。自填信箱只作測試標籤，不證明身分、不寄驗證碼；測試資料與正式附近通知、犯罪參考資料分開。部署與期限見 [測試後端紀錄](supabase/nearby_live_test/DEPLOYMENT_20261113.md)。
+- **PWA 接收器（[#112](https://github.com/csfishy/taipei-safe-walk-townpass/pull/112)、[#113](https://github.com/csfishy/taipei-safe-walk-townpass/pull/113)）。** 前景定位更新接收區域，背景／鎖屏沿用最後中心，需主動續收；停止後重新開始會恢復定位。已有 v2 後端、Edge 工作器及 Web Push 啟用紀錄；**使用者於 2026-11-16 確認協助者相關 PWA 實機測試已通過**。此為使用者回報的實機結果，與 CI／瀏覽器合成測試分開記錄；舊文件中的 PWA「待實機驗收」描述為當時狀態。本次未另行重測，也不將此結果擴及原生離線導航或正式守護區。見 [接收器說明](pwa_receiver/README.md) 與 [發布流程](pwa_receiver/DEPLOYMENT.md)。
+
+**測試期限：** 上述原生／PWA 共用的已記錄窗口截止於 2026-11-15 23:23:10（Asia/Taipei），截至本次更新已逾期。依現有設計，逾期拒絕測試業務操作；本次僅核對程式與既有紀錄，未重新查驗遠端控制列、延期、推播或清除資料。到期不等於資料已實體刪除。正式 13 個 `nearby_*` RPC 保持 owner-only；隔離測試不代表正式救援服務上線。
+
 正式入口使用 Live 接線；未配置或失敗顯示真實限制與下一步，不回退到 Mock。
 [Readiness](docs/SAFE_WALK_LIVE_READINESS.md) 中較早 SHA 的段落是歷史紀錄，不代表目前仍未接線。
 
@@ -76,12 +88,12 @@
 
 ### 合併後 CI 與發佈證據
 
-以下結果均對應 main `b281cc0`，不是僅引用合併前的 PR checks：
+以下結果已於 2026-11-16 核對 GitHub，均對應 main `150c60a`：
 
 | 檢查／流程 | 結果與證據 |
 |---|---|
-| Safe Walk CI | [成功](https://github.com/csfishy/taipei-safe-walk-townpass/actions/runs/43343958808)；選用 Android debug build 依規則略過 |
-| check-and-build | [成功](https://github.com/csfishy/taipei-safe-walk-townpass/actions/runs/43343958814)；check、Web、Android release APK、unsigned iOS IPA、native verifier 與封包資料隔離通過 |
+| Safe Walk CI | [成功](https://github.com/csfishy/taipei-safe-walk-townpass/actions/runs/43564905634)；選用 Android debug build 依規則略過 |
+| check-and-build | [成功](https://github.com/csfishy/taipei-safe-walk-townpass/actions/runs/43564905532)；檢查、Web、Android APK、unsigned iOS IPA 與發佈流程以該 run 各 job 為準 |
 | 自動發佈 | 同次 main CI 的 prerelease 與 Pages jobs 成功；[預覽版下載](https://github.com/csfishy/taipei-safe-walk-townpass/releases)／[Web 預覽](https://csfishy.github.io/taipei-safe-walk-townpass/) |
 
 CI 與預覽部署成功不等於實機驗收，也不代表 unsigned IPA 可直接安裝。
@@ -179,6 +191,7 @@ Android、iOS 執行前需先安裝對應 SDK、模擬器或準備實機。執�
 ├── test/                          # 官方與安心行測試、fixtures
 ├── tool/                          # 產生器、一致性檢查、發佈與 metadata 工具
 ├── supabase/                      # SQL：犯罪參考資料、回報、附近通知
+├── pwa_receiver/                  # 獨立協助者接收器、Web Push 工作器與測試
 ├── docs/                          # 規格、架構、狀態、建置與協作文件
 ├── assets/、fonts/                 # 官方資產與字型
 ├── android/、ios/、web/            # 平台工程
@@ -227,6 +240,7 @@ Android、iOS 執行前需先安裝對應 SDK、模擬器或準備實機。執�
 | 據點與犯罪參考資料 | Geofabrik OSM 本機求助點快照（ODbL）；臺北市統計資料庫月別暴力犯罪 CSV；Supabase 唯讀查詢（RPC，僅使用公開金鑰） | 附近據點與歷史統計參考；不是即時路段風險 |
 | 語音與音訊 | `flutter_tts`（裝置 TTS）、`audioplayers`（模擬陪伴鈴聲，屬 Level B 依賴） | 模擬陪伴語音與提示音 |
 | 本機儲存 | `shared_preferences` | 使用者設定的「家」，只存在裝置上 |
+| PWA 接收與推播 | Node.js 22+、Leaflet、Service Worker、Web Push、VAPID、Supabase Edge／PostGIS／pg_cron | 獨立測試接收器、每裝置接收期限與 durable outbox；不保證背景送達或提示音 |
 | 資料契約 | JSON Schema（`schemas/`）、`json_serializable`、`build_runner` | 單一來源的 payload 契約與生成的 Dart Model |
 | 測試與 CI | `flutter_test`、`flutter analyze`、GitHub Actions（`safe_walk.yml`、`build.yml`）、Codemagic（iOS） | 單元與 Widget 測試、契約一致性檢查與建置 |
 
@@ -234,10 +248,13 @@ Android、iOS 執行前需先安裝對應 SDK、模擬器或準備實機。執�
 
 ## 近期應用技術
 
-以下依 2026-11-08 GitHub `main` 近期已合併功能整理，核對版本為 [`1e89dfe`](https://github.com/csfishy/taipei-safe-walk-townpass/commit/1e89dfef47bb723f23743ddda571c2b6f9360c4c)。本節記錄合併程式的技術應用；遠端部署、已安裝 App 與實機驗收須分別核對對應版本。
+以下包含既有功能及截至 main `150c60a` 的新增技術。歷史合併證據保留於各 PR；遠端部署、已安裝 App 與實機驗收須分別核對對應版本。
 
 | 功能／PR | 應用技術 | 實際用途 |
 |---|---|---|
+| GPS 回報範圍（[#110](https://github.com/csfishy/taipei-safe-walk-townpass/pull/110)） | Haversine、前景位置串流、精度／新鮮度門檻、Flutter 地圖與無障礙狀態 | 500 公尺固定回報中心、100 公尺詳情資格，背景取消與遲到結果保護 |
+| 信箱測試後端（[#111](https://github.com/csfishy/taipei-safe-walk-townpass/pull/111)） | 私有 schema、信箱 HMAC、短效 bearer token 雜湊、限流與 PostGIS | 在期限內隔離測試附近通知，保持正式 RPC 封鎖；信箱不作身分證明 |
+| PWA 接收與定位恢復（[#112](https://github.com/csfishy/taipei-safe-walk-townpass/pull/112)、[#113](https://github.com/csfishy/taipei-safe-walk-townpass/pull/113)） | Leaflet、Service Worker、Web Push／VAPID、durable outbox、Edge／排程、Playwright | 每裝置接收區域、停止／登出與重新驗權；停止後重新開始可恢復前景定位 |
 | 設定頁與首頁版面（[#87](https://github.com/csfishy/taipei-safe-walk-townpass/pull/87)） | Flutter Widgets、`TPAppBar`／`TPColors`、`MediaQuery.textScalerOf`、`Expanded`／`SingleChildScrollView` | 以既有 TownPass 元件建立安心行設定頁，集中家的位置與協助者設定；首頁一般字級固定版面，大字級時切換可捲動內容，並處理儲存後與系統返回的頁面狀態 |
 | 地圖回報「已排除」（[#89](https://github.com/csfishy/taipei-safe-walk-townpass/pull/89)） | Supabase RPC、PostgreSQL 交易與 advisory lock、UUID、JSON 回應驗證 | `safe_walk_map_report_resolve` 只處理選定的回報 UUID；App 核對 `reportId`／`removed` 回應後才移除標示並更新避讓。伺服器保存已排除 UUID／時間以阻止舊提交重建，支援冪等重試；失敗保留標示與重試入口 |
 | 日夜判斷與夜間路燈偏好（[#88](https://github.com/csfishy/taipei-safe-walk-townpass/pull/88)） | Dart `dart:math`、NOAA／Meeus 太陽位置演算、開源 Valhalla `pedestrian` costing、OpenStreetMap `lit` 標記 | 依起點經緯度與請求當下時間在本機計算太陽高度，以 −0.833° 為日夜門檻；夜間的最短、15 公尺與 50 公尺避讓請求均帶 `costing_options.pedestrian.use_lit = 1.0`，並在路線警示揭露偏好是否套用 |
@@ -271,19 +288,19 @@ Android、iOS 執行前需先安裝對應 SDK、模擬器或準備實機。執�
 | 身分與存取 | 以 Supabase Auth session 的 `auth.uid()` 決定本人，不接受客戶端自報身分；守護區只由本人管理，client 不可直接讀取資料表 | 匿名 Auth／JWT、私有 schema、RLS、撤銷直接表權限及僅授 `authenticated` 的受限 RPC |
 | 保留與退出 | 即時位置只保留最新一筆，有效期 10 分鐘，前景約每 4 分鐘更新；守護區不隨該位置時效消失，可單獨移除，退出協助或刪除帳號時一併清除 | 伺服器有效期檢查、本人區域更新 RPC、退出清除與外鍵級聯刪除 |
 
-目前採 **App 內通知**，尚無 FCM／APNs 背景推播；在背景或關閉 App 時不主動提醒。匿名身分不等於協助者資格審核，伺服器也無法證明守護區中心就是協助者所在位置。截至上述版本，後端仍待 PostGIS 執行驗證、受審查的前向 migration、資格／防濫用與雙裝置驗收，整體維持 **BLOCKED**；程式已合併不代表已部署或完成實機驗收。
+本節描述正式守護區設計；正式通知維持 **BLOCKED**，13 個正式 RPC 保持 owner-only。原生接收採 **App 內通知**，未接 FCM／APNs 背景推播；獨立 PWA 已有 Web Push 部署紀錄，使用另一套測試後端，且不提供守護區。匿名身分不等於協助者資格審核，伺服器也無法證明守護區中心就是協助者所在位置。隔離測試的部署不解除正式身分、防濫用與雙裝置驗收要求。
 
 實作依據：[守護區設計與限制](https://github.com/csfishy/taipei-safe-walk-townpass/blob/13ccee1063ac5781a0ce3b50247fb163aaae43a9/docs/SAFE_WALK_NEARBY_HELPER_DESIGN.md#L128)、[PostGIS 與 RPC](https://github.com/csfishy/taipei-safe-walk-townpass/blob/13ccee1063ac5781a0ce3b50247fb163aaae43a9/supabase/nearby_helper/001_nearby_helper.sql)、[前景接收控制器](https://github.com/csfishy/taipei-safe-walk-townpass/blob/13ccee1063ac5781a0ce3b50247fb163aaae43a9/lib/features/safe_walk/platform/integration/nearby_helper_controller.dart)。
 
 上述應用的限制：
 
 - **路燈是路線偏好**：`use_lit` 依 OSM 標記計算，不保證實際照明。OSRM 備援與據點路線亦揭露未套用。演算法與參數說明見 [NOAA 太陽計算依據](https://gml.noaa.gov/grad/solcalc/calcdetails.html)、[Valhalla 步行參數](https://valhalla.github.io/valhalla/api/route/api-reference/#pedestrian-costing-options)。
-- **通知採 App 內輪詢**：尚未實作 FCM／APNs 背景推播；App 在背景或關閉時不主動通知。匿名 session 與邀請碼配對不等於協助者資格審核；refresh token 目前存在 App 偏好設定，尚非加密安全儲存。截至上述合併版本，聯絡人後端仍待 PostGIS 執行驗證、受審查的前向 migration 與雙裝置驗收，附近通知維持該版本的 BLOCKED 狀態。技術依據見 [#91 安全與驗收紀錄](https://github.com/csfishy/taipei-safe-walk-townpass/pull/91)。
+- **通知能力分開驗收**：原生前景輪詢與 PWA Web Push 是不同流程；未接 FCM／APNs，PWA 也不保證送達或繞過靜音／Focus。匿名 session、邀請碼與未驗證信箱均不等於協助者資格審核。正式通知維持 BLOCKED；信箱測試的 session token 僅在記憶體，PWA 裝置密鑰與停止狀態另存本機，仍有同源 XSS 與冒用風險。既有正式設計歷史見 [#91](https://github.com/csfishy/taipei-safe-walk-townpass/pull/91)。
 - **回報排除是社群操作**：以後端確認為準，不表示官方認定事件已解除；失敗、取消與遲到回應不以畫面假成功代替資料確認。回報功能與持久犯罪參考資料分開。
 
 ## 資料、隱私與安全原則
 
-- **位置由使用者主動觸發**：只在使用者明確操作（如開始導航、更新位置）時透過 TownPass 原生定位服務取得；進入頁面不會自動取位置，也不建立第二個 GPS 監聽。
+- **前景定位與外傳分開**：main #110 起，地圖停留期間使用共用前景 GPS 更新範圍，系統權限仍由使用者授予；背景／離開／SOS 停止，不另建第二個 GPS 監聽。定位更新本身不觸發第三方查詢。PWA 需另行同意並主動取得位置、開始接收；背景沿用最後中心，不追蹤移動。
 - **兩道同意分開**：系統定位權限與「把座標傳給第三方路線或據點服務」的同意分開。未同意不傳送；撤回後取消進行中的查詢並忽略遲到的回應。
 - **不補假資料**：定位失敗、路線失敗或查無資料時，回報 Unavailable 與原因，不以示範座標、示範路線或示範據點代替。
 - **統計不等於即時安全**：行政區或全市歷史統計不能直接視為即時路段安全分數；路線結果也不代表已驗證的安全路線，不保證治安、照明或無障礙條件。
@@ -343,6 +360,18 @@ python3 -m unittest discover -s tool -p 'test_*release*.py' -v
 - 單元與整合測試使用 Fake、Mock 與 fixtures，只證明契約與邊界，不等於真實 Provider 或實機驗收。
 - 真實 Provider smoke test 需要明確開啟（如 `SAFE_WALK_LIVE=1`），且可能因外部服務狀態而失敗；通過單次 smoke 不代表完整功能驗收。
 
+PWA 接收器另需 Node.js 22+，在 `pwa_receiver/` 執行：
+
+```bash
+npm ci --ignore-scripts
+npm run build
+npm test
+```
+
+瀏覽器測試使用人工 GPS 與攔截回應；Linux 需先安裝 Playwright Chromium，完整條件見 [接收器 README](pwa_receiver/README.md#本機建置與驗證)。這些測試不能代替兩台 iPhone 的鎖屏、聲音、到期與停止／登出驗收。
+
+**實機結果更新（2026-11-16）：** 使用者確認協助者相關 PWA 實機測試已通過。本 README 依此更新測試狀態；未提供的裝置型號、OS、安裝版本與逐項紀錄不另行推定。
+
 ## CI、預覽版與網站
 
 | 工作流 | 觸發 | 內容 |
@@ -356,11 +385,17 @@ python3 -m unittest discover -s tool -p 'test_*release*.py' -v
 - 符合 `pubspec.yaml` 版本的手動預發佈 tag（`v*-pre.*`）也會發布。**不要覆寫已發布的 tag。**
 - PR 與手動執行只保留可下載的 artifacts，不建立 Release。
 - 預覽版使用獨立身分 `Town Pass Preview`／`io.github.csfishy.taipeisafewalktownpass.preview`，**不是正式市政服務發行版**。Android APK 使用測試金鑰簽署；unsigned IPA 沒有簽章，不能直接安裝或當作 TestFlight 版本。
+- 目前原生預發版明確開啟信箱 Live 測試入口；自行 `flutter run`／建置不會自動帶入同一旗標或設定。測試窗口已逾期，下載或安裝新版不會延長期限。設定與簽署見 [原生預發版驗收](docs/SAFE_WALK_EMAIL_LIVE_PREVIEW.md)。
 - 詳細安裝限制見 [預發佈說明](docs/PRERELEASE-NOTES.md)。
 
 ### GitHub Pages
 
-Web 版預設部署至 `https://csfishy.github.io/taipei-safe-walk-townpass/`。這只是**部署目標**：只有 Pages 來源已設為 **GitHub Actions**、環境規則允許，且部署成功後，網站才算上線。Release 下載檔不是網站部署證明。
+main `150c60a` 的 [Pages 工作流](https://github.com/csfishy/taipei-safe-walk-townpass/actions/runs/43564905532) 已成功：
+
+- [Flutter Web 預覽](https://csfishy.github.io/taipei-safe-walk-townpass/)
+- [PWA 協助者接收器](https://csfishy.github.io/taipei-safe-walk-townpass/receiver/)
+
+PWA 使用獨立 `receiver/` Service Worker scope；iPhone 需 iOS 16.4+，Safari 加入主畫面後從圖示開啟，再明確允許通知。CI 僅在 `NEARBY_PWA_ENABLED=true` 時附帶接收器。協助者相關 PWA 實機測試已由使用者於 2026-11-16 確認通過；**測試通過不延長後端窗口**。本次未重新執行網站或裝置測試。
 
 ## 建置
 
@@ -416,6 +451,11 @@ flutter build web --release --no-pub --base-href /taipei-safe-walk-townpass/ --n
 | [犯罪參考資料庫](docs/SAFE_WALK_CRIME_DATABASE.md) | 持久資料、地點語意與隔離規則 |
 | [Supabase 設定](docs/SAFE_WALK_SUPABASE.md) | 連線設定與目前限制 |
 | [附近通知安全狀態](docs/SAFE_WALK_NEARBY_SECURITY.md) | 附近通知的 BLOCKED 原因與重新啟用條件 |
+| [GPS 回報範圍](docs/SAFE_WALK_REPORT_RANGES.md) | 500 公尺選點、100 公尺詳情資格與前景 GPS 生命週期 |
+| [原生信箱測試預發版](docs/SAFE_WALK_EMAIL_LIVE_PREVIEW.md) | 原生旗標、設定、簽署與裝置驗收 |
+| [隔離信箱測試後端](supabase/nearby_live_test/README.md) | 測試身分限制、API、期限與部署證據 |
+| [PWA 接收器](pwa_receiver/README.md) | 接收區域、Web Push、停止／登出與本機測試 |
+| [PWA 發布流程](pwa_receiver/DEPLOYMENT.md) | 已授權部署流程、原截止時間與兩台 iPhone 驗收步驟 |
 | [整合歷史](docs/SAFE_WALK_INTEGRATION.md) | 既有接線與 Live 交接的歷史紀錄 |
 | [初始化驗證紀錄](docs/SAFE_WALK_INITIALIZATION.md) | 初始化當時的驗證證據（歷史） |
 | [競賽與授權待確認](docs/SAFE_WALK_COMPETITION_LICENSE.md) | 交件形式、AGPL 要求與待確認事項 |
