@@ -88,13 +88,19 @@
 
 ### 合併後 CI 與發佈證據
 
-以下結果已於 2026-11-16 核對 GitHub，均對應 main `150c60a`：
+以下結果已於 **2026-11-17（Asia/Taipei）** 核對 GitHub，均對應 main [`1e41222`](https://github.com/csfishy/taipei-safe-walk-townpass/commit/1e412228d491515773d4724f4d73e92a00cecf40)（PR #114 合併提交）：
 
 | 檢查／流程 | 結果與證據 |
 |---|---|
-| Safe Walk CI | [成功](https://github.com/csfishy/taipei-safe-walk-townpass/actions/runs/43564905634)；選用 Android debug build 依規則略過 |
-| check-and-build | [成功](https://github.com/csfishy/taipei-safe-walk-townpass/actions/runs/43564905532)；檢查、Web、Android APK、unsigned iOS IPA 與發佈流程以該 run 各 job 為準 |
-| 自動發佈 | 同次 main CI 的 prerelease 與 Pages jobs 成功；[預覽版下載](https://github.com/csfishy/taipei-safe-walk-townpass/releases)／[Web 預覽](https://csfishy.github.io/taipei-safe-walk-townpass/) |
+| Safe Walk CI | [成功](https://github.com/csfishy/taipei-safe-walk-townpass/actions/runs/43888884022)；選用 Android debug build 依規則略過 |
+| check-and-build | [成功（第 2 次執行）](https://github.com/csfishy/taipei-safe-walk-townpass/actions/runs/43888884018/attempts/2)；check 與三平台建置均通過 |
+| Android | 測試簽署 APK 建置、來源 metadata／arm64 payload 驗證與資料隔離檢查成功 |
+| iOS | unsigned IPA 建置、身分／版本／arm64 payload 驗證與資料隔離檢查成功；仍需自行簽署安裝 |
+| Web／PWA | Web 建置、獨立接收器打包與資料隔離檢查成功 |
+| Release | `publish` 成功；[預覽版 v0.0.12-pre.r0000000276.g1e412228d491](https://github.com/csfishy/taipei-safe-walk-townpass/releases/tag/v0.0.12-pre.r0000000276.g1e412228d491) 包含 APK、unsigned IPA、Web ZIP、`build-info.json` 與 `SHA256SUMS.txt` |
+| GitHub Pages | `pages-settings`／`pages` 成功；[Web 預覽](https://csfishy.github.io/taipei-safe-walk-townpass/) 的 [build-info.json](https://csfishy.github.io/taipei-safe-walk-townpass/build-info.json) 已核對為 `1e41222`；[PWA 接收器](https://csfishy.github.io/taipei-safe-walk-townpass/receiver/) 回應 HTTP 200 |
+
+首次 iOS 工作在下載 Flutter SDK 時發生網路逾時（`curl` exit 56），尚未進入編譯；重跑失敗工作後，iOS、Release 與 Pages 均成功，無需修改程式碼。上表保留此次已完成的提交與產物證據；之後的 main 提交及自動預覽版須各自核對，不將本次結果視為後續提交的驗證。
 
 CI 與預覽部署成功不等於實機驗收，也不代表 unsigned IPA 可直接安裝。
 原生首次複製、手機 FPS／記憶體與實走結果尚未提供。
@@ -381,6 +387,17 @@ npm test
 
 ### 預覽版
 
+**截至 2026-11-17 本次核對，最新已成功發佈版本為 [v0.0.12-pre.r0000000276.g1e412228d491](https://github.com/csfishy/taipei-safe-walk-townpass/releases/tag/v0.0.12-pre.r0000000276.g1e412228d491)**，對應 main `1e41222`：
+
+| 下載 | 說明 |
+|---|---|
+| [Android APK](https://github.com/csfishy/taipei-safe-walk-townpass/releases/download/v0.0.12-pre.r0000000276.g1e412228d491/taipei-safe-walk-townpass-android-prerelease.apk) | 測試金鑰簽署的預覽版 |
+| [iOS unsigned IPA](https://github.com/csfishy/taipei-safe-walk-townpass/releases/download/v0.0.12-pre.r0000000276.g1e412228d491/taipei-safe-walk-townpass-ios-unsigned.ipa) | 未簽署，需自行簽署安裝 |
+| [Web ZIP](https://github.com/csfishy/taipei-safe-walk-townpass/releases/download/v0.0.12-pre.r0000000276.g1e412228d491/taipei-safe-walk-townpass-web.zip) | Web 與 PWA 接收器封裝 |
+| [SHA256SUMS.txt](https://github.com/csfishy/taipei-safe-walk-townpass/releases/download/v0.0.12-pre.r0000000276.g1e412228d491/SHA256SUMS.txt) | 產物 SHA-256 校驗碼 |
+
+後續自動發佈版本請查看 [所有預覽版](https://github.com/csfishy/taipei-safe-walk-townpass/releases)；上述固定連結保留本次成功驗證的產物。
+
 - 每次 **push 到 `main`**，且檢查與三平台建置通過後，會自動發布 GitHub prerelease，版本格式例如 `v0.0.12-pre.r0000000042.g31cb0ac12345`。
 - 符合 `pubspec.yaml` 版本的手動預發佈 tag（`v*-pre.*`）也會發布。**不要覆寫已發布的 tag。**
 - PR 與手動執行只保留可下載的 artifacts，不建立 Release。
@@ -390,7 +407,7 @@ npm test
 
 ### GitHub Pages
 
-main `150c60a` 的 [Pages 工作流](https://github.com/csfishy/taipei-safe-walk-townpass/actions/runs/43564905532) 已成功：
+main `1e41222` 的 [Pages 工作流（第 2 次執行）](https://github.com/csfishy/taipei-safe-walk-townpass/actions/runs/43888884018/attempts/2) 已成功，公開網站的 `build-info.json` 已核對為完整提交 `1e412228d491515773d4724f4d73e92a00cecf40`：
 
 - [Flutter Web 預覽](https://csfishy.github.io/taipei-safe-walk-townpass/)
 - [PWA 協助者接收器](https://csfishy.github.io/taipei-safe-walk-townpass/receiver/)
